@@ -1,0 +1,816 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Fey Forest Cosmic Theme - Based on user's palette */
+/* #375946 Forest Green (base) | #444888 Deep Indigo (deepspace) | #42E2ED Magic Cyan (primary) | #347975 Teal (secondary) | #B7ADC7 Lavender (muted) | #A36424 Copper (headers) */
+:root {
+  /* Base: Forest Green (#375946) - darkened for backgrounds */
+  --background: #1a2e22;
+  --foreground: #e8f0ec;
+
+  /* Cards: Slightly lighter forest green */
+  --card: #243828;
+  --card-foreground: #e8f0ec;
+
+  --popover: #1e3024;
+  --popover-foreground: #e8f0ec;
+
+  /* Primary: Magic Cyan (#42E2ED) - the glowing fey magic */
+  --primary: #42e2ed;
+  --primary-foreground: #1a2e22;
+
+  /* Secondary: Teal (#347975) */
+  --secondary: #347975;
+  --secondary-foreground: #e8f0ec;
+
+  /* Muted: Based on lavender (#B7ADC7) */
+  --muted: #2a3f30;
+  --muted-foreground: #b7adc7;
+
+  /* Accent: Deep Indigo (#444888) - for deepspace elements */
+  --accent: #444888;
+  --accent-foreground: #e8f0ec;
+
+  --destructive: #e05555;
+  --destructive-foreground: #fff;
+
+  /* Borders: Forest-tinted with lavender */
+  --border: #3a5442;
+  --input: #2a3f30;
+  --ring: #42e2ed;
+
+  /* Charts */
+  --chart-1: #42e2ed;
+  --chart-2: #347975;
+  --chart-3: #a36424;
+  --chart-4: #444888;
+  --chart-5: #375946;
+
+  /* Increased base radius for more rounded, whimsical feel */
+  --radius: 1.25rem;
+
+  /* Sidebar: Darker forest green */
+  --sidebar: #152218;
+  --sidebar-foreground: #e8f0ec;
+  --sidebar-primary: #42e2ed;
+  --sidebar-primary-foreground: #1a2e22;
+  --sidebar-accent: #2a3f30;
+  --sidebar-accent-foreground: #e8f0ec;
+  --sidebar-border: #3a5442;
+  --sidebar-ring: #42e2ed;
+
+  /* Custom Palette Tokens */
+  --forest-green: #375946;
+  --forest-green-light: #4a7a5f;
+  --forest-green-dark: #1a2e22;
+  --deep-indigo: #444888;
+  --deep-indigo-light: #5a5a9a;
+  --magic-cyan: #42e2ed;
+  --magic-cyan-soft: #42e2ed99;
+  --magic-cyan-glow: #42e2ed66;
+  --teal: #347975;
+  --teal-light: #4a9a95;
+  --lavender: #b7adc7;
+  --lavender-soft: #b7adc788;
+  --copper: #a36424;
+  --copper-bright: #c4853a;
+  --copper-glow: #a3642466;
+}
+
+.dark {
+  --background: #1a2e22;
+  --foreground: #e8f0ec;
+  --card: #243828;
+  --card-foreground: #e8f0ec;
+  --popover: #1e3024;
+  --popover-foreground: #e8f0ec;
+  --primary: #42e2ed;
+  --primary-foreground: #1a2e22;
+  --secondary: #347975;
+  --secondary-foreground: #e8f0ec;
+  --muted: #2a3f30;
+  --muted-foreground: #b7adc7;
+  --accent: #444888;
+  --accent-foreground: #e8f0ec;
+  --destructive: #e05555;
+  --destructive-foreground: #fff;
+  --border: #3a5442;
+  --input: #2a3f30;
+  --ring: #42e2ed;
+  --sidebar: #152218;
+  --sidebar-foreground: #e8f0ec;
+  --sidebar-primary: #42e2ed;
+  --sidebar-primary-foreground: #1a2e22;
+  --sidebar-accent: #2a3f30;
+  --sidebar-accent-foreground: #e8f0ec;
+  --sidebar-border: #3a5442;
+  --sidebar-ring: #42e2ed;
+  --radius: 1.25rem;
+}
+
+@theme inline {
+  --font-sans: "Acme", "Acme Fallback";
+  --font-serif: "Abril Fatface", "Abril Fatface Fallback";
+  --font-mono: "Source Code Pro", "Source Code Pro Fallback";
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  /* Larger radius values for whimsical rounded corners */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 12px);
+  --radius-2xl: calc(var(--radius) + 20px);
+  --radius-full: 9999px;
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* Custom palette */
+  --color-forest-green: var(--forest-green);
+  --color-forest-green-light: var(--forest-green-light);
+  --color-forest-green-dark: var(--forest-green-dark);
+  --color-deep-indigo: var(--deep-indigo);
+  --color-deep-indigo-light: var(--deep-indigo-light);
+  --color-magic-cyan: var(--magic-cyan);
+  --color-magic-cyan-soft: var(--magic-cyan-soft);
+  --color-magic-cyan-glow: var(--magic-cyan-glow);
+  --color-teal: var(--teal);
+  --color-teal-light: var(--teal-light);
+  --color-lavender: var(--lavender);
+  --color-lavender-soft: var(--lavender-soft);
+  --color-copper: var(--copper);
+  --color-copper-bright: var(--copper-bright);
+  --color-copper-glow: var(--copper-glow);
+  /* Legacy tokens for compatibility */
+  --color-gold: var(--copper);
+  --color-gold-bright: var(--copper-bright);
+  --color-fey-pink: var(--magic-cyan);
+  --color-fey-teal: var(--teal);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: var(--ring);
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+  }
+}
+
+/* Enhanced magical background with fairy dust particles */
+.magical-bg {
+  /* Floating fey orbs - organic blob shapes */
+  background:
+    radial-gradient(ellipse 180px 140px at 10% 15%, #42e2ed15 0%, transparent 70%),
+    radial-gradient(ellipse 140px 180px at 90% 20%, #42e2ed10 0%, transparent 70%),
+    radial-gradient(ellipse 160px 120px at 80% 75%, #44488818 0%, transparent 70%),
+    radial-gradient(ellipse 120px 160px at 20% 80%, #34797515 0%, transparent 70%),
+    radial-gradient(ellipse 100px 140px at 55% 40%, #44488812 0%, transparent 70%),
+    radial-gradient(ellipse 140px 100px at 35% 55%, #42e2ed08 0%, transparent 70%),
+    /* Scattered stars */
+    radial-gradient(2.5px 2.5px at 12% 22%, #42e2ed 50%, transparent 100%),
+    radial-gradient(2px 2px at 28% 12%, #b7adc7 50%, transparent 100%),
+    radial-gradient(3px 3px at 48% 32%, #42e2ed80 50%, transparent 100%),
+    radial-gradient(2px 2px at 68% 18%, #b7adc7 50%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 82% 42%, #42e2ed60 50%, transparent 100%),
+    radial-gradient(2px 2px at 22% 58%, #b7adc7 50%, transparent 100%),
+    radial-gradient(3px 3px at 42% 72%, #42e2ed80 50%, transparent 100%),
+    radial-gradient(2px 2px at 62% 52%, #b7adc7 50%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 88% 68%, #42e2ed60 50%, transparent 100%),
+    radial-gradient(2px 2px at 8% 82%, #b7adc7 50%, transparent 100%),
+    radial-gradient(3px 3px at 52% 88%, #42e2ed80 50%, transparent 100%),
+    radial-gradient(2px 2px at 72% 78%, #44488860 50%, transparent 100%),
+    /* Organic wavy base gradient */
+    linear-gradient(160deg, #152218 0%, #1a2e22 25%, #1e3426 50%, #1a2e22 75%, #152218 100%);
+}
+
+/* Animations */
+@keyframes cyan-glow {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes float-gentle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-4px) rotate(0.5deg);
+  }
+  66% {
+    transform: translateY(-2px) rotate(-0.5deg);
+  }
+}
+
+@keyframes pulse-cyan {
+  0%,
+  100% {
+    box-shadow: 0 0 15px -5px #42e2ed66;
+  }
+  50% {
+    box-shadow: 0 0 25px -5px #42e2ed99;
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+  50% {
+    transform: rotate(1deg);
+  }
+}
+
+@keyframes sparkle {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* New fairy dust animation for fey magic feel */
+@keyframes fairy-dust-float {
+  0% {
+    transform: translateY(100vh) translateX(0) scale(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(90vh) translateX(10px) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(50vh) translateX(-15px) scale(0.8);
+  }
+  90% {
+    opacity: 0.4;
+    transform: translateY(10vh) translateX(20px) scale(0.6);
+  }
+  100% {
+    transform: translateY(-10vh) translateX(0) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.animate-cyan-glow {
+  animation: cyan-glow 3s ease-in-out infinite;
+}
+.animate-float-gentle {
+  animation: float-gentle 5s ease-in-out infinite;
+}
+.animate-pulse-cyan {
+  animation: pulse-cyan 3s ease-in-out infinite;
+}
+.animate-wiggle {
+  animation: wiggle 3s ease-in-out infinite;
+}
+.animate-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+/* Fairy dust particle container */
+.fairy-dust {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.fairy-dust::before,
+.fairy-dust::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  animation: fairy-dust-float 8s ease-in-out infinite;
+}
+
+.fairy-dust::before {
+  background: #42e2ed;
+  left: 20%;
+  animation-delay: 0s;
+  box-shadow: 0 0 10px 2px #42e2ed88;
+}
+
+.fairy-dust::after {
+  background: #c4853a;
+  left: 70%;
+  animation-delay: 3s;
+  box-shadow: 0 0 10px 2px #c4853a88;
+}
+
+/* Additional fairy dust particles via pseudo-elements on wrapper */
+.fairy-dust-wrapper {
+  position: relative;
+}
+
+.fairy-dust-wrapper::before {
+  content: "";
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #b7adc7;
+  left: 45%;
+  animation: fairy-dust-float 10s ease-in-out infinite;
+  animation-delay: 5s;
+  box-shadow: 0 0 8px 2px #b7adc788;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Gradient text - Copper for headers */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #c4853a 0%, #a36424 50%, #c4853a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-fey-gradient {
+  background: linear-gradient(135deg, #42e2ed 0%, #347975 50%, #42e2ed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Whimsical border effects with soft rounded glow */
+.border-fey-glow {
+  box-shadow: 0 0 25px -8px #42e2ed55, 0 0 50px -15px #34797544, inset 0 1px 0 #ffffff10;
+  border-color: #42e2ed44;
+  border-radius: var(--radius-xl);
+}
+
+.border-glow {
+  box-shadow: 0 0 25px -8px #42e2ed33, inset 0 1px 0 #ffffff08;
+  border-radius: var(--radius-lg);
+}
+
+/* Whimsical card styles with organic shapes and playful shadows */
+.stat-card-glow {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 1px solid #3a5442;
+  background: linear-gradient(145deg, #283d2e 0%, #1e3024 50%, #243828 100%);
+  border-radius: var(--radius-xl);
+  position: relative;
+  overflow: hidden;
+}
+.stat-card-glow::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(ellipse at center, #42e2ed08 0%, transparent 70%);
+  pointer-events: none;
+}
+.stat-card-glow:hover {
+  border-color: #42e2ed55;
+  box-shadow: 0 8px 35px -10px #42e2ed44, 0 4px 15px -5px #00000044;
+  transform: translateY(-4px) rotate(-0.5deg);
+}
+
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border-radius: var(--radius-lg);
+}
+.card-hover:hover {
+  box-shadow: 0 6px 30px -8px #34797544;
+  transform: translateY(-3px);
+}
+
+/* Whimsical campaign scroll with wavy edges effect */
+.campaign-scroll {
+  background: linear-gradient(150deg, #2a3f30 0%, #243828 50%, #2a3f30 100%);
+  border: 2px solid #3a5442;
+  border-radius: var(--radius-2xl);
+  position: relative;
+  overflow: hidden;
+}
+.campaign-scroll::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 5%;
+  right: 5%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #a3642488, #42e2ed77, #a3642488, transparent);
+  border-radius: var(--radius-full);
+}
+.campaign-scroll::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #347975, transparent);
+  border-radius: var(--radius-full);
+}
+
+.parchment-bg {
+  background-image: radial-gradient(ellipse 60% 50% at 15% 25%, #42e2ed0a 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 85% 75%, #44488812 0%, transparent 60%);
+  border-radius: var(--radius-xl);
+}
+
+/* Updated magical divider with anvil/forge symbol */
+.magical-divider {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #37594666 10%,
+    #347975 25%,
+    #42e2ed 50%,
+    #347975 75%,
+    #37594666 90%,
+    transparent 100%
+  );
+  border-radius: var(--radius-full);
+  position: relative;
+  margin: 1.5rem 0;
+}
+.magical-divider::before {
+  content: "⚒";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: #42e2ed;
+  font-size: 16px;
+  /* Added line-height and display flex for proper vertical centering */
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 0 15px #42e2edaa, 0 0 30px #42e2ed55;
+  background: #1a2e22;
+  padding: 4px 12px;
+  animation: sparkle 3s ease-in-out infinite;
+}
+
+/* Icons with playful glow */
+.icon-glow {
+  filter: drop-shadow(0 0 8px #42e2ed88) drop-shadow(0 0 15px #42e2ed44);
+}
+
+.icon-glow-hover {
+  transition: filter 0.3s ease;
+}
+.icon-glow-hover:hover {
+  filter: drop-shadow(0 0 10px #42e2edaa) drop-shadow(0 0 20px #42e2ed66);
+}
+
+/* Whimsical nav items with rounded pill shape */
+.nav-item-magic {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border-radius: var(--radius-xl);
+}
+.nav-item-magic:hover {
+  background: linear-gradient(100deg, #42e2ed18, #34797512, transparent);
+  transform: translateX(4px);
+}
+
+/* Whimsical buttons with bouncy feel */
+.btn-fey-glow {
+  background: linear-gradient(135deg, #42e2ed 0%, #3bc4ce 50%, #347975 100%);
+  box-shadow: 0 4px 20px -4px #42e2ed66, inset 0 1px 0 #ffffff33;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: #1a2e22;
+  font-weight: 600;
+  border-radius: var(--radius-xl);
+}
+.btn-fey-glow:hover {
+  box-shadow: 0 6px 30px -4px #42e2ed99, inset 0 1px 0 #ffffff44;
+  transform: translateY(-2px) scale(1.02);
+}
+.btn-fey-glow:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-gold-glow {
+  background: linear-gradient(135deg, #c4853a 0%, #b5752f 50%, #a36424 100%);
+  box-shadow: 0 4px 20px -4px #a3642466, inset 0 1px 0 #ffffff33;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--radius-xl);
+}
+.btn-gold-glow:hover {
+  box-shadow: 0 6px 30px -4px #a3642499, inset 0 1px 0 #ffffff44;
+  transform: translateY(-2px) scale(1.02);
+}
+.btn-gold-glow:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-forest-glow {
+  background: linear-gradient(135deg, #4a7a5f 0%, #3f6850 50%, #375946 100%);
+  box-shadow: 0 4px 20px -4px #37594666, inset 0 1px 0 #ffffff22;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--radius-xl);
+}
+.btn-forest-glow:hover {
+  box-shadow: 0 6px 30px -4px #37594699, inset 0 1px 0 #ffffff33;
+  transform: translateY(-2px) scale(1.02);
+}
+.btn-forest-glow:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-indigo-glow {
+  background: linear-gradient(135deg, #5a5a9a 0%, #4f4f8a 50%, #444888 100%);
+  box-shadow: 0 4px 20px -4px #44488866, inset 0 1px 0 #ffffff22;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--radius-xl);
+}
+.btn-indigo-glow:hover {
+  box-shadow: 0 6px 30px -4px #44488899, inset 0 1px 0 #ffffff33;
+  transform: translateY(-2px) scale(1.02);
+}
+.btn-indigo-glow:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Whimsical scrollbar with rounded thumb */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #152218;
+  border-radius: var(--radius-full);
+  margin: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #4a7a5f, #3a5442);
+  border-radius: var(--radius-full);
+  border: 2px solid #152218;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #5a8a6f, #4a7a5f);
+}
+
+/* Added always-visible scrollbar styles */
+html,
+body {
+  overflow: scroll;
+}
+
+/* Add responsive container utilities */
+/* Responsive container that always fits within viewport */
+.responsive-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Card that shrinks/grows to fit container */
+.responsive-card {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Text that truncates when too long */
+.truncate-responsive {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Flex item that shrinks properly */
+.flex-shrink-item {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+/* Grid that collapses on small screens */
+.responsive-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+
+/* Selection & Focus */
+::selection {
+  background: #42e2ed44;
+  color: #e8f0ec;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: 0 0 0 3px #42e2ed44;
+  border-radius: var(--radius-lg);
+}
+
+/* Whimsical badges with pill shape */
+.badge-cyan {
+  background: linear-gradient(135deg, #42e2ed22, #34797518);
+  border: 1px solid #42e2ed44;
+  color: #42e2ed;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+.badge-copper {
+  background: linear-gradient(135deg, #a3642422, #c4853a18);
+  border: 1px solid #a3642444;
+  color: #c4853a;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+.badge-forest {
+  background: linear-gradient(135deg, #37594622, #4a7a5f18);
+  border: 1px solid #37594644;
+  color: #4a7a5f;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+.badge-indigo {
+  background: linear-gradient(135deg, #44488822, #5a5a9a18);
+  border: 1px solid #44488844;
+  color: #5a5a9a;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+.badge-lavender {
+  background: linear-gradient(135deg, #b7adc722, #b7adc718);
+  border: 1px solid #b7adc744;
+  color: #b7adc7;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+.badge-teal {
+  background: linear-gradient(135deg, #34797522, #4a9a9518);
+  border: 1px solid #34797544;
+  color: #4a9a95;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+/* Legacy badge names */
+.badge-fey {
+  background: linear-gradient(135deg, #42e2ed22, #34797518);
+  border: 1px solid #42e2ed44;
+  color: #42e2ed;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+.badge-cosmic {
+  background: linear-gradient(135deg, #44488822, #5a5a9a18);
+  border: 1px solid #44488844;
+  color: #5a5a9a;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+.badge-nature {
+  background: linear-gradient(135deg, #37594622, #4a7a5f18);
+  border: 1px solid #37594644;
+  color: #4a7a5f;
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.75rem;
+}
+
+/* Whimsical input fields with rounded corners */
+.whimsy-input {
+  border-radius: var(--radius-xl);
+  border: 2px solid #3a5442;
+  background: linear-gradient(135deg, #1e3024, #243828);
+  transition: all 0.3s ease;
+}
+.whimsy-input:focus {
+  border-color: #42e2ed66;
+  box-shadow: 0 0 20px -5px #42e2ed44;
+}
+
+/* Whimsical tooltip */
+.whimsy-tooltip {
+  background: linear-gradient(135deg, #2a3f30, #1e3024);
+  border: 1px solid #42e2ed44;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 30px -10px #00000066, 0 0 20px -10px #42e2ed44;
+}
+
+/* Fun staggered animation for lists */
+.stagger-item {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: stagger-in 0.4s ease forwards;
+}
+@keyframes stagger-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.stagger-item:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.stagger-item:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.stagger-item:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.stagger-item:nth-child(4) {
+  animation-delay: 0.2s;
+}
+.stagger-item:nth-child(5) {
+  animation-delay: 0.25s;
+}
+.stagger-item:nth-child(6) {
+  animation-delay: 0.3s;
+}
+.stagger-item:nth-child(7) {
+  animation-delay: 0.35s;
+}
+.stagger-item:nth-child(8) {
+  animation-delay: 0.4s;
+}
+
+/* Floating decoration elements */
+.floating-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.3;
+  pointer-events: none;
+  animation: float-gentle 8s ease-in-out infinite;
+}
+.floating-orb.cyan {
+  background: #42e2ed;
+}
+.floating-orb.indigo {
+  background: #444888;
+}
+.floating-orb.teal {
+  background: #347975;
+}
