@@ -67,6 +67,11 @@ export function calculateAbilityModifiers(abilities: AbilityScores): Record<Abil
 export function getAllModifiers(character: Character): Modifier[] {
   const modifiers: Modifier[] = [];
   
+  // Safety check for characters without properties array
+  if (!character.properties || !Array.isArray(character.properties)) {
+    return modifiers;
+  }
+  
   for (const prop of character.properties) {
     if (!prop.active) continue;
     
@@ -192,8 +197,11 @@ export function calculateArmorClass(
 ): number {
   const dexMod = getAbilityModifier(abilities.dexterity);
   
+  // Safety check for characters without properties array
+  const properties = character.properties || [];
+  
   // Find equipped armor and shield
-  const equippedArmor = character.properties.find(
+  const equippedArmor = properties.find(
     p => p.type === 'item' && 
          p.active &&
          (p as ItemProperty).equipped && 
@@ -201,7 +209,7 @@ export function calculateArmorClass(
          (p as ArmorProperty).armorCategory !== 'shield'
   ) as ArmorProperty | undefined;
   
-  const equippedShield = character.properties.find(
+  const equippedShield = properties.find(
     p => p.type === 'item' && 
          p.active &&
          (p as ItemProperty).equipped && 
@@ -301,6 +309,11 @@ export function calculateCarryingCapacity(abilities: AbilityScores): number {
  * Calculate current load (total weight of equipped and carried items)
  */
 export function calculateCurrentLoad(character: Character): number {
+  // Safety check for characters without properties array
+  if (!character.properties || !Array.isArray(character.properties)) {
+    return 0;
+  }
+  
   return character.properties
     .filter(p => p.type === 'item' && p.active)
     .reduce((total, item) => {

@@ -61,8 +61,13 @@ export const useCharacterStore = create<CharacterStore>()(
       calculatedStats: {},
 
       addCharacter: (character) => {
+        // Ensure properties array exists for new characters
+        const charWithProperties = {
+          ...character,
+          properties: character.properties || []
+        }
         set((state) => ({
-          characters: [...state.characters, character],
+          characters: [...state.characters, charWithProperties],
         }))
         // Calculate stats for new character
         get().recalculateStats(character.id)
@@ -109,7 +114,7 @@ export const useCharacterStore = create<CharacterStore>()(
             char.id === characterId
               ? { 
                   ...char, 
-                  properties: [...char.properties, property],
+                  properties: [...(char.properties || []), property],
                   updatedAt: new Date()
                 }
               : char
@@ -124,7 +129,7 @@ export const useCharacterStore = create<CharacterStore>()(
             char.id === characterId
               ? {
                   ...char,
-                  properties: char.properties.map((prop) =>
+                  properties: (char.properties || []).map((prop) =>
                     prop.id === propertyId ? { ...prop, ...updates, updatedAt: new Date() } : prop
                   ),
                   updatedAt: new Date()
@@ -141,7 +146,7 @@ export const useCharacterStore = create<CharacterStore>()(
             char.id === characterId
               ? {
                   ...char,
-                  properties: char.properties.filter((prop) => prop.id !== propertyId),
+                  properties: (char.properties || []).filter((prop) => prop.id !== propertyId),
                   updatedAt: new Date()
                 }
               : char
@@ -156,7 +161,7 @@ export const useCharacterStore = create<CharacterStore>()(
             char.id === characterId
               ? {
                   ...char,
-                  properties: char.properties.map((prop) =>
+                  properties: (char.properties || []).map((prop) =>
                     prop.id === propertyId ? { ...prop, active: !prop.active, updatedAt: new Date() } : prop
                   ),
                   updatedAt: new Date()
@@ -369,7 +374,8 @@ export const useCharacterStore = create<CharacterStore>()(
             ...char,
             createdAt: new Date(char.createdAt),
             updatedAt: new Date(char.updatedAt),
-            properties: char.properties.map(prop => ({
+            // Safety check for properties array
+            properties: (char.properties || []).map(prop => ({
               ...prop,
               createdAt: new Date(prop.createdAt),
               updatedAt: new Date(prop.updatedAt),
