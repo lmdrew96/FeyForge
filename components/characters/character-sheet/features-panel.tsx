@@ -10,17 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { 
-  Star, 
-  Zap, 
-  Users, 
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  RotateCcw,
-  Minus,
-  Plus,
-} from "lucide-react"
+import { Star, Zap, Users, BookOpen, ChevronDown, ChevronRight, Minus, Plus } from "lucide-react"
 import type { FeatureProperty } from "@/lib/character/types"
 
 interface FeaturesPanelProps {
@@ -46,12 +36,7 @@ const SOURCE_COLORS: Record<FeatureProperty["source"], string> = {
   other: "text-muted-foreground",
 }
 
-export function FeaturesPanel({ 
-  features, 
-  onUseFeature,
-  onRestoreFeature,
-  onToggleFeature,
-}: FeaturesPanelProps) {
+export function FeaturesPanel({ features, onUseFeature, onRestoreFeature, onToggleFeature }: FeaturesPanelProps) {
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set())
 
   const toggleFeature = (id: string) => {
@@ -65,12 +50,15 @@ export function FeaturesPanel({
   }
 
   // Group features by source
-  const groupedFeatures = features.reduce((acc, feature) => {
-    const source = feature.source
-    if (!acc[source]) acc[source] = []
-    acc[source].push(feature)
-    return acc
-  }, {} as Record<string, FeatureProperty[]>)
+  const groupedFeatures = features.reduce(
+    (acc, feature) => {
+      const source = feature.source
+      if (!acc[source]) acc[source] = []
+      acc[source].push(feature)
+      return acc
+    },
+    {} as Record<string, FeatureProperty[]>,
+  )
 
   // Order: race, class, background, feat, other
   const sourceOrder: FeatureProperty["source"][] = ["race", "class", "background", "feat", "other"]
@@ -98,9 +86,7 @@ export function FeaturesPanel({
                   {/* Source Header */}
                   <div className="flex items-center gap-2">
                     <Icon className={`h-4 w-4 ${colorClass}`} />
-                    <span className="text-sm font-medium text-muted-foreground capitalize">
-                      {source} Features
-                    </span>
+                    <span className="text-sm font-medium text-muted-foreground capitalize">{source} Features</span>
                     <Badge variant="secondary" className="text-xs">
                       {sourceFeatures.length}
                     </Badge>
@@ -116,9 +102,7 @@ export function FeaturesPanel({
                         <div
                           key={feature.id}
                           className={`rounded-lg border transition-all ${
-                            feature.active 
-                              ? "border-border bg-card" 
-                              : "border-border/50 bg-muted/30 opacity-60"
+                            feature.active ? "border-border bg-card" : "border-border/50 bg-muted/30 opacity-60"
                           }`}
                         >
                           {/* Feature Header */}
@@ -127,9 +111,7 @@ export function FeaturesPanel({
                             className="w-full flex items-center justify-between p-2 hover:bg-accent/30 transition-colors rounded-lg"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground">
-                                {feature.name}
-                              </span>
+                              <span className="text-sm font-medium text-foreground">{feature.name}</span>
                               {feature.level && (
                                 <Badge variant="outline" className="text-xs">
                                   Lvl {feature.level}
@@ -138,7 +120,7 @@ export function FeaturesPanel({
                             </div>
                             <div className="flex items-center gap-2">
                               {hasUses && (
-                                <Badge 
+                                <Badge
                                   variant={feature.uses!.current > 0 ? "default" : "secondary"}
                                   className="text-xs"
                                 >
@@ -157,7 +139,7 @@ export function FeaturesPanel({
                           {isExpanded && (
                             <div className="px-2 pb-2 space-y-2">
                               {feature.description && (
-                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words overflow-hidden">
                                   {feature.description}
                                 </p>
                               )}
@@ -257,10 +239,7 @@ export function CompactFeaturesList({ features }: CompactFeaturesListProps) {
   return (
     <div className="space-y-1">
       {features.slice(0, 5).map((feature) => (
-        <div 
-          key={feature.id}
-          className="flex items-center justify-between text-sm"
-        >
+        <div key={feature.id} className="flex items-center justify-between text-sm">
           <span className="text-foreground truncate">{feature.name}</span>
           {feature.uses && feature.uses.max > 0 && (
             <Badge variant="secondary" className="text-xs ml-2">
@@ -269,11 +248,7 @@ export function CompactFeaturesList({ features }: CompactFeaturesListProps) {
           )}
         </div>
       ))}
-      {features.length > 5 && (
-        <p className="text-xs text-muted-foreground">
-          +{features.length - 5} more...
-        </p>
-      )}
+      {features.length > 5 && <p className="text-xs text-muted-foreground">+{features.length - 5} more...</p>}
     </div>
   )
 }

@@ -159,7 +159,7 @@ export function DmChat({ campaignContext }: DmChatProps) {
                       DM Assistant
                     </Badge>
                   )}
-                  <div className="prose prose-invert max-w-none text-sm">
+                  <div className="prose prose-sm max-w-none">
                     {message.parts.map((part, index) => {
                       if (part.type === "text") {
                         return <ReactMarkdown key={index}>{part.text}</ReactMarkdown>

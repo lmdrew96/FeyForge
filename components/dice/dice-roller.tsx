@@ -37,7 +37,6 @@ export function DiceRoller() {
   const [showParticles, setShowParticles] = useState(false)
   const [lastConfig, setLastConfig] = useState<DiceConfig | null>(null)
 
-  // Settings and accessibility
   const animationEnabled = useSettingsStore((s) => s.diceAnimation)
   const prefersReducedMotion = useReducedMotion()
   const { playRollSound, playCritSound } = useDiceSounds()
@@ -49,11 +48,8 @@ export function DiceRoller() {
       setLastConfig(rollConfig)
       setIsRolling(true)
       setShowParticles(false)
-
-      // Play roll sound at start
       playRollSound()
 
-      // Animation duration: 1.2s when animations enabled, 300ms otherwise
       const animationDuration = shouldAnimate ? 1200 : 300
 
       setTimeout(() => {
@@ -100,11 +96,9 @@ export function DiceRoller() {
           label,
         }
 
-        // Play crit sound and show particles for crits
         if (criticalHit || criticalMiss) {
           playCritSound(criticalHit)
           setShowParticles(true)
-          // Hide particles after animation
           setTimeout(() => setShowParticles(false), 1000)
         }
 
@@ -116,21 +110,15 @@ export function DiceRoller() {
     [config, advantage, disadvantage, playRollSound, playCritSound, shouldAnimate],
   )
 
-  // Keyboard shortcut: Space to roll again
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only trigger if not in an input field
       const target = e.target as HTMLElement
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
-        return
-      }
-
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return
       if (e.code === "Space" && lastConfig && !isRolling) {
         e.preventDefault()
         performRoll(lastConfig, lastRoll?.label)
       }
     }
-
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [lastConfig, lastRoll?.label, isRolling, performRoll])
@@ -150,9 +138,7 @@ export function DiceRoller() {
 
   const handleCommonRoll = (dice: string, label: string) => {
     const parsed = parseDiceNotation(dice)
-    if (parsed) {
-      performRoll(parsed, label)
-    }
+    if (parsed) performRoll(parsed, label)
   }
 
   const clearHistory = () => {
@@ -164,11 +150,9 @@ export function DiceRoller() {
     <div className="grid gap-6 lg:grid-cols-3">
       {/* Main Roller */}
       <div className="lg:col-span-2 space-y-6">
-        {/* Result Display */}
-        <Card className="bg-card border-border border-glow">
-          <CardContent className="p-8">
-            <div className="text-center relative">
-              {/* Particle effects for criticals */}
+        <Card className="glass-card border-glow">
+          <CardContent className="p-8 md:p-12">
+            <div className="text-center relative min-h-[280px] flex flex-col items-center justify-center">
               <CritParticles
                 type={lastRoll?.criticalHit ? "hit" : "miss"}
                 active={showParticles && (lastRoll?.criticalHit || lastRoll?.criticalMiss || false)}
@@ -176,83 +160,70 @@ export function DiceRoller() {
 
               {isRolling ? (
                 <div className="py-8">
-                  <Dices
-                    className={cn(
-                      "h-24 w-24 mx-auto text-primary",
-                      shouldAnimate && "animate-dice-tumble"
-                    )}
-                  />
-                  <p className="text-lg mt-4 text-muted-foreground">Rolling...</p>
+                  <Dices className={cn("h-32 w-32 mx-auto text-primary", shouldAnimate && "animate-dice-tumble")} />
+                  <p className="text-xl mt-6 text-muted-foreground animate-pulse">Rolling...</p>
                 </div>
               ) : lastRoll ? (
                 <>
                   <div
                     className={cn(
-                      "text-7xl font-bold font-serif mb-4",
+                      "dice-result mb-6",
                       shouldAnimate && "animate-result-pop",
-                      lastRoll.criticalHit && "text-primary animate-glow-pulse",
-                      lastRoll.criticalMiss && "text-destructive animate-glow-pulse-destructive",
+                      lastRoll.criticalHit && "crit-hit",
+                      lastRoll.criticalMiss && "crit-miss",
                       !lastRoll.criticalHit && !lastRoll.criticalMiss && "text-gold-gradient",
                     )}
                   >
                     {lastRoll.total}
                   </div>
                   {lastRoll.criticalHit && (
-                    <Badge className="bg-primary/20 text-primary border-primary/50 text-lg px-4 py-1 mb-2">
-                      CRITICAL HIT!
-                    </Badge>
+                    <Badge className="badge-cyan text-xl px-6 py-2 mb-4 animate-gentle-pulse">NATURAL 20!</Badge>
                   )}
                   {lastRoll.criticalMiss && (
-                    <Badge className="bg-destructive/20 text-destructive border-destructive/50 text-lg px-4 py-1 mb-2">
-                      CRITICAL MISS!
+                    <Badge className="bg-destructive/20 text-destructive border-destructive/50 text-xl px-6 py-2 mb-4 animate-gentle-pulse">
+                      NATURAL 1!
                     </Badge>
                   )}
-                  <div className="text-muted-foreground">
-                    <span className="font-medium">{lastRoll.dice}</span>
-                    {lastRoll.label && <span className="ml-2">({lastRoll.label})</span>}
+                  <div className="text-lg text-muted-foreground">
+                    <span className="font-semibold text-foreground">{lastRoll.dice}</span>
+                    {lastRoll.label && <span className="ml-2 text-primary">({lastRoll.label})</span>}
                   </div>
-                  <div className="text-sm text-muted-foreground mt-2">
+                  <div className="text-sm text-muted-foreground mt-3">
                     Rolls: [{lastRoll.rolls.join(", ")}]
                     {lastRoll.modifier !== 0 && (
-                      <span className="ml-1">
+                      <span className="ml-1 text-primary">
                         {lastRoll.modifier > 0 ? "+" : ""}
                         {lastRoll.modifier}
                       </span>
                     )}
                   </div>
                   {(lastRoll.advantage || lastRoll.disadvantage) && (
-                    <Badge variant="outline" className="mt-2 border-border text-muted-foreground">
+                    <Badge variant="outline" className="mt-3 border-border">
                       {lastRoll.advantage ? "Advantage" : "Disadvantage"}
                     </Badge>
                   )}
                 </>
               ) : (
-                <div className="text-6xl text-muted-foreground font-serif py-8">
-                  <Dices className="h-24 w-24 mx-auto opacity-30" />
-                  <p className="text-lg mt-4">Roll the dice!</p>
+                <div className="text-center py-8">
+                  <Dices className="h-32 w-32 mx-auto text-muted-foreground/30 animate-float-gentle" />
+                  <p className="text-xl mt-6 text-muted-foreground">Click a die to roll!</p>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Quick Dice Buttons */}
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader>
-            <CardTitle className="font-serif text-foreground">Quick Roll</CardTitle>
+            <CardTitle className="text-silver">Quick Roll</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
               {standardDice.map((sides) => (
                 <Button
                   key={sides}
                   variant={config.sides === sides ? "default" : "outline"}
-                  className={cn(
-                    "h-16 text-lg font-bold",
-                    config.sides === sides
-                      ? "bg-primary text-primary-foreground"
-                      : "border-border hover:border-primary/50 bg-transparent",
-                  )}
+                  className={cn("dice-button", config.sides === sides && "active")}
                   onClick={() => handleQuickRoll(sides)}
                 >
                   d{sides}
@@ -263,20 +234,18 @@ export function DiceRoller() {
         </Card>
 
         {/* Custom Roller */}
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader>
-            <CardTitle className="font-serif text-foreground">Custom Roll</CardTitle>
+            <CardTitle className="text-silver">Custom Roll</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div className="grid grid-cols-3 gap-4">
-              {/* Dice Count */}
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Count</Label>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="icon"
-                    className="border-border bg-transparent"
                     onClick={() => setConfig((prev) => ({ ...prev, count: Math.max(1, prev.count - 1) }))}
                   >
                     <Minus className="h-4 w-4" />
@@ -287,12 +256,11 @@ export function DiceRoller() {
                     max={100}
                     value={config.count}
                     onChange={(e) => setConfig((prev) => ({ ...prev, count: Number.parseInt(e.target.value) || 1 }))}
-                    className="text-center bg-input border-border"
+                    className="text-center text-lg font-bold"
                   />
                   <Button
                     variant="outline"
                     size="icon"
-                    className="border-border bg-transparent"
                     onClick={() => setConfig((prev) => ({ ...prev, count: Math.min(100, prev.count + 1) }))}
                   >
                     <Plus className="h-4 w-4" />
@@ -300,7 +268,6 @@ export function DiceRoller() {
                 </div>
               </div>
 
-              {/* Dice Sides */}
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Sides</Label>
                 <Input
@@ -309,18 +276,16 @@ export function DiceRoller() {
                   max={100}
                   value={config.sides}
                   onChange={(e) => setConfig((prev) => ({ ...prev, sides: Number.parseInt(e.target.value) || 6 }))}
-                  className="text-center bg-input border-border"
+                  className="text-center text-lg font-bold"
                 />
               </div>
 
-              {/* Modifier */}
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Modifier</Label>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="icon"
-                    className="border-border bg-transparent"
                     onClick={() => setConfig((prev) => ({ ...prev, modifier: prev.modifier - 1 }))}
                   >
                     <Minus className="h-4 w-4" />
@@ -329,12 +294,11 @@ export function DiceRoller() {
                     type="number"
                     value={config.modifier}
                     onChange={(e) => setConfig((prev) => ({ ...prev, modifier: Number.parseInt(e.target.value) || 0 }))}
-                    className="text-center bg-input border-border"
+                    className="text-center text-lg font-bold"
                   />
                   <Button
                     variant="outline"
                     size="icon"
-                    className="border-border bg-transparent"
                     onClick={() => setConfig((prev) => ({ ...prev, modifier: prev.modifier + 1 }))}
                   >
                     <Plus className="h-4 w-4" />
@@ -343,9 +307,8 @@ export function DiceRoller() {
               </div>
             </div>
 
-            {/* Advantage/Disadvantage */}
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-8">
+              <div className="flex items-center gap-3">
                 <Switch
                   id="advantage"
                   checked={advantage}
@@ -354,11 +317,11 @@ export function DiceRoller() {
                     if (checked) setDisadvantage(false)
                   }}
                 />
-                <Label htmlFor="advantage" className="text-foreground">
+                <Label htmlFor="advantage" className="text-foreground font-medium">
                   Advantage
                 </Label>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Switch
                   id="disadvantage"
                   checked={disadvantage}
@@ -367,49 +330,41 @@ export function DiceRoller() {
                     if (checked) setAdvantage(false)
                   }}
                 />
-                <Label htmlFor="disadvantage" className="text-foreground">
+                <Label htmlFor="disadvantage" className="text-foreground font-medium">
                   Disadvantage
                 </Label>
               </div>
             </div>
 
-            {/* Roll Buttons */}
-            <div className="flex gap-3">
-              <Button
-                className="flex-1 h-14 text-lg bg-primary hover:bg-primary/90 border-glow"
-                onClick={() => performRoll()}
-                disabled={isRolling}
-              >
-                <Dices className={cn("h-5 w-5 mr-2", isRolling && "animate-spin")} />
+            <div className="flex gap-4">
+              <Button className="flex-1 h-16 text-xl btn-primary" onClick={() => performRoll()} disabled={isRolling}>
+                <Dices className={cn("h-6 w-6 mr-3", isRolling && "animate-spin")} />
                 Roll {formatDiceNotation(config)}
               </Button>
               {lastConfig && (
                 <Button
                   variant="outline"
-                  className="h-14 px-6 border-border bg-transparent hover:border-primary/50"
+                  className="h-16 px-6 hover:border-primary/50 bg-transparent"
                   onClick={() => performRoll(lastConfig, lastRoll?.label)}
                   disabled={isRolling}
                   title="Press Space to roll again"
                 >
                   <RefreshCw className="h-5 w-5 mr-2" />
                   Again
-                  <kbd className="ml-2 text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                    Space
-                  </kbd>
+                  <kbd className="ml-3 text-xs bg-muted px-2 py-1 rounded">Space</kbd>
                 </Button>
               )}
             </div>
 
-            {/* Custom Notation */}
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <Input
                 placeholder="Enter dice notation (e.g., 2d6+3)"
                 value={customDice}
                 onChange={(e) => setCustomDice(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleCustomRoll()}
-                className="bg-input border-border"
+                className="text-lg"
               />
-              <Button variant="outline" onClick={handleCustomRoll} className="border-border bg-transparent">
+              <Button variant="outline" onClick={handleCustomRoll} className="px-6 bg-transparent">
                 Roll
               </Button>
             </div>
@@ -419,32 +374,28 @@ export function DiceRoller() {
 
       {/* Sidebar */}
       <div className="space-y-6">
-        {/* Common Rolls */}
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader>
-            <CardTitle className="font-serif text-foreground">Common Rolls</CardTitle>
+            <CardTitle className="text-silver">Common Rolls</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {commonRolls.map((roll) => (
               <Button
                 key={roll.name}
                 variant="outline"
-                className="w-full justify-start border-border hover:border-primary/50 bg-transparent"
+                className="w-full justify-between hover:border-primary/50 h-12 bg-transparent"
                 onClick={() => handleCommonRoll(roll.dice, roll.name)}
               >
-                <span className="flex-1 text-left">
-                  <span className="text-foreground">{roll.name}</span>
-                  <span className="text-xs text-muted-foreground ml-2">({roll.dice})</span>
-                </span>
+                <span className="font-medium">{roll.name}</span>
+                <span className="text-sm text-primary">{roll.dice}</span>
               </Button>
             ))}
           </CardContent>
         </Card>
 
-        {/* Roll History */}
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="font-serif text-foreground">History</CardTitle>
+            <CardTitle className="text-silver">History</CardTitle>
             {history.length > 0 && (
               <Button
                 variant="ghost"
@@ -458,38 +409,35 @@ export function DiceRoller() {
           </CardHeader>
           <CardContent>
             {history.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No rolls yet</p>
+              <p className="text-sm text-muted-foreground text-center py-8">No rolls yet</p>
             ) : (
-              <ScrollArea className="h-[300px]">
+              <ScrollArea className="h-[350px]">
                 <div className="space-y-2">
                   {history.map((roll) => (
                     <div
                       key={roll.id}
                       className={cn(
-                        "p-3 rounded-lg border",
+                        "p-4 rounded-lg border transition-colors",
                         roll.criticalHit
                           ? "border-primary/50 bg-primary/10"
                           : roll.criticalMiss
                             ? "border-destructive/50 bg-destructive/10"
-                            : "border-border bg-accent/30",
+                            : "border-border bg-card/50",
                       )}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-foreground">{roll.dice}</span>
+                        <span className="font-semibold">{roll.dice}</span>
                         <span
                           className={cn(
-                            "text-xl font-bold",
-                            roll.criticalHit
-                              ? "text-primary"
-                              : roll.criticalMiss
-                                ? "text-destructive"
-                                : "text-foreground",
+                            "text-2xl font-bold font-serif",
+                            roll.criticalHit && "text-primary",
+                            roll.criticalMiss && "text-destructive",
                           )}
                         >
                           {roll.total}
                         </span>
                       </div>
-                      {roll.label && <p className="text-xs text-muted-foreground">{roll.label}</p>}
+                      {roll.label && <p className="text-xs text-primary mt-1">{roll.label}</p>}
                       <p className="text-xs text-muted-foreground mt-1">[{roll.rolls.join(", ")}]</p>
                     </div>
                   ))}

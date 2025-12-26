@@ -12,31 +12,14 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { 
-  Search, 
-  Sparkles, 
-  Star, 
-  Clock, 
-  Target,
-  BookOpen,
-  Check,
-  Filter,
-  Loader2,
-  Wand2,
-} from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Search, Sparkles, BookOpen, Check, Loader2, Wand2 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import { cn } from "@/lib/utils"
 import { open5eApi, type Open5eSpell } from "@/lib/open5e-api"
-import { SPELL_SCHOOLS, type SpellSchool } from "@/lib/character/constants"
+import { SPELL_SCHOOLS } from "@/lib/character/constants"
 
 // ============================================
 // TYPES
@@ -121,7 +104,7 @@ export function SpellSelector({
   // Filter spells for this class
   const classSpells = useMemo(() => {
     const className = characterClass.toLowerCase()
-    return allSpells.filter(spell => {
+    return allSpells.filter((spell) => {
       const spellClasses = spell.dnd_class.toLowerCase()
       return spellClasses.includes(className)
     })
@@ -129,14 +112,14 @@ export function SpellSelector({
 
   // Apply filters
   const filteredSpells = useMemo(() => {
-    return classSpells.filter(spell => {
+    return classSpells.filter((spell) => {
       // Search filter
       if (searchQuery && !spell.name.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false
       }
 
       // Level filter
-      if (levelFilter !== "all" && spell.level_int !== parseInt(levelFilter)) {
+      if (levelFilter !== "all" && spell.level_int !== Number.parseInt(levelFilter)) {
         return false
       }
 
@@ -163,9 +146,8 @@ export function SpellSelector({
 
       // Selected only filter
       if (showSelectedOnly) {
-        const isSelected = spell.level_int === 0 
-          ? selectedCantrips.includes(spell.slug)
-          : selectedSpells.includes(spell.slug)
+        const isSelected =
+          spell.level_int === 0 ? selectedCantrips.includes(spell.slug) : selectedSpells.includes(spell.slug)
         if (!isSelected) return false
       }
 
@@ -176,17 +158,28 @@ export function SpellSelector({
 
       return true
     })
-  }, [classSpells, searchQuery, levelFilter, schoolFilter, concentrationFilter, ritualFilter, showSelectedOnly, selectedCantrips, selectedSpells, maxSpellLevel])
+  }, [
+    classSpells,
+    searchQuery,
+    levelFilter,
+    schoolFilter,
+    concentrationFilter,
+    ritualFilter,
+    showSelectedOnly,
+    selectedCantrips,
+    selectedSpells,
+    maxSpellLevel,
+  ])
 
   // Separate cantrips and leveled spells
-  const cantrips = filteredSpells.filter(s => s.level_int === 0)
-  const leveledSpells = filteredSpells.filter(s => s.level_int > 0)
+  const cantrips = filteredSpells.filter((s) => s.level_int === 0)
+  const leveledSpells = filteredSpells.filter((s) => s.level_int > 0)
 
   // Group leveled spells by level
   const spellsByLevel = useMemo(() => {
     const grouped: Record<number, Open5eSpell[]> = {}
     for (let i = 1; i <= 9; i++) {
-      grouped[i] = leveledSpells.filter(s => s.level_int === i)
+      grouped[i] = leveledSpells.filter((s) => s.level_int === i)
     }
     return grouped
   }, [leveledSpells])
@@ -255,7 +248,7 @@ export function SpellSelector({
               <SelectContent>
                 <SelectItem value="all">All Levels</SelectItem>
                 <SelectItem value="0">Cantrips</SelectItem>
-                {Array.from({ length: maxSpellLevel }, (_, i) => i + 1).map(level => (
+                {Array.from({ length: maxSpellLevel }, (_, i) => i + 1).map((level) => (
                   <SelectItem key={level} value={level.toString()}>
                     Level {level}
                   </SelectItem>
@@ -269,7 +262,7 @@ export function SpellSelector({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Schools</SelectItem>
-                {SPELL_SCHOOLS.map(school => (
+                {SPELL_SCHOOLS.map((school) => (
                   <SelectItem key={school} value={school}>
                     {school.charAt(0).toUpperCase() + school.slice(1)}
                   </SelectItem>
@@ -309,18 +302,14 @@ export function SpellSelector({
         ) : (
           <Tabs defaultValue="cantrips" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="cantrips">
-                Cantrips ({cantrips.length})
-              </TabsTrigger>
-              <TabsTrigger value="spells">
-                Spells ({leveledSpells.length})
-              </TabsTrigger>
+              <TabsTrigger value="cantrips">Cantrips ({cantrips.length})</TabsTrigger>
+              <TabsTrigger value="spells">Spells ({leveledSpells.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="cantrips" className="mt-4">
               <ScrollArea className="h-[400px] pr-4">
                 <div className="grid gap-2">
-                  {cantrips.map(spell => (
+                  {cantrips.map((spell) => (
                     <SpellCard
                       key={spell.slug}
                       spell={spell}
@@ -331,9 +320,7 @@ export function SpellSelector({
                     />
                   ))}
                   {cantrips.length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">
-                      No cantrips found matching your filters
-                    </p>
+                    <p className="text-center text-muted-foreground py-8">No cantrips found matching your filters</p>
                   )}
                 </div>
               </ScrollArea>
@@ -350,22 +337,23 @@ export function SpellSelector({
                           Level {level} Spells ({spells.length})
                         </h4>
                         <div className="grid gap-2">
-                          {spells.map(spell => (
+                          {spells.map((spell) => (
                             <SpellCard
                               key={spell.slug}
                               spell={spell}
                               isSelected={selectedSpells.includes(spell.slug)}
                               isPrepared={isPreparedCaster && preparedSpells.includes(spell.slug)}
                               isDisabled={
-                                !selectedSpells.includes(spell.slug) && 
-                                maxSpellsKnown !== undefined && 
+                                !selectedSpells.includes(spell.slug) &&
+                                maxSpellsKnown !== undefined &&
                                 selectedSpells.length >= maxSpellsKnown
                               }
                               onClick={() => handleSpellClick(spell)}
                               onViewDetails={() => setSelectedSpellDetails(spell)}
-                              onTogglePrepared={isPreparedCaster && selectedSpells.includes(spell.slug) 
-                                ? () => onTogglePrepared?.(spell.slug) 
-                                : undefined
+                              onTogglePrepared={
+                                isPreparedCaster && selectedSpells.includes(spell.slug)
+                                  ? () => onTogglePrepared?.(spell.slug)
+                                  : undefined
                               }
                             />
                           ))}
@@ -374,9 +362,7 @@ export function SpellSelector({
                     )
                   })}
                   {leveledSpells.length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">
-                      No spells found matching your filters
-                    </p>
+                    <p className="text-center text-muted-foreground py-8">No spells found matching your filters</p>
                   )}
                 </div>
               </ScrollArea>
@@ -424,12 +410,12 @@ interface SpellCardProps {
   onTogglePrepared?: () => void
 }
 
-function SpellCard({ 
-  spell, 
-  isSelected, 
-  isPrepared, 
-  isDisabled, 
-  onClick, 
+function SpellCard({
+  spell,
+  isSelected,
+  isPrepared,
+  isDisabled,
+  onClick,
   onViewDetails,
   onTogglePrepared,
 }: SpellCardProps) {
@@ -437,20 +423,18 @@ function SpellCard({
     <div
       className={cn(
         "flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer",
-        isSelected
-          ? "border-purple-500 bg-purple-500/10"
-          : "border-border hover:border-purple-500/50",
-        isDisabled && !isSelected && "opacity-50 cursor-not-allowed"
+        isSelected ? "border-purple-500 bg-purple-500/10" : "border-border hover:border-purple-500/50",
+        isDisabled && !isSelected && "opacity-50 cursor-not-allowed",
       )}
       onClick={() => !isDisabled && onClick()}
     >
       {/* Selection Indicator */}
-      <div className={cn(
-        "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-        isSelected
-          ? "border-purple-500 bg-purple-500"
-          : "border-muted-foreground/50"
-      )}>
+      <div
+        className={cn(
+          "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+          isSelected ? "border-purple-500 bg-purple-500" : "border-muted-foreground/50",
+        )}
+      >
         {isSelected && <Check className="h-3 w-3 text-white" />}
       </div>
 
@@ -459,10 +443,14 @@ function SpellCard({
         <div className="flex items-center gap-2">
           <span className="font-medium truncate">{spell.name}</span>
           {spell.concentration === "yes" && (
-            <Badge variant="outline" className="text-[10px] px-1">C</Badge>
+            <Badge variant="outline" className="text-[10px] px-1">
+              C
+            </Badge>
           )}
           {spell.ritual === "yes" && (
-            <Badge variant="outline" className="text-[10px] px-1">R</Badge>
+            <Badge variant="outline" className="text-[10px] px-1">
+              R
+            </Badge>
           )}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
@@ -519,45 +507,35 @@ function SpellDetails({ spell }: SpellDetailsProps) {
       {/* Quick Info */}
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
-          <span className="text-muted-foreground">School:</span>{" "}
-          <span className="capitalize">{spell.school}</span>
+          <span className="text-muted-foreground">School:</span> <span className="capitalize">{spell.school}</span>
         </div>
         <div>
-          <span className="text-muted-foreground">Casting Time:</span>{" "}
-          {spell.casting_time}
+          <span className="text-muted-foreground">Casting Time:</span> {spell.casting_time}
         </div>
         <div>
-          <span className="text-muted-foreground">Range:</span>{" "}
-          {spell.range}
+          <span className="text-muted-foreground">Range:</span> {spell.range}
         </div>
         <div>
-          <span className="text-muted-foreground">Duration:</span>{" "}
-          {spell.duration}
+          <span className="text-muted-foreground">Duration:</span> {spell.duration}
         </div>
         <div>
-          <span className="text-muted-foreground">Components:</span>{" "}
-          {spell.components}
+          <span className="text-muted-foreground">Components:</span> {spell.components}
         </div>
         {spell.material && (
           <div className="col-span-2">
-            <span className="text-muted-foreground">Materials:</span>{" "}
-            {spell.material}
+            <span className="text-muted-foreground">Materials:</span> {spell.material}
           </div>
         )}
       </div>
 
       {/* Badges */}
       <div className="flex gap-2">
-        {spell.concentration === "yes" && (
-          <Badge>Concentration</Badge>
-        )}
-        {spell.ritual === "yes" && (
-          <Badge variant="secondary">Ritual</Badge>
-        )}
+        {spell.concentration === "yes" && <Badge>Concentration</Badge>}
+        {spell.ritual === "yes" && <Badge variant="secondary">Ritual</Badge>}
       </div>
 
       {/* Description */}
-      <div className="prose prose-sm prose-invert max-w-none">
+      <div className="prose prose-sm max-w-none">
         <ReactMarkdown>{spell.desc}</ReactMarkdown>
       </div>
 

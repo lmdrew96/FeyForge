@@ -10,11 +10,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Coins, Package, Plus, X } from "lucide-react"
 import type { CharacterCreationData, ItemProperty } from "@/lib/character/types"
-import { CURRENCY } from "@/lib/character/constants"
 
 interface Step4EquipmentProps {
   data: CharacterCreationData
@@ -55,19 +53,14 @@ const COMMON_EQUIPMENT: { name: string; category: ItemProperty["category"]; weig
   { name: "Scholar's Pack", category: "gear", weight: 10 },
 ]
 
-export function Step4Equipment({ 
-  data, 
-  onUpdate,
-  classEquipment,
-  backgroundEquipment,
-}: Step4EquipmentProps) {
+export function Step4Equipment({ data, onUpdate, classEquipment, backgroundEquipment }: Step4EquipmentProps) {
   const [useGold, setUseGold] = useState(!data.useStartingEquipment)
-  const [goldAmount, setGoldAmount] = useState(data.startingGold || 0)
+  const [goldAmount, setGoldAmount] = useState(data.startingGold || 100)
   const [customItemName, setCustomItemName] = useState("")
 
   const equipment = data.startingEquipment || []
 
-  const addItem = (item: typeof COMMON_EQUIPMENT[0]) => {
+  const addItem = (item: (typeof COMMON_EQUIPMENT)[0]) => {
     const newItem: ItemProperty = {
       id: crypto.randomUUID(),
       type: "item",
@@ -114,15 +107,13 @@ export function Step4Equipment({
 
   const removeItem = (id: string) => {
     onUpdate({
-      startingEquipment: equipment.filter(e => e.id !== id),
+      startingEquipment: equipment.filter((e) => e.id !== id),
     })
   }
 
   const updateItemQuantity = (id: string, quantity: number) => {
     onUpdate({
-      startingEquipment: equipment.map(e =>
-        e.id === id ? { ...e, quantity: Math.max(1, quantity) } : e
-      ),
+      startingEquipment: equipment.map((e) => (e.id === id ? { ...e, quantity: Math.max(1, quantity) } : e)),
     })
   }
 
@@ -134,7 +125,7 @@ export function Step4Equipment({
     })
   }
 
-  const totalWeight = equipment.reduce((sum, item) => sum + (item.weight * item.quantity), 0)
+  const totalWeight = equipment.reduce((sum, item) => sum + item.weight * item.quantity, 0)
 
   return (
     <div className="space-y-6">
@@ -200,7 +191,7 @@ export function Step4Equipment({
                 type="number"
                 min={0}
                 value={goldAmount}
-                onChange={(e) => handleGoldChange(parseInt(e.target.value) || 0)}
+                onChange={(e) => handleGoldChange(Number.parseInt(e.target.value) || 0)}
                 className="bg-input border-border"
               />
               <Badge variant="outline" className="whitespace-nowrap">
@@ -211,9 +202,7 @@ export function Step4Equipment({
           </div>
 
           <div className="p-3 rounded-lg bg-muted/50 border border-border">
-            <p className="text-sm text-muted-foreground">
-              Typical starting gold by class:
-            </p>
+            <p className="text-sm text-muted-foreground">Typical starting gold by class:</p>
             <ul className="text-xs text-muted-foreground mt-2 grid grid-cols-2 gap-1">
               <li>• Barbarian: 2d4 × 10 (50 avg)</li>
               <li>• Bard: 5d4 × 10 (125 avg)</li>
@@ -236,7 +225,7 @@ export function Step4Equipment({
           {/* Available Equipment */}
           <div className="space-y-4">
             <h3 className="font-medium text-foreground">Add Equipment</h3>
-            
+
             {/* Custom Item */}
             <div className="flex gap-2">
               <Input
@@ -246,12 +235,7 @@ export function Step4Equipment({
                 onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
                 className="bg-input border-border"
               />
-              <Button
-                type="button"
-                size="icon"
-                onClick={addCustomItem}
-                disabled={!customItemName.trim()}
-              >
+              <Button type="button" size="icon" onClick={addCustomItem} disabled={!customItemName.trim()}>
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
@@ -259,7 +243,7 @@ export function Step4Equipment({
             <ScrollArea className="h-[300px] rounded-lg border border-border p-3">
               <div className="space-y-1">
                 {COMMON_EQUIPMENT.map((item) => {
-                  const alreadyAdded = equipment.some(e => e.name === item.name)
+                  const alreadyAdded = equipment.some((e) => e.name === item.name)
                   return (
                     <button
                       key={item.name}
@@ -290,32 +274,25 @@ export function Step4Equipment({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-medium text-foreground">Your Equipment</h3>
-              <Badge variant="secondary">
-                {totalWeight} lb total
-              </Badge>
+              <Badge variant="secondary">{totalWeight} lb total</Badge>
             </div>
 
             {equipment.length === 0 ? (
               <div className="p-8 rounded-lg border border-dashed border-border text-center">
                 <Package className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  No equipment selected yet
-                </p>
+                <p className="text-sm text-muted-foreground">No equipment selected yet</p>
               </div>
             ) : (
               <ScrollArea className="h-[300px] rounded-lg border border-border p-3">
                 <div className="space-y-2">
                   {equipment.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card"
-                    >
+                    <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card">
                       <span className="flex-1 text-sm text-foreground">{item.name}</span>
                       <Input
                         type="number"
                         min={1}
                         value={item.quantity}
-                        onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                        onChange={(e) => updateItemQuantity(item.id, Number.parseInt(e.target.value) || 1)}
                         className="w-16 h-8 text-center bg-input border-border"
                       />
                       <Button

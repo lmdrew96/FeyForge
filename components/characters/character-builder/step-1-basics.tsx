@@ -13,13 +13,25 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Sparkles, Loader2, Shield, Sword, User, BookOpen, ChevronRight, Check } from "lucide-react"
+import { Sparkles, Loader2, Sword, User, BookOpen, Check } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import type { CharacterCreationData } from "@/lib/character/types"
 import type { Open5eRace, Open5eClass, Open5eBackground } from "@/lib/open5e-api"
 import { open5eApi } from "@/lib/open5e-api"
 import { ALIGNMENTS } from "@/lib/character/constants"
 import { QuickBuildWizard } from "./quick-build-wizard"
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*\*([^*]+)\*\*\*/g, "$1") // bold italic
+    .replace(/\*\*([^*]+)\*\*/g, "$1") // bold
+    .replace(/\*([^*]+)\*/g, "$1") // italic
+    .replace(/_([^_]+)_/g, "$1") // underscore italic
+    .replace(/`([^`]+)`/g, "$1") // inline code
+    .replace(/#{1,6}\s/g, "") // headers
+    .replace(/\n/g, " ") // newlines
+    .trim()
+}
 
 interface Step1BasicsProps {
   data: CharacterCreationData
@@ -34,9 +46,9 @@ interface Step1BasicsProps {
   onBackgroundSelect: (bg: Open5eBackground | null) => void
 }
 
-export function Step1Basics({ 
-  data, 
-  onUpdate, 
+export function Step1Basics({
+  data,
+  onUpdate,
   onGenerateName,
   onApplyQuickBuild,
   raceData,
@@ -56,15 +68,9 @@ export function Step1Basics({
   const [showSrdOnly, setShowSrdOnly] = useState(false)
 
   // Filter content based on SRD toggle
-  const filteredRaces = showSrdOnly 
-    ? races.filter(r => r.document__slug === "wotc-srd")
-    : races
-  const filteredClasses = showSrdOnly 
-    ? classes.filter(c => c.document__slug === "wotc-srd")
-    : classes
-  const filteredBackgrounds = showSrdOnly 
-    ? backgrounds.filter(b => b.document__slug === "wotc-srd")
-    : backgrounds
+  const filteredRaces = showSrdOnly ? races.filter((r) => r.document__slug === "wotc-srd") : races
+  const filteredClasses = showSrdOnly ? classes.filter((c) => c.document__slug === "wotc-srd") : classes
+  const filteredBackgrounds = showSrdOnly ? backgrounds.filter((b) => b.document__slug === "wotc-srd") : backgrounds
 
   // Load data from Open5e API
   useEffect(() => {
@@ -102,12 +108,12 @@ export function Step1Basics({
 
   const handleRaceSelect = (race: Open5eRace) => {
     onRaceSelect(race)
-    onUpdate({ 
+    onUpdate({
       race: race.name,
       subrace: undefined,
     })
     setSelectedSubrace(null)
-    
+
     // Parse racial ability bonuses
     const racialBonuses: Partial<Record<string, number>> = {}
     if (race.asi) {
@@ -124,12 +130,12 @@ export function Step1Basics({
   const handleSubraceSelect = (subraceName: string) => {
     setSelectedSubrace(subraceName)
     onUpdate({ subrace: subraceName })
-    
+
     // Add subrace bonuses to racial bonuses
     if (raceData) {
-      const subrace = raceData.subraces?.find(s => s.name === subraceName)
+      const subrace = raceData.subraces?.find((s) => s.name === subraceName)
       const racialBonuses: Partial<Record<string, number>> = {}
-      
+
       // Base race bonuses
       if (raceData.asi) {
         for (const bonus of raceData.asi) {
@@ -139,7 +145,7 @@ export function Step1Basics({
           }
         }
       }
-      
+
       // Subrace bonuses
       if (subrace?.asi) {
         for (const bonus of subrace.asi) {
@@ -149,7 +155,7 @@ export function Step1Basics({
           }
         }
       }
-      
+
       onUpdate({ racialBonuses })
     }
   }
@@ -167,7 +173,7 @@ export function Step1Basics({
   // Get selected subrace data
   const selectedSubraceData = useMemo(() => {
     if (!raceData || !selectedSubrace) return null
-    return raceData.subraces?.find(s => s.name === selectedSubrace) || null
+    return raceData.subraces?.find((s) => s.name === selectedSubrace) || null
   }, [raceData, selectedSubrace])
 
   if (loading) {
@@ -180,14 +186,14 @@ export function Step1Basics({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h2 className="font-serif text-2xl font-bold text-gold-gradient">Create Your Hero</h2>
-        <p className="text-muted-foreground mt-2">Choose your race, class, and begin your legend</p>
-        
+    <div className="space-y-4 sm:space-y-6">
+      <div className="text-center mb-4 sm:mb-6">
+        <h2 className="font-serif text-xl sm:text-2xl font-bold text-gold-gradient">Create Your Hero</h2>
+        <p className="text-muted-foreground mt-1 sm:mt-2 text-sm">Choose your race, class, and begin your legend</p>
+
         {/* Quick Build Button */}
         {onApplyQuickBuild && (
-          <div className="mt-4">
+          <div className="mt-3 sm:mt-4">
             <QuickBuildWizard onApplyBuild={onApplyQuickBuild} />
             <p className="text-xs text-muted-foreground mt-2">
               New to D&D? Let AI suggest a build based on your concept!
@@ -197,9 +203,9 @@ export function Step1Basics({
       </div>
 
       {/* Character Name */}
-      <div className="max-w-md mx-auto space-y-4">
+      <div className="max-w-md mx-auto space-y-3 sm:space-y-4 px-2">
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-foreground font-medium">
+          <Label htmlFor="name" className="text-foreground font-medium text-sm">
             Character Name
           </Label>
           <div className="flex gap-2">
@@ -208,7 +214,7 @@ export function Step1Basics({
               placeholder="Enter your character's name..."
               value={data.name || ""}
               onChange={(e) => onUpdate({ name: e.target.value })}
-              className="bg-input border-border focus:border-primary focus:ring-primary/20"
+              className="bg-input border-border focus:border-primary focus:ring-primary/20 text-base"
             />
             {onGenerateName && (
               <Button
@@ -217,13 +223,9 @@ export function Step1Basics({
                 size="icon"
                 onClick={handleGenerateName}
                 disabled={isGeneratingName}
-                className="border-primary/50 text-primary hover:bg-primary/10 shrink-0"
+                className="border-primary/50 text-primary hover:bg-primary/10 shrink-0 bg-transparent h-10 w-10"
               >
-                {isGeneratingName ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
+                {isGeneratingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               </Button>
             )}
           </div>
@@ -232,55 +234,60 @@ export function Step1Basics({
 
       {/* Race, Class, Background Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex items-center justify-between mb-4">
-          <TabsList className="grid grid-cols-3">
-            <TabsTrigger value="race" className="gap-2">
-              <User className="h-4 w-4" />
-              Race
+        <div className="flex flex-col gap-3 mb-4">
+          <TabsList className="grid grid-cols-3 w-full">
+            <TabsTrigger value="race" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+              <User className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Race</span>
               {data.race && <Check className="h-3 w-3 text-green-500" />}
             </TabsTrigger>
-            <TabsTrigger value="class" className="gap-2">
-              <Sword className="h-4 w-4" />
-              Class
+            <TabsTrigger value="class" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+              <Sword className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Class</span>
               {data.class && <Check className="h-3 w-3 text-green-500" />}
             </TabsTrigger>
-            <TabsTrigger value="background" className="gap-2">
-              <BookOpen className="h-4 w-4" />
-              Background
+            <TabsTrigger value="background" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+              <BookOpen className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Background</span>
               {data.background && <Check className="h-3 w-3 text-green-500" />}
             </TabsTrigger>
           </TabsList>
-          
-          {/* Content Source Filter */}
-          <div className="flex items-center gap-2">
-            <Label htmlFor="srd-filter" className="text-sm text-muted-foreground">
+
+          {/* Content Source Filter - now on its own row */}
+          <div className="flex items-center justify-center gap-2 px-2">
+            <Label htmlFor="srd-filter" className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
               SRD Only
             </Label>
             <button
               id="srd-filter"
               type="button"
               onClick={() => setShowSrdOnly(!showSrdOnly)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                showSrdOnly ? "bg-primary" : "bg-muted"
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors border ${
+                showSrdOnly ? "bg-primary border-primary" : "bg-muted border-border"
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  showSrdOnly ? "translate-x-6" : "translate-x-1"
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                  showSrdOnly ? "translate-x-[18px]" : "translate-x-0.5"
                 }`}
               />
             </button>
-            <span className="text-xs text-muted-foreground">
-              ({activeTab === "race" ? filteredRaces.length : activeTab === "class" ? filteredClasses.length : filteredBackgrounds.length} options)
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {activeTab === "race"
+                ? filteredRaces.length
+                : activeTab === "class"
+                  ? filteredClasses.length
+                  : filteredBackgrounds.length}{" "}
+              options
             </span>
           </div>
         </div>
 
         {/* Race Selection */}
         <TabsContent value="race" className="mt-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {/* Race List */}
-            <ScrollArea className="h-[400px] rounded-lg border border-border p-2">
+            <ScrollArea className="h-[300px] sm:h-[400px] rounded-lg border border-border p-2">
               <div className="space-y-2">
                 {filteredRaces.map((race) => (
                   <Card
@@ -290,24 +297,22 @@ export function Step1Basics({
                     }`}
                     onClick={() => handleRaceSelect(race)}
                   >
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium">{race.name}</h4>
+                    <CardContent className="p-2 sm:p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-medium text-sm">{race.name}</h4>
                             {race.document__slug !== "wotc-srd" && (
-                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
                                 {race.document__title?.split(":")?.[0] || "3rd Party"}
                               </Badge>
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground line-clamp-1">
-                            {race.asi_desc}
+                            {stripMarkdown(race.asi_desc || "")}
                           </p>
                         </div>
-                        {data.race === race.name && (
-                          <Check className="h-5 w-5 text-primary" />
-                        )}
+                        {data.race === race.name && <Check className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />}
                       </div>
                     </CardContent>
                   </Card>
@@ -316,36 +321,42 @@ export function Step1Basics({
             </ScrollArea>
 
             {/* Race Details */}
-            <div className="rounded-lg border border-border p-4">
+            <div className="rounded-lg border border-border p-3 sm:p-4 overflow-hidden w-full min-w-0">
               {raceData ? (
-                <ScrollArea className="h-[380px]">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="font-serif text-xl font-bold">{raceData.name}</h3>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <Badge variant="outline">Size: {raceData.size}</Badge>
-                        <Badge variant="outline">Speed: {raceData.speed?.walk || 30}ft</Badge>
+                <ScrollArea className="h-[280px] sm:h-[380px]">
+                  <div className="space-y-3 sm:space-y-4 pr-4 w-full min-w-0">
+                    <div className="min-w-0">
+                      <h3 className="font-serif text-lg sm:text-xl font-bold truncate">{raceData.name}</h3>
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2">
+                        <Badge variant="outline" className="text-xs">
+                          Size: {stripMarkdown(raceData.size || "Medium")}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          Speed: {raceData.speed?.walk || 30}ft
+                        </Badge>
                       </div>
                     </div>
 
-                    <div>
-                      <h4 className="font-medium text-sm text-muted-foreground mb-1">Ability Score Increase</h4>
-                      <p className="text-sm">
+                    <div className="overflow-hidden min-w-0 w-full">
+                      <h4 className="font-medium text-xs sm:text-sm text-muted-foreground mb-1">
+                        Ability Score Increase
+                      </h4>
+                      <div className="text-xs sm:text-sm prose prose-sm max-w-none w-full [&>*]:max-w-full overflow-hidden break-words">
                         <ReactMarkdown>{raceData.asi_desc}</ReactMarkdown>
-                      </p>
+                      </div>
                     </div>
 
-                    <div>
-                      <h4 className="font-medium text-sm text-muted-foreground mb-1">Traits</h4>
-                      <div className="text-sm prose prose-sm prose-invert max-w-none">
+                    <div className="overflow-hidden min-w-0 w-full">
+                      <h4 className="font-medium text-xs sm:text-sm text-muted-foreground mb-1">Traits</h4>
+                      <div className="text-xs sm:text-sm prose prose-sm max-w-none w-full [&>*]:max-w-full overflow-hidden break-words">
                         <ReactMarkdown>{raceData.traits}</ReactMarkdown>
                       </div>
                     </div>
 
                     {/* Subraces */}
                     {raceData.subraces && raceData.subraces.length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">Subraces</h4>
+                      <div className="overflow-hidden min-w-0 w-full">
+                        <h4 className="font-medium text-xs sm:text-sm text-muted-foreground mb-2">Subraces</h4>
                         <div className="space-y-2">
                           {raceData.subraces.map((subrace) => (
                             <Card
@@ -356,27 +367,27 @@ export function Step1Basics({
                               onClick={() => handleSubraceSelect(subrace.name)}
                             >
                               <CardContent className="p-3">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <h5 className="font-medium text-sm">{subrace.name}</h5>
-                                    <p className="text-xs text-muted-foreground">
-                                      <ReactMarkdown>{subrace.asi_desc}</ReactMarkdown>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <h5 className="font-medium text-sm truncate">{subrace.name}</h5>
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {stripMarkdown(subrace.asi_desc || "")}
                                     </p>
                                   </div>
                                   {selectedSubrace === subrace.name && (
-                                    <Check className="h-4 w-4 text-primary" />
+                                    <Check className="h-4 w-4 text-primary shrink-0" />
                                   )}
                                 </div>
                               </CardContent>
                             </Card>
                           ))}
                         </div>
-                        
+
                         {/* Selected Subrace Details */}
                         {selectedSubraceData && (
-                          <div className="mt-3 p-3 bg-muted/50 rounded-lg">
-                            <h5 className="font-medium text-sm mb-1">{selectedSubraceData.name} Traits</h5>
-                            <div className="text-sm prose prose-sm prose-invert max-w-none">
+                          <div className="mt-3 p-3 bg-muted/50 rounded-lg overflow-hidden min-w-0 w-full">
+                            <h5 className="font-medium text-sm mb-1 truncate">{selectedSubraceData.name} Traits</h5>
+                            <div className="text-sm prose prose-sm max-w-none w-full [&>*]:max-w-full overflow-hidden break-words">
                               <ReactMarkdown>{selectedSubraceData.traits}</ReactMarkdown>
                             </div>
                           </div>
@@ -384,17 +395,17 @@ export function Step1Basics({
                       </div>
                     )}
 
-                    <div>
-                      <h4 className="font-medium text-sm text-muted-foreground mb-1">Languages</h4>
-                      <p className="text-sm">{raceData.languages}</p>
+                    <div className="overflow-hidden min-w-0 w-full">
+                      <h4 className="font-medium text-xs sm:text-sm text-muted-foreground mb-1">Languages</h4>
+                      <p className="text-xs sm:text-sm break-words">{raceData.languages}</p>
                     </div>
                   </div>
                 </ScrollArea>
               ) : (
-                <div className="h-[380px] flex items-center justify-center text-muted-foreground">
+                <div className="h-[280px] sm:h-[380px] flex items-center justify-center text-muted-foreground">
                   <div className="text-center">
-                    <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Select a race to see details</p>
+                    <User className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Select a race to see details</p>
                   </div>
                 </div>
               )}
@@ -427,13 +438,9 @@ export function Step1Basics({
                               </Badge>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            Hit Die: {cls.hit_dice}
-                          </p>
+                          <p className="text-xs text-muted-foreground">Hit Die: {cls.hit_dice}</p>
                         </div>
-                        {data.class === cls.name && (
-                          <Check className="h-5 w-5 text-primary" />
-                        )}
+                        {data.class === cls.name && <Check className="h-5 w-5 text-primary" />}
                       </div>
                     </CardContent>
                   </Card>
@@ -442,41 +449,51 @@ export function Step1Basics({
             </ScrollArea>
 
             {/* Class Details */}
-            <div className="rounded-lg border border-border p-4">
+            <div className="rounded-lg border border-border p-4 overflow-hidden">
               {classData ? (
                 <ScrollArea className="h-[380px]">
-                  <div className="space-y-4">
+                  <div className="space-y-4 pr-4">
                     <div>
-                      <h3 className="font-serif text-xl font-bold">{classData.name}</h3>
-                      <Badge variant="outline" className="mt-2">Hit Die: {classData.hit_dice}</Badge>
+                      <h3 className="font-serif text-xl font-bold truncate">{classData.name}</h3>
+                      <Badge variant="outline" className="mt-2">
+                        Hit Die: {classData.hit_dice}
+                      </Badge>
                     </div>
 
-                    <div>
+                    <div className="overflow-hidden">
                       <h4 className="font-medium text-sm text-muted-foreground mb-1">Hit Points</h4>
-                      <p className="text-sm">{classData.hp_at_1st_level}</p>
+                      <p className="text-sm break-words">{classData.hp_at_1st_level}</p>
                     </div>
 
-                    <div>
+                    <div className="overflow-hidden">
                       <h4 className="font-medium text-sm text-muted-foreground mb-1">Proficiencies</h4>
-                      <div className="space-y-1 text-sm">
-                        <p><strong>Armor:</strong> {classData.prof_armor || "None"}</p>
-                        <p><strong>Weapons:</strong> {classData.prof_weapons || "None"}</p>
-                        <p><strong>Saving Throws:</strong> {classData.prof_saving_throws}</p>
-                        <p><strong>Skills:</strong> {classData.prof_skills}</p>
+                      <div className="space-y-1 text-sm break-words">
+                        <p>
+                          <strong>Armor:</strong> {classData.prof_armor || "None"}
+                        </p>
+                        <p>
+                          <strong>Weapons:</strong> {classData.prof_weapons || "None"}
+                        </p>
+                        <p>
+                          <strong>Saving Throws:</strong> {classData.prof_saving_throws}
+                        </p>
+                        <p>
+                          <strong>Skills:</strong> {classData.prof_skills}
+                        </p>
                       </div>
                     </div>
 
-                    <div>
+                    <div className="overflow-hidden">
                       <h4 className="font-medium text-sm text-muted-foreground mb-1">Starting Equipment</h4>
-                      <div className="text-sm prose prose-sm prose-invert max-w-none">
+                      <div className="text-sm prose prose-sm max-w-none overflow-hidden break-words">
                         <ReactMarkdown>{classData.equipment}</ReactMarkdown>
                       </div>
                     </div>
 
                     {classData.spellcasting_ability && (
-                      <div>
+                      <div className="overflow-hidden">
                         <h4 className="font-medium text-sm text-muted-foreground mb-1">Spellcasting</h4>
-                        <p className="text-sm">Spellcasting Ability: {classData.spellcasting_ability}</p>
+                        <p className="text-sm break-words">Spellcasting Ability: {classData.spellcasting_ability}</p>
                       </div>
                     )}
                   </div>
@@ -518,13 +535,9 @@ export function Step1Basics({
                               </Badge>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            Skills: {bg.skill_proficiencies}
-                          </p>
+                          <p className="text-xs text-muted-foreground">Skills: {bg.skill_proficiencies}</p>
                         </div>
-                        {data.background === bg.name && (
-                          <Check className="h-5 w-5 text-primary" />
-                        )}
+                        {data.background === bg.name && <Check className="h-5 w-5 text-primary" />}
                       </div>
                     </CardContent>
                   </Card>
@@ -533,39 +546,36 @@ export function Step1Basics({
             </ScrollArea>
 
             {/* Background Details */}
-            <div className="rounded-lg border border-border p-4">
+            <div className="rounded-lg border border-border p-4 overflow-hidden">
               {backgroundData ? (
                 <ScrollArea className="h-[380px]">
-                  <div className="space-y-4">
-                    <h3 className="font-serif text-xl font-bold">{backgroundData.name}</h3>
+                  <div className="space-y-4 pr-4">
+                    <h3 className="font-serif text-xl font-bold truncate">{backgroundData.name}</h3>
 
-                    <div>
+                    <div className="overflow-hidden">
                       <h4 className="font-medium text-sm text-muted-foreground mb-1">Skill Proficiencies</h4>
-                      <p className="text-sm">{backgroundData.skill_proficiencies}</p>
+                      <p className="text-sm break-words">{backgroundData.skill_proficiencies}</p>
                     </div>
 
                     {backgroundData.tool_proficiencies && (
-                      <div>
+                      <div className="overflow-hidden">
                         <h4 className="font-medium text-sm text-muted-foreground mb-1">Tool Proficiencies</h4>
-                        <p className="text-sm">{backgroundData.tool_proficiencies}</p>
+                        <p className="text-sm break-words">{backgroundData.tool_proficiencies}</p>
                       </div>
                     )}
 
                     {backgroundData.languages && (
-                      <div>
+                      <div className="overflow-hidden">
                         <h4 className="font-medium text-sm text-muted-foreground mb-1">Languages</h4>
-                        <p className="text-sm">{backgroundData.languages}</p>
+                        <p className="text-sm break-words">{backgroundData.languages}</p>
                       </div>
                     )}
 
-                    <div>
-                      <h4 className="font-medium text-sm text-muted-foreground mb-1">Equipment</h4>
-                      <p className="text-sm">{backgroundData.equipment}</p>
-                    </div>
-
-                    <div>
-                      <h4 className="font-medium text-sm text-muted-foreground mb-1">Feature: {backgroundData.feature}</h4>
-                      <div className="text-sm prose prose-sm prose-invert max-w-none">
+                    <div className="overflow-hidden">
+                      <h4 className="font-medium text-sm text-muted-foreground mb-1 truncate">
+                        Feature: {backgroundData.feature}
+                      </h4>
+                      <div className="text-sm prose prose-sm max-w-none overflow-hidden break-words">
                         <ReactMarkdown>{backgroundData.feature_desc}</ReactMarkdown>
                       </div>
                     </div>
@@ -612,7 +622,8 @@ export function Step1Basics({
           <div className="flex flex-wrap gap-2">
             {data.race && (
               <Badge variant="secondary">
-                {data.subrace ? `${data.subrace} ` : ""}{data.race}
+                {data.subrace ? `${data.subrace} ` : ""}
+                {data.race}
               </Badge>
             )}
             {data.class && <Badge variant="secondary">{data.class}</Badge>}

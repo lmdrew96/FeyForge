@@ -11,11 +11,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useSessionStore, type Session, type SessionNote, type SessionObjective, type PlannedEncounter } from "@/lib/session-store"
+import {
+  useSessionStore,
+  type Session,
+  type SessionNote,
+  type SessionObjective,
+  type PlannedEncounter,
+} from "@/lib/session-store"
 import { useCampaignSessions, useActiveCampaignId, useCampaignNPCs } from "@/lib/hooks/use-campaign-data"
 import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { useRouter } from "next/navigation"
-import { Save, Plus, X, Sparkles, BookOpen, Swords, MessageSquare, Gem, GitBranch, Clock, Calendar, Target, Users, Skull, ChevronDown, ChevronUp, Search, Check } from "lucide-react"
+import {
+  Save,
+  Plus,
+  X,
+  Sparkles,
+  BookOpen,
+  Swords,
+  MessageSquare,
+  Gem,
+  GitBranch,
+  Clock,
+  Calendar,
+  Target,
+  Users,
+  Skull,
+  ChevronUp,
+  Search,
+  Check,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { XPCalculator } from "./xp-calculator"
 
@@ -205,9 +229,7 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
   const toggleObjective = (id: string) => {
     setFormData((prev) => ({
       ...prev,
-      objectives: prev.objectives?.map((obj) =>
-        obj.id === id ? { ...obj, completed: !obj.completed } : obj
-      ),
+      objectives: prev.objectives?.map((obj) => (obj.id === id ? { ...obj, completed: !obj.completed } : obj)),
     }))
   }
 
@@ -246,9 +268,7 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
   const updateEncounterStatus = (id: string, status: PlannedEncounter["status"]) => {
     setFormData((prev) => ({
       ...prev,
-      plannedEncounters: prev.plannedEncounters?.map((enc) =>
-        enc.id === id ? { ...enc, status } : enc
-      ),
+      plannedEncounters: prev.plannedEncounters?.map((enc) => (enc.id === id ? { ...enc, status } : enc)),
     }))
   }
 
@@ -266,9 +286,7 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
       const isSelected = current.includes(npcId)
       return {
         ...prev,
-        plannedNPCs: isSelected
-          ? current.filter((id) => id !== npcId)
-          : [...current, npcId],
+        plannedNPCs: isSelected ? current.filter((id) => id !== npcId) : [...current, npcId],
       }
     })
   }
@@ -276,11 +294,40 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
   // XP calculation helper
   const getXPByCR = (cr: number): number => {
     const xpTable: Record<number, number> = {
-      0: 10, 0.125: 25, 0.25: 50, 0.5: 100, 1: 200, 2: 450, 3: 700, 4: 1100,
-      5: 1800, 6: 2300, 7: 2900, 8: 3900, 9: 5000, 10: 5900, 11: 7200,
-      12: 8400, 13: 10000, 14: 11500, 15: 13000, 16: 15000, 17: 18000,
-      18: 20000, 19: 22000, 20: 25000, 21: 33000, 22: 41000, 23: 50000,
-      24: 62000, 25: 75000, 26: 90000, 27: 105000, 28: 120000, 29: 135000, 30: 155000,
+      0: 10,
+      0.125: 25,
+      0.25: 50,
+      0.5: 100,
+      1: 200,
+      2: 450,
+      3: 700,
+      4: 1100,
+      5: 1800,
+      6: 2300,
+      7: 2900,
+      8: 3900,
+      9: 5000,
+      10: 5900,
+      11: 7200,
+      12: 8400,
+      13: 10000,
+      14: 11500,
+      15: 13000,
+      16: 15000,
+      17: 18000,
+      18: 20000,
+      19: 22000,
+      20: 25000,
+      21: 33000,
+      22: 41000,
+      23: 50000,
+      24: 62000,
+      25: 75000,
+      26: 90000,
+      27: 105000,
+      28: 120000,
+      29: 135000,
+      30: 155000,
     }
     return xpTable[cr] || 0
   }
@@ -627,7 +674,9 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                             {new Date(note.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
-                        <p className="text-foreground text-sm whitespace-pre-wrap">{note.content}</p>
+                        <p className="text-foreground text-sm whitespace-pre-wrap break-words overflow-hidden">
+                          {note.content}
+                        </p>
                       </div>
                     )
                   })
@@ -650,14 +699,23 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
             <CardContent className="space-y-4">
               {/* Add Objective */}
               <div className="flex gap-2">
-                <Select value={objectivePriority} onValueChange={(v) => setObjectivePriority(v as SessionObjective["priority"])}>
+                <Select
+                  value={objectivePriority}
+                  onValueChange={(v) => setObjectivePriority(v as SessionObjective["priority"])}
+                >
                   <SelectTrigger className="w-[120px] bg-input border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
-                    <SelectItem value="primary" className="focus:bg-accent">Primary</SelectItem>
-                    <SelectItem value="secondary" className="focus:bg-accent">Secondary</SelectItem>
-                    <SelectItem value="optional" className="focus:bg-accent">Optional</SelectItem>
+                    <SelectItem value="primary" className="focus:bg-accent">
+                      Primary
+                    </SelectItem>
+                    <SelectItem value="secondary" className="focus:bg-accent">
+                      Secondary
+                    </SelectItem>
+                    <SelectItem value="optional" className="focus:bg-accent">
+                      Optional
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <Input
@@ -685,7 +743,7 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                       className={cn(
                         "flex items-center gap-3 p-3 rounded-lg border transition-opacity",
                         priorityColors[objective.priority],
-                        objective.completed && "opacity-60"
+                        objective.completed && "opacity-60",
                       )}
                     >
                       <Checkbox
@@ -693,10 +751,9 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                         onCheckedChange={() => toggleObjective(objective.id)}
                         className="border-muted-foreground"
                       />
-                      <span className={cn(
-                        "flex-1 text-sm",
-                        objective.completed && "line-through text-muted-foreground"
-                      )}>
+                      <span
+                        className={cn("flex-1 text-sm", objective.completed && "line-through text-muted-foreground")}
+                      >
                         {objective.text}
                       </span>
                       <Badge variant="outline" className="text-xs capitalize">
@@ -752,16 +809,29 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-foreground text-sm">Difficulty</Label>
-                      <Select value={encounterDifficulty} onValueChange={(v) => setEncounterDifficulty(v as PlannedEncounter["difficulty"])}>
+                      <Select
+                        value={encounterDifficulty}
+                        onValueChange={(v) => setEncounterDifficulty(v as PlannedEncounter["difficulty"])}
+                      >
                         <SelectTrigger className="bg-input border-border">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-popover border-border">
-                          <SelectItem value="trivial" className="focus:bg-accent">Trivial</SelectItem>
-                          <SelectItem value="easy" className="focus:bg-accent">Easy</SelectItem>
-                          <SelectItem value="medium" className="focus:bg-accent">Medium</SelectItem>
-                          <SelectItem value="hard" className="focus:bg-accent">Hard</SelectItem>
-                          <SelectItem value="deadly" className="focus:bg-accent">Deadly</SelectItem>
+                          <SelectItem value="trivial" className="focus:bg-accent">
+                            Trivial
+                          </SelectItem>
+                          <SelectItem value="easy" className="focus:bg-accent">
+                            Easy
+                          </SelectItem>
+                          <SelectItem value="medium" className="focus:bg-accent">
+                            Medium
+                          </SelectItem>
+                          <SelectItem value="hard" className="focus:bg-accent">
+                            Hard
+                          </SelectItem>
+                          <SelectItem value="deadly" className="focus:bg-accent">
+                            Deadly
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -816,9 +886,7 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                       </ScrollArea>
                     )}
 
-                    {isSearching && (
-                      <p className="text-xs text-muted-foreground">Searching...</p>
-                    )}
+                    {isSearching && <p className="text-xs text-muted-foreground">Searching...</p>}
 
                     {/* Selected Monsters */}
                     {selectedMonsters.length > 0 && (
@@ -827,7 +895,9 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                           <Badge key={monster.slug} variant="secondary" className="gap-1">
                             {monster.name} (CR {monster.challenge_rating})
                             <button
-                              onClick={() => setSelectedMonsters(selectedMonsters.filter((m) => m.slug !== monster.slug))}
+                              onClick={() =>
+                                setSelectedMonsters(selectedMonsters.filter((m) => m.slug !== monster.slug))
+                              }
                               className="ml-1 hover:text-destructive"
                             >
                               <X className="h-3 w-3" />
@@ -838,7 +908,11 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                     )}
                   </div>
 
-                  <Button onClick={addEncounter} disabled={!encounterName.trim()} className="w-full bg-primary hover:bg-primary/90">
+                  <Button
+                    onClick={addEncounter}
+                    disabled={!encounterName.trim()}
+                    className="w-full bg-primary hover:bg-primary/90"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Encounter
                   </Button>
@@ -858,14 +932,17 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                       className={cn(
                         "p-3 rounded-lg border border-border",
                         encounter.status === "completed" && "opacity-60 bg-green-500/5",
-                        encounter.status === "skipped" && "opacity-40"
+                        encounter.status === "skipped" && "opacity-40",
                       )}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Swords className={cn("h-4 w-4", difficultyColors[encounter.difficulty])} />
                           <span className="font-medium">{encounter.name}</span>
-                          <Badge variant="outline" className={cn("text-xs capitalize", difficultyColors[encounter.difficulty])}>
+                          <Badge
+                            variant="outline"
+                            className={cn("text-xs capitalize", difficultyColors[encounter.difficulty])}
+                          >
                             {encounter.difficulty}
                           </Badge>
                         </div>
@@ -881,9 +958,15 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-popover border-border">
-                              <SelectItem value="planned" className="focus:bg-accent text-xs">Planned</SelectItem>
-                              <SelectItem value="completed" className="focus:bg-accent text-xs">Completed</SelectItem>
-                              <SelectItem value="skipped" className="focus:bg-accent text-xs">Skipped</SelectItem>
+                              <SelectItem value="planned" className="focus:bg-accent text-xs">
+                                Planned
+                              </SelectItem>
+                              <SelectItem value="completed" className="focus:bg-accent text-xs">
+                                Completed
+                              </SelectItem>
+                              <SelectItem value="skipped" className="focus:bg-accent text-xs">
+                                Skipped
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <button
@@ -937,9 +1020,7 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                           onClick={() => toggleNPC(npc.id)}
                           className={cn(
                             "w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left",
-                            isSelected
-                              ? "border-primary bg-primary/10"
-                              : "border-border hover:border-primary/50"
+                            isSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
                           )}
                         >
                           <div>

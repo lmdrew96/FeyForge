@@ -175,7 +175,7 @@ export function SpellBrowser() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline">
                           {spell.level_int === 0 ? "Cantrip" : `Level ${spell.level_int}`}
                         </Badge>
                         <Badge className={`text-xs ${schoolColors[formatSchool(spell.school)] || ""}`}>
@@ -255,7 +255,9 @@ export function SpellBrowser() {
 
                   <div className="rounded-lg border border-border/50 bg-background/50 p-4">
                     <p className="text-xs text-muted-foreground mb-2">Description</p>
-                    <div className="text-sm leading-relaxed whitespace-pre-wrap">{selectedSpell.desc}</div>
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
+                      {selectedSpell.desc}
+                    </div>
                   </div>
 
                   {selectedSpell.higher_level && (

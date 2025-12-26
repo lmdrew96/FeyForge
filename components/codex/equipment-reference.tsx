@@ -319,7 +319,9 @@ export function EquipmentReference() {
                           ` (requires attunement${selectedMagicItem.requires_attunement !== "requires attunement" ? ` ${selectedMagicItem.requires_attunement}` : ""})`}
                       </p>
                     </div>
-                    <div className="text-sm whitespace-pre-wrap">{selectedMagicItem.desc}</div>
+                    <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
+                      {selectedMagicItem.desc}
+                    </div>
                   </div>
                 </ScrollArea>
               </Card>

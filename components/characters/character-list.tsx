@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useCharacterStore } from "@/lib/character-store"
 import { useCampaignCharacters } from "@/lib/hooks/use-campaign-data"
-import { Plus, User, Trash2 } from "lucide-react"
+import { Plus, Trash2, Sword, Wand2, Target, Shield, Feather, Music } from "lucide-react"
 import Link from "next/link"
 import { ABILITY_ABBREVIATIONS, type Ability } from "@/lib/character/constants"
 
@@ -15,29 +15,61 @@ export function CharacterList() {
 
   if (characters.length === 0) {
     return (
-      <Card className="bg-card border-border border-dashed">
-        <CardContent className="p-12 text-center">
-          <div className="h-16 w-16 rounded-full bg-accent/50 flex items-center justify-center mx-auto mb-4">
-            <User className="h-8 w-8 text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+        <div className="fairy-dust" />
+
+        <div className="text-center max-w-2xl">
+          <h2 className="text-3xl md:text-4xl font-bold font-serif mb-4 text-foreground">No Characters Yet</h2>
+          <p className="text-lg text-muted-foreground mb-8">
+            Build heroes for your campaigns. Track their stats, spells, and progression.
+          </p>
+
+          <div className="flex flex-wrap justify-center gap-4 mb-10">
+            {[
+              { icon: Sword, name: "Fighter", color: "#47D1BB" },
+              { icon: Wand2, name: "Wizard", color: "#931BE4" },
+              { icon: Target, name: "Ranger", color: "#95B851" },
+              { icon: Shield, name: "Paladin", color: "#521BC0" },
+              { icon: Feather, name: "Rogue", color: "#47D1BB" },
+              { icon: Music, name: "Bard", color: "#931BE4" },
+            ].map((classType) => {
+              const Icon = classType.icon
+              return (
+                <div
+                  key={classType.name}
+                  className="flex flex-col items-center p-4 rounded-xl border border-border hover:border-primary/50 transition-all bg-card/30 backdrop-blur-sm hover:shadow-lg hover:shadow-primary/10"
+                  style={{
+                    borderColor: `${classType.color}33`,
+                  }}
+                >
+                  <Icon className="h-10 w-10 mb-2" style={{ color: classType.color }} />
+                  <div className="text-sm text-muted-foreground">{classType.name}</div>
+                </div>
+              )
+            })}
           </div>
-          <h3 className="font-serif text-xl font-bold text-foreground mb-2">No Characters Yet</h3>
-          <p className="text-muted-foreground mb-6">Create your first hero to begin your adventure</p>
-          <Button asChild className="bg-primary hover:bg-primary/90">
+
+          {/* Large CTA */}
+          <Button
+            asChild
+            size="lg"
+            className="text-lg px-8 py-6 h-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30"
+          >
             <Link href="/characters/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Character
+              <Plus className="h-5 w-5 mr-2" />
+              Create Your First Character
             </Link>
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-xl font-bold text-foreground">Your Characters</h2>
-        <Button asChild className="bg-primary hover:bg-primary/90">
+        <h2 className="font-serif text-2xl font-bold text-silver">Your Characters</h2>
+        <Button asChild className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
           <Link href="/characters/new">
             <Plus className="h-4 w-4 mr-2" />
             New Character
@@ -45,17 +77,17 @@ export function CharacterList() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {characters.map((character) => {
           const stats = getCalculatedStats(character.id)
 
           return (
             <Link key={character.id} href={`/characters/${character.id}`}>
-              <Card className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer group">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-serif font-bold text-foreground group-hover:text-primary transition-colors">
+              <Card className="bg-card/50 backdrop-blur-sm border-border hover:border-primary/50 transition-all cursor-pointer group hover:shadow-lg hover:shadow-primary/10">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-serif text-xl font-bold text-foreground group-hover:text-primary transition-colors truncate">
                         {character.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
@@ -65,31 +97,35 @@ export function CharacterList() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
                       onClick={(e) => {
                         e.preventDefault()
-                        deleteCharacter(character.id)
+                        if (confirm(`Delete ${character.name}?`)) {
+                          deleteCharacter(character.id)
+                        }
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
 
-                  <div className="flex gap-2 mt-3">
-                    <Badge variant="outline" className="border-border text-muted-foreground">
+                  <div className="flex gap-2 mb-4">
+                    <Badge className="badge-cyan">
                       HP: {character.hitPoints.current}/{character.hitPoints.max}
                     </Badge>
-                    <Badge variant="outline" className="border-border text-muted-foreground">
-                      AC: {stats?.armorClass || 10}
-                    </Badge>
+                    <Badge className="badge-purple">AC: {stats?.armorClass || 10}</Badge>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-border">
-                    <div className="grid grid-cols-6 gap-1 text-center text-xs">
-                      {(["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as Ability[]).map((ability) => (
+                  <div className="pt-4 border-t border-border/50">
+                    <div className="grid grid-cols-6 gap-2 text-center text-xs">
+                      {(
+                        ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as Ability[]
+                      ).map((ability) => (
                         <div key={ability}>
-                          <p className="text-muted-foreground uppercase">{ABILITY_ABBREVIATIONS[ability]}</p>
-                          <p className="font-medium text-foreground">
+                          <p className="text-muted-foreground uppercase font-medium">
+                            {ABILITY_ABBREVIATIONS[ability]}
+                          </p>
+                          <p className="font-bold text-foreground mt-1">
                             {stats?.abilities[ability] || character.baseAbilities[ability]}
                           </p>
                         </div>

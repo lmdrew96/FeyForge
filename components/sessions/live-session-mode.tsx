@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,7 +24,6 @@ import {
   Skull,
   Check,
   X,
-  ChevronRight,
   Award,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -129,7 +127,7 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
   // Toggle objective
   const toggleObjective = (id: string) => {
     const updatedObjectives = localSession.objectives?.map((obj) =>
-      obj.id === id ? { ...obj, completed: !obj.completed } : obj
+      obj.id === id ? { ...obj, completed: !obj.completed } : obj,
     )
 
     const updatedSession = { ...localSession, objectives: updatedObjectives }
@@ -139,9 +137,7 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
 
   // Update encounter status
   const updateEncounterStatus = (id: string, status: PlannedEncounter["status"]) => {
-    const updatedEncounters = localSession.plannedEncounters?.map((enc) =>
-      enc.id === id ? { ...enc, status } : enc
-    )
+    const updatedEncounters = localSession.plannedEncounters?.map((enc) => (enc.id === id ? { ...enc, status } : enc))
 
     const updatedSession = { ...localSession, plannedEncounters: updatedEncounters }
     setLocalSession(updatedSession)
@@ -161,9 +157,10 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
   const selectedNPCs = campaignNPCs.filter((npc) => localSession.plannedNPCs?.includes(npc.id))
 
   // Calculate completed XP
-  const completedXP = localSession.plannedEncounters
-    ?.filter((enc) => enc.status === "completed")
-    .reduce((sum, enc) => sum + (enc.xpReward || 0), 0) || 0
+  const completedXP =
+    localSession.plannedEncounters
+      ?.filter((enc) => enc.status === "completed")
+      .reduce((sum, enc) => sum + (enc.xpReward || 0), 0) || 0
 
   return (
     <div className="fixed inset-0 z-50 bg-background">
@@ -237,11 +234,21 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
-                    <SelectItem value="narrative" className="focus:bg-accent">Narrative</SelectItem>
-                    <SelectItem value="combat" className="focus:bg-accent">Combat</SelectItem>
-                    <SelectItem value="roleplay" className="focus:bg-accent">Roleplay</SelectItem>
-                    <SelectItem value="loot" className="focus:bg-accent">Loot</SelectItem>
-                    <SelectItem value="decision" className="focus:bg-accent">Decision</SelectItem>
+                    <SelectItem value="narrative" className="focus:bg-accent">
+                      Narrative
+                    </SelectItem>
+                    <SelectItem value="combat" className="focus:bg-accent">
+                      Combat
+                    </SelectItem>
+                    <SelectItem value="roleplay" className="focus:bg-accent">
+                      Roleplay
+                    </SelectItem>
+                    <SelectItem value="loot" className="focus:bg-accent">
+                      Loot
+                    </SelectItem>
+                    <SelectItem value="decision" className="focus:bg-accent">
+                      Decision
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <Textarea
@@ -287,7 +294,9 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
                               {new Date(note.timestamp).toLocaleTimeString()}
                             </span>
                           </div>
-                          <p className="text-foreground text-sm whitespace-pre-wrap">{note.content}</p>
+                          <p className="text-foreground text-sm whitespace-pre-wrap break-words overflow-hidden">
+                            {note.content}
+                          </p>
                         </div>
                       )
                     })
@@ -320,19 +329,20 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
                         onClick={() => toggleObjective(objective.id)}
                         className={cn(
                           "w-full flex items-center gap-2 p-2 rounded text-left transition-opacity",
-                          objective.completed && "opacity-60"
+                          objective.completed && "opacity-60",
                         )}
                       >
-                        <div className={cn(
-                          "h-4 w-4 rounded border flex items-center justify-center",
-                          objective.completed ? "bg-primary border-primary" : "border-muted-foreground"
-                        )}>
+                        <div
+                          className={cn(
+                            "h-4 w-4 rounded border flex items-center justify-center",
+                            objective.completed ? "bg-primary border-primary" : "border-muted-foreground",
+                          )}
+                        >
                           {objective.completed && <Check className="h-3 w-3 text-primary-foreground" />}
                         </div>
-                        <span className={cn(
-                          "text-sm flex-1",
-                          objective.completed && "line-through text-muted-foreground"
-                        )}>
+                        <span
+                          className={cn("text-sm flex-1", objective.completed && "line-through text-muted-foreground")}
+                        >
                           {objective.text}
                         </span>
                         <Badge variant="outline" className="text-xs capitalize">
@@ -371,7 +381,7 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
                         className={cn(
                           "p-2 rounded border border-border flex items-center justify-between",
                           encounter.status === "completed" && "opacity-60 bg-green-500/5",
-                          encounter.status === "skipped" && "opacity-40"
+                          encounter.status === "skipped" && "opacity-40",
                         )}
                       >
                         <div className="flex items-center gap-2">

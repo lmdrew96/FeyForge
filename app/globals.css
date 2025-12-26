@@ -4,29 +4,29 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   FUTURISTIC FEY MAGIC THEME - FeyForge D&D Campaign Manager
+   FEYFORGE - Futuristic Elven Magic Theme
    
-   Color Palette - Vibrant & Sleek:
+   Color Palette:
    - Primary: Bright Turquoise #47D1BB (fey bioluminescence)
    - Secondary: Vibrant Magenta #931BE4 (arcane energy)
    - Accent: Deep Royal Purple #521BC0 (mystical power)
    - Success: Light Olive Green #95B851 (nature magic)
    - Base Dark: Dark Forest Green #0D4502
-   - Base Light: Cream White #F0F5E6
+   - Silver: For headers in dark mode
    
-   Aesthetic: Sleek futuristic meets vibrant fey magic with bold neon accents
+   Aesthetic: Modern elven magic with glowing cyan/purple accents
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Light mode - bright green base instead of cream */
-  --background: oklch(0.88 0.08 125); /* Bright elven green #c8e6b8 */
-  --foreground: oklch(0.2 0.06 145); /* Deep forest green for text */
+  /* Light mode - bright elven green base */
+  --background: oklch(0.82 0.1 130);
+  --foreground: oklch(0.15 0.06 145);
 
-  --card: oklch(0.92 0.06 125 / 0.9);
-  --card-foreground: oklch(0.2 0.06 145);
+  --card: oklch(0.88 0.08 130 / 0.85);
+  --card-foreground: oklch(0.15 0.06 145);
 
-  --popover: oklch(0.94 0.05 125);
-  --popover-foreground: oklch(0.2 0.06 145);
+  --popover: oklch(0.9 0.06 130);
+  --popover-foreground: oklch(0.15 0.06 145);
 
   /* Primary: Bright Turquoise #47D1BB */
   --primary: oklch(0.75 0.12 185);
@@ -36,9 +36,8 @@
   --secondary: oklch(0.55 0.25 295);
   --secondary-foreground: oklch(0.98 0.015 95);
 
-  /* Muted: Soft olive gray */
-  --muted: oklch(0.85 0.06 125);
-  --muted-foreground: oklch(0.45 0.05 145);
+  --muted: oklch(0.78 0.08 130);
+  --muted-foreground: oklch(0.4 0.05 145);
 
   /* Accent: Deep Royal Purple #521BC0 */
   --accent: oklch(0.45 0.22 285);
@@ -47,83 +46,79 @@
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.98 0.015 95);
 
-  --border: oklch(0.75 0.06 125 / 0.4);
-  --input: oklch(0.9 0.06 125);
+  --border: oklch(0.65 0.08 130 / 0.5);
+  --input: oklch(0.88 0.06 130);
   --ring: oklch(0.75 0.12 185);
 
-  --chart-1: oklch(0.75 0.12 185); /* turquoise */
-  --chart-2: oklch(0.55 0.25 295); /* magenta */
-  --chart-3: oklch(0.45 0.22 285); /* purple */
-  --chart-4: oklch(0.7 0.12 115); /* olive green */
-  --chart-5: oklch(0.65 0.15 40); /* warm accent */
+  --chart-1: oklch(0.75 0.12 185);
+  --chart-2: oklch(0.55 0.25 295);
+  --chart-3: oklch(0.45 0.22 285);
+  --chart-4: oklch(0.7 0.12 115);
+  --chart-5: oklch(0.65 0.15 40);
 
-  --radius: 1.25rem;
+  --radius: 1rem;
 
-  --sidebar: oklch(0.9 0.06 125 / 0.95);
-  --sidebar-foreground: oklch(0.2 0.06 145);
+  --sidebar: oklch(0.85 0.08 130 / 0.95);
+  --sidebar-foreground: oklch(0.15 0.06 145);
   --sidebar-primary: oklch(0.75 0.12 185);
   --sidebar-primary-foreground: oklch(0.15 0.05 145);
-  --sidebar-accent: oklch(0.85 0.06 125);
-  --sidebar-accent-foreground: oklch(0.2 0.06 145);
-  --sidebar-border: oklch(0.75 0.06 125 / 0.3);
+  --sidebar-accent: oklch(0.8 0.06 130);
+  --sidebar-accent-foreground: oklch(0.15 0.06 145);
+  --sidebar-border: oklch(0.65 0.08 130 / 0.4);
   --sidebar-ring: oklch(0.75 0.12 185);
 
-  /* Custom vibrant palette */
-  --turquoise: oklch(0.75 0.12 185); /* #47D1BB */
-  --magenta: oklch(0.55 0.25 295); /* #931BE4 */
-  --royal-purple: oklch(0.45 0.22 285); /* #521BC0 */
-  --olive-green: oklch(0.7 0.12 115); /* #95B851 */
-  --forest-green: oklch(0.25 0.05 145); /* #0D4502 */
-  --cream: oklch(0.96 0.02 95); /* #F0F5E6 */
+  /* Custom palette vars */
+  --turquoise: #47d1bb;
+  --magenta: #931be4;
+  --royal-purple: #521bc0;
+  --olive-green: #95b851;
+  --forest-green: #0d4502;
+  --silver: oklch(0.75 0.02 145);
 }
 
 .dark {
-  /* Dark mode - add silver headers color */
-  --background: oklch(0.2 0.05 145); /* Dark forest green base */
-  --foreground: oklch(0.85 0.02 0); /* Silver text for readability */
+  /* Dark mode - deep forest green with silver text */
+  --background: oklch(0.18 0.05 145);
+  --foreground: oklch(0.88 0.01 0);
 
-  --card: oklch(0.25 0.05 145 / 0.85);
-  --card-foreground: oklch(0.85 0.02 0);
+  --card: oklch(0.22 0.05 145 / 0.9);
+  --card-foreground: oklch(0.88 0.01 0);
 
-  --popover: oklch(0.22 0.05 145 / 0.95);
-  --popover-foreground: oklch(0.85 0.02 0);
+  --popover: oklch(0.2 0.05 145 / 0.98);
+  --popover-foreground: oklch(0.88 0.01 0);
 
-  /* Primary: Bright Turquoise - brightened for dark mode */
-  --primary: oklch(0.75 0.12 185);
-  --primary-foreground: oklch(0.15 0.05 145);
+  --primary: oklch(0.78 0.14 185);
+  --primary-foreground: oklch(0.12 0.05 145);
 
-  /* Secondary: Vibrant Magenta */
   --secondary: oklch(0.65 0.25 295);
-  --secondary-foreground: oklch(0.85 0.02 0);
+  --secondary-foreground: oklch(0.95 0.01 0);
 
-  --muted: oklch(0.28 0.05 145);
-  --muted-foreground: oklch(0.65 0.02 0);
+  --muted: oklch(0.28 0.04 145);
+  --muted-foreground: oklch(0.65 0.01 0);
 
-  /* Accent: Deep Royal Purple - lightened for visibility */
-  --accent: oklch(0.55 0.22 285);
-  --accent-foreground: oklch(0.85 0.02 0);
+  --accent: oklch(0.58 0.22 285);
+  --accent-foreground: oklch(0.95 0.01 0);
 
   --destructive: oklch(0.6 0.22 25);
-  --destructive-foreground: oklch(0.85 0.02 0);
+  --destructive-foreground: oklch(0.95 0.01 0);
 
-  --border: oklch(0.35 0.05 145 / 0.4);
-  --input: oklch(0.25 0.05 145);
-  --ring: oklch(0.75 0.12 185);
+  --border: oklch(0.35 0.04 145 / 0.5);
+  --input: oklch(0.25 0.04 145);
+  --ring: oklch(0.78 0.14 185);
 
-  --sidebar: oklch(0.22 0.05 145 / 0.95);
-  --sidebar-foreground: oklch(0.85 0.02 0);
-  --sidebar-primary: oklch(0.75 0.12 185);
-  --sidebar-primary-foreground: oklch(0.15 0.05 145);
-  --sidebar-accent: oklch(0.28 0.05 145);
-  --sidebar-accent-foreground: oklch(0.85 0.02 0);
-  --sidebar-border: oklch(0.35 0.05 145 / 0.3);
-  --sidebar-ring: oklch(0.75 0.12 185);
+  --sidebar: oklch(0.2 0.05 145 / 0.98);
+  --sidebar-foreground: oklch(0.88 0.01 0);
+  --sidebar-primary: oklch(0.78 0.14 185);
+  --sidebar-primary-foreground: oklch(0.12 0.05 145);
+  --sidebar-accent: oklch(0.28 0.04 145);
+  --sidebar-accent-foreground: oklch(0.88 0.01 0);
+  --sidebar-border: oklch(0.35 0.04 145 / 0.4);
+  --sidebar-ring: oklch(0.78 0.14 185);
 
-  /* Add specific silver color for headers */
-  --silver: oklch(0.85 0.02 0);
+  /* Silver for headers */
+  --silver: oklch(0.88 0.01 0);
 }
 
-/* Update theme inline with new color variables */
 @theme inline {
   --font-sans: "Acme", "Acme Fallback";
   --font-serif: "Abril Fatface", "Abril Fatface Fallback";
@@ -156,8 +151,6 @@
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);
   --radius-xl: calc(var(--radius) + 12px);
-  --radius-2xl: calc(var(--radius) + 20px);
-  --radius-full: 9999px;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -173,6 +166,11 @@
     border-color: var(--border);
     outline-color: var(--ring);
   }
+  html,
+  body {
+    overflow: hidden;
+    height: 100%;
+  }
   body {
     background: var(--background);
     color: var(--foreground);
@@ -180,66 +178,52 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ENCHANTED FOREST BACKGROUND - Ethereal atmosphere with floating particles
+   MAGICAL BACKGROUNDS - Floating particles and ethereal glows
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Update magical background with new color palette - turquoise, magenta, purple, olive */
 .magical-bg {
-  /* Light mode - bright green forest base */
+  /* Glowing orbs */
   background:
-    radial-gradient(ellipse 220px 180px at 15% 20%, oklch(0.75 0.12 185 / 0.15) 0%, transparent 65%),
-    radial-gradient(ellipse 180px 220px at 85% 25%, oklch(0.65 0.25 295 / 0.1) 0%, transparent 65%),
-    radial-gradient(ellipse 200px 160px at 25% 75%, oklch(0.55 0.22 285 / 0.18) 0%, transparent 65%),
-    radial-gradient(ellipse 160px 200px at 75% 80%, oklch(0.7 0.12 115 / 0.15) 0%, transparent 65%),
-    radial-gradient(ellipse 140px 180px at 50% 40%, oklch(0.65 0.25 295 / 0.12) 0%, transparent 65%),
-    /* Scattered starlight - turquoise and magenta sparkles */
-    radial-gradient(3px 3px at 12% 18%, #47d1bb 40%, transparent 100%),
-    radial-gradient(2px 2px at 24% 8%, #931be499 40%, transparent 100%),
-    radial-gradient(3.5px 3.5px at 88% 22%, #47d1bbaa 40%, transparent 100%),
-    radial-gradient(2.5px 2.5px at 48% 32%, #521bc0 40%, transparent 100%),
-    radial-gradient(2px 2px at 68% 15%, #47d1bb88 40%, transparent 100%),
-    radial-gradient(3px 3px at 82% 42%, #931be4aa 40%, transparent 100%),
-    radial-gradient(2px 2px at 18% 58%, #47d1bb 40%, transparent 100%),
-    radial-gradient(3.5px 3.5px at 38% 72%, #931be499 40%, transparent 100%),
-    radial-gradient(2.5px 2.5px at 58% 52%, #47d1bbaa 40%, transparent 100%),
-    radial-gradient(2px 2px at 92% 68%, #521bc0 40%, transparent 100%),
-    radial-gradient(3px 3px at 8% 85%, #47d1bb88 40%, transparent 100%),
-    radial-gradient(2px 2px at 52% 92%, #931be4aa 40%, transparent 100%),
-    /* Bright elven green base */
-    linear-gradient(165deg, #95b851 0%, #7a9640 30%, #95b851 60%, #7a9640 90%, #95b851 100%);
+    radial-gradient(ellipse 250px 200px at 10% 15%, oklch(0.75 0.12 185 / 0.2) 0%, transparent 60%),
+    radial-gradient(ellipse 200px 250px at 90% 20%, oklch(0.55 0.25 295 / 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 220px 180px at 20% 80%, oklch(0.45 0.22 285 / 0.2) 0%, transparent 60%),
+    radial-gradient(ellipse 180px 220px at 80% 85%, oklch(0.7 0.12 115 / 0.18) 0%, transparent 60%),
+    /* Sparkle particles */
+    radial-gradient(3px 3px at 15% 20%, var(--turquoise) 50%, transparent 100%),
+    radial-gradient(2px 2px at 30% 10%, var(--magenta) 50%, transparent 100%),
+    radial-gradient(3px 3px at 85% 25%, var(--turquoise) 50%, transparent 100%),
+    radial-gradient(2px 2px at 50% 35%, var(--royal-purple) 50%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 70% 15%, var(--turquoise) 50%, transparent 100%),
+    radial-gradient(2px 2px at 25% 60%, var(--magenta) 50%, transparent 100%),
+    radial-gradient(3px 3px at 95% 70%, var(--turquoise) 50%, transparent 100%),
+    radial-gradient(2px 2px at 40% 80%, var(--royal-purple) 50%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 60% 90%, var(--magenta) 50%, transparent 100%),
+    radial-gradient(3px 3px at 10% 95%, var(--turquoise) 50%, transparent 100%),
+    /* Base gradient - bright green */
+    linear-gradient(160deg, #8ab848 0%, #6d9339 35%, #8ab848 65%, #6d9339 100%);
 }
 
 .dark .magical-bg {
-  /* Dark mode - deep forest green with vibrant accents */
   background:
-    radial-gradient(ellipse 220px 180px at 15% 20%, oklch(0.75 0.12 185 / 0.15) 0%, transparent 65%),
-    radial-gradient(ellipse 180px 220px at 85% 25%, oklch(0.65 0.25 295 / 0.12) 0%, transparent 65%),
-    radial-gradient(ellipse 200px 160px at 25% 75%, oklch(0.55 0.22 285 / 0.18) 0%, transparent 65%),
-    radial-gradient(ellipse 160px 200px at 75% 80%, oklch(0.7 0.12 115 / 0.15) 0%, transparent 65%),
-    radial-gradient(ellipse 140px 180px at 50% 40%, oklch(0.65 0.25 295 / 0.12) 0%, transparent 65%),
-    radial-gradient(3px 3px at 12% 18%, #47d1bb 40%, transparent 100%),
-    radial-gradient(2px 2px at 24% 8%, #931be499 40%, transparent 100%),
-    radial-gradient(3.5px 3.5px at 88% 22%, #47d1bbaa 40%, transparent 100%),
-    radial-gradient(2.5px 2.5px at 48% 32%, #521bc0 40%, transparent 100%),
-    radial-gradient(2px 2px at 68% 15%, #47d1bb88 40%, transparent 100%),
-    radial-gradient(3px 3px at 82% 42%, #931be4aa 40%, transparent 100%),
-    radial-gradient(2px 2px at 18% 58%, #47d1bb 40%, transparent 100%),
-    radial-gradient(3.5px 3.5px at 38% 72%, #931be499 40%, transparent 100%),
-    radial-gradient(2.5px 2.5px at 58% 52%, #47d1bbaa 40%, transparent 100%),
-    radial-gradient(2px 2px at 92% 68%, #521bc0 40%, transparent 100%),
-    radial-gradient(3px 3px at 8% 85%, #47d1bb88 40%, transparent 100%),
-    radial-gradient(2px 2px at 52% 92%, #931be4aa 40%, transparent 100%),
-    linear-gradient(165deg, #0d4502 0%, #12551a 30%, #0f4d10 60%, #12551a 90%, #0d4502 100%);
-}
-
-.parchment-bg {
-  background-image: radial-gradient(ellipse 70% 60% at 20% 30%, oklch(0.75 0.12 185 / 0.06) 0%, transparent 70%),
-    radial-gradient(ellipse 60% 50% at 80% 70%, oklch(0.55 0.22 285 / 0.08) 0%, transparent 70%);
-  border-radius: var(--radius-xl);
+    radial-gradient(ellipse 250px 200px at 10% 15%, oklch(0.75 0.12 185 / 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 200px 250px at 90% 20%, oklch(0.55 0.25 295 / 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 220px 180px at 20% 80%, oklch(0.45 0.22 285 / 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 180px 220px at 80% 85%, oklch(0.7 0.12 115 / 0.12) 0%, transparent 60%),
+    radial-gradient(3px 3px at 15% 20%, var(--turquoise) 50%, transparent 100%),
+    radial-gradient(2px 2px at 30% 10%, var(--magenta) 50%, transparent 100%),
+    radial-gradient(3px 3px at 85% 25%, var(--turquoise) 50%, transparent 100%),
+    radial-gradient(2px 2px at 50% 35%, var(--royal-purple) 50%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 70% 15%, var(--turquoise) 50%, transparent 100%),
+    radial-gradient(2px 2px at 25% 60%, var(--magenta) 50%, transparent 100%),
+    radial-gradient(3px 3px at 95% 70%, var(--turquoise) 50%, transparent 100%),
+    radial-gradient(2px 2px at 40% 80%, var(--royal-purple) 50%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 60% 90%, var(--magenta) 50%, transparent 100%),
+    radial-gradient(3px 3px at 10% 95%, var(--turquoise) 50%, transparent 100%),
+    linear-gradient(160deg, #0d4502 0%, #0a3802 35%, #0d4502 65%, #0a3802 100%);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ANIMATIONS - Gentle, organic movements inspired by nature
+   ANIMATIONS - Magical floating and glowing effects
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @keyframes fairy-dust-float {
@@ -249,15 +233,15 @@
   }
   10% {
     opacity: 1;
-    transform: translateY(90vh) translateX(15px) scale(1) rotate(45deg);
+    transform: translateY(85vh) translateX(20px) scale(1) rotate(60deg);
   }
   50% {
-    opacity: 0.9;
-    transform: translateY(45vh) translateX(-20px) scale(0.9) rotate(180deg);
+    opacity: 0.8;
+    transform: translateY(40vh) translateX(-30px) scale(0.8) rotate(180deg);
   }
   90% {
-    opacity: 0.5;
-    transform: translateY(8vh) translateX(25px) scale(0.7) rotate(315deg);
+    opacity: 0.4;
+    transform: translateY(5vh) translateX(20px) scale(0.5) rotate(300deg);
   }
   100% {
     transform: translateY(-10vh) translateX(0) scale(0) rotate(360deg);
@@ -268,58 +252,96 @@
 @keyframes twinkle {
   0%,
   100% {
-    opacity: 0.3;
+    opacity: 0.4;
     transform: scale(0.9);
   }
   50% {
     opacity: 1;
-    transform: scale(1.15);
+    transform: scale(1.2);
   }
 }
 
-/* Update animation colors to match new palette */
 @keyframes gentle-pulse {
   0%,
   100% {
-    opacity: 0.7;
-    box-shadow: 0 0 20px -8px oklch(0.75 0.12 185 / 0.4);
+    opacity: 0.8;
+    box-shadow: 0 0 25px -8px var(--turquoise);
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 35px -8px oklch(0.75 0.12 185 / 0.6);
+    box-shadow: 0 0 40px -5px var(--turquoise);
   }
 }
 
 @keyframes float-gentle {
   0%,
   100% {
-    transform: translateY(0) rotate(0deg);
+    transform: translateY(0);
   }
-  33% {
-    transform: translateY(-5px) rotate(1deg);
-  }
-  66% {
-    transform: translateY(-3px) rotate(-1deg);
+  50% {
+    transform: translateY(-8px);
   }
 }
 
-@keyframes ethereal-glow {
+@keyframes glow-pulse {
   0%,
   100% {
-    filter: drop-shadow(0 0 10px oklch(0.75 0.12 185 / 0.4));
+    filter: drop-shadow(0 0 8px var(--turquoise));
   }
   50% {
-    filter: drop-shadow(0 0 20px oklch(0.75 0.12 185 / 0.7));
+    filter: drop-shadow(0 0 20px var(--turquoise));
   }
 }
 
-@keyframes crown-pulse {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 8px #a36424aa) drop-shadow(0 0 15px #a3642455);
+@keyframes dice-tumble {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(90deg) scale(1.1);
   }
   50% {
-    filter: drop-shadow(0 0 12px #a36424cc) drop-shadow(0 0 25px #a3642477);
+    transform: rotate(180deg) scale(1);
+  }
+  75% {
+    transform: rotate(270deg) scale(1.1);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes result-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes glow-pulse-crit {
+  0%,
+  100% {
+    text-shadow: 0 0 10px var(--turquoise), 0 0 20px var(--turquoise), 0 0 30px var(--turquoise);
+  }
+  50% {
+    text-shadow: 0 0 20px var(--turquoise), 0 0 40px var(--turquoise), 0 0 60px var(--turquoise);
+  }
+}
+
+@keyframes glow-pulse-destructive {
+  0%,
+  100% {
+    text-shadow: 0 0 10px var(--destructive), 0 0 20px var(--destructive);
+  }
+  50% {
+    text-shadow: 0 0 20px var(--destructive), 0 0 40px var(--destructive);
   }
 }
 
@@ -330,17 +352,23 @@
   animation: gentle-pulse 3s ease-in-out infinite;
 }
 .animate-float-gentle {
-  animation: float-gentle 6s ease-in-out infinite;
+  animation: float-gentle 5s ease-in-out infinite;
 }
-.animate-ethereal-glow {
-  animation: ethereal-glow 3s ease-in-out infinite;
+.animate-glow-pulse {
+  animation: glow-pulse-crit 1.5s ease-in-out infinite;
 }
-.animate-crown-glow {
-  animation: crown-pulse 2.5s ease-in-out infinite;
+.animate-glow-pulse-destructive {
+  animation: glow-pulse-destructive 1.5s ease-in-out infinite;
+}
+.animate-dice-tumble {
+  animation: dice-tumble 1.2s ease-in-out;
+}
+.animate-result-pop {
+  animation: result-pop 0.4s ease-out;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   FEY MAGIC PARTICLE EFFECTS - Floating fairy dust and glowing orbs
+   FLOATING PARTICLES - Fairy dust effect
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .fairy-dust {
@@ -355,259 +383,462 @@
 .fairy-dust::after {
   content: "";
   position: absolute;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  animation: fairy-dust-float 12s ease-in-out infinite;
+  animation: fairy-dust-float 15s ease-in-out infinite;
 }
 
-/* Update particle colors to new palette */
 .fairy-dust::before {
-  background: radial-gradient(circle, #47d1bb, #47d1bbaa);
-  left: 25%;
+  background: radial-gradient(circle, var(--turquoise), transparent);
+  left: 20%;
   animation-delay: 0s;
-  box-shadow: 0 0 15px 3px #47d1bb88;
+  box-shadow: 0 0 20px 5px oklch(0.75 0.12 185 / 0.6);
 }
 
 .fairy-dust::after {
-  background: radial-gradient(circle, #931be4, #931be4aa);
-  left: 65%;
-  animation-delay: 5s;
-  box-shadow: 0 0 15px 3px #931be488;
+  background: radial-gradient(circle, var(--magenta), transparent);
+  left: 70%;
+  animation-delay: 7s;
+  box-shadow: 0 0 20px 5px oklch(0.55 0.25 295 / 0.6);
 }
 
-/* Additional floating particles */
-.floating-orb {
-  position: absolute;
+/* Extra particles with pseudo-elements on body */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  filter: blur(40px);
   pointer-events: none;
-  animation: float-gentle 8s ease-in-out infinite;
+  z-index: 9999;
+  animation: fairy-dust-float 18s ease-in-out infinite;
 }
 
-.floating-orb.cyan {
-  background: radial-gradient(circle, #47d1bb44, transparent);
+body::before {
+  background: radial-gradient(circle, var(--royal-purple), transparent);
+  left: 45%;
+  animation-delay: 3s;
+  box-shadow: 0 0 15px 4px oklch(0.45 0.22 285 / 0.5);
 }
 
-.floating-orb.lavender {
-  background: radial-gradient(circle, #931be444, transparent);
-}
-
-.floating-orb.copper {
-  background: radial-gradient(circle, #95b85144, transparent);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   GLASS MORPHISM CARDS - Modern elven craftsmanship aesthetic
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Simplified card system - remove heavy glass morphism, use subtle backgrounds */
-.glass-card {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.glass-card:hover {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  transform: none;
-}
-
-.dark .glass-card {
-  background: transparent; /* Changed from oklch(0.28 0.05 145 / 0.85) */
-}
-
-.dark .glass-card:hover {
-  box-shadow: none; /* Changed from glass morphism specific shadow */
-}
-
-/* Stat cards with individual color theming */
-/* Remove stat card backgrounds, use clean layout with subtle dividers */
-.stat-card {
-  background: transparent;
-  backdrop-filter: none;
-  border: none;
-  border-bottom: 1px solid oklch(0.75 0.12 185 / 0.15);
-  border-radius: 0;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: visible;
-}
-
-.stat-card::before {
-  display: none;
-}
-
-.stat-card:hover {
-  border-color: oklch(0.75 0.12 185 / 0.3);
-  box-shadow: none;
-  transform: none;
-  background: oklch(0.75 0.12 185 / 0.04);
-}
-
-.stat-card:hover::before {
-  display: none;
-}
-
-/* Campaign scroll with decorative borders */
-/* Simplified campaign selector - remove heavy styling */
-.campaign-scroll {
-  background: transparent;
-  backdrop-filter: none;
-  border: none;
-  border-bottom: 2px solid oklch(0.75 0.12 185 / 0.2);
-  border-radius: 0;
-  position: relative;
-  overflow: visible;
-  box-shadow: none;
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.campaign-scroll::before,
-.campaign-scroll::after {
-  display: none;
+body::after {
+  background: radial-gradient(circle, var(--olive-green), transparent);
+  left: 85%;
+  animation-delay: 10s;
+  box-shadow: 0 0 15px 4px oklch(0.7 0.12 115 / 0.5);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TYPOGRAPHY - Elegant headers with magical gradients
+   TYPOGRAPHY - Silver headers for ADHD-friendly scanning
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Update text gradients with new color palette */
-.text-gold-gradient {
-  background: linear-gradient(135deg, #95b851 0%, #7a9640 50%, #95b851 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-serif);
+  color: var(--silver);
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+h4 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.text-silver {
+  color: var(--silver);
 }
 
 .text-fey-gradient {
-  background: linear-gradient(135deg, #47d1bb 0%, #931be4 35%, #521bc0 65%, #47d1bb 100%);
+  background: linear-gradient(135deg, var(--turquoise) 0%, var(--magenta) 50%, var(--royal-purple) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #d4a855 0%, #a3862d 50%, #d4a855 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   NAVIGATION - Whimsical pill-shaped items with color-coded sections
+   CARDS & CONTAINERS - Clean with subtle glow effects
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.nav-item-magic {
-  position: relative;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border-radius: calc(var(--radius) + 8px);
-  overflow: hidden;
+.glass-card {
+  background: var(--card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: all 0.3s ease;
 }
 
-.nav-item-magic::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(100deg, var(--nav-accent-color) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+.glass-card:hover {
+  border-color: oklch(0.75 0.12 185 / 0.4);
+  box-shadow: 0 0 30px -10px var(--turquoise);
 }
 
-.nav-item-magic:hover::before {
-  opacity: 0.12;
+.border-glow {
+  box-shadow: 0 0 25px -8px var(--primary);
+  transition: box-shadow 0.3s ease;
 }
 
-.nav-item-magic:hover {
-  transform: translateX(5px);
-}
-
-/* Update individual icon colors for each nav section with new palette */
-.icon-forge {
-  color: #47d1bb;
-}
-.icon-characters {
-  color: #931be4;
-}
-.icon-dice {
-  color: #95b851;
-}
-.icon-npcs {
-  color: #521bc0;
-}
-.icon-sessions {
-  color: #47d1bb;
-}
-.icon-combat {
-  color: #95b851;
-}
-.icon-codex {
-  color: #931be4;
-}
-.icon-world {
-  color: #521bc0;
-}
-.icon-dm {
-  color: #95b851;
+.border-glow:hover {
+  box-shadow: 0 0 40px -5px var(--primary);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   BUTTONS - Clean, modern with glowing accents
+   BUTTONS - Glowing magical buttons
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .btn-primary {
-  background: linear-gradient(135deg, #47d1bb 0%, #3ab3a0 100%);
-  color: #0d4502;
-  border: none;
-  box-shadow: 0 0 20px -5px #47d1bb88, 0 2px 8px -2px #47d1bb33;
+  background: linear-gradient(135deg, var(--turquoise) 0%, #3ab8a3 100%);
+  color: var(--forest-green);
+  font-weight: 600;
+  box-shadow: 0 0 25px -5px var(--turquoise), 0 4px 12px -4px oklch(0 0 0 / 0.3);
   transition: all 0.2s ease;
 }
 
 .btn-primary:hover {
-  box-shadow: 0 0 30px -5px #47d1bbaa, 0 4px 12px -2px #47d1bb44;
-  transform: translateY(-1px);
+  box-shadow: 0 0 40px -5px var(--turquoise), 0 6px 20px -4px oklch(0 0 0 / 0.4);
+  transform: translateY(-2px);
 }
 
 .btn-secondary {
-  background: linear-gradient(135deg, #931be4 0%, #7915b8 100%);
-  color: #f0f5e6;
-  border: none;
-  box-shadow: 0 0 20px -5px #931be488, 0 2px 8px -2px #931be433;
+  background: linear-gradient(135deg, var(--magenta) 0%, #7a16c0 100%);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 0 25px -5px var(--magenta), 0 4px 12px -4px oklch(0 0 0 / 0.3);
   transition: all 0.2s ease;
 }
 
 .btn-secondary:hover {
-  box-shadow: 0 0 30px -5px #931be4aa, 0 4px 12px -2px #931be444;
-  transform: translateY(-1px);
+  box-shadow: 0 0 40px -5px var(--magenta), 0 6px 20px -4px oklch(0 0 0 / 0.4);
+  transform: translateY(-2px);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   BADGES - Color-coded pills for quick scanning (ADHD-friendly)
+   NAVIGATION - Clean with colored icons
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.nav-item-magic {
+  position: relative;
+  transition: all 0.2s ease;
+  border-radius: var(--radius);
+}
+
+.nav-item-magic:hover {
+  background: oklch(0.75 0.12 185 / 0.1);
+  transform: translateX(4px);
+}
+
+.nav-item-magic.active {
+  background: oklch(0.75 0.12 185 / 0.15);
+}
+
+.nav-item-magic.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--turquoise);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 10px var(--turquoise);
+}
+
+/* Icon colors by section */
+.icon-forge {
+  color: var(--turquoise);
+}
+.icon-characters {
+  color: var(--magenta);
+}
+.icon-dice {
+  color: var(--olive-green);
+}
+.icon-npcs {
+  color: var(--royal-purple);
+}
+.icon-sessions {
+  color: var(--turquoise);
+}
+.icon-combat {
+  color: #ef4444;
+}
+.icon-codex {
+  color: var(--magenta);
+}
+.icon-world {
+  color: var(--olive-green);
+}
+.icon-dm {
+  color: var(--royal-purple);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BADGES - Color-coded pills
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .badge-cyan {
-  background: linear-gradient(135deg, #47d1bb22, #47d1bb33);
-  color: #47d1bb;
-  border: 1px solid #47d1bb44;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.badge-magenta {
-  background: linear-gradient(135deg, #931be422, #931be433);
-  color: #931be4;
-  border: 1px solid #931be444;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  background: oklch(0.75 0.12 185 / 0.2);
+  color: var(--turquoise);
+  border: 1px solid oklch(0.75 0.12 185 / 0.4);
 }
 
 .badge-purple {
-  background: linear-gradient(135deg, #521bc022, #521bc033);
-  color: #521bc0;
-  border: 1px solid #521bc044;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
+  background: oklch(0.55 0.25 295 / 0.2);
+  color: var(--magenta);
+  border: 1px solid oklch(0.55 0.25 295 / 0.4);
+}
+
+.badge-green {
+  background: oklch(0.7 0.12 115 / 0.2);
+  color: var(--olive-green);
+  border: 1px solid oklch(0.7 0.12 115 / 0.4);
+}
+
+.badge-royal {
+  background: oklch(0.45 0.22 285 / 0.2);
+  color: var(--royal-purple);
+  border: 1px solid oklch(0.45 0.22 285 / 0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOOLTIP - Styled for visibility
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.whimsy-tooltip {
+  background: linear-gradient(135deg, oklch(0.25 0.06 145 / 0.98), oklch(0.2 0.05 145 / 0.98));
+  backdrop-filter: blur(10px);
+  border: 1px solid oklch(0.75 0.12 185 / 0.3);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
-  font-weight: 500;
+  color: oklch(0.95 0.01 0);
+  box-shadow: 0 0 20px -5px var(--turquoise);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MARKDOWN / PROSE - Consistent text formatting
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.prose {
+  color: var(--foreground);
+  max-width: 65ch;
+  line-height: 1.75;
+  /* ensure prose content doesn't overflow */
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* ensure max-w-none overrides and constrains prose content */
+.prose.max-w-none {
+  max-width: 100%;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  color: var(--silver);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  /* prevent long headings from overflowing */
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.prose p {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  /* ensure paragraphs wrap properly */
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.prose strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose a:hover {
+  color: var(--secondary);
+}
+
+.prose code {
+  background: var(--muted);
+  padding: 0.2em 0.4em;
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
+  font-family: var(--font-mono);
+}
+
+.prose pre {
+  background: oklch(0.15 0.04 145);
+  padding: 1rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 1.5em 0;
+}
+
+.prose pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.5em;
+  margin: 1em 0;
+}
+
+.prose li {
+  margin: 0.5em 0;
+}
+
+.prose ul li::marker {
+  color: var(--primary);
+}
+
+.prose ol li::marker {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.prose blockquote {
+  border-left: 3px solid var(--primary);
+  padding-left: 1em;
+  margin: 1.5em 0;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+
+.prose hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+  padding: 0.75em;
+  text-align: left;
+}
+
+.prose th {
+  background: var(--muted);
+  font-weight: 600;
+  color: var(--silver);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DICE ROLLER - Big, dramatic results
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dice-result {
+  font-size: 6rem;
+  font-weight: 700;
+  font-family: var(--font-serif);
+  line-height: 1;
+}
+
+.dice-result.crit-hit {
+  color: var(--turquoise);
+  text-shadow: 0 0 30px var(--turquoise), 0 0 60px var(--turquoise);
+}
+
+.dice-result.crit-miss {
+  color: var(--destructive);
+  text-shadow: 0 0 30px var(--destructive), 0 0 60px var(--destructive);
+}
+
+.dice-button {
+  width: 5rem;
+  height: 5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  border-radius: var(--radius-lg);
+  transition: all 0.2s ease;
+}
+
+.dice-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 25px -5px var(--primary);
+}
+
+.dice-button.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 0 30px -5px var(--primary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOCUS STATES - Accessibility
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCROLLBAR - Styled for theme
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.75 0.12 185 / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.75 0.12 185 / 0.5);
 }
