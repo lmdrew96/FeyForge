@@ -21,7 +21,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-12 sm:h-14 md:h-16 items-center justify-between border-b border-border/50 bg-card/90 backdrop-blur-md px-2 sm:px-3 pl-12 sm:pl-14 md:pl-6 pr-2 sm:pr-6">
+    <header className="sticky top-0 z-30 flex h-12 sm:h-14 items-center justify-between border-b border-border/50 bg-card/90 backdrop-blur-md px-2 sm:px-3 pl-12 sm:pl-14 md:pl-6 pr-2 sm:pr-6 md:h-20">
       <div className="min-w-0 flex-1 mr-1 sm:mr-2">
         {title && (
           <h1 className="font-serif text-xs sm:text-sm md:text-lg lg:text-xl font-bold text-silver truncate">
@@ -29,9 +29,7 @@ export function Header({ title, subtitle }: HeaderProps) {
           </h1>
         )}
         {subtitle && (
-          <p className="text-[9px] sm:text-[10px] md:text-xs text-muted-foreground truncate hidden sm:block">
-            {subtitle}
-          </p>
+          <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate hidden sm:block px-[7px]">{subtitle}</p>
         )}
       </div>
 

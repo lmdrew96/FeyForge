@@ -7,7 +7,7 @@ import { CampaignSelector } from "@/components/dashboard/campaign-selector"
 
 export default function DashboardPage() {
   return (
-    <AppShell title="The Forge" subtitle="Where Campaigns Are Forged">
+    <AppShell title="The Forge" subtitle="Step into the Portal">
       <div className="space-y-3 sm:space-y-4 md:space-y-6 max-w-full">
         {/* Campaign Selector */}
         <CampaignSelector />

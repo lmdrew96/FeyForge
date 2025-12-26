@@ -92,7 +92,7 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
       >
         <div className="flex h-full flex-col overflow-hidden">
           {/* Logo */}
-          <div className="flex h-14 sm:h-20 items-center border-b border-border/50 px-3 sm:px-4 shrink-0 justify-center">
+          <div className="flex h-14 sm:h-20 border-b border-border/50 px-3 sm:px-4 shrink-0 justify-center items-center gap-0">
             {(!collapsed || isMobile) && (
               <Link href="/" className="flex items-center gap-3 group min-w-0">
                 <FeyForgeLogo size="md" showText={true} />

@@ -209,7 +209,8 @@
     radial-gradient(2px 2px at 40% 80%, var(--accent) 50%, transparent 100%),
     radial-gradient(2.5px 2.5px at 60% 90%, var(--accent) 50%, transparent 100%),
     radial-gradient(3px 3px at 10% 95%, var(--primary) 50%, transparent 100%),
-    linear-gradient(160deg, #a5d6a7 0%, #81c784 35%, #a5d6a7 65%, #81c784 100%);
+    /* Replaced hardcoded lime green with theme variables for light mode */
+    linear-gradient(160deg, var(--background) 0%, var(--muted) 35%, var(--background) 65%, var(--muted) 100%);
 }
 
 .dark .magical-bg {
@@ -228,7 +229,8 @@
     radial-gradient(2px 2px at 40% 80%, var(--accent) 50%, transparent 100%),
     radial-gradient(2.5px 2.5px at 60% 90%, var(--accent) 50%, transparent 100%),
     radial-gradient(3px 3px at 10% 95%, var(--primary) 50%, transparent 100%),
-    linear-gradient(160deg, #1a3d29 0%, #0f2818 35%, #1a3d29 65%, #0f2818 100%);
+    /* Replaced hardcoded dark green with theme variables for dark mode */
+    linear-gradient(160deg, var(--background) 0%, var(--card) 35%, var(--background) 65%, var(--card) 100%);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -783,23 +785,4 @@ h4 {
   text-align: left;
   font-weight: 600;
   border: 1px solid var(--border);
-}
-
-.prose td {
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-}
-
-.prose img {
-  max-width: 100%;
-  border-radius: var(--radius);
-  margin-top: 1em;
-  margin-bottom: 1em;
-}
-
-.prose hr {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin-top: 2em;
-  margin-bottom: 2em;
 }

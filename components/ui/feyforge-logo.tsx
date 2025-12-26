@@ -16,7 +16,7 @@ export function FeyForgeLogo({ size = "md", showText = true, collapsed = false }
   }
 
   return (
-    <div className="flex items-center group px-0 gap-0 mx-0 justify-center">
+    <div className="flex items-center group px-0 mx-0 justify-center gap-3.5">
       {/* Magical Anvil Icon with ethereal glow and sparkles */}
       <div className="relative shrink-0">
         {/* Outer glow ring */}
@@ -27,11 +27,11 @@ export function FeyForgeLogo({ size = "md", showText = true, collapsed = false }
           className={`${sizes[size].container} rounded-2xl bg-gradient-to-br from-primary/20 via-primary/15 to-accent/20 border border-primary/40 relative overflow-hidden`}
         >
           {/* Inner shimmer effect */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 px-0" />
 
           {/* Anvil icon */}
           <Anvil
-            className={`${sizes[size].icon} text-primary relative z-10 drop-shadow-[0_0_8px_var(--primary)] group-hover:drop-shadow-[0_0_12px_var(--primary)] transition-all duration-300`}
+            className={`${sizes[size].icon} relative z-10 drop-shadow-[0_0_8px_var(--primary)] group-hover:drop-shadow-[0_0_12px_var(--primary)] transition-all duration-300 text-yellow-100`}
           />
         </div>
 
@@ -53,7 +53,7 @@ export function FeyForgeLogo({ size = "md", showText = true, collapsed = false }
       {/* Text */}
       {showText && !collapsed && (
         <div className="flex flex-col min-w-0">
-          <span className={`font-bold text-primary font-serif ${sizes[size].text} truncate tracking-wide`}>
+          <span className={`font-bold font-serif text-yellow-100 ${sizes[size].text} truncate tracking-wide`}>
             FeyForge
           </span>
         </div>
