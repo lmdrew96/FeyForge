@@ -18,6 +18,7 @@ import {
   type Open5eClass,
   type Open5eBackground,
   type Open5eSpell,
+  type ContentSource,
 } from "@/lib/open5e-api"
 import { abilities, calculateModifier, formatModifier, type Character } from "@/lib/dnd-data"
 import { useCharacterStore } from "@/lib/character-store"
@@ -36,6 +37,7 @@ import {
   Scroll,
   Swords,
   BookOpen,
+  Library,
 } from "lucide-react"
 
 const steps = ["Basics", "Race", "Class", "Abilities", "Skills", "Background", "Spells", "Details"]
@@ -120,7 +122,7 @@ export function CharacterBuilder() {
 
   // Form state
   const [currentStep, setCurrentStep] = useState(0)
-  const [character, setCharacter] = useState<Partial<Character> & { selectedSkills: string[]; selectedSpells: string[] }>({
+  const [character, setCharacter] = useState<Partial<Character> & { selectedSkills: string[]; selectedCantrips: string[]; selectedSpells: string[] }>({
     name: "",
     race: "",
     subrace: "",
@@ -129,7 +131,7 @@ export function CharacterBuilder() {
     background: "",
     alignment: "",
     experiencePoints: 0,
-    abilityScores: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+    abilityScores: { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 },
     proficiencies: [],
     hitPoints: { current: 0, max: 0, temp: 0 },
     armorClass: 10,
@@ -143,23 +145,25 @@ export function CharacterBuilder() {
     equipment: [],
     features: [],
     selectedSkills: [],
+    selectedCantrips: [],
     selectedSpells: [],
   })
 
   const [pointBuyRemaining, setPointBuyRemaining] = useState(27)
   const [abilityMethod, setAbilityMethod] = useState<"point-buy" | "roll">("point-buy")
+  const [contentSource, setContentSource] = useState<ContentSource>("all")
   const [isGeneratingName, setIsGeneratingName] = useState(false)
   const [isGeneratingBackstory, setIsGeneratingBackstory] = useState(false)
 
-  // Fetch Open5e data on mount
+  // Fetch Open5e data on mount and when content source changes
   useEffect(() => {
     async function fetchData() {
       try {
         setIsLoading(true)
         const [racesData, classesData, backgroundsData] = await Promise.all([
-          open5eApi.getRaces(),
-          open5eApi.getClasses(),
-          open5eApi.getBackgrounds(),
+          open5eApi.getRaces(contentSource),
+          open5eApi.getClasses(contentSource),
+          open5eApi.getBackgrounds(contentSource),
         ])
         setRaces(racesData)
         setClasses(classesData)
@@ -173,7 +177,22 @@ export function CharacterBuilder() {
       }
     }
     fetchData()
-  }, [])
+  }, [contentSource])
+
+  // Clear selections when content source changes
+  const handleContentSourceChange = (source: ContentSource) => {
+    if (source !== contentSource) {
+      setContentSource(source)
+      // Clear selections that may no longer be valid
+      updateCharacter("race", "")
+      updateCharacter("subrace", "")
+      updateCharacter("class", "")
+      updateCharacter("background", "")
+      updateCharacter("selectedSkills", [])
+      updateCharacter("selectedCantrips", [])
+      updateCharacter("selectedSpells", [])
+    }
+  }
 
   // Fetch spells when class is selected (for spellcasters)
   useEffect(() => {
@@ -212,7 +231,7 @@ export function CharacterBuilder() {
 
   // Calculate final ability scores with racial bonuses
   const finalAbilityScores = useMemo(() => {
-    if (!character.abilityScores) return { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }
+    if (!character.abilityScores) return { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 }
     return {
       str: character.abilityScores.str + (racialBonuses.str || 0),
       dex: character.abilityScores.dex + (racialBonuses.dex || 0),
@@ -304,15 +323,26 @@ export function CharacterBuilder() {
     }
   }
 
+  const toggleCantrip = (spellSlug: string) => {
+    const current = character.selectedCantrips || []
+    if (current.includes(spellSlug)) {
+      updateCharacter(
+        "selectedCantrips",
+        current.filter((s) => s !== spellSlug)
+      )
+    } else if (current.length < spellsKnown.cantrips) {
+      updateCharacter("selectedCantrips", [...current, spellSlug])
+    }
+  }
+
   const toggleSpell = (spellSlug: string) => {
     const current = character.selectedSpells || []
-    const totalAllowed = spellsKnown.cantrips + spellsKnown.spells
     if (current.includes(spellSlug)) {
       updateCharacter(
         "selectedSpells",
         current.filter((s) => s !== spellSlug)
       )
-    } else if (current.length < totalAllowed) {
+    } else if (current.length < spellsKnown.spells) {
       updateCharacter("selectedSpells", [...current, spellSlug])
     }
   }
@@ -355,7 +385,7 @@ export function CharacterBuilder() {
       flaws: character.flaws || "",
       backstory: character.backstory || "",
       equipment: character.equipment || [],
-      spells: character.selectedSpells,
+      spells: [...(character.selectedCantrips || []), ...(character.selectedSpells || [])],
       features,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -374,7 +404,10 @@ export function CharacterBuilder() {
       case 0:
         return character.name && character.name.length > 0
       case 1:
-        return character.race
+        // Require subrace if the selected race has subraces
+        if (!character.race) return false
+        if (selectedRace?.subraces && selectedRace.subraces.length > 0 && !character.subrace) return false
+        return true
       case 2:
         return character.class
       case 3:
@@ -384,7 +417,11 @@ export function CharacterBuilder() {
       case 5:
         return character.background
       case 6:
-        return !isSpellcaster || character.selectedSpells.length > 0
+        // Check cantrips and spells separately for spellcasters
+        if (!isSpellcaster) return true
+        const hasEnoughCantrips = (character.selectedCantrips?.length || 0) >= spellsKnown.cantrips
+        const hasEnoughSpells = spellsKnown.spells === 0 || (character.selectedSpells?.length || 0) >= spellsKnown.spells
+        return hasEnoughCantrips && hasEnoughSpells
       case 7:
         return true
       default:
@@ -479,6 +516,37 @@ export function CharacterBuilder() {
 
   return (
     <div className="space-y-6">
+      {/* Content Source Toggle */}
+      <div className="flex items-center justify-center gap-2">
+        <Library className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Content:</span>
+        <div className="flex rounded-lg border border-border bg-muted/50 p-0.5">
+          <button
+            onClick={() => handleContentSourceChange("srd")}
+            className={`px-3 py-1 text-sm rounded-md transition-all ${
+              contentSource === "srd"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            SRD Only
+          </button>
+          <button
+            onClick={() => handleContentSourceChange("all")}
+            className={`px-3 py-1 text-sm rounded-md transition-all ${
+              contentSource === "all"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            All Content
+          </button>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          ({races.length} races, {classes.length} classes, {backgrounds.length} backgrounds)
+        </span>
+      </div>
+
       {/* Progress Steps */}
       <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap">
         {actualSteps.map((step, index) => (
@@ -686,6 +754,7 @@ export function CharacterBuilder() {
                     onClick={() => {
                       updateCharacter("class", cls.slug)
                       updateCharacter("selectedSkills", [])
+                      updateCharacter("selectedCantrips", [])
                       updateCharacter("selectedSpells", [])
                     }}
                     className={`p-4 rounded-lg border text-left transition-all duration-300 hover:scale-[1.02] ${
@@ -753,7 +822,15 @@ export function CharacterBuilder() {
 
               <Tabs
                 value={abilityMethod}
-                onValueChange={(v) => setAbilityMethod(v as "point-buy" | "roll")}
+                onValueChange={(v) => {
+                  const newMethod = v as "point-buy" | "roll"
+                  setAbilityMethod(newMethod)
+                  // Reset to default values when switching to point-buy
+                  if (newMethod === "point-buy") {
+                    updateCharacter("abilityScores", { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 })
+                    setPointBuyRemaining(27)
+                  }
+                }}
                 className="w-full"
               >
                 <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-muted">
@@ -785,7 +862,7 @@ export function CharacterBuilder() {
 
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl mx-auto">
                     {abilities.map((ability) => {
-                      const baseScore = character.abilityScores?.[ability.id as keyof typeof character.abilityScores] || 10
+                      const baseScore = character.abilityScores?.[ability.id as keyof typeof character.abilityScores] || 8
                       const bonus = racialBonuses[ability.id] || 0
                       const finalScore = baseScore + bonus
                       const mod = calculateModifier(finalScore)
@@ -836,7 +913,7 @@ export function CharacterBuilder() {
 
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl mx-auto">
                     {abilities.map((ability) => {
-                      const baseScore = character.abilityScores?.[ability.id as keyof typeof character.abilityScores] || 10
+                      const baseScore = character.abilityScores?.[ability.id as keyof typeof character.abilityScores] || 8
                       const bonus = racialBonuses[ability.id] || 0
                       const finalScore = baseScore + bonus
                       const mod = calculateModifier(finalScore)
@@ -967,9 +1044,16 @@ export function CharacterBuilder() {
                   Select {spellsKnown.cantrips} cantrip{spellsKnown.cantrips > 1 ? "s" : ""}
                   {spellsKnown.spells > 0 && ` and ${spellsKnown.spells} 1st-level spell${spellsKnown.spells > 1 ? "s" : ""}`}
                 </p>
-                <p className="text-primary text-sm mt-2">
-                  Selected: {character.selectedSpells.length} / {spellsKnown.cantrips + spellsKnown.spells}
-                </p>
+                <div className="flex justify-center gap-4 text-sm mt-2">
+                  <span className={character.selectedCantrips.length >= spellsKnown.cantrips ? "text-green-400" : "text-primary"}>
+                    Cantrips: {character.selectedCantrips.length} / {spellsKnown.cantrips}
+                  </span>
+                  {spellsKnown.spells > 0 && (
+                    <span className={character.selectedSpells.length >= spellsKnown.spells ? "text-green-400" : "text-primary"}>
+                      Spells: {character.selectedSpells.length} / {spellsKnown.spells}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-6">
@@ -980,15 +1064,19 @@ export function CharacterBuilder() {
                     {availableSpells
                       .filter((s) => s.level_int === 0)
                       .map((spell) => {
-                        const isSelected = character.selectedSpells.includes(spell.slug)
+                        const isSelected = character.selectedCantrips.includes(spell.slug)
+                        const canSelect = isSelected || character.selectedCantrips.length < spellsKnown.cantrips
                         return (
                           <button
                             key={spell.slug}
-                            onClick={() => toggleSpell(spell.slug)}
+                            onClick={() => canSelect && toggleCantrip(spell.slug)}
+                            disabled={!canSelect}
                             className={`p-3 rounded-lg border text-left transition-all ${
                               isSelected
                                 ? "border-primary bg-primary/10"
-                                : "border-border bg-card hover:border-primary/50"
+                                : canSelect
+                                  ? "border-border bg-card hover:border-primary/50"
+                                  : "border-border bg-muted/50 opacity-50 cursor-not-allowed"
                             }`}
                           >
                             <div className="flex items-center gap-2">
@@ -1012,14 +1100,18 @@ export function CharacterBuilder() {
                           .filter((s) => s.level_int === 1)
                           .map((spell) => {
                             const isSelected = character.selectedSpells.includes(spell.slug)
+                            const canSelect = isSelected || character.selectedSpells.length < spellsKnown.spells
                             return (
                               <button
                                 key={spell.slug}
-                                onClick={() => toggleSpell(spell.slug)}
+                                onClick={() => canSelect && toggleSpell(spell.slug)}
+                                disabled={!canSelect}
                                 className={`p-3 rounded-lg border text-left transition-all ${
                                   isSelected
                                     ? "border-primary bg-primary/10"
-                                    : "border-border bg-card hover:border-primary/50"
+                                    : canSelect
+                                      ? "border-border bg-card hover:border-primary/50"
+                                      : "border-border bg-muted/50 opacity-50 cursor-not-allowed"
                                 }`}
                               >
                                 <div className="flex items-center gap-2">

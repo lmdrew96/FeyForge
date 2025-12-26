@@ -301,6 +301,15 @@ async function fetchAllPages<T>(endpoint: string, params?: Record<string, string
   return allResults
 }
 
+// Content source filter type
+export type ContentSource = "srd" | "all"
+
+// Helper to get source filter params
+function getSourceParams(source?: ContentSource): Record<string, string> {
+  if (source === "all") return {}
+  return { document__slug: "wotc-srd" }
+}
+
 // API methods
 export const open5eApi = {
   // Spells
@@ -382,10 +391,8 @@ export const open5eApi = {
   },
 
   // Races
-  async getRaces(): Promise<Open5eRace[]> {
-    return fetchAllPages<Open5eRace>("/v1/races/", {
-      document__slug: "wotc-srd",
-    })
+  async getRaces(source?: ContentSource): Promise<Open5eRace[]> {
+    return fetchAllPages<Open5eRace>("/v1/races/", getSourceParams(source))
   },
 
   async getRace(slug: string): Promise<Open5eRace> {
@@ -393,10 +400,8 @@ export const open5eApi = {
   },
 
   // Classes
-  async getClasses(): Promise<Open5eClass[]> {
-    return fetchAllPages<Open5eClass>("/v1/classes/", {
-      document__slug: "wotc-srd",
-    })
+  async getClasses(source?: ContentSource): Promise<Open5eClass[]> {
+    return fetchAllPages<Open5eClass>("/v1/classes/", getSourceParams(source))
   },
 
   async getClass(slug: string): Promise<Open5eClass> {
@@ -404,10 +409,8 @@ export const open5eApi = {
   },
 
   // Backgrounds
-  async getBackgrounds(): Promise<Open5eBackground[]> {
-    return fetchAllPages<Open5eBackground>("/v1/backgrounds/", {
-      document__slug: "wotc-srd",
-    })
+  async getBackgrounds(source?: ContentSource): Promise<Open5eBackground[]> {
+    return fetchAllPages<Open5eBackground>("/v1/backgrounds/", getSourceParams(source))
   },
 
   async getBackground(slug: string): Promise<Open5eBackground> {
