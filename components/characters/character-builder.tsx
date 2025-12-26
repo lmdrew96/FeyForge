@@ -266,6 +266,8 @@ export function CharacterBuilder() {
     if (className === "cleric") return { cantrips: 3, spells: 0 } // Clerics prepare spells
     if (className === "druid") return { cantrips: 2, spells: 0 } // Druids prepare spells
     if (className === "warlock") return { cantrips: 2, spells: 2 }
+    // Paladin and Ranger don't get cantrips and don't get spells until level 2
+    if (className === "paladin" || className === "ranger") return { cantrips: 0, spells: 0 }
     return { cantrips: 2, spells: 2 }
   }, [isSpellcaster, selectedClass])
 
@@ -689,7 +691,9 @@ export function CharacterBuilder() {
                     }`}
                   >
                     <h3 className="font-serif font-bold text-foreground text-lg">{race.name}</h3>
-                    <p className="text-sm text-primary mt-1">{race.asi_desc}</p>
+                    <div className="text-sm text-primary mt-1 prose prose-sm prose-invert max-w-none [&>p]:m-0">
+                      <ReactMarkdown>{race.asi_desc}</ReactMarkdown>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{race.size} • Speed: {race.speed?.walk || 30} ft.</p>
                     {race.vision && (
                       <Badge variant="outline" className="mt-2 text-xs border-border text-muted-foreground">
@@ -715,7 +719,9 @@ export function CharacterBuilder() {
                         }`}
                       >
                         <h4 className="font-medium text-foreground">{subrace.name}</h4>
-                        <p className="text-sm text-primary mt-1">{subrace.asi_desc}</p>
+                        <div className="text-sm text-primary mt-1 prose prose-sm prose-invert max-w-none [&>p]:m-0">
+                          <ReactMarkdown>{subrace.asi_desc}</ReactMarkdown>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -727,19 +733,9 @@ export function CharacterBuilder() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-serif">{selectedRace.name} Traits</CardTitle>
                   </CardHeader>
-                  <CardContent className="text-sm text-muted-foreground space-y-2">
-                    <div className="prose prose-sm prose-invert max-w-none">
-                      <p><strong>Age:</strong> <ReactMarkdown className="inline">{selectedRace.age}</ReactMarkdown></p>
-                      <p><strong>Size:</strong> <ReactMarkdown className="inline">{selectedRace.size}</ReactMarkdown></p>
-                      <p><strong>Languages:</strong> <ReactMarkdown className="inline">{selectedRace.languages}</ReactMarkdown></p>
-                      {selectedRace.traits && (
-                        <div>
-                          <strong>Traits:</strong>
-                          <div className="mt-1">
-                            <ReactMarkdown>{selectedRace.traits}</ReactMarkdown>
-                          </div>
-                        </div>
-                      )}
+                  <CardContent className="text-sm text-muted-foreground">
+                    <div className="prose prose-sm prose-invert max-w-none [&>p]:my-1 [&_strong]:text-foreground [&_em]:text-primary">
+                      <ReactMarkdown>{`**Age.** ${selectedRace.age}\n\n**Size.** ${selectedRace.size}\n\n**Languages.** ${selectedRace.languages}${selectedRace.traits ? `\n\n**Traits.**\n${selectedRace.traits}` : ''}`}</ReactMarkdown>
                     </div>
                   </CardContent>
                 </Card>
