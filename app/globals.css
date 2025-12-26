@@ -311,6 +311,7 @@
   
   /* ─────────────────────────────────────────────────────────────────────────
      Text Sizes - Responsive typography
+     Note: Using plain CSS for arbitrary values since @apply doesn't support them
      ───────────────────────────────────────────────────────────────────────── */
   .text-stat {
     @apply text-xl sm:text-2xl md:text-3xl;
@@ -319,10 +320,25 @@
     @apply text-xl sm:text-3xl;
   }
   .text-label {
-    @apply text-[10px] sm:text-xs md:text-sm;
+    font-size: 10px;
+  }
+  @media (min-width: 640px) {
+    .text-label {
+      font-size: 0.75rem; /* text-xs */
+    }
+  }
+  @media (min-width: 768px) {
+    .text-label {
+      font-size: 0.875rem; /* text-sm */
+    }
   }
   .text-label-sm {
-    @apply text-[10px] sm:text-xs;
+    font-size: 10px;
+  }
+  @media (min-width: 640px) {
+    .text-label-sm {
+      font-size: 0.75rem; /* text-xs */
+    }
   }
   .text-title {
     @apply text-base sm:text-lg;
