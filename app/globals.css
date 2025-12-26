@@ -369,7 +369,12 @@
     @apply h-9 sm:h-11;
   }
   .min-h-action {
-    @apply min-h-[60px] sm:min-h-[80px];
+    min-height: 60px;
+  }
+  @media (min-width: 640px) {
+    .min-h-action {
+      min-height: 80px;
+    }
   }
   
   /* ─────────────────────────────────────────────────────────────────────────
