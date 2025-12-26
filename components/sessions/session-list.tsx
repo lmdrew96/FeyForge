@@ -33,13 +33,13 @@ export function SessionList() {
   if (sessions.length === 0) {
     return (
       <Card className="bg-card border-border border-dashed">
-        <CardContent className="p-12 text-center">
-          <Scroll className="h-16 w-16 mx-auto text-muted-foreground opacity-30 mb-4" />
-          <h3 className="font-serif text-xl font-bold text-foreground mb-2">No Sessions Yet</h3>
-          <p className="text-muted-foreground mb-6">Start tracking your campaign sessions</p>
-          <Button asChild className="bg-primary hover:bg-primary/90">
+        <CardContent className="p-6 sm:p-12 text-center">
+          <Scroll className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground opacity-30 mb-3 sm:mb-4" />
+          <h3 className="font-serif text-lg sm:text-xl font-bold text-foreground mb-2">No Sessions Yet</h3>
+          <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">Start tracking your campaign sessions</p>
+          <Button asChild className="bg-primary hover:bg-primary/90 text-sm sm:text-base h-9 sm:h-10">
             <Link href="/sessions/new">
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
               Create Session
             </Link>
           </Button>
@@ -49,53 +49,54 @@ export function SessionList() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             {sessions.filter((s) => s.status === "completed").length} completed sessions
           </p>
         </div>
-        <Button asChild className="bg-primary hover:bg-primary/90">
+        <Button asChild className="bg-primary hover:bg-primary/90 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
           <Link href="/sessions/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New Session
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <span className="hidden xs:inline">New Session</span>
+            <span className="xs:hidden">New</span>
           </Link>
         </Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         {sortedSessions.map((session) => (
           <Card
             key={session.id}
             className={cn(
-              "bg-card border-border hover:border-primary/50 transition-colors cursor-pointer group",
+              "bg-card border-border hover:border-primary/50 transition-colors cursor-pointer group active:scale-[0.99]",
               session.status === "planned" && "border-primary/30",
             )}
           >
             <Link href={`/sessions/${session.id}`}>
-              <CardContent className="p-4">
+              <CardContent className="p-2.5 sm:p-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
                     {/* Session Number */}
-                    <div className="h-12 w-12 rounded-lg bg-accent flex items-center justify-center shrink-0">
-                      <span className="font-serif text-xl font-bold text-primary">#{session.number}</span>
+                    <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-lg bg-accent flex items-center justify-center shrink-0">
+                      <span className="font-serif text-base sm:text-xl font-bold text-primary">#{session.number}</span>
                     </div>
 
                     {/* Session Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-serif font-bold text-foreground group-hover:text-primary transition-colors truncate">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <h3 className="font-serif font-bold text-sm sm:text-base text-foreground group-hover:text-primary transition-colors truncate">
                           {session.title}
                         </h3>
-                        <Badge className={cn("text-xs shrink-0", getStatusColor(session.status))}>
+                        <Badge className={cn("text-[10px] sm:text-xs shrink-0", getStatusColor(session.status))}>
                           {session.status}
                         </Badge>
                       </div>
 
-                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
+                      <div className="flex items-center gap-2 sm:gap-4 mt-0.5 sm:mt-1 text-[10px] sm:text-sm text-muted-foreground">
+                        <span className="flex items-center gap-0.5 sm:gap-1">
+                          <Calendar className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                           {new Date(session.date).toLocaleDateString()}
                         </span>
                         {session.duration && (

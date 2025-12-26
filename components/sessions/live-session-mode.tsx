@@ -165,36 +165,39 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
   return (
     <div className="fixed inset-0 z-50 bg-background">
       {/* Header */}
-      <div className="border-b border-border bg-card p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-xl font-serif font-bold text-foreground">
-              Session {localSession.number}: {localSession.title}
+      <div className="border-b border-border bg-card p-2.5 sm:p-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+            <h1 className="text-base sm:text-xl font-serif font-bold text-foreground truncate max-w-full">
+              <span className="hidden sm:inline">Session {localSession.number}: </span>
+              <span className="sm:hidden">#{localSession.number} </span>
+              {localSession.title}
             </h1>
-            <Badge variant="outline" className="text-lg font-mono">
-              <Timer className="h-4 w-4 mr-2" />
+            <Badge variant="outline" className="text-sm sm:text-lg font-mono">
+              <Timer className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
               {formatTime(elapsedSeconds)}
             </Badge>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
             <Button
               variant="outline"
               size="icon"
               onClick={() => setIsRunning(!isRunning)}
-              className={cn(isRunning && "border-green-500 text-green-500")}
+              className={cn("h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px]", isRunning && "border-green-500 text-green-500")}
             >
-              {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {isRunning ? <Pause className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
             </Button>
             <Button
               variant="outline"
               onClick={() => setShowXPCalculator(!showXPCalculator)}
-              className={cn(showXPCalculator && "border-yellow-500 text-yellow-500")}
+              className={cn("h-9 sm:h-10 text-xs sm:text-sm px-2 sm:px-3", showXPCalculator && "border-yellow-500 text-yellow-500")}
             >
-              <Award className="h-4 w-4 mr-2" />
-              Award XP
+              <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Award XP</span>
             </Button>
-            <Button variant="outline" onClick={handleExit}>
-              Exit Live Mode
+            <Button variant="outline" onClick={handleExit} className="h-9 sm:h-10 text-xs sm:text-sm px-2 sm:px-3">
+              <span className="hidden sm:inline">Exit Live Mode</span>
+              <span className="sm:hidden">Exit</span>
             </Button>
           </div>
         </div>
@@ -202,12 +205,12 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
 
       {/* XP Calculator Slide-out */}
       {showXPCalculator && (
-        <div className="fixed right-0 top-[73px] bottom-0 w-full max-w-md bg-background border-l border-border shadow-lg z-50 overflow-auto">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-serif font-bold">Award Experience</h2>
-              <Button variant="ghost" size="icon" onClick={() => setShowXPCalculator(false)}>
-                <X className="h-4 w-4" />
+        <div className="fixed right-0 top-[65px] sm:top-[73px] bottom-0 w-full sm:max-w-md bg-background border-l border-border shadow-lg z-50 overflow-auto">
+          <div className="p-3 sm:p-4">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-serif font-bold">Award Experience</h2>
+              <Button variant="ghost" size="icon" onClick={() => setShowXPCalculator(false)} className="h-9 w-9 min-w-[36px] min-h-[36px]">
+                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </div>
             <XPCalculator
@@ -222,15 +225,15 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
       )}
 
       {/* Main Content */}
-      <div className="grid h-[calc(100vh-73px)] grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+      <div className="grid h-[calc(100vh-65px)] sm:h-[calc(100vh-73px)] grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-4 p-2 sm:p-4 overflow-auto">
         {/* Left Column - Quick Notes & Log */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className="lg:col-span-2 flex flex-col gap-2 sm:gap-4">
           {/* Quick Note Input */}
           <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex gap-2">
+            <CardContent className="p-2.5 sm:p-4">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Select value={noteType} onValueChange={(v) => setNoteType(v as SessionNote["type"])}>
-                  <SelectTrigger className="w-[130px] bg-input border-border">
+                  <SelectTrigger className="w-full sm:w-[130px] h-9 sm:h-10 text-xs sm:text-sm bg-input border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
@@ -251,50 +254,52 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <Textarea
-                  placeholder="Quick note... (press Enter to add)"
-                  value={quickNote}
-                  onChange={(e) => setQuickNote(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault()
-                      addQuickNote()
-                    }
-                  }}
-                  className="flex-1 bg-input border-border min-h-[60px] max-h-[100px]"
-                />
-                <Button onClick={addQuickNote} className="bg-primary hover:bg-primary/90 self-end">
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <div className="flex gap-2 flex-1">
+                  <Textarea
+                    placeholder="Quick note... (press Enter to add)"
+                    value={quickNote}
+                    onChange={(e) => setQuickNote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault()
+                        addQuickNote()
+                      }
+                    }}
+                    className="flex-1 bg-input border-border min-h-[50px] sm:min-h-[60px] max-h-[80px] sm:max-h-[100px] text-sm"
+                  />
+                  <Button onClick={addQuickNote} className="bg-primary hover:bg-primary/90 self-end h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px]">
+                    <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Session Log */}
           <Card className="bg-card border-border flex-1">
-            <CardHeader className="py-3">
-              <CardTitle className="font-serif text-foreground text-lg">Session Log</CardTitle>
+            <CardHeader className="py-2 sm:py-3">
+              <CardTitle className="font-serif text-foreground text-base sm:text-lg">Session Log</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-[calc(100vh-350px)]">
-                <div className="space-y-2 p-4">
+              <ScrollArea className="h-[200px] sm:h-[250px] lg:h-[calc(100vh-350px)]">
+                <div className="space-y-1.5 sm:space-y-2 p-2.5 sm:p-4">
                   {localSession.notes.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
+                    <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">
                       No notes yet. Start documenting your session!
                     </p>
                   ) : (
                     [...localSession.notes].reverse().map((note) => {
                       const Icon = noteTypeIcons[note.type]
                       return (
-                        <div key={note.id} className={cn("p-3 rounded-lg border", noteTypeColors[note.type])}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <Icon className="h-3 w-3" />
-                            <span className="text-xs font-medium capitalize">{note.type}</span>
-                            <span className="text-xs text-muted-foreground ml-auto">
+                        <div key={note.id} className={cn("p-2 sm:p-3 rounded-lg border", noteTypeColors[note.type])}>
+                          <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                            <Icon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                            <span className="text-[10px] sm:text-xs font-medium capitalize">{note.type}</span>
+                            <span className="text-[10px] sm:text-xs text-muted-foreground ml-auto">
                               {new Date(note.timestamp).toLocaleTimeString()}
                             </span>
                           </div>
-                          <p className="text-foreground text-sm whitespace-pre-wrap break-words overflow-hidden">
+                          <p className="text-foreground text-xs sm:text-sm whitespace-pre-wrap break-words overflow-hidden">
                             {note.content}
                           </p>
                         </div>
@@ -308,44 +313,44 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
         </div>
 
         {/* Right Column - Objectives, Encounters, NPCs */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 sm:gap-4">
           {/* Objectives */}
           <Card className="bg-card border-border">
-            <CardHeader className="py-3">
-              <CardTitle className="font-serif text-foreground text-lg flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
+            <CardHeader className="py-2 sm:py-3">
+              <CardTitle className="font-serif text-foreground text-base sm:text-lg flex items-center gap-1.5 sm:gap-2">
+                <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                 Objectives
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <ScrollArea className="max-h-[200px]">
-                <div className="space-y-2">
+            <CardContent className="p-2.5 sm:p-3 pt-0">
+              <ScrollArea className="max-h-[150px] sm:max-h-[200px]">
+                <div className="space-y-1.5 sm:space-y-2">
                   {localSession.objectives?.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-2">No objectives</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground text-center py-2">No objectives</p>
                   ) : (
                     localSession.objectives?.map((objective) => (
                       <button
                         key={objective.id}
                         onClick={() => toggleObjective(objective.id)}
                         className={cn(
-                          "w-full flex items-center gap-2 p-2 rounded text-left transition-opacity min-w-0",
+                          "w-full flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded text-left transition-opacity min-w-0 active:scale-[0.99] min-h-[36px] sm:min-h-[40px]",
                           objective.completed && "opacity-60",
                         )}
                       >
                         <div
                           className={cn(
-                            "h-4 w-4 rounded border flex items-center justify-center shrink-0",
+                            "h-4 w-4 sm:h-5 sm:w-5 rounded border flex items-center justify-center shrink-0",
                             objective.completed ? "bg-primary border-primary" : "border-muted-foreground",
                           )}
                         >
-                          {objective.completed && <Check className="h-3 w-3 text-primary-foreground" />}
+                          {objective.completed && <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-primary-foreground" />}
                         </div>
                         <span
-                          className={cn("text-sm flex-1 min-w-0 break-words", objective.completed && "line-through text-muted-foreground")}
+                          className={cn("text-xs sm:text-sm flex-1 min-w-0 break-words", objective.completed && "line-through text-muted-foreground")}
                         >
                           {objective.text}
                         </span>
-                        <Badge variant="outline" className="text-xs capitalize shrink-0">
+                        <Badge variant="outline" className="text-[10px] sm:text-xs capitalize shrink-0">
                           {objective.priority}
                         </Badge>
                       </button>

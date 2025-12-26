@@ -107,13 +107,13 @@ export function InitiativeTracker() {
   const currentCombatant = combatants[currentTurn]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Combat Controls */}
       <Card className="bg-card border-border">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+        <CardContent className="p-2.5 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 {!isActive ? (
                   <Button
                     onClick={() => {
@@ -123,70 +123,72 @@ export function InitiativeTracker() {
                       }
                     }}
                     disabled={combatants.length === 0}
-                    className="bg-primary hover:bg-primary/90"
+                    className="bg-primary hover:bg-primary/90 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4"
                   >
-                    <Play className="h-4 w-4 mr-2" />
-                    Start Combat
+                    <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden xs:inline">Start Combat</span>
+                    <span className="xs:hidden">Start</span>
                   </Button>
                 ) : (
-                  <Button onClick={endCombat} variant="outline" className="border-border bg-transparent">
-                    <Pause className="h-4 w-4 mr-2" />
+                  <Button onClick={endCombat} variant="outline" className="border-border bg-transparent text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
+                    <Pause className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                     Pause
                   </Button>
                 )}
               </div>
 
               {isActive && (
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" onClick={previousTurn} className="border-border bg-transparent">
-                    <SkipBack className="h-4 w-4" />
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" onClick={previousTurn} className="border-border bg-transparent h-8 w-8 sm:h-10 sm:w-10 min-w-[44px] min-h-[44px]">
+                    <SkipBack className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={nextTurn} className="border-border bg-transparent">
-                    <SkipForward className="h-4 w-4" />
+                  <Button variant="outline" size="icon" onClick={nextTurn} className="border-border bg-transparent h-8 w-8 sm:h-10 sm:w-10 min-w-[44px] min-h-[44px]">
+                    <SkipForward className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </Button>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               {isActive && (
-                <Badge variant="outline" className="border-primary text-primary text-lg px-4 py-1">
+                <Badge variant="outline" className="border-primary text-primary text-sm sm:text-lg px-2 sm:px-4 py-0.5 sm:py-1">
                   Round {round}
                 </Badge>
               )}
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Button
                   variant="outline"
                   onClick={rollAllInitiatives}
                   disabled={combatants.length === 0}
-                  className="border-border bg-transparent"
+                  className="border-border bg-transparent text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-3"
                 >
-                  <Dices className="h-4 w-4 mr-2" />
-                  Roll All
+                  <Dices className="h-3.5 w-3.5 sm:h-4 sm:w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Roll All</span>
                 </Button>
                 <Button
                   variant="outline"
                   onClick={sortByInitiative}
                   disabled={combatants.length === 0}
-                  className="border-border bg-transparent"
+                  className="border-border bg-transparent text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-3"
                 >
                   Sort
                 </Button>
                 <Button
                   variant="outline"
                   onClick={resetCombat}
-                  className="border-border bg-transparent text-destructive hover:text-destructive"
+                  className="border-border bg-transparent text-destructive hover:text-destructive h-8 w-8 sm:h-10 sm:w-10 p-0 min-w-[44px] min-h-[44px]"
                 >
-                  <RotateCcw className="h-4 w-4" />
+                  <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               </div>
 
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-primary hover:bg-primary/90">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Combatant
+                  <Button className="bg-primary hover:bg-primary/90 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
+                    <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Combatant</span>
+                    <span className="sm:hidden">Add</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="bg-card border-border">

@@ -96,11 +96,11 @@ export function NPCGenerator() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label className="text-foreground">Race</Label>
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-foreground text-xs sm:text-sm">Race</Label>
               <Select value={options.race} onValueChange={(v) => setOptions((prev) => ({ ...prev, race: v }))}>
-                <SelectTrigger className="bg-input border-border">
+                <SelectTrigger className="bg-input border-border h-9 sm:h-10 text-sm">
                   <SelectValue placeholder="Any race" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border">
@@ -116,13 +116,13 @@ export function NPCGenerator() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-foreground">Occupation</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-foreground text-xs sm:text-sm">Occupation</Label>
               <Select
                 value={options.occupation}
                 onValueChange={(v) => setOptions((prev) => ({ ...prev, occupation: v }))}
               >
-                <SelectTrigger className="bg-input border-border">
+                <SelectTrigger className="bg-input border-border h-9 sm:h-10 text-sm">
                   <SelectValue placeholder="Any occupation" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border">
@@ -138,13 +138,13 @@ export function NPCGenerator() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-foreground">Location</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-foreground text-xs sm:text-sm">Location</Label>
               <Input
                 placeholder="e.g., Tavern, Market"
                 value={options.location}
                 onChange={(e) => setOptions((prev) => ({ ...prev, location: e.target.value }))}
-                className="bg-input border-border"
+                className="bg-input border-border h-9 sm:h-10 text-sm"
               />
             </div>
           </div>
@@ -178,23 +178,23 @@ export function NPCGenerator() {
         </CardHeader>
         <CardContent>
           {!generatedNPC ? (
-            <div className="text-center py-12">
-              <User className="h-16 w-16 mx-auto text-muted-foreground opacity-30 mb-4" />
-              <p className="text-muted-foreground">
+            <div className="text-center py-8 sm:py-12">
+              <User className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground opacity-30 mb-3 sm:mb-4" />
+              <p className="text-sm sm:text-base text-muted-foreground">
                 Your generated NPC will appear here. <br />
                 Click Generate to create a new NPC!
               </p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Header */}
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="font-serif text-2xl font-bold text-gold-gradient">{generatedNPC.name}</h2>
-                  <p className="text-muted-foreground">
+                  <h2 className="font-serif text-xl sm:text-2xl font-bold text-gold-gradient">{generatedNPC.name}</h2>
+                  <p className="text-sm sm:text-base text-muted-foreground">
                     {generatedNPC.age} {generatedNPC.race} {generatedNPC.occupation}
                   </p>
-                  <Badge variant="outline" className="mt-2 border-border text-muted-foreground">
+                  <Badge variant="outline" className="mt-1.5 sm:mt-2 border-border text-muted-foreground text-xs sm:text-sm">
                     {generatedNPC.alignment}
                   </Badge>
                 </div>
@@ -260,21 +260,21 @@ export function NPCGenerator() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-border">
-                <Button variant="outline" onClick={regenerate} className="border-border bg-transparent">
-                  <RefreshCw className="h-4 w-4 mr-2" />
+              <div className="flex flex-wrap gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border">
+                <Button variant="outline" onClick={regenerate} className="border-border bg-transparent h-9 sm:h-10 text-xs sm:text-sm px-3">
+                  <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                   Regenerate
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setIsEditing(true)}
-                  className="border-border bg-transparent"
+                  className="border-border bg-transparent h-9 sm:h-10 text-xs sm:text-sm px-3"
                 >
-                  <Edit className="h-4 w-4 mr-2" />
+                  <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                   Edit
                 </Button>
-                <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={saveNPC}>
-                  <Save className="h-4 w-4 mr-2" />
+                <Button className="flex-1 bg-primary hover:bg-primary/90 h-9 sm:h-10 text-xs sm:text-sm" onClick={saveNPC}>
+                  <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                   Save NPC
                 </Button>
               </div>

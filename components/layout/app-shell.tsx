@@ -25,7 +25,7 @@ export function AppShell({ children, title, subtitle }: AppShellProps) {
           } max-md:ml-0`}
         >
           <Header title={title} subtitle={subtitle} />
-          <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 overflow-auto">
+          <main className="flex-1 p-2 sm:p-3 md:p-4 lg:p-6 xl:p-8 overflow-auto">
             <div className="max-w-full">{children}</div>
           </main>
         </div>

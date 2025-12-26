@@ -121,6 +121,9 @@
 }
 
 @theme inline {
+  /* Custom xs breakpoint for small phones */
+  --breakpoint-xs: 475px;
+  
   --font-sans: "Acme", "Acme Fallback";
   --font-serif: "Abril Fatface", "Abril Fatface Fallback";
   --font-mono: "Source Code Pro", "Source Code Pro Fallback";
@@ -451,25 +454,56 @@ h6 {
 }
 
 h1 {
-  font-size: 2.5rem;
+  font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
 h2 {
-  font-size: 2rem;
+  font-size: 1.25rem;
   font-weight: 600;
   line-height: 1.3;
 }
 h3 {
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.4;
 }
 h4 {
-  font-size: 1.25rem;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.4;
+}
+
+/* Responsive typography for larger screens */
+@media (min-width: 640px) {
+  h1 {
+    font-size: 2rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+  }
+  h3 {
+    font-size: 1.25rem;
+  }
+  h4 {
+    font-size: 1.125rem;
+  }
+}
+
+@media (min-width: 768px) {
+  h1 {
+    font-size: 2.5rem;
+  }
+  h2 {
+    font-size: 2rem;
+  }
+  h3 {
+    font-size: 1.5rem;
+  }
+  h4 {
+    font-size: 1.25rem;
+  }
 }
 
 .text-silver {
@@ -783,10 +817,28 @@ h4 {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .dice-result {
-  font-size: 6rem;
+  font-size: 3rem;
   font-weight: 700;
   font-family: var(--font-serif);
   line-height: 1;
+}
+
+@media (min-width: 475px) {
+  .dice-result {
+    font-size: 4rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .dice-result {
+    font-size: 5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .dice-result {
+    font-size: 6rem;
+  }
 }
 
 .dice-result.crit-hit {
@@ -800,12 +852,37 @@ h4 {
 }
 
 .dice-button {
-  width: 5rem;
-  height: 5rem;
-  font-size: 1.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: 0.875rem;
   font-weight: 700;
   border-radius: var(--radius-lg);
   transition: all 0.2s ease;
+  min-height: 44px; /* Touch target minimum */
+}
+
+@media (min-width: 475px) {
+  .dice-button {
+    width: 3.25rem;
+    height: 3.25rem;
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .dice-button {
+    width: 4rem;
+    height: 4rem;
+    font-size: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .dice-button {
+    width: 5rem;
+    height: 5rem;
+    font-size: 1.5rem;
+  }
 }
 
 .dice-button:hover {

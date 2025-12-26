@@ -5,18 +5,17 @@
  * Multi-step wizard for creating D&D 5e characters
  */
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, ArrowRight, Check, X, Eye, EyeOff } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, X } from "lucide-react"
 
 import { Step1Basics } from "./step-1-basics"
 import { Step2Abilities } from "./step-2-abilities"
 import { Step3Skills } from "./step-3-skills"
 import { Step4Equipment } from "./step-4-equipment"
 import { Step5Details } from "./step-5-details"
-import { LivePreview } from "./live-preview"
 
 import { useCharacterBuilderStore } from "@/lib/character-builder-store"
 import { validateCharacter } from "@/lib/character/validators"
@@ -24,8 +23,6 @@ import { calculateAllStats } from "@/lib/character/calculations"
 import type { Character, CharacterCreationData, HitDice } from "@/lib/character/types"
 import type { Skill } from "@/lib/character/constants"
 import { ABILITIES, CLASS_HIT_DICE, getAbilityModifier } from "@/lib/character/constants"
-import type { Open5eRace, Open5eClass } from "@/lib/open5e-api"
-import { open5eApi } from "@/lib/open5e-api"
 
 const STEPS = [
   { id: 1, name: "Basics", description: "Name & Alignment" },
@@ -62,7 +59,6 @@ interface CharacterBuilderProps {
 
 export function CharacterBuilder({ onComplete, onCancel, initialData }: CharacterBuilderProps) {
   const [currentStep, setCurrentStep] = useState(1)
-  const [showPreview, setShowPreview] = useState(true)
   const { 
     data, 
     updateData, 
@@ -103,57 +99,6 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
       setCurrentStep(step)
     }
   }, [])
-
-  // Handle Quick Build results
-  const handleApplyQuickBuild = useCallback(async (build: Partial<CharacterCreationData>) => {
-    // Apply basic selections
-    updateData(build)
-
-    // Fetch full data for the selected race/class/background to get their details
-    try {
-      if (build.race) {
-        const races = await open5eApi.getRaces("all")
-        const raceMatch = races.find(r => r.name.toLowerCase() === build.race?.toLowerCase())
-        if (raceMatch) {
-          setRaceData(raceMatch)
-          // Apply racial bonuses
-          const racialBonuses: Partial<Record<string, number>> = {}
-          if (raceMatch.asi) {
-            for (const bonus of raceMatch.asi) {
-              for (const attr of bonus.attributes) {
-                const abilityName = attr.toLowerCase()
-                racialBonuses[abilityName] = (racialBonuses[abilityName] || 0) + bonus.value
-              }
-            }
-          }
-          updateData({ racialBonuses })
-        }
-      }
-
-      if (build.class) {
-        const classes = await open5eApi.getClasses("all")
-        const classMatch = classes.find(c => c.name.toLowerCase() === build.class?.toLowerCase())
-        if (classMatch) {
-          setClassData(classMatch)
-        }
-      }
-
-      if (build.background) {
-        const backgrounds = await open5eApi.getBackgrounds("all")
-        const bgMatch = backgrounds.find(b => b.name.toLowerCase() === build.background?.toLowerCase())
-        if (bgMatch) {
-          setBackgroundData(bgMatch)
-        }
-      }
-
-      // Apply ability scores if provided
-      if ((build as any).abilityScores) {
-        updateData({ baseAbilities: (build as any).abilityScores })
-      }
-    } catch (error) {
-      console.error("Error applying quick build:", error)
-    }
-  }, [updateData, setRaceData, setClassData, setBackgroundData])
 
   const buildCharacter = useCallback((): Character => {
     const id = crypto.randomUUID()
@@ -289,7 +234,6 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
           <Step1Basics 
             data={data} 
             onUpdate={updateData}
-            onApplyQuickBuild={handleApplyQuickBuild}
             raceData={raceData}
             classData={classData}
             backgroundData={backgroundData}
@@ -336,110 +280,90 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
   }
 
   return (
-    <div className="flex gap-6 min-w-0">
-      {/* Main Builder Content */}
-      <div className={`space-y-6 ${showPreview ? "flex-1" : "w-full"}`}>
-        {/* Progress Header */}
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            {/* Step Indicators */}
-            <div className="flex items-center justify-between mb-4">
-              {STEPS.map((step, index) => (
-                <button
-                  key={step.id}
-                  onClick={() => handleStepChange(step.id)}
-                  className={`flex flex-col items-center gap-1 transition-colors ${
+    <div className="space-y-4 sm:space-y-6">
+      {/* Progress Header */}
+      <Card className="bg-card border-border">
+        <CardContent className="p-3 sm:p-4">
+          {/* Step Indicators */}
+          <div className="flex items-center justify-between mb-3 sm:mb-4 overflow-x-auto">
+            {STEPS.map((step, index) => (
+              <button
+                key={step.id}
+                onClick={() => handleStepChange(step.id)}
+                className={`flex flex-col items-center gap-0.5 sm:gap-1 transition-colors shrink-0 px-1 sm:px-2 min-w-[44px] min-h-[44px] ${
+                  step.id === currentStep
+                    ? "text-primary"
+                    : step.id < currentStep
+                    ? "text-green-500"
+                    : "text-muted-foreground"
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-bold border-2 transition-colors ${
                     step.id === currentStep
-                      ? "text-primary"
+                      ? "border-primary bg-primary/10"
                       : step.id < currentStep
-                      ? "text-green-500"
-                      : "text-muted-foreground"
+                      ? "border-green-500 bg-green-500/10"
+                      : "border-muted-foreground"
                   }`}
                 >
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
-                      step.id === currentStep
-                        ? "border-primary bg-primary/10"
-                        : step.id < currentStep
-                        ? "border-green-500 bg-green-500/10"
-                        : "border-muted-foreground"
-                    }`}
-                  >
-                    {step.id < currentStep ? <Check className="h-4 w-4" /> : step.id}
-                  </div>
-                  <span className="text-xs font-medium hidden sm:block">{step.name}</span>
-                </button>
-              ))}
-            </div>
+                  {step.id < currentStep ? <Check className="h-3 w-3 sm:h-4 sm:w-4" /> : step.id}
+                </div>
+                <span className="text-[9px] sm:text-xs font-medium hidden xs:block">{step.name}</span>
+              </button>
+            ))}
+          </div>
 
-            {/* Progress Bar */}
-            <Progress value={progress} className="h-2" />
+          {/* Progress Bar */}
+          <Progress value={progress} className="h-1.5 sm:h-2" />
 
-            {/* Current Step Info */}
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-center flex-1">
-                <h2 className="font-serif text-lg font-bold text-foreground">
-                  Step {currentStep}: {STEPS[currentStep - 1].name}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {STEPS[currentStep - 1].description}
-                </p>
-              </div>
-              
-              {/* Preview Toggle */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowPreview(!showPreview)}
-                className="hidden lg:flex gap-2"
-              >
-                {showPreview ? (
-                  <>
-                    <EyeOff className="h-4 w-4" />
-                    Hide Preview
-                  </>
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4" />
-                    Show Preview
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Current Step Info */}
+          <div className="mt-3 sm:mt-4 text-center">
+            <h2 className="font-serif text-base sm:text-lg font-bold text-foreground">
+              Step {currentStep}: {STEPS[currentStep - 1].name}
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              {STEPS[currentStep - 1].description}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Step Content */}
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            {renderStep()}
+      {/* Step Content */}
+      <Card className="bg-card border-border">
+        <CardContent className="p-3 sm:p-6">
+          {renderStep()}
           
           {/* Navigation Buttons */}
-          <div className="flex justify-between mt-8 pt-6 border-t border-border">
+          <div className="flex justify-between mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-border gap-2">
             <Button 
               variant="outline" 
               onClick={handlePrevious}
               disabled={currentStep === 1}
+              className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Previous
+              <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+              <span className="hidden xs:inline">Previous</span>
+              <span className="xs:hidden">Back</span>
             </Button>
             
             {currentStep < STEPS.length ? (
               <Button 
                 onClick={handleNext}
                 disabled={!canGoNext()}
+                className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4"
               >
                 Next
-                <ArrowRight className="h-4 w-4 ml-2" />
+                <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1.5 sm:ml-2" />
               </Button>
             ) : (
               <Button 
                 onClick={handleComplete}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4"
               >
-                <Check className="h-4 w-4 mr-2" />
-                Create Character
+                <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden xs:inline">Create Character</span>
+                <span className="xs:hidden">Create</span>
               </Button>
             )}
           </div>
@@ -449,24 +373,11 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
       {/* Cancel Button */}
       {onCancel && (
         <div className="flex justify-center">
-          <Button variant="ghost" onClick={handleCancel} className="text-muted-foreground">
-            <X className="h-4 w-4 mr-2" />
-            Cancel Character Creation
+          <Button variant="ghost" onClick={handleCancel} className="text-muted-foreground h-9 sm:h-10 text-xs sm:text-sm">
+            <X className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+            <span className="hidden sm:inline">Cancel Character Creation</span>
+            <span className="sm:hidden">Cancel</span>
           </Button>
-        </div>
-      )}
-      </div>
-
-      {/* Live Preview Sidebar */}
-      {showPreview && (
-        <div className="hidden lg:block w-80 shrink-0">
-          <div className="sticky top-4">
-            <LivePreview
-              data={data}
-              raceData={raceData}
-              classData={classData}
-            />
-          </div>
         </div>
       )}
     </div>

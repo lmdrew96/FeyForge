@@ -59,13 +59,13 @@ export function NPCList() {
   if (npcs.length === 0) {
     return (
       <Card className="bg-card border-border border-dashed">
-        <CardContent className="p-12 text-center">
-          <User className="h-16 w-16 mx-auto text-muted-foreground opacity-30 mb-4" />
-          <h3 className="font-serif text-xl font-bold text-foreground mb-2">No NPCs Yet</h3>
-          <p className="text-muted-foreground mb-6">Generate your first NPC to populate your world</p>
-          <Button asChild className="bg-primary hover:bg-primary/90">
+        <CardContent className="p-6 sm:p-12 text-center">
+          <User className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground opacity-30 mb-3 sm:mb-4" />
+          <h3 className="font-serif text-lg sm:text-xl font-bold text-foreground mb-2">No NPCs Yet</h3>
+          <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">Generate your first NPC to populate your world</p>
+          <Button asChild className="bg-primary hover:bg-primary/90 text-sm sm:text-base h-9 sm:h-10">
             <Link href="/npcs/generate">
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
               Generate NPC
             </Link>
           </Button>
@@ -75,24 +75,24 @@ export function NPCList() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Filters */}
       <Card className="bg-card border-border">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-0">
+        <CardContent className="p-2.5 sm:p-4">
+          <div className="flex flex-wrap gap-2 sm:gap-4">
+            <div className="flex-1 min-w-0 w-full sm:w-auto">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search NPCs..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 bg-input border-border"
+                  className="pl-8 sm:pl-9 bg-input border-border h-9 sm:h-10 text-sm"
                 />
               </div>
             </div>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[140px] bg-input border-border">
+              <SelectTrigger className="w-[100px] sm:w-[140px] bg-input border-border h-9 sm:h-10 text-xs sm:text-sm">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent className="bg-popover border-border">
@@ -111,7 +111,7 @@ export function NPCList() {
               </SelectContent>
             </Select>
             <Select value={filterRelationship} onValueChange={setFilterRelationship}>
-              <SelectTrigger className="w-[140px] bg-input border-border">
+              <SelectTrigger className="w-[100px] sm:w-[140px] bg-input border-border h-9 sm:h-10 text-xs sm:text-sm">
                 <SelectValue placeholder="Relationship" />
               </SelectTrigger>
               <SelectContent className="bg-popover border-border">
@@ -129,10 +129,11 @@ export function NPCList() {
                 </SelectItem>
               </SelectContent>
             </Select>
-            <Button asChild className="bg-primary hover:bg-primary/90">
+            <Button asChild className="bg-primary hover:bg-primary/90 h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">
               <Link href="/npcs/generate">
-                <Plus className="h-4 w-4 mr-2" />
-                New NPC
+                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden xs:inline">New NPC</span>
+                <span className="xs:hidden">Add</span>
               </Link>
             </Button>
           </div>

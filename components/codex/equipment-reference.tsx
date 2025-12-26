@@ -88,46 +88,46 @@ export function EquipmentReference() {
 
   return (
     <Tabs defaultValue="weapons" className="h-full">
-      <TabsList className="bg-card/50">
-        <TabsTrigger value="weapons" className="gap-2">
-          <Sword className="h-4 w-4" />
-          Weapons
+      <TabsList className="bg-card/50 h-9 sm:h-10">
+        <TabsTrigger value="weapons" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+          <Sword className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <span className="hidden xs:inline">Weapons</span>
         </TabsTrigger>
-        <TabsTrigger value="armor" className="gap-2">
-          <Shield className="h-4 w-4" />
-          Armor
+        <TabsTrigger value="armor" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+          <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <span className="hidden xs:inline">Armor</span>
         </TabsTrigger>
-        <TabsTrigger value="magic" className="gap-2">
-          <Sparkles className="h-4 w-4" />
-          Magic Items
+        <TabsTrigger value="magic" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+          <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <span className="hidden xs:inline">Magic Items</span>
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="weapons" className="mt-4 h-[calc(100%-60px)]">
-        <div className="mb-4 flex items-center gap-2 max-w-md">
+      <TabsContent value="weapons" className="mt-3 sm:mt-4 h-[calc(100%-60px)]">
+        <div className="mb-3 sm:mb-4 flex items-center gap-1.5 sm:gap-2 max-w-md">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-2.5 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search weapons..."
               value={weaponSearch}
               onChange={(e) => setWeaponSearch(e.target.value)}
-              className="pl-9"
+              className="pl-8 sm:pl-9 h-9 sm:h-10 text-sm"
             />
           </div>
-          <Button variant="ghost" size="icon" onClick={() => mutateWeapons()} disabled={weaponsLoading}>
-            <RefreshCw className={`h-4 w-4 ${weaponsLoading ? "animate-spin" : ""}`} />
+          <Button variant="ghost" size="icon" onClick={() => mutateWeapons()} disabled={weaponsLoading} className="h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px]">
+            <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${weaponsLoading ? "animate-spin" : ""}`} />
           </Button>
         </div>
-        <ScrollArea className="h-[calc(100%-60px)]">
+        <ScrollArea className="h-[250px] sm:h-[300px] lg:h-[calc(100%-60px)]">
           {weaponsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-muted-foreground">Loading weapons...</span>
+            <div className="flex items-center justify-center py-8 sm:py-12">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-primary" />
+              <span className="ml-2 text-sm sm:text-base text-muted-foreground">Loading weapons...</span>
             </div>
           ) : weaponsError ? (
-            <div className="py-8 text-center text-destructive">
-              <p>Failed to load weapons.</p>
-              <Button variant="outline" className="mt-2 bg-transparent" onClick={() => mutateWeapons()}>
+            <div className="py-6 sm:py-8 text-center text-destructive">
+              <p className="text-sm sm:text-base">Failed to load weapons.</p>
+              <Button variant="outline" className="mt-2 bg-transparent h-9 sm:h-10 text-sm" onClick={() => mutateWeapons()}>
                 Retry
               </Button>
             </div>
@@ -171,31 +171,31 @@ export function EquipmentReference() {
         </ScrollArea>
       </TabsContent>
 
-      <TabsContent value="armor" className="mt-4 h-[calc(100%-60px)]">
-        <div className="mb-4 flex items-center gap-2 max-w-md">
+      <TabsContent value="armor" className="mt-3 sm:mt-4 h-[calc(100%-60px)]">
+        <div className="mb-3 sm:mb-4 flex items-center gap-1.5 sm:gap-2 max-w-md">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-2.5 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search armor..."
               value={armorSearch}
               onChange={(e) => setArmorSearch(e.target.value)}
-              className="pl-9"
+              className="pl-8 sm:pl-9 h-9 sm:h-10 text-sm"
             />
           </div>
-          <Button variant="ghost" size="icon" onClick={() => mutateArmor()} disabled={armorLoading}>
-            <RefreshCw className={`h-4 w-4 ${armorLoading ? "animate-spin" : ""}`} />
+          <Button variant="ghost" size="icon" onClick={() => mutateArmor()} disabled={armorLoading} className="h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px]">
+            <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${armorLoading ? "animate-spin" : ""}`} />
           </Button>
         </div>
-        <ScrollArea className="h-[calc(100%-60px)]">
+        <ScrollArea className="h-[250px] sm:h-[300px] lg:h-[calc(100%-60px)]">
           {armorLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-muted-foreground">Loading armor...</span>
+            <div className="flex items-center justify-center py-8 sm:py-12">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-primary" />
+              <span className="ml-2 text-sm sm:text-base text-muted-foreground">Loading armor...</span>
             </div>
           ) : armorError ? (
-            <div className="py-8 text-center text-destructive">
-              <p>Failed to load armor.</p>
-              <Button variant="outline" className="mt-2 bg-transparent" onClick={() => mutateArmor()}>
+            <div className="py-6 sm:py-8 text-center text-destructive">
+              <p className="text-sm sm:text-base">Failed to load armor.</p>
+              <Button variant="outline" className="mt-2 bg-transparent h-9 sm:h-10 text-sm" onClick={() => mutateArmor()}>
                 Retry
               </Button>
             </div>

@@ -66,40 +66,41 @@ export function WorldMap() {
   const filteredLocations = showUnvisited ? locations : locations.filter((loc) => loc.visited)
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr,350px] min-w-0">
+    <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-[1fr,350px] min-w-0">
       {/* Map Area */}
       <Card className="border-primary/20 bg-card/50 backdrop-blur overflow-hidden">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="font-cinzel text-gold flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
+        <CardHeader className="pb-2 px-3 sm:px-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+            <CardTitle className="font-cinzel text-gold flex items-center gap-2 text-base sm:text-lg">
+              <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
               World Map
             </CardTitle>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <Switch id="show-unvisited" checked={showUnvisited} onCheckedChange={setShowUnvisited} />
-                <Label htmlFor="show-unvisited" className="text-sm text-muted-foreground">
-                  Show Unvisited
+                <Label htmlFor="show-unvisited" className="text-xs sm:text-sm text-muted-foreground">
+                  <span className="hidden xs:inline">Show Unvisited</span>
+                  <span className="xs:hidden">Unvisited</span>
                 </Label>
               </div>
               <Button
                 variant={isAddingLocation ? "default" : "outline"}
                 size="sm"
                 onClick={() => setIsAddingLocation(!isAddingLocation)}
-                className={
+                className={`text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3 ${
                   isAddingLocation ? "bg-gold text-background hover:bg-gold/90" : "border-gold/30 hover:border-gold/60"
-                }
+                }`}
               >
-                <Plus className="mr-2 h-4 w-4" />
-                {isAddingLocation ? "Click Map to Place" : "Add Location"}
+                <Plus className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                {isAddingLocation ? "Click to Place" : "Add Location"}
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-4">
+        <CardContent className="p-2 sm:p-4">
           {/* Map Container */}
           <div
-            className="relative w-full aspect-[16/10] rounded-lg overflow-hidden cursor-crosshair"
+            className="relative w-full aspect-[4/3] sm:aspect-[16/10] rounded-lg overflow-hidden cursor-crosshair touch-manipulation"
             onClick={handleMapClick}
             style={{
               backgroundImage: `url('/fantasy-world-map-parchment-style-with-mountains-f.jpg')`,
@@ -110,14 +111,14 @@ export function WorldMap() {
             {/* Overlay for better pin visibility */}
             <div className="absolute inset-0 bg-background/20" />
 
-            {/* Location Pins */}
+            {/* Location Pins - larger touch targets on mobile */}
             {filteredLocations.map((location) => {
               const config = locationTypeConfig[location.type]
               const Icon = config.icon
               return (
                 <button
                   key={location.id}
-                  className={`absolute transform -translate-x-1/2 -translate-y-full transition-all duration-200 hover:scale-125 group ${
+                  className={`absolute transform -translate-x-1/2 -translate-y-full transition-all duration-200 hover:scale-125 active:scale-110 group p-1.5 sm:p-1 min-w-[44px] min-h-[44px] flex items-end justify-center ${
                     !location.visited ? "opacity-60" : ""
                   }`}
                   style={{ left: `${location.x}%`, top: `${location.y}%` }}
@@ -127,11 +128,11 @@ export function WorldMap() {
                   }}
                 >
                   <div className="relative">
-                    <MapPin className={`h-8 w-8 ${config.color} drop-shadow-lg`} />
-                    <Icon className="absolute top-1 left-1/2 -translate-x-1/2 h-3 w-3 text-background" />
+                    <MapPin className={`h-6 w-6 sm:h-8 sm:w-8 ${config.color} drop-shadow-lg`} />
+                    <Icon className="absolute top-0.5 sm:top-1 left-1/2 -translate-x-1/2 h-2.5 w-2.5 sm:h-3 sm:w-3 text-background" />
                   </div>
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-background/95 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity border border-primary/20">
+                  {/* Tooltip - hidden on touch devices */}
+                  <div className="hidden sm:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-background/95 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity border border-primary/20 pointer-events-none">
                     {location.name}
                   </div>
                 </button>

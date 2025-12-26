@@ -160,124 +160,126 @@ export function MonsterBrowser() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-full gap-4 min-w-0">
+    <div className="flex flex-col lg:flex-row h-full gap-3 sm:gap-4 min-w-0">
       {/* Monster List */}
-      <div className="flex flex-1 min-w-0 lg:max-w-[50%] flex-col gap-4">
+      <div className="flex flex-1 min-w-0 lg:max-w-[50%] flex-col gap-3 sm:gap-4">
         {/* Filters */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2">
           <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-2.5 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search monsters..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-8 sm:pl-9 text-sm h-9 sm:h-10"
             />
           </div>
-          <Select value={crFilter} onValueChange={setCrFilter}>
-            <SelectTrigger className="w-24">
-              <SelectValue placeholder="CR" />
-            </SelectTrigger>
-            <SelectContent>
-              {CR_OPTIONS.map((cr) => (
-                <SelectItem key={cr} value={cr}>
-                  {cr === "All" ? "All CR" : `CR ${cr}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              {TYPE_OPTIONS.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={sizeFilter} onValueChange={setSizeFilter}>
-            <SelectTrigger className="w-28">
-              <SelectValue placeholder="Size" />
-            </SelectTrigger>
-            <SelectContent>
-              {SIZE_OPTIONS.map((size) => (
-                <SelectItem key={size} value={size}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="ghost" size="icon" onClick={() => mutate()} disabled={isLoading} title="Refresh from API">
-            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-          </Button>
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
+            <Select value={crFilter} onValueChange={setCrFilter}>
+              <SelectTrigger className="w-[70px] sm:w-24 text-xs sm:text-sm h-9 sm:h-10">
+                <SelectValue placeholder="CR" />
+              </SelectTrigger>
+              <SelectContent>
+                {CR_OPTIONS.map((cr) => (
+                  <SelectItem key={cr} value={cr}>
+                    {cr === "All" ? "All CR" : `CR ${cr}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[90px] sm:w-32 text-xs sm:text-sm h-9 sm:h-10">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {TYPE_OPTIONS.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sizeFilter} onValueChange={setSizeFilter}>
+              <SelectTrigger className="w-[80px] sm:w-28 text-xs sm:text-sm h-9 sm:h-10">
+                <SelectValue placeholder="Size" />
+              </SelectTrigger>
+              <SelectContent>
+                {SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={size}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="ghost" size="icon" onClick={() => mutate()} disabled={isLoading} title="Refresh from API" className="h-9 w-9 sm:h-10 sm:w-10 min-w-[44px] min-h-[44px]">
+              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
 
         {/* Monster List */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-[200px] lg:min-h-0">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-muted-foreground">Loading monsters from Open5e...</span>
+            <div className="flex items-center justify-center py-8 sm:py-12">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground text-sm">Loading monsters...</span>
             </div>
           ) : error ? (
-            <div className="py-8 text-center text-destructive">
-              <p>Failed to load monsters. Please try again.</p>
-              <Button variant="outline" className="mt-2 bg-transparent" onClick={() => mutate()}>
+            <div className="py-6 sm:py-8 text-center text-destructive">
+              <p className="text-sm">Failed to load monsters. Please try again.</p>
+              <Button variant="outline" className="mt-2 bg-transparent text-sm" onClick={() => mutate()}>
                 Retry
               </Button>
             </div>
           ) : (
-            <div className="space-y-2 pr-4">
+            <div className="space-y-1.5 sm:space-y-2 pr-2 sm:pr-4">
               {filteredMonsters.map((monster) => (
                 <Card
                   key={monster.slug}
-                  className={`cursor-pointer border-border/50 bg-card/50 transition-colors hover:bg-card ${
+                  className={`cursor-pointer border-border/50 bg-card/50 transition-colors hover:bg-card active:scale-[0.99] ${
                     selectedMonster?.slug === monster.slug ? "border-primary bg-card" : ""
                   }`}
                   onClick={() => setSelectedMonster(monster)}
                 >
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Skull className="h-4 w-4 text-destructive" />
-                        <span className="font-medium">{monster.name}</span>
+                  <CardContent className="p-2 sm:p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <Skull className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive shrink-0" />
+                        <span className="font-medium text-sm sm:text-base truncate">{monster.name}</span>
                       </div>
-                      <Badge className={crColor(monster.cr)}>CR {monster.challenge_rating}</Badge>
+                      <Badge className={`${crColor(monster.cr)} text-[10px] sm:text-xs shrink-0`}>CR {monster.challenge_rating}</Badge>
                     </div>
-                    <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
-                      <span>
+                    <div className="mt-1 flex items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-muted-foreground">
+                      <span className="truncate">
                         {monster.size} {monster.type}
                       </span>
-                      <span className="flex items-center gap-1">
-                        <Heart className="h-3 w-3" /> {monster.hit_points}
+                      <span className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                        <Heart className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {monster.hit_points}
                       </span>
-                      <span className="flex items-center gap-1">
-                        <Shield className="h-3 w-3" /> {monster.armor_class}
+                      <span className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                        <Shield className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {monster.armor_class}
                       </span>
                     </div>
                   </CardContent>
                 </Card>
               ))}
               {filteredMonsters.length === 0 && !isLoading && (
-                <p className="py-8 text-center text-muted-foreground">No monsters found matching your criteria</p>
+                <p className="py-6 sm:py-8 text-center text-muted-foreground text-sm">No monsters found matching your criteria</p>
               )}
             </div>
           )}
         </ScrollArea>
-        <p className="text-sm text-muted-foreground">{filteredMonsters.length} monsters found</p>
+        <p className="text-xs sm:text-sm text-muted-foreground">{filteredMonsters.length} monsters found</p>
       </div>
 
       {/* Monster Detail */}
       <div className="flex-1 min-w-0 lg:max-w-[50%]">
         {selectedMonster ? (
           <Card className="h-full border-border/50 bg-card/50">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">{selectedMonster.name}</CardTitle>
-                <Badge className={crColor(selectedMonster.cr)}>
+            <CardHeader className="pb-2 px-3 sm:px-6">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base sm:text-xl truncate">{selectedMonster.name}</CardTitle>
+                <Badge className={`${crColor(selectedMonster.cr)} text-[10px] sm:text-xs shrink-0`}>
                   CR {selectedMonster.challenge_rating} ({getCrXp(selectedMonster.cr).toLocaleString()} XP)
                 </Badge>
               </div>
@@ -286,47 +288,47 @@ export function MonsterBrowser() {
                 {selectedMonster.subtype && ` (${selectedMonster.subtype})`}, {selectedMonster.alignment}
               </p>
             </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[calc(100vh-400px)]">
-                <div className="space-y-4 pr-4">
+            <CardContent className="px-3 sm:px-6">
+              <ScrollArea className="h-[250px] sm:h-[300px] lg:h-[calc(100vh-400px)]">
+                <div className="space-y-3 sm:space-y-4 pr-2 sm:pr-4">
                   {/* Basic Stats */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 p-2">
-                      <Shield className="h-4 w-4 text-blue-400" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">AC</p>
-                        <p className="text-sm font-medium">
+                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-border/50 bg-background/50 p-1.5 sm:p-2">
+                      <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">AC</p>
+                        <p className="text-xs sm:text-sm font-medium truncate">
                           {selectedMonster.armor_class}
-                          {selectedMonster.armor_desc && ` (${selectedMonster.armor_desc})`}
+                          {selectedMonster.armor_desc && <span className="hidden sm:inline"> ({selectedMonster.armor_desc})</span>}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 p-2">
-                      <Heart className="h-4 w-4 text-red-400" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">HP</p>
-                        <p className="text-sm font-medium">
-                          {selectedMonster.hit_points} ({selectedMonster.hit_dice})
+                    <div className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-border/50 bg-background/50 p-1.5 sm:p-2">
+                      <Heart className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">HP</p>
+                        <p className="text-xs sm:text-sm font-medium truncate">
+                          {selectedMonster.hit_points} <span className="hidden sm:inline">({selectedMonster.hit_dice})</span>
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 p-2">
-                      <Swords className="h-4 w-4 text-yellow-400" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Speed</p>
-                        <p className="text-sm font-medium">{formatSpeed(selectedMonster.speed)}</p>
+                    <div className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-border/50 bg-background/50 p-1.5 sm:p-2">
+                      <Swords className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">Speed</p>
+                        <p className="text-xs sm:text-sm font-medium truncate">{formatSpeed(selectedMonster.speed)}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Ability Scores */}
-                  <div className="grid grid-cols-6 gap-2 text-center">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2 text-center">
                     {(["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as const).map(
                       (ability) => (
-                        <div key={ability} className="rounded-lg border border-border/50 bg-background/50 p-2">
-                          <p className="text-xs uppercase text-muted-foreground">{ability.slice(0, 3)}</p>
-                          <p className="text-lg font-bold">{selectedMonster[ability]}</p>
-                          <p className="text-xs text-primary">{getModifier(selectedMonster[ability])}</p>
+                        <div key={ability} className="rounded-lg border border-border/50 bg-background/50 p-1.5 sm:p-2">
+                          <p className="text-[10px] sm:text-xs uppercase text-muted-foreground">{ability.slice(0, 3)}</p>
+                          <p className="text-sm sm:text-lg font-bold">{selectedMonster[ability]}</p>
+                          <p className="text-[10px] sm:text-xs text-primary">{getModifier(selectedMonster[ability])}</p>
                         </div>
                       ),
                     )}

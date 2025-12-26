@@ -80,18 +80,18 @@ export function SpellBrowser() {
       {/* Spell List */}
       <div className="flex flex-1 min-w-0 lg:max-w-[50%] flex-col gap-4">
         {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          <div className="relative flex-1 min-w-0 w-full sm:w-auto">
+            <Search className="absolute left-2.5 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search spells..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-8 sm:pl-9 h-9 sm:h-10 text-sm"
             />
           </div>
           <Select value={levelFilter} onValueChange={setLevelFilter}>
-            <SelectTrigger className="w-28">
+            <SelectTrigger className="w-20 sm:w-28 h-9 sm:h-10 text-xs sm:text-sm">
               <SelectValue placeholder="Level" />
             </SelectTrigger>
             <SelectContent>
@@ -105,7 +105,7 @@ export function SpellBrowser() {
             </SelectContent>
           </Select>
           <Select value={schoolFilter} onValueChange={setSchoolFilter}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-24 sm:w-32 h-9 sm:h-10 text-xs sm:text-sm">
               <SelectValue placeholder="School" />
             </SelectTrigger>
             <SelectContent>
@@ -118,7 +118,7 @@ export function SpellBrowser() {
             </SelectContent>
           </Select>
           <Select value={classFilter} onValueChange={setClassFilter}>
-            <SelectTrigger className="w-28">
+            <SelectTrigger className="w-20 sm:w-28 h-9 sm:h-10 text-xs sm:text-sm">
               <SelectValue placeholder="Class" />
             </SelectTrigger>
             <SelectContent>
@@ -129,8 +129,8 @@ export function SpellBrowser() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="icon" onClick={() => mutate()} disabled={isLoading} title="Refresh from API">
-            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          <Button variant="ghost" size="icon" onClick={() => mutate()} disabled={isLoading} title="Refresh from API" className="h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px] sm:min-w-[44px] sm:min-h-[44px]">
+            <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isLoading ? "animate-spin" : ""}`} />
           </Button>
         </div>
 
@@ -149,46 +149,46 @@ export function SpellBrowser() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-2 pr-4">
+            <div className="space-y-1.5 sm:space-y-2 pr-2 sm:pr-4">
               {filteredSpells.map((spell) => (
                 <Card
                   key={spell.slug}
-                  className={`cursor-pointer border-border/50 bg-card/50 transition-colors hover:bg-card ${
+                  className={`cursor-pointer border-border/50 bg-card/50 transition-colors hover:bg-card active:scale-[0.99] ${
                     selectedSpell?.slug === spell.slug ? "border-primary bg-card" : ""
                   }`}
                   onClick={() => setSelectedSpell(spell)}
                 >
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                        <span className="font-medium">{spell.name}</span>
+                  <CardContent className="p-2.5 sm:p-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+                        <span className="font-medium text-sm sm:text-base">{spell.name}</span>
                         {spell.concentration === "yes" && (
-                          <Badge variant="outline" className="text-xs text-yellow-400 border-yellow-500/30">
+                          <Badge variant="outline" className="text-[10px] sm:text-xs text-yellow-400 border-yellow-500/30 px-1.5">
                             C
                           </Badge>
                         )}
                         {spell.ritual === "yes" && (
-                          <Badge variant="outline" className="text-xs text-cyan-400 border-cyan-500/30">
+                          <Badge variant="outline" className="text-[10px] sm:text-xs text-cyan-400 border-cyan-500/30 px-1.5">
                             R
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">
-                          {spell.level_int === 0 ? "Cantrip" : `Level ${spell.level_int}`}
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <Badge variant="outline" className="text-[10px] sm:text-xs">
+                          {spell.level_int === 0 ? "Cantrip" : `Lvl ${spell.level_int}`}
                         </Badge>
-                        <Badge className={`text-xs ${schoolColors[formatSchool(spell.school)] || ""}`}>
+                        <Badge className={`text-[10px] sm:text-xs ${schoolColors[formatSchool(spell.school)] || ""}`}>
                           {formatSchool(spell.school)}
                         </Badge>
                       </div>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{spell.dnd_class}</p>
+                    <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground line-clamp-1">{spell.dnd_class}</p>
                   </CardContent>
                 </Card>
               ))}
               {filteredSpells.length === 0 && !isLoading && (
-                <p className="py-8 text-center text-muted-foreground">No spells found matching your criteria</p>
+                <p className="py-6 sm:py-8 text-center text-sm sm:text-base text-muted-foreground">No spells found matching your criteria</p>
               )}
             </div>
           )}
@@ -218,21 +218,21 @@ export function SpellBrowser() {
               <p className="text-sm text-muted-foreground">{selectedSpell.dnd_class}</p>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[calc(100vh-400px)]">
-                <div className="space-y-4 pr-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 p-3">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Casting Time</p>
-                        <p className="text-sm font-medium">{selectedSpell.casting_time}</p>
+              <ScrollArea className="h-[250px] sm:h-[300px] lg:h-[calc(100vh-400px)]">
+                <div className="space-y-3 sm:space-y-4 pr-2 sm:pr-4">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-border/50 bg-background/50 p-2 sm:p-3">
+                      <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">Casting Time</p>
+                        <p className="text-xs sm:text-sm font-medium truncate">{selectedSpell.casting_time}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 p-3">
-                      <Target className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Range</p>
-                        <p className="text-sm font-medium">{selectedSpell.range}</p>
+                    <div className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-border/50 bg-background/50 p-2 sm:p-3">
+                      <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">Range</p>
+                        <p className="text-xs sm:text-sm font-medium truncate">{selectedSpell.range}</p>
                       </div>
                     </div>
                   </div>

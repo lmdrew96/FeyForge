@@ -111,98 +111,97 @@ export function XPCalculator({ sessionId, plannedEncounters = [], onXPAwarded }:
 
   return (
     <Card className="bg-card border-border">
-      <CardHeader className="py-3">
-        <CardTitle className="font-serif text-foreground flex items-center gap-2">
-          <Award className="h-5 w-5 text-yellow-500" />
-          XP Calculator & Distribution
+      <CardHeader className="py-2 sm:py-3">
+        <CardTitle className="font-serif text-foreground flex items-center gap-1.5 sm:gap-2 text-base sm:text-lg">
+          <Award className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
+          XP Calculator
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 sm:space-y-4">
         {/* XP Sources */}
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">XP Sources</Label>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="p-3 rounded-lg border border-border bg-accent/20">
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label className="text-xs sm:text-sm text-muted-foreground">XP Sources</Label>
+          <div className="grid gap-1.5 sm:gap-2 grid-cols-1 sm:grid-cols-2">
+            <div className="p-2 sm:p-3 rounded-lg border border-border bg-accent/20">
               <div className="flex items-center justify-between">
-                <span className="text-sm">Completed Encounters</span>
-                <span className="font-mono font-bold">{encounterXP.toLocaleString()}</span>
+                <span className="text-xs sm:text-sm">Encounters</span>
+                <span className="font-mono font-bold text-sm sm:text-base">{encounterXP.toLocaleString()}</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {plannedEncounters.filter((e) => e.status === "completed").length} of{" "}
-                {plannedEncounters.length} encounters
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+                {plannedEncounters.filter((e) => e.status === "completed").length}/{plannedEncounters.length} done
               </p>
             </div>
-            <div className="p-3 rounded-lg border border-border bg-accent/20">
+            <div className="p-2 sm:p-3 rounded-lg border border-border bg-accent/20">
               <div className="flex items-center justify-between">
-                <span className="text-sm">Bonus XP</span>
-                <div className="flex items-center gap-1">
+                <span className="text-xs sm:text-sm">Bonus XP</span>
+                <div className="flex items-center gap-0.5 sm:gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-6 w-6 sm:h-7 sm:w-7 min-w-[24px] min-h-[24px]"
                     onClick={() => setBonusXP(Math.max(0, bonusXP - 100))}
                   >
-                    <Minus className="h-3 w-3" />
+                    <Minus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                   </Button>
                   <Input
                     type="number"
                     value={bonusXP}
                     onChange={(e) => setBonusXP(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-20 h-7 text-center font-mono bg-input border-border"
+                    className="w-14 sm:w-20 h-6 sm:h-7 text-center font-mono text-xs sm:text-sm bg-input border-border"
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-6 w-6 sm:h-7 sm:w-7 min-w-[24px] min-h-[24px]"
                     onClick={() => setBonusXP(bonusXP + 100)}
                   >
-                    <Plus className="h-3 w-3" />
+                    <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                   </Button>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Roleplay, quests, etc.
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+                Roleplay, quests
               </p>
             </div>
           </div>
         </div>
 
         {/* Total & Per Character */}
-        <div className="flex items-center justify-between p-3 rounded-lg border border-primary/50 bg-primary/10">
+        <div className="flex items-center justify-between p-2 sm:p-3 rounded-lg border border-primary/50 bg-primary/10">
           <div>
-            <p className="text-sm text-muted-foreground">Total XP to distribute</p>
-            <p className="text-2xl font-bold font-mono">{totalXP.toLocaleString()}</p>
+            <p className="text-[10px] sm:text-sm text-muted-foreground">Total XP</p>
+            <p className="text-lg sm:text-2xl font-bold font-mono">{totalXP.toLocaleString()}</p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-muted-foreground">Per character ({selectedCharacters.length})</p>
-            <p className="text-2xl font-bold font-mono text-primary">{xpPerCharacter.toLocaleString()}</p>
+            <p className="text-[10px] sm:text-sm text-muted-foreground">Per char ({selectedCharacters.length})</p>
+            <p className="text-lg sm:text-2xl font-bold font-mono text-primary">{xpPerCharacter.toLocaleString()}</p>
           </div>
         </div>
 
         {/* Character Selection */}
-        <div className="space-y-2">
+        <div className="space-y-1.5 sm:space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Select Characters to Award
+            <Label className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5 sm:gap-2">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Select Characters
             </Label>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={selectAll}>
+            <div className="flex gap-1 sm:gap-2">
+              <Button variant="ghost" size="sm" onClick={selectAll} className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3">
                 All
               </Button>
-              <Button variant="ghost" size="sm" onClick={selectNone}>
+              <Button variant="ghost" size="sm" onClick={selectNone} className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3">
                 None
               </Button>
             </div>
           </div>
 
           {characters.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <p className="text-xs sm:text-sm text-muted-foreground text-center py-3 sm:py-4">
               No characters in this campaign
             </p>
           ) : (
-            <ScrollArea className="h-[180px]">
-              <div className="space-y-2 pr-4">
+            <ScrollArea className="h-[140px] sm:h-[180px]">
+              <div className="space-y-1.5 sm:space-y-2 pr-2 sm:pr-4">
                 {characters.map((char) => {
                   const isSelected = selectedCharacters.includes(char.id)
                   const newXP = char.experiencePoints + xpPerCharacter

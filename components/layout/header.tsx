@@ -21,15 +21,15 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border/50 bg-card/90 backdrop-blur-md px-3 pl-14 md:pl-6 sm:pr-6">
-      <div className="min-w-0 flex-1 mr-2">
-        {title && <h1 className="font-serif text-sm sm:text-lg md:text-xl font-bold text-silver truncate">{title}</h1>}
+    <header className="sticky top-0 z-30 flex h-12 sm:h-14 md:h-16 items-center justify-between border-b border-border/50 bg-card/90 backdrop-blur-md px-2 sm:px-3 pl-12 sm:pl-14 md:pl-6 pr-2 sm:pr-6">
+      <div className="min-w-0 flex-1 mr-1 sm:mr-2">
+        {title && <h1 className="font-serif text-xs sm:text-sm md:text-lg lg:text-xl font-bold text-silver truncate">{title}</h1>}
         {subtitle && (
-          <p className="text-[10px] sm:text-xs text-muted-foreground truncate hidden sm:block">{subtitle}</p>
+          <p className="text-[9px] sm:text-[10px] md:text-xs text-muted-foreground truncate hidden sm:block">{subtitle}</p>
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 shrink-0">
         {/* Search */}
         <div className="relative hidden lg:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -42,11 +42,11 @@ export function Header({ title, subtitle }: HeaderProps) {
         <Button
           variant="outline"
           size="sm"
-          className="border-primary/50 text-primary hover:bg-primary/15 hover:border-primary gap-1 sm:gap-2 bg-primary/5 text-xs h-8 px-2 sm:px-3 shadow-[0_0_15px_-3px_var(--turquoise)] hover:shadow-[0_0_25px_-3px_var(--turquoise)] transition-all"
+          className="border-primary/50 text-primary hover:bg-primary/15 hover:border-primary gap-1 bg-primary/5 text-[10px] sm:text-xs h-7 sm:h-8 px-1.5 sm:px-3 shadow-[0_0_15px_-3px_var(--turquoise)] hover:shadow-[0_0_25px_-3px_var(--turquoise)] transition-all"
           asChild
         >
           <Link href="/dm-assistant">
-            <Sparkles className="h-3.5 w-3.5 animate-twinkle" />
+            <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-twinkle" />
             <span className="hidden sm:inline font-medium">AI</span>
           </Link>
         </Button>
@@ -56,9 +56,9 @@ export function Header({ title, subtitle }: HeaderProps) {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 hover:bg-primary/10">
-              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 border border-primary/30 flex items-center justify-center">
-                <User className="h-3.5 w-3.5 text-foreground" />
+            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 sm:h-9 sm:w-9 hover:bg-primary/10 min-w-[44px] min-h-[44px] flex items-center justify-center">
+              <div className="h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 border border-primary/30 flex items-center justify-center">
+                <User className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-foreground" />
               </div>
             </Button>
           </DropdownMenuTrigger>

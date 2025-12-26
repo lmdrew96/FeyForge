@@ -414,16 +414,16 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <Tabs defaultValue="details" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3 bg-muted">
-          <TabsTrigger value="details" className="data-[state=active]:bg-accent">
+        <TabsList className="grid w-full max-w-xs sm:max-w-md grid-cols-3 bg-muted h-9 sm:h-10">
+          <TabsTrigger value="details" className="data-[state=active]:bg-accent text-xs sm:text-sm">
             Details
           </TabsTrigger>
-          <TabsTrigger value="notes" className="data-[state=active]:bg-accent">
+          <TabsTrigger value="notes" className="data-[state=active]:bg-accent text-xs sm:text-sm">
             Notes
           </TabsTrigger>
-          <TabsTrigger value="prep" className="data-[state=active]:bg-accent">
+          <TabsTrigger value="prep" className="data-[state=active]:bg-accent text-xs sm:text-sm">
             Prep
           </TabsTrigger>
         </TabsList>
