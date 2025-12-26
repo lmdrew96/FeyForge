@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* stylelint-disable-next-line at-rule-no-unknown */
 @custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -166,16 +167,21 @@
     border-color: var(--border);
     outline-color: var(--ring);
   }
-  html,
-  body {
-    overflow: hidden;
-    height: 100%;
+  html {
+  height: 100%;
+}
+body {
+  min-height: 100%;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  background: var(--background);
+  color: var(--foreground);
+}
   }
   body {
     background: var(--background);
     color: var(--foreground);
   }
-}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MAGICAL BACKGROUNDS - Floating particles and ethereal glows
