@@ -75,6 +75,8 @@ export function CharacterBuilder() {
 
   const [pointBuyRemaining, setPointBuyRemaining] = useState(27)
   const [abilityMethod, setAbilityMethod] = useState<"point-buy" | "roll">("point-buy")
+  const [isGeneratingName, setIsGeneratingName] = useState(false)
+  const [isGeneratingBackstory, setIsGeneratingBackstory] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -208,6 +210,63 @@ export function CharacterBuilder() {
     speed: selectedRace?.speed || 30,
   }
 
+  const handleGenerateName = async () => {
+    setIsGeneratingName(true)
+    console.log("[v0] Generating character name...")
+    try {
+      const response = await fetch("/api/character/generate-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          race: character.race,
+          characterClass: character.class,
+          gender: character.gender,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to generate name")
+
+      const data = await response.json()
+      setCharacter((prev) => ({ ...prev, name: data.name }))
+      console.log("[v0] Generated name:", data.name)
+    } catch (error) {
+      console.error("[v0] Name generation error:", error)
+      alert("Failed to generate name. Please try again.")
+    } finally {
+      setIsGeneratingName(false)
+    }
+  }
+
+  const handleGenerateBackstory = async () => {
+    setIsGeneratingBackstory(true)
+    console.log("[v0] Generating character backstory...")
+    try {
+      const response = await fetch("/api/character/generate-backstory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: character.name,
+          race: character.race,
+          characterClass: character.class,
+          background: character.background,
+          alignment: character.alignment,
+          personality: `${character.personalityTraits}, ${character.ideals}, ${character.bonds}, ${character.flaws}`,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to generate backstory")
+
+      const data = await response.json()
+      setCharacter((prev) => ({ ...prev, backstory: data.backstory }))
+      console.log("[v0] Generated backstory length:", data.backstory.length)
+    } catch (error) {
+      console.error("[v0] Backstory generation error:", error)
+      alert("Failed to generate backstory. Please try again.")
+    } finally {
+      setIsGeneratingBackstory(false)
+    }
+  }
+
   if (!mounted) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -330,10 +389,12 @@ export function CharacterBuilder() {
 
                 <Button
                   variant="outline"
+                  onClick={handleGenerateName}
+                  disabled={isGeneratingName}
                   className="w-full border-primary/50 text-primary hover:bg-primary/10 gap-2 bg-transparent mt-4"
                 >
                   <Sparkles className="h-4 w-4" />
-                  Generate Random Name with AI
+                  {isGeneratingName ? "Generating..." : "Generate Random Name with AI"}
                 </Button>
               </div>
             </div>
@@ -672,10 +733,12 @@ export function CharacterBuilder() {
                 <div className="md:col-span-2">
                   <Button
                     variant="outline"
+                    onClick={handleGenerateBackstory}
+                    disabled={isGeneratingBackstory || !character.name}
                     className="w-full border-primary/50 text-primary hover:bg-primary/10 gap-2 bg-transparent"
                   >
                     <Sparkles className="h-4 w-4" />
-                    Generate Backstory with AI
+                    {isGeneratingBackstory ? "Generating..." : "Generate Backstory with AI"}
                   </Button>
                 </div>
               </div>

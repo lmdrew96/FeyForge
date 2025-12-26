@@ -53,12 +53,16 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
     locationsVisited: session?.locationsVisited || [],
     notes: session?.notes || [],
     plotThreads: session?.plotThreads || [],
+    playerRecap: session?.playerRecap || "",
   })
 
   const [newHighlight, setNewHighlight] = useState("")
   const [newLoot, setNewLoot] = useState("")
   const [newNote, setNewNote] = useState("")
   const [noteType, setNoteType] = useState<SessionNote["type"]>("narrative")
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
+  const [isGeneratingPrep, setIsGeneratingPrep] = useState(false)
+  const [isGeneratingRecap, setIsGeneratingRecap] = useState(false)
 
   const handleSave = () => {
     if (isNew) {
@@ -115,6 +119,90 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
       notes: [...(prev.notes || []), note],
     }))
     setNewNote("")
+  }
+
+  const handleGenerateSummary = async () => {
+    setIsGeneratingSummary(true)
+    console.log("[v0] Generating session summary...")
+    try {
+      const response = await fetch("/api/session/generate-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes: formData.notes,
+          highlights: formData.highlights,
+          sessionNumber: formData.number,
+          title: formData.title,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to generate summary")
+
+      const data = await response.json()
+      setFormData((prev) => ({ ...prev, summary: data.summary }))
+      console.log("[v0] Generated summary length:", data.summary.length)
+    } catch (error) {
+      console.error("[v0] Summary generation error:", error)
+      alert("Failed to generate summary. Please try again.")
+    } finally {
+      setIsGeneratingSummary(false)
+    }
+  }
+
+  const handleGeneratePrep = async () => {
+    setIsGeneratingPrep(true)
+    console.log("[v0] Generating session prep...")
+    try {
+      const response = await fetch("/api/session/generate-prep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary: formData.summary,
+          plotThreads: formData.plotThreads,
+          sessionNumber: formData.number,
+          title: formData.title,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to generate prep")
+
+      const data = await response.json()
+      setFormData((prev) => ({ ...prev, prepNotes: data.prepNotes }))
+      console.log("[v0] Generated prep notes length:", data.prepNotes.length)
+    } catch (error) {
+      console.error("[v0] Prep generation error:", error)
+      alert("Failed to generate prep notes. Please try again.")
+    } finally {
+      setIsGeneratingPrep(false)
+    }
+  }
+
+  const handleGenerateRecap = async () => {
+    setIsGeneratingRecap(true)
+    console.log("[v0] Generating player recap...")
+    try {
+      const response = await fetch("/api/session/generate-recap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary: formData.summary,
+          highlights: formData.highlights,
+          sessionNumber: formData.number,
+          title: formData.title,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to generate recap")
+
+      const data = await response.json()
+      setFormData((prev) => ({ ...prev, playerRecap: data.recap }))
+      console.log("[v0] Generated recap length:", data.recap.length)
+    } catch (error) {
+      console.error("[v0] Recap generation error:", error)
+      alert("Failed to generate recap. Please try again.")
+    } finally {
+      setIsGeneratingRecap(false)
+    }
   }
 
   return (
@@ -224,10 +312,12 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleGenerateSummary}
+                  disabled={isGeneratingSummary || (!formData.notes?.length && !formData.highlights?.length)}
                   className="w-full border-primary/50 text-primary hover:bg-primary/10 bg-transparent mt-2"
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Generate Summary with AI
+                  {isGeneratingSummary ? "Generating..." : "Generate Summary with AI"}
                 </Button>
               </div>
             </CardContent>
@@ -394,10 +484,12 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
               <Button
                 variant="outline"
+                onClick={handleGeneratePrep}
+                disabled={isGeneratingPrep}
                 className="w-full border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
-                Generate Session Prep with AI
+                {isGeneratingPrep ? "Generating..." : "Generate Session Prep with AI"}
               </Button>
             </CardContent>
           </Card>
@@ -419,10 +511,12 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
               <Button
                 variant="outline"
+                onClick={handleGenerateRecap}
+                disabled={isGeneratingRecap || !formData.summary}
                 className="w-full border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
-                Generate Recap with AI
+                {isGeneratingRecap ? "Generating..." : "Generate Recap with AI"}
               </Button>
             </CardContent>
           </Card>
