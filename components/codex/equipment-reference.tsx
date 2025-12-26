@@ -155,7 +155,7 @@ export function EquipmentReference() {
                         {weapon.damage_dice} {weapon.damage_type}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {weapon.properties.length > 0 ? weapon.properties.join(", ") : "—"}
+                        {weapon.properties && weapon.properties.length > 0 ? weapon.properties.join(", ") : "—"}
                       </TableCell>
                       <TableCell>{weapon.weight}</TableCell>
                       <TableCell className="flex items-center gap-1">
