@@ -725,6 +725,8 @@ select:focus {
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   box-shadow: 0 4px 16px -4px oklch(0 0 0 / 0.3);
+  /* Added lighter text color for better contrast against green background */
+  color: oklch(0.92 0.02 280);
 }
 
 /* Stagger animation for list items */
