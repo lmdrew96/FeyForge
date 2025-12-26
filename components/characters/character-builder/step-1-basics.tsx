@@ -19,11 +19,13 @@ import type { CharacterCreationData } from "@/lib/character/types"
 import type { Open5eRace, Open5eClass, Open5eBackground } from "@/lib/open5e-api"
 import { open5eApi } from "@/lib/open5e-api"
 import { ALIGNMENTS } from "@/lib/character/constants"
+import { QuickBuildWizard } from "./quick-build-wizard"
 
 interface Step1BasicsProps {
   data: CharacterCreationData
   onUpdate: (updates: Partial<CharacterCreationData>) => void
   onGenerateName?: () => Promise<void>
+  onApplyQuickBuild?: (build: Partial<CharacterCreationData>) => void
   raceData: Open5eRace | null
   classData: Open5eClass | null
   backgroundData: Open5eBackground | null
@@ -36,6 +38,7 @@ export function Step1Basics({
   data, 
   onUpdate, 
   onGenerateName,
+  onApplyQuickBuild,
   raceData,
   classData,
   backgroundData,
@@ -181,6 +184,16 @@ export function Step1Basics({
       <div className="text-center mb-6">
         <h2 className="font-serif text-2xl font-bold text-gold-gradient">Create Your Hero</h2>
         <p className="text-muted-foreground mt-2">Choose your race, class, and begin your legend</p>
+        
+        {/* Quick Build Button */}
+        {onApplyQuickBuild && (
+          <div className="mt-4">
+            <QuickBuildWizard onApplyBuild={onApplyQuickBuild} />
+            <p className="text-xs text-muted-foreground mt-2">
+              New to D&D? Let AI suggest a build based on your concept!
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Character Name */}

@@ -176,6 +176,21 @@ export const PROPERTY_CATEGORIES = {
     description: 'Temporary effects and conditions',
     icon: 'circle-dot',
   },
+  classResource: {
+    name: 'Class Resource',
+    description: 'Ki, Rage, Sorcery Points, etc.',
+    icon: 'flame',
+  },
+  alternateForm: {
+    name: 'Alternate Form',
+    description: 'Wildshape, Polymorph forms',
+    icon: 'paw-print',
+  },
+  companion: {
+    name: 'Companion',
+    description: 'Familiars, mounts, sidekicks',
+    icon: 'heart-handshake',
+  },
 } as const;
 
 export type PropertyCategory = keyof typeof PROPERTY_CATEGORIES;

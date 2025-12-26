@@ -2,8 +2,9 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { Character, CharacterProperty, CalculatedStats } from "./character/types"
+import type { Character, CharacterProperty, CalculatedStats, AlternateFormProperty, ClassResourceProperty } from "./character/types"
 import { calculateAllStats } from "./character/calculations"
+import { getLevelFromXP, getXPToNextLevel, getLevelsGained } from "./character/experience"
 
 interface CharacterStore {
   // State
@@ -12,6 +13,9 @@ interface CharacterStore {
   
   // Cached calculations
   calculatedStats: Record<string, CalculatedStats>
+  
+  // Active form tracking (for wildshape/polymorph)
+  activeFormId: Record<string, string | null>
   
   // CRUD operations
   addCharacter: (character: Character) => void
@@ -44,9 +48,33 @@ interface CharacterStore {
   // Currency
   updateCurrency: (characterId: string, currency: Partial<Character['currency']>) => void
   
-  // Experience & Leveling
-  addExperience: (characterId: string, xp: number) => void
+  // Experience & Leveling (XP-driven)
+  addExperience: (characterId: string, xp: number) => { newLevel: number; levelsGained: number[] }
   setLevel: (characterId: string, level: number) => void
+  getLevel: (characterId: string) => number
+  getXPProgress: (characterId: string) => { current: number; toNext: number; percentage: number }
+  
+  // Spell Slots
+  useSpellSlot: (characterId: string, level: number) => void
+  restoreSpellSlot: (characterId: string, level: number) => void
+  restoreAllSpellSlots: (characterId: string) => void
+  
+  // Class Resources
+  useClassResource: (characterId: string, resourceId: string, amount?: number) => void
+  restoreClassResource: (characterId: string, resourceId: string, amount?: number) => void
+  getClassResources: (characterId: string) => ClassResourceProperty[]
+  
+  // Alternate Forms (Wildshape/Polymorph)
+  transformIntoForm: (characterId: string, formId: string) => void
+  revertFromForm: (characterId: string) => void
+  getActiveForm: (characterId: string) => AlternateFormProperty | null
+  updateFormHP: (characterId: string, formId: string, hp: number) => void
+  addAlternateForm: (characterId: string, form: AlternateFormProperty) => void
+  removeAlternateForm: (characterId: string, formId: string) => void
+  
+  // Rest mechanics
+  shortRest: (characterId: string) => void
+  longRest: (characterId: string) => void
   
   // Recalculation
   recalculateStats: (characterId: string) => void
@@ -59,6 +87,7 @@ export const useCharacterStore = create<CharacterStore>()(
       characters: [],
       activeCharacterId: null,
       calculatedStats: {},
+      activeFormId: {},
 
       addCharacter: (character) => {
         // Ensure properties array exists for new characters
@@ -305,34 +334,305 @@ export const useCharacterStore = create<CharacterStore>()(
         }))
       },
       
-      // Experience & Leveling
+      // Experience & Leveling (XP-driven)
       addExperience: (characterId, xp) => {
+        const char = get().getCharacter(characterId)
+        if (!char) return { newLevel: 1, levelsGained: [] }
+        
+        const levelsGained = getLevelsGained(char.experiencePoints, xp)
+        const newXP = char.experiencePoints + xp
+        const newLevel = getLevelFromXP(newXP)
+        
         set((state) => ({
-          characters: state.characters.map((char) =>
-            char.id === characterId
+          characters: state.characters.map((c) =>
+            c.id === characterId
               ? {
-                  ...char,
-                  experiencePoints: char.experiencePoints + xp,
+                  ...c,
+                  experiencePoints: newXP,
+                  level: newLevel,
                   updatedAt: new Date()
                 }
-              : char
+              : c
           ),
         }))
+        
+        get().recalculateStats(characterId)
+        return { newLevel, levelsGained }
       },
       
       setLevel: (characterId, level) => {
+        const { getXPForLevel } = require('./character/experience')
+        const xpForLevel = getXPForLevel(level)
+        
         set((state) => ({
           characters: state.characters.map((char) =>
             char.id === characterId
               ? {
                   ...char,
                   level: Math.max(1, Math.min(20, level)),
+                  experiencePoints: xpForLevel,
                   updatedAt: new Date()
                 }
               : char
           ),
         }))
         get().recalculateStats(characterId)
+      },
+      
+      getLevel: (characterId) => {
+        const char = get().getCharacter(characterId)
+        if (!char) return 1
+        return getLevelFromXP(char.experiencePoints)
+      },
+      
+      getXPProgress: (characterId) => {
+        const char = get().getCharacter(characterId)
+        if (!char) return { current: 0, toNext: 300, percentage: 0 }
+        
+        const toNext = getXPToNextLevel(char.experiencePoints)
+        const level = getLevelFromXP(char.experiencePoints)
+        const { XP_THRESHOLDS } = require('./character/constants')
+        const currentLevelXP = XP_THRESHOLDS[level] || 0
+        const nextLevelXP = XP_THRESHOLDS[level + 1] || currentLevelXP
+        const xpInLevel = char.experiencePoints - currentLevelXP
+        const xpNeeded = nextLevelXP - currentLevelXP
+        const percentage = xpNeeded > 0 ? Math.floor((xpInLevel / xpNeeded) * 100) : 100
+        
+        return { current: char.experiencePoints, toNext, percentage }
+      },
+      
+      // Spell Slots
+      useSpellSlot: (characterId, level) => {
+        set((state) => ({
+          characters: state.characters.map((char) =>
+            char.id === characterId && char.spellcasting?.spellSlots?.[level]
+              ? {
+                  ...char,
+                  spellcasting: {
+                    ...char.spellcasting,
+                    spellSlots: {
+                      ...char.spellcasting.spellSlots,
+                      [level]: {
+                        ...char.spellcasting.spellSlots[level],
+                        used: Math.min(
+                          char.spellcasting.spellSlots[level].total,
+                          char.spellcasting.spellSlots[level].used + 1
+                        ),
+                      },
+                    },
+                  },
+                  updatedAt: new Date(),
+                }
+              : char
+          ),
+        }))
+      },
+      
+      restoreSpellSlot: (characterId, level) => {
+        set((state) => ({
+          characters: state.characters.map((char) =>
+            char.id === characterId && char.spellcasting?.spellSlots?.[level]
+              ? {
+                  ...char,
+                  spellcasting: {
+                    ...char.spellcasting,
+                    spellSlots: {
+                      ...char.spellcasting.spellSlots,
+                      [level]: {
+                        ...char.spellcasting.spellSlots[level],
+                        used: Math.max(0, char.spellcasting.spellSlots[level].used - 1),
+                      },
+                    },
+                  },
+                  updatedAt: new Date(),
+                }
+              : char
+          ),
+        }))
+      },
+      
+      restoreAllSpellSlots: (characterId) => {
+        set((state) => ({
+          characters: state.characters.map((char) =>
+            char.id === characterId && char.spellcasting?.spellSlots
+              ? {
+                  ...char,
+                  spellcasting: {
+                    ...char.spellcasting,
+                    spellSlots: Object.fromEntries(
+                      Object.entries(char.spellcasting.spellSlots).map(([lvl, slot]) => [
+                        lvl,
+                        { ...slot, used: 0 },
+                      ])
+                    ),
+                  },
+                  updatedAt: new Date(),
+                }
+              : char
+          ),
+        }))
+      },
+      
+      // Class Resources
+      useClassResource: (characterId, resourceId, amount = 1) => {
+        set((state) => ({
+          characters: state.characters.map((char) =>
+            char.id === characterId
+              ? {
+                  ...char,
+                  properties: (char.properties || []).map((prop) =>
+                    prop.id === resourceId && prop.type === 'classResource'
+                      ? {
+                          ...prop,
+                          current: Math.max(0, (prop as ClassResourceProperty).current - amount),
+                          updatedAt: new Date(),
+                        }
+                      : prop
+                  ),
+                  updatedAt: new Date(),
+                }
+              : char
+          ),
+        }))
+      },
+      
+      restoreClassResource: (characterId, resourceId, amount) => {
+        set((state) => ({
+          characters: state.characters.map((char) =>
+            char.id === characterId
+              ? {
+                  ...char,
+                  properties: (char.properties || []).map((prop) => {
+                    if (prop.id === resourceId && prop.type === 'classResource') {
+                      const resource = prop as ClassResourceProperty
+                      const restoreAmount = amount ?? resource.max
+                      return {
+                        ...prop,
+                        current: Math.min(resource.max, resource.current + restoreAmount),
+                        updatedAt: new Date(),
+                      }
+                    }
+                    return prop
+                  }),
+                  updatedAt: new Date(),
+                }
+              : char
+          ),
+        }))
+      },
+      
+      getClassResources: (characterId) => {
+        const char = get().getCharacter(characterId)
+        if (!char) return []
+        return (char.properties || []).filter(
+          (p): p is ClassResourceProperty => p.type === 'classResource'
+        )
+      },
+      
+      // Alternate Forms
+      transformIntoForm: (characterId, formId) => {
+        set((state) => ({
+          activeFormId: {
+            ...state.activeFormId,
+            [characterId]: formId,
+          },
+        }))
+      },
+      
+      revertFromForm: (characterId) => {
+        set((state) => ({
+          activeFormId: {
+            ...state.activeFormId,
+            [characterId]: null,
+          },
+        }))
+      },
+      
+      getActiveForm: (characterId) => {
+        const state = get()
+        const formId = state.activeFormId[characterId]
+        if (!formId) return null
+        
+        const char = state.getCharacter(characterId)
+        if (!char) return null
+        
+        return (char.properties || []).find(
+          (p): p is AlternateFormProperty => p.type === 'alternateForm' && p.id === formId
+        ) || null
+      },
+      
+      updateFormHP: (characterId, formId, hp) => {
+        set((state) => ({
+          characters: state.characters.map((char) =>
+            char.id === characterId
+              ? {
+                  ...char,
+                  properties: (char.properties || []).map((prop) =>
+                    prop.id === formId && prop.type === 'alternateForm'
+                      ? {
+                          ...prop,
+                          formHP: {
+                            ...(prop as AlternateFormProperty).formHP,
+                            current: Math.max(0, hp),
+                          },
+                          updatedAt: new Date(),
+                        }
+                      : prop
+                  ),
+                  updatedAt: new Date(),
+                }
+              : char
+          ),
+        }))
+      },
+      
+      addAlternateForm: (characterId, form) => {
+        get().addProperty(characterId, form)
+      },
+      
+      removeAlternateForm: (characterId, formId) => {
+        get().removeProperty(characterId, formId)
+      },
+      
+      // Rest mechanics
+      shortRest: (characterId) => {
+        const char = get().getCharacter(characterId)
+        if (!char) return
+        
+        // Restore class resources that recharge on short rest
+        const resources = get().getClassResources(characterId)
+        for (const resource of resources) {
+          if (resource.rechargeOn === 'shortRest') {
+            get().restoreClassResource(characterId, resource.id)
+          }
+        }
+        
+        // Warlocks recover spell slots on short rest (handled separately if needed)
+      },
+      
+      longRest: (characterId) => {
+        const char = get().getCharacter(characterId)
+        if (!char) return
+        
+        // Restore HP to max
+        get().updateHP(characterId, char.hitPoints.max, 0)
+        
+        // Reset death saves
+        get().resetDeathSaves(characterId)
+        
+        // Restore half hit dice
+        get().resetHitDice(characterId)
+        
+        // Restore all spell slots
+        get().restoreAllSpellSlots(characterId)
+        
+        // Restore all class resources that recharge on long rest or short rest
+        const resources = get().getClassResources(characterId)
+        for (const resource of resources) {
+          if (resource.rechargeOn === 'shortRest' || resource.rechargeOn === 'longRest') {
+            get().restoreClassResource(characterId, resource.id)
+          }
+        }
       },
       
       // Recalculation

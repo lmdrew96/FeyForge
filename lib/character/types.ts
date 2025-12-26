@@ -1,6 +1,11 @@
 /**
  * D&D 5e Character Type Definitions
  * Property-based character system inspired by DiceCloud
+ * 
+ * Key Principles:
+ * 1. Store CHOICES, compute RESULTS
+ * 2. XP is source of truth for level
+ * 3. Everything is a property with modifiers
  */
 
 import type { 
@@ -16,6 +21,79 @@ import type {
   Size,
   Condition
 } from './constants';
+
+// ============================================
+// CHOICES-BASED CHARACTER DATA
+// ============================================
+
+/**
+ * ASI (Ability Score Improvement) or Feat choice
+ */
+export interface ASIChoice {
+  type: 'asi' | 'feat';
+  // For ASI
+  abilityIncreases?: Partial<Record<Ability, number>>;
+  // For Feat
+  featId?: string;
+  featName?: string;
+  featChoices?: Record<string, string>; // For feats with sub-choices
+}
+
+/**
+ * Equipment choice made during character creation
+ */
+export interface EquipmentChoice {
+  promptId: string;
+  selectedOptionIndex: number;
+  customizations?: Record<string, string>; // e.g., "which martial weapon?"
+}
+
+/**
+ * Character Choices
+ * ONLY stores player decisions - everything else is derived
+ */
+export interface CharacterChoices {
+  // Core selections
+  race: string;
+  subrace?: string;
+  class: string;
+  subclass?: string;
+  background?: string;
+  alignment?: Alignment;
+  
+  // Experience points (level is derived from this)
+  experiencePoints: number;
+  
+  // Ability score assignment
+  abilityScoreMethod: 'pointBuy' | 'standardArray' | 'rolled' | 'manual';
+  baseAbilities: AbilityScores;
+  rolledScores?: number[]; // If rolled, store the original rolls
+  
+  // Proficiency selections
+  skillProficiencies: Skill[];
+  toolProficiencies: string[];
+  languages: string[];
+  
+  // Equipment from creation
+  equipmentChoices: EquipmentChoice[];
+  startingGold?: number;
+  usedStartingGold?: boolean; // If true, took gold instead of equipment
+  
+  // Spellcasting choices
+  cantripsKnown: string[];  // Spell slugs
+  spellsKnown: string[];    // Spell slugs
+  spellsPrepared: string[]; // For prepared casters
+  
+  // Level-up choices
+  asiChoices: Record<number, ASIChoice>; // Keyed by level (4, 8, 12, etc.)
+  subclassLevel?: number; // When subclass was chosen
+  
+  // Fighting styles, invocations, etc.
+  classChoices: Record<string, string[]>; // e.g., { "fightingStyle": ["defense"] }
+  
+  // Multiclass (if applicable)
+  multiclassLevels?: Record<string, number>; // e.g., { "fighter": 5, "wizard": 3 }
+}
 
 /**
  * Base Property
@@ -229,6 +307,99 @@ export interface EffectProperty extends BaseProperty {
 }
 
 /**
+ * Class Resource Property
+ * Ki Points, Rage Uses, Sorcery Points, Channel Divinity, etc.
+ */
+export interface ClassResourceProperty extends BaseProperty {
+  type: 'classResource';
+  resourceName: string;
+  className: string;
+  current: number;
+  max: number;
+  rechargeOn: 'shortRest' | 'longRest' | 'dawn' | 'turn' | 'never';
+  rechargeAmount?: number | 'all'; // How much to restore
+  levelScaling?: Record<number, number>; // Max at each level
+  modifiers?: Modifier[];
+}
+
+/**
+ * Alternate Form Property
+ * Wildshape, Polymorph, True Polymorph forms
+ */
+export interface AlternateFormProperty extends BaseProperty {
+  type: 'alternateForm';
+  formSource: 'wildshape' | 'polymorph' | 'truePolymorph' | 'shapechange' | 'other';
+  creatureName: string;
+  creatureSlug?: string; // Open5e monster slug
+  
+  // Temporary stats when in this form
+  formHP: {
+    current: number;
+    max: number;
+  };
+  formAC: number;
+  formSpeed: Record<string, number>; // walk, fly, swim, etc.
+  formAbilities: AbilityScores;
+  
+  // Form restrictions
+  canSpeak: boolean;
+  canCastSpells: boolean;
+  retainMentalStats: boolean; // INT, WIS, CHA from original
+  retainProficiencies: boolean;
+  retainClassFeatures: boolean;
+  
+  // Actions available in this form
+  formActions?: ActionProperty[];
+  
+  // CR/Level limit for the form
+  crLimit?: number;
+  
+  // Duration tracking
+  duration?: {
+    value: number;
+    unit: 'hours' | 'minutes' | 'rounds';
+    remaining?: number;
+  };
+}
+
+/**
+ * Companion Property
+ * Familiars, Animal Companions, Mounts, Sidekicks
+ */
+export interface CompanionProperty extends BaseProperty {
+  type: 'companion';
+  companionType: 'familiar' | 'animalCompanion' | 'mount' | 'sidekick' | 'summon' | 'other';
+  creatureName: string;
+  creatureSlug?: string; // Open5e monster slug
+  customName?: string;
+  
+  // Companion stats
+  hp: {
+    current: number;
+    max: number;
+  };
+  ac: number;
+  speed: Record<string, number>;
+  abilities: AbilityScores;
+  
+  // Companion features
+  actions?: ActionProperty[];
+  traits?: FeatureProperty[];
+  
+  // Link to summoning spell/feature
+  sourceFeatureId?: string;
+  sourceSpellId?: string;
+  
+  // Companion state
+  isSummoned: boolean;
+  distance?: number; // Distance from caster (for familiars)
+  
+  // For Find Familiar-style companions
+  formOptions?: string[]; // List of available forms
+  currentForm?: string;
+}
+
+/**
  * Union type for all property types
  */
 export type CharacterProperty = 
@@ -240,7 +411,10 @@ export type CharacterProperty =
   | ArmorProperty
   | SpellProperty 
   | ActionProperty
-  | EffectProperty;
+  | EffectProperty
+  | ClassResourceProperty
+  | AlternateFormProperty
+  | CompanionProperty;
 
 /**
  * Ability Scores object

@@ -5,6 +5,7 @@
  * Composes all character sheet panels into a complete display
  */
 
+import { useState } from "react"
 import { useCharacterStore } from "@/lib/character-store"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,8 @@ import {
   Edit,
   RotateCcw,
   Bed,
+  Play,
+  PawPrint,
 } from "lucide-react"
 
 // Import panel components
@@ -30,8 +33,109 @@ import { HitPointsPanel } from "./hit-points-panel"
 import { EquipmentPanel } from "./equipment-panel"
 import { FeaturesPanel } from "./features-panel"
 import { SpellsPanel } from "./spells-panel"
+import { PlayMode } from "./play-mode"
+import { ResourcePanel } from "./resource-tracker"
+import { QuickActions } from "./quick-actions"
+import { AlternateFormsTracker } from "./alternate-forms"
 
-import type { Character, SpellProperty, FeatureProperty, ItemProperty, CalculatedStats } from "@/lib/character/types"
+import type { Character, SpellProperty, FeatureProperty, ItemProperty, CalculatedStats, ClassResourceProperty, AlternateFormProperty, WeaponProperty } from "@/lib/character/types"
+
+// Helper types and functions for component props conversion
+type SpellSlotLevel = { level: number; total: number; used: number }
+type ClassResource = { id: string; name: string; current: number; max: number; rechargeOn: "shortRest" | "longRest" | "dawn" | "turn" }
+type AttackAction = {
+  id: string
+  name: string
+  type: "melee" | "ranged" | "spell"
+  attackBonus: number
+  damage: { dice: string; bonus: number; type: string }
+  properties?: string[]
+  range?: { normal: number; long?: number }
+  reach?: number
+}
+type SpellAction = {
+  id: string
+  name: string
+  level: number
+  school: string
+  castingTime: string
+  saveDC?: number
+  spellAttackBonus?: number
+  damage?: { dice: string; type: string }
+}
+
+function convertSpellSlots(slots?: Record<number, { total: number; used: number }>): SpellSlotLevel[] {
+  if (!slots) return []
+  return Object.entries(slots).map(([level, data]) => ({
+    level: parseInt(level),
+    total: data.total,
+    used: data.used,
+  }))
+}
+
+function convertClassResources(resources: ClassResourceProperty[]): ClassResource[] {
+  return resources
+    .filter(r => r.rechargeOn !== "never")
+    .map(r => ({
+      id: r.id,
+      name: r.name,
+      current: r.current,
+      max: r.max,
+      rechargeOn: r.rechargeOn as "shortRest" | "longRest" | "dawn" | "turn",
+    }))
+}
+
+function buildAttackActions(equipment: ItemProperty[], stats: CalculatedStats): AttackAction[] {
+  const attacks: AttackAction[] = []
+  
+  for (const item of equipment) {
+    if (item.category === "weapon" && item.equipped) {
+      const weapon = item as unknown as WeaponProperty
+      const isFinesse = weapon.properties?.includes("finesse")
+      const isMelee = !weapon.properties?.includes("ranged")
+      const isRanged = weapon.properties?.includes("ranged") || weapon.properties?.includes("thrown")
+      
+      const strMod = stats.abilityModifiers.strength
+      const dexMod = stats.abilityModifiers.dexterity
+      const abilityMod = isFinesse ? Math.max(strMod, dexMod) : (isRanged ? dexMod : strMod)
+      
+      attacks.push({
+        id: weapon.id,
+        name: weapon.name,
+        type: isRanged ? "ranged" : "melee",
+        attackBonus: abilityMod + stats.proficiencyBonus,
+        damage: {
+          dice: weapon.damageDice || "1d6",
+          bonus: abilityMod,
+          type: weapon.damageType || "bludgeoning",
+        },
+        properties: weapon.properties,
+        reach: isMelee ? 5 : undefined,
+        range: weapon.range || (isRanged ? { normal: 30, long: 120 } : undefined),
+      })
+    }
+  }
+  
+  return attacks
+}
+
+function buildSpellActions(spells: SpellProperty[], stats: CalculatedStats): SpellAction[] {
+  return spells
+    .filter(s => s.prepared || s.spellLevel === 0)
+    .map(s => ({
+      id: s.id,
+      name: s.name,
+      level: s.spellLevel,
+      school: s.school,
+      castingTime: s.castingTime || "1 action",
+      spellAttackBonus: stats.proficiencyBonus + (stats.abilityModifiers.intelligence || 0),
+      saveDC: 8 + stats.proficiencyBonus + (stats.abilityModifiers.intelligence || 0),
+      damage: s.damage ? { 
+        dice: `${s.damage.diceCount}d${s.damage.diceSize}`, 
+        type: s.damage.damageType 
+      } : undefined,
+    }))
+}
 
 interface CharacterSheetProps {
   character: Character
@@ -41,6 +145,7 @@ interface CharacterSheetProps {
 }
 
 export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: CharacterSheetProps) {
+  const [activeTab, setActiveTab] = useState("overview")
   const { 
     updateCharacter,
     healCharacter,
@@ -49,6 +154,20 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
     resetDeathSaves,
     updateCurrency,
     getCalculatedStats,
+    shortRest,
+    longRest,
+    useSpellSlot,
+    restoreSpellSlot,
+    restoreAllSpellSlots,
+    useClassResource,
+    restoreClassResource,
+    getClassResources,
+    transformIntoForm,
+    revertFromForm,
+    getActiveForm,
+    updateFormHP,
+    addAlternateForm,
+    removeAlternateForm,
   } = useCharacterStore()
 
   // Get stats from props or fetch from store
@@ -58,6 +177,14 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
   const spells = (character.properties?.filter(p => p.type === "spell") || []) as SpellProperty[]
   const features = (character.properties?.filter(p => p.type === "feature") || []) as FeatureProperty[]
   const equipment = (character.properties?.filter(p => p.type === "item") || []) as ItemProperty[]
+  const classResources = (character.properties?.filter(p => p.type === "classResource") || []) as ClassResourceProperty[]
+  const alternateForms = (character.properties?.filter(p => p.type === "alternateForm") || []) as AlternateFormProperty[]
+
+  // Check for wildshape/polymorph capable classes
+  const hasAlternateForms = character.class?.toLowerCase() === "druid" || alternateForms.length > 0
+  
+  // Get active form if any
+  const activeForm = getActiveForm(character.id)
 
   // Calculate encumbrance
   const totalWeight = equipment.reduce((sum, item) => sum + (item.weight * item.quantity), 0)
@@ -85,43 +212,11 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
   }
 
   const handleShortRest = () => {
-    // Restore some resources on short rest
-    // For now just reset some features
-    const updatedProperties = character.properties?.map(p => {
-      if (p.type === "feature" && p.uses && p.uses.rechargeOn === "shortRest") {
-        return { ...p, uses: { ...p.uses, current: p.uses.max } }
-      }
-      return p
-    })
-    updateCharacter(character.id, { properties: updatedProperties })
+    shortRest(character.id)
   }
 
   const handleLongRest = () => {
-    // Restore HP and features on long rest
-    const updatedProperties = character.properties?.map(p => {
-      if (p.type === "feature" && p.uses) {
-        return { ...p, uses: { ...p.uses, current: p.uses.max } }
-      }
-      return p
-    })
-    
-    // Restore spell slots
-    let updatedSpellcasting = character.spellcasting
-    if (updatedSpellcasting) {
-      const restoredSlots = Object.fromEntries(
-        Object.entries(updatedSpellcasting.spellSlots).map(([level, slots]) => [
-          level,
-          { ...slots, used: 0 }
-        ])
-      )
-      updatedSpellcasting = { ...updatedSpellcasting, spellSlots: restoredSlots }
-    }
-    
-    updateCharacter(character.id, { 
-      properties: updatedProperties,
-      hitPoints: { ...character.hitPoints, current: character.hitPoints.max },
-      spellcasting: updatedSpellcasting,
-    })
+    longRest(character.id)
   }
 
   const handleUseFeature = (featureId: string) => {
@@ -146,35 +241,41 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
   }
 
   const handleUseSpellSlot = (level: number) => {
-    if (!character.spellcasting) return
-    const currentSlots = character.spellcasting.spellSlots[level]
-    if (currentSlots && currentSlots.used < currentSlots.total) {
-      updateCharacter(character.id, {
-        spellcasting: {
-          ...character.spellcasting,
-          spellSlots: {
-            ...character.spellcasting.spellSlots,
-            [level]: { ...currentSlots, used: currentSlots.used + 1 }
-          }
-        }
-      })
-    }
+    useSpellSlot(character.id, level)
   }
 
   const handleRestoreSpellSlots = () => {
-    if (!character.spellcasting) return
-    const restoredSlots = Object.fromEntries(
-      Object.entries(character.spellcasting.spellSlots).map(([level, slots]) => [
-        level,
-        { ...slots, used: 0 }
-      ])
-    )
-    updateCharacter(character.id, {
-      spellcasting: {
-        ...character.spellcasting,
-        spellSlots: restoredSlots
-      }
-    })
+    restoreAllSpellSlots(character.id)
+  }
+
+  // Class resource handlers
+  const handleUseClassResource = (resourceId: string, amount?: number) => {
+    useClassResource(character.id, resourceId, amount)
+  }
+
+  const handleRestoreClassResource = (resourceId: string, amount?: number) => {
+    restoreClassResource(character.id, resourceId, amount)
+  }
+
+  // Alternate form handlers
+  const handleTransform = (formId: string) => {
+    transformIntoForm(character.id, formId)
+  }
+
+  const handleRevertForm = () => {
+    revertFromForm(character.id)
+  }
+
+  const handleAddForm = (form: AlternateFormProperty) => {
+    addAlternateForm(character.id, form)
+  }
+
+  const handleRemoveForm = (formId: string) => {
+    removeAlternateForm(character.id, formId)
+  }
+
+  const handleFormHPChange = (formId: string, hp: number) => {
+    updateFormHP(character.id, formId, hp)
   }
 
   const handleCurrencyChange = (type: "pp" | "gp" | "ep" | "sp" | "cp", delta: number) => {
@@ -240,12 +341,16 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
-        <Tabs defaultValue="overview" className="h-full flex flex-col">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
           <div className="px-4 pt-4 bg-background">
             <TabsList className="w-full justify-start">
               <TabsTrigger value="overview" className="gap-1">
                 <User className="h-4 w-4" />
                 Overview
+              </TabsTrigger>
+              <TabsTrigger value="play" className="gap-1">
+                <Play className="h-4 w-4" />
+                Play
               </TabsTrigger>
               <TabsTrigger value="combat" className="gap-1">
                 <Sword className="h-4 w-4" />
@@ -259,6 +364,12 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
                 <Scroll className="h-4 w-4" />
                 Features
               </TabsTrigger>
+              {hasAlternateForms && (
+                <TabsTrigger value="forms" className="gap-1">
+                  <PawPrint className="h-4 w-4" />
+                  Forms
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -305,6 +416,22 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
               </div>
             </TabsContent>
 
+            {/* Play Mode Tab - Streamlined for table use */}
+            <TabsContent value="play" className="mt-0">
+              <PlayMode
+                character={character}
+                calculatedStats={stats}
+                onUpdateHP={(current, temp) => updateCharacter(character.id, { hitPoints: { ...character.hitPoints, current, temp: temp ?? character.hitPoints.temp } })}
+                onAddDeathSave={(success) => addDeathSave(character.id, success)}
+                onResetDeathSaves={() => resetDeathSaves(character.id)}
+                onShortRest={handleShortRest}
+                onLongRest={handleLongRest}
+                onUseSpellSlot={handleUseSpellSlot}
+                onRestoreSpellSlot={(level) => restoreSpellSlot(character.id, level)}
+                onRestoreAllSpellSlots={() => restoreAllSpellSlots(character.id)}
+              />
+            </TabsContent>
+
             {/* Combat Tab */}
             <TabsContent value="combat" className="mt-0">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -321,8 +448,26 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
                     onHeal={handleHeal}
                     onDamage={handleDamage}
                   />
+                  {/* Quick Actions for attacks */}
+                  <QuickActions
+                    attacks={buildAttackActions(equipment, stats)}
+                    spells={buildSpellActions(spells, stats)}
+                    proficiencyBonus={stats.proficiencyBonus}
+                  />
                 </div>
                 <div className="space-y-4">
+                  {/* Resource Panel for spell slots and class features */}
+                  <ResourcePanel
+                    spellSlots={convertSpellSlots(character.spellcasting?.spellSlots)}
+                    classResources={convertClassResources(classResources)}
+                    onUseSpellSlot={handleUseSpellSlot}
+                    onRestoreSpellSlot={(level) => restoreSpellSlot(character.id, level)}
+                    onRestoreAllSpellSlots={() => restoreAllSpellSlots(character.id)}
+                    onUseClassResource={(id) => handleUseClassResource(id)}
+                    onRestoreClassResource={(id, amount) => handleRestoreClassResource(id, amount)}
+                    onShortRest={handleShortRest}
+                    onLongRest={handleLongRest}
+                  />
                   <EquipmentPanel
                     items={equipment}
                     currency={character.currency}
@@ -359,6 +504,22 @@ export function CharacterSheet({ character, calculatedStats, onBack, onEdit }: C
                 />
               </div>
             </TabsContent>
+
+            {/* Forms Tab - Wildshape/Polymorph */}
+            {hasAlternateForms && (
+              <TabsContent value="forms" className="mt-0">
+                <AlternateFormsTracker
+                  forms={alternateForms}
+                  currentFormId={activeForm?.id || null}
+                  characterLevel={character.level}
+                  onTransform={handleTransform}
+                  onRevert={handleRevertForm}
+                  onAddForm={handleAddForm}
+                  onRemoveForm={handleRemoveForm}
+                  onUpdateFormHP={handleFormHPChange}
+                />
+              </TabsContent>
+            )}
           </ScrollArea>
         </Tabs>
       </div>
