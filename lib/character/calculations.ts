@@ -26,7 +26,11 @@ import { applyModifiers, combineModifiers, filterModifiersByTarget } from './mod
  * Calculate final ability scores including racial bonuses and modifiers
  */
 export function calculateAbilityScores(character: Character): AbilityScores {
-  const result: AbilityScores = { ...character.baseAbilities };
+  // Support both old schema (abilityScores) and new schema (baseAbilities)
+  const baseScores = character.baseAbilities || (character as any).abilityScores || {
+    strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10
+  };
+  const result: AbilityScores = { ...baseScores };
   
   // Apply racial bonuses
   if (character.racialBonuses) {
@@ -115,13 +119,13 @@ export function calculateSkillModifier(
 ): number {
   const ability = SKILLS[skill];
   const abilityMod = getAbilityModifier(abilities[ability]);
-  const profBonus = getProficiencyBonus(character.level);
+  const profBonus = getProficiencyBonus(character.level || 1);
   
   // Check proficiency level
   let profMultiplier = 0;
-  if (character.skillExpertise.includes(skill)) {
+  if ((character.skillExpertise || []).includes(skill)) {
     profMultiplier = PROFICIENCY_LEVELS.expertise;
-  } else if (character.skillProficiencies.includes(skill)) {
+  } else if ((character.skillProficiencies || []).includes(skill)) {
     profMultiplier = PROFICIENCY_LEVELS.proficient;
   }
   
@@ -159,10 +163,10 @@ export function calculateSavingThrow(
   abilities: AbilityScores
 ): number {
   const abilityMod = getAbilityModifier(abilities[ability]);
-  const profBonus = getProficiencyBonus(character.level);
+  const profBonus = getProficiencyBonus(character.level || 1);
   
   // Check if proficient in this saving throw
-  const isProficient = character.savingThrowProficiencies.includes(ability);
+  const isProficient = (character.savingThrowProficiencies || []).includes(ability);
   const baseSave = abilityMod + (isProficient ? profBonus : 0);
   
   // Apply additional modifiers
@@ -333,7 +337,7 @@ export function calculateSpellcasting(
   
   const ability = character.spellcasting.ability;
   const abilityMod = getAbilityModifier(abilities[ability]);
-  const profBonus = getProficiencyBonus(character.level);
+  const profBonus = getProficiencyBonus(character.level || 1);
   
   return {
     spellSaveDC: 8 + profBonus + abilityMod,
@@ -345,6 +349,9 @@ export function calculateSpellcasting(
  * Calculate all character stats at once
  */
 export function calculateAllStats(character: Character): CalculatedStats {
+  // Normalize character with default values for missing properties
+  const level = character.level || 1;
+  
   // Calculate ability scores first (needed for other calculations)
   const abilities = calculateAbilityScores(character);
   const abilityModifiers = calculateAbilityModifiers(abilities);
@@ -376,7 +383,7 @@ export function calculateAllStats(character: Character): CalculatedStats {
     initiative,
     speed,
     passivePerception,
-    proficiencyBonus: getProficiencyBonus(character.level),
+    proficiencyBonus: getProficiencyBonus(level),
     skillModifiers,
     savingThrows,
     spellSaveDC: spellcasting?.spellSaveDC,
