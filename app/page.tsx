@@ -8,7 +8,7 @@ import { CampaignSelector } from "@/components/dashboard/campaign-selector"
 export default function DashboardPage() {
   return (
     <AppShell title="The Forge" subtitle="Where Campaigns Are Forged">
-      <div className="space-y-4 md:space-y-6 max-w-full overflow-hidden">
+      <div className="space-y-3 sm:space-y-4 md:space-y-6 max-w-full">
         {/* Campaign Selector */}
         <CampaignSelector />
 
@@ -18,14 +18,14 @@ export default function DashboardPage() {
         <QuickStats />
 
         {/* Main Grid - Responsive stacking */}
-        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
           {/* Left Column - 2/3 width on large screens */}
-          <div className="lg:col-span-2 space-y-4 md:space-y-6 min-w-0">
+          <div className="lg:col-span-2 space-y-3 sm:space-y-4 md:space-y-6 min-w-0">
             <RecentSessions />
           </div>
 
           {/* Right Column - 1/3 width on large screens */}
-          <div className="space-y-4 md:space-y-6 min-w-0">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6 min-w-0">
             <QuickActions />
             <AIAssistantWidget />
           </div>

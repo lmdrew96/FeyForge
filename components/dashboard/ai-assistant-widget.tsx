@@ -14,28 +14,30 @@ const suggestions = [
 
 export function AIAssistantWidget() {
   return (
-    <Card className="bg-gradient-to-br from-card to-purple-deep/30 border-border border-glow overflow-hidden relative">
-      <div className="absolute top-4 right-4 opacity-20">
-        <Sparkles className="h-24 w-24 text-primary animate-sparkle" />
+    <Card className="glass-card overflow-hidden relative border-primary/20">
+      <div className="floating-orb copper w-32 h-32 -top-8 -right-8 opacity-40 animate-float-gentle" />
+      <div className="floating-orb lavender w-24 h-24 -bottom-6 -left-6 opacity-30" style={{ animationDelay: "2s" }} />
+
+      <div className="absolute top-6 right-6 opacity-15">
+        <Sparkles className="h-20 w-20 text-primary animate-twinkle" />
       </div>
-      <div className="absolute bottom-4 left-4 opacity-10">
-        <Wand2 className="h-16 w-16 text-arcane-glow animate-float" />
+      <div className="absolute bottom-6 left-6 opacity-10">
+        <Wand2 className="h-14 w-14 text-copper animate-float-gentle" style={{ animationDelay: "1s" }} />
       </div>
 
-      <CardHeader className="flex flex-row items-center gap-3 relative">
+      <CardHeader className="flex flex-row items-center gap-3 relative z-10">
         <div className="relative">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/40 to-purple-glow/40 flex items-center justify-center border border-primary/30">
-            <Sparkles className="h-5 w-5 text-primary icon-glow" />
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-copper/30 to-primary/20 flex items-center justify-center border border-copper/40 backdrop-blur-sm shadow-lg">
+            <Sparkles className="h-6 w-6 text-copper animate-ethereal-glow" />
           </div>
-          <div className="absolute inset-0 blur-lg bg-primary/40 animate-glow-pulse" />
         </div>
         <div>
           <CardTitle className="font-serif text-xl text-gold-gradient">AI DM Assistant</CardTitle>
-          <p className="text-xs text-muted-foreground">Powered by arcane intelligence</p>
+          <p className="text-xs text-lavender">Powered by fey intelligence</p>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4 relative">
-        <p className="text-sm text-foreground/80">
+      <CardContent className="space-y-4 relative z-10">
+        <p className="text-sm text-foreground/90">
           Your magical co-DM is ready to help with NPCs, encounters, descriptions, rules, and more.
         </p>
 
@@ -45,7 +47,7 @@ export function AIAssistantWidget() {
               key={suggestion}
               variant="outline"
               size="sm"
-              className="text-xs border-border/50 hover:border-primary/50 hover:bg-accent/50 text-muted-foreground hover:text-foreground bg-background/50 backdrop-blur-sm transition-all duration-200 hover:shadow-[0_0_15px_-5px_oklch(0.55_0.25_280_/_0.4)]"
+              className="text-xs border-border/40 hover:border-primary/50 hover:bg-accent/50 text-muted-foreground hover:text-foreground backdrop-blur-sm transition-all duration-200 hover:shadow-[0_0_15px_-5px_oklch(0.75_0.15_210_/_0.3)] rounded-full bg-transparent"
               asChild
             >
               <Link href={`/dm-assistant?prompt=${encodeURIComponent(suggestion)}`}>{suggestion}</Link>
@@ -53,10 +55,7 @@ export function AIAssistantWidget() {
           ))}
         </div>
 
-        <Button
-          className="w-full bg-gradient-to-r from-primary via-primary/90 to-gold-dim hover:from-primary/90 hover:to-gold-dim/90 gap-2 font-medium shadow-lg animate-pulse-glow"
-          asChild
-        >
+        <Button className="w-full btn-copper-glow gap-2 font-medium shadow-lg animate-gentle-pulse" asChild>
           <Link href="/dm-assistant">
             <Sparkles className="h-4 w-4" />
             Open AI Assistant

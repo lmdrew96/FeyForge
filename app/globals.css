@@ -3,109 +3,112 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Fey Forest Cosmic Theme - Based on user's palette */
-/* #375946 Forest Green (base) | #444888 Deep Indigo (deepspace) | #42E2ED Magic Cyan (primary) | #347975 Teal (secondary) | #B7ADC7 Lavender (muted) | #A36424 Copper (headers) */
+/* ═══════════════════════════════════════════════════════════════════════════
+   FEY WILD ENCHANTED FOREST THEME - FeyForge D&D Campaign Manager
+   
+   Color Palette:
+   - #375946 Forest Green (main canvas, base background)
+   - #444888 Mystic Purple (cards, navigation, glass panels)
+   - #42E2ED Glowing Cyan (fairy lights, primary accents, bioluminescence)
+   - #347975 Enchanted Teal (interactive elements, secondary)
+   - #B7ADC7 Majestic Lavender (soft magical glow, highlights)
+   - #A36424 Ancient Copper (decorative elements, gold accents)
+   
+   Aesthetic: Modern elven craftsmanship meets ethereal fey magic
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  /* Base: Forest Green (#375946) - darkened for backgrounds */
-  --background: #1a2e22;
-  --foreground: #e8f0ec;
+  /* Base: Deep forest green */
+  --background: #1f2e24; /* lightened from pure forest to 15% for better visibility */
+  --foreground: #e8f0e8; /* soft greenish white */
 
-  /* Cards: Slightly lighter forest green */
-  --card: #243828;
-  --card-foreground: #e8f0ec;
+  /* Cards: Glass morphism with mystic purple */
+  --card: oklch(0.32 0.04 280 / 0.85); /* #444888 at 85% opacity */
+  --card-foreground: #e8f0e8;
 
-  --popover: #1e3024;
-  --popover-foreground: #e8f0ec;
+  --popover: oklch(0.28 0.04 280 / 0.9);
+  --popover-foreground: #e8f0e8;
 
-  /* Primary: Magic Cyan (#42E2ED) - the glowing fey magic */
+  /* Primary: Glowing cyan (fairy lights, bioluminescence) */
   --primary: #42e2ed;
-  --primary-foreground: #1a2e22;
+  --primary-foreground: #0a1612;
 
-  /* Secondary: Teal (#347975) */
+  /* Secondary: Enchanted teal */
   --secondary: #347975;
-  --secondary-foreground: #e8f0ec;
+  --secondary-foreground: #e8f0e8;
 
-  /* Muted: Based on lavender (#B7ADC7) */
-  --muted: #2a3f30;
-  --muted-foreground: #b7adc7;
+  /* Muted: Based on forest green with lavender tint */
+  --muted: #2d4236;
+  --muted-foreground: #b7adc7; /* lavender for muted text */
 
-  /* Accent: Deep Indigo (#444888) - for deepspace elements */
+  /* Accent: Mystic purple for special elements */
   --accent: #444888;
-  --accent-foreground: #e8f0ec;
+  --accent-foreground: #e8f0e8;
 
   --destructive: #e05555;
   --destructive-foreground: #fff;
 
-  /* Borders: Forest-tinted with lavender */
-  --border: #3a5442;
-  --input: #2a3f30;
+  /* Borders: Subtle glowing borders */
+  --border: oklch(0.35 0.03 160 / 0.3);
+  --input: oklch(0.28 0.04 280 / 0.6);
   --ring: #42e2ed;
 
   /* Charts */
-  --chart-1: #42e2ed;
-  --chart-2: #347975;
-  --chart-3: #a36424;
-  --chart-4: #444888;
-  --chart-5: #375946;
+  --chart-1: #42e2ed; /* cyan */
+  --chart-2: #b7adc7; /* lavender */
+  --chart-3: #347975; /* teal */
+  --chart-4: #a36424; /* copper */
+  --chart-5: #444888; /* purple */
 
-  /* Increased base radius for more rounded, whimsical feel */
+  /* Organic, flowing corners */
   --radius: 1.25rem;
 
-  /* Sidebar: Darker forest green */
-  --sidebar: #152218;
-  --sidebar-foreground: #e8f0ec;
+  /* Sidebar: Glass effect with purple tint */
+  --sidebar: oklch(0.28 0.04 280 / 0.95);
+  --sidebar-foreground: #e8f0e8;
   --sidebar-primary: #42e2ed;
-  --sidebar-primary-foreground: #1a2e22;
-  --sidebar-accent: #2a3f30;
-  --sidebar-accent-foreground: #e8f0ec;
-  --sidebar-border: #3a5442;
+  --sidebar-primary-foreground: #0a1612;
+  --sidebar-accent: oklch(0.32 0.04 280 / 0.6);
+  --sidebar-accent-foreground: #e8f0e8;
+  --sidebar-border: oklch(0.35 0.03 160 / 0.2);
   --sidebar-ring: #42e2ed;
 
-  /* Custom Palette Tokens */
+  /* Custom Palette Variables */
   --forest-green: #375946;
-  --forest-green-light: #4a7a5f;
-  --forest-green-dark: #1a2e22;
-  --deep-indigo: #444888;
-  --deep-indigo-light: #5a5a9a;
+  --mystic-purple: #444888;
   --magic-cyan: #42e2ed;
-  --magic-cyan-soft: #42e2ed99;
-  --magic-cyan-glow: #42e2ed66;
   --teal: #347975;
-  --teal-light: #4a9a95;
   --lavender: #b7adc7;
-  --lavender-soft: #b7adc788;
   --copper: #a36424;
-  --copper-bright: #c4853a;
-  --copper-glow: #a3642466;
 }
 
 .dark {
-  --background: #1a2e22;
-  --foreground: #e8f0ec;
-  --card: #243828;
-  --card-foreground: #e8f0ec;
-  --popover: #1e3024;
-  --popover-foreground: #e8f0ec;
+  --background: #1f2e24;
+  --foreground: #e8f0e8;
+  --card: oklch(0.32 0.04 280 / 0.85);
+  --card-foreground: #e8f0e8;
+  --popover: oklch(0.28 0.04 280 / 0.9);
+  --popover-foreground: #e8f0e8;
   --primary: #42e2ed;
-  --primary-foreground: #1a2e22;
+  --primary-foreground: #0a1612;
   --secondary: #347975;
-  --secondary-foreground: #e8f0ec;
-  --muted: #2a3f30;
+  --secondary-foreground: #e8f0e8;
+  --muted: #2d4236;
   --muted-foreground: #b7adc7;
   --accent: #444888;
-  --accent-foreground: #e8f0ec;
+  --accent-foreground: #e8f0e8;
   --destructive: #e05555;
   --destructive-foreground: #fff;
-  --border: #3a5442;
-  --input: #2a3f30;
+  --border: oklch(0.35 0.03 160 / 0.3);
+  --input: oklch(0.28 0.04 280 / 0.6);
   --ring: #42e2ed;
-  --sidebar: #152218;
-  --sidebar-foreground: #e8f0ec;
+  --sidebar: oklch(0.28 0.04 280 / 0.95);
+  --sidebar-foreground: #e8f0e8;
   --sidebar-primary: #42e2ed;
-  --sidebar-primary-foreground: #1a2e22;
-  --sidebar-accent: #2a3f30;
-  --sidebar-accent-foreground: #e8f0ec;
-  --sidebar-border: #3a5442;
+  --sidebar-primary-foreground: #0a1612;
+  --sidebar-accent: oklch(0.32 0.04 280 / 0.6);
+  --sidebar-accent-foreground: #e8f0e8;
+  --sidebar-border: oklch(0.35 0.03 160 / 0.2);
   --sidebar-ring: #42e2ed;
   --radius: 1.25rem;
 }
@@ -138,7 +141,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  /* Larger radius values for whimsical rounded corners */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);
@@ -153,27 +155,6 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  /* Custom palette */
-  --color-forest-green: var(--forest-green);
-  --color-forest-green-light: var(--forest-green-light);
-  --color-forest-green-dark: var(--forest-green-dark);
-  --color-deep-indigo: var(--deep-indigo);
-  --color-deep-indigo-light: var(--deep-indigo-light);
-  --color-magic-cyan: var(--magic-cyan);
-  --color-magic-cyan-soft: var(--magic-cyan-soft);
-  --color-magic-cyan-glow: var(--magic-cyan-glow);
-  --color-teal: var(--teal);
-  --color-teal-light: var(--teal-light);
-  --color-lavender: var(--lavender);
-  --color-lavender-soft: var(--lavender-soft);
-  --color-copper: var(--copper);
-  --color-copper-bright: var(--copper-bright);
-  --color-copper-glow: var(--copper-glow);
-  /* Legacy tokens for compatibility */
-  --color-gold: var(--copper);
-  --color-gold-bright: var(--copper-bright);
-  --color-fey-pink: var(--magic-cyan);
-  --color-fey-teal: var(--teal);
 }
 
 @layer base {
@@ -187,41 +168,89 @@
   }
 }
 
-/* Enhanced magical background with fairy dust particles */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ENCHANTED FOREST BACKGROUND - Ethereal atmosphere with floating particles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .magical-bg {
-  /* Floating fey orbs - organic blob shapes */
+  /* Ethereal glows - organic blob shapes simulating fairy light clusters */
   background:
-    radial-gradient(ellipse 180px 140px at 10% 15%, #42e2ed15 0%, transparent 70%),
-    radial-gradient(ellipse 140px 180px at 90% 20%, #42e2ed10 0%, transparent 70%),
-    radial-gradient(ellipse 160px 120px at 80% 75%, #44488818 0%, transparent 70%),
-    radial-gradient(ellipse 120px 160px at 20% 80%, #34797515 0%, transparent 70%),
-    radial-gradient(ellipse 100px 140px at 55% 40%, #44488812 0%, transparent 70%),
-    radial-gradient(ellipse 140px 100px at 35% 55%, #42e2ed08 0%, transparent 70%),
-    /* Scattered stars */
-    radial-gradient(2.5px 2.5px at 12% 22%, #42e2ed 50%, transparent 100%),
-    radial-gradient(2px 2px at 28% 12%, #b7adc7 50%, transparent 100%),
-    radial-gradient(3px 3px at 48% 32%, #42e2ed80 50%, transparent 100%),
-    radial-gradient(2px 2px at 68% 18%, #b7adc7 50%, transparent 100%),
-    radial-gradient(2.5px 2.5px at 82% 42%, #42e2ed60 50%, transparent 100%),
-    radial-gradient(2px 2px at 22% 58%, #b7adc7 50%, transparent 100%),
-    radial-gradient(3px 3px at 42% 72%, #42e2ed80 50%, transparent 100%),
-    radial-gradient(2px 2px at 62% 52%, #b7adc7 50%, transparent 100%),
-    radial-gradient(2.5px 2.5px at 88% 68%, #42e2ed60 50%, transparent 100%),
-    radial-gradient(2px 2px at 8% 82%, #b7adc7 50%, transparent 100%),
-    radial-gradient(3px 3px at 52% 88%, #42e2ed80 50%, transparent 100%),
-    radial-gradient(2px 2px at 72% 78%, #44488860 50%, transparent 100%),
-    /* Organic wavy base gradient */
-    linear-gradient(160deg, #152218 0%, #1a2e22 25%, #1e3426 50%, #1a2e22 75%, #152218 100%);
+    radial-gradient(ellipse 220px 180px at 15% 20%, oklch(0.75 0.15 210 / 0.12) 0%, transparent 65%),
+    radial-gradient(ellipse 180px 220px at 85% 25%, oklch(0.75 0.15 210 / 0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 200px 160px at 25% 75%, oklch(0.35 0.08 270 / 0.15) 0%, transparent 65%),
+    radial-gradient(ellipse 160px 200px at 75% 80%, oklch(0.55 0.08 180 / 0.12) 0%, transparent 65%),
+    radial-gradient(ellipse 140px 180px at 50% 40%, oklch(0.4 0.08 270 / 0.1) 0%, transparent 65%),
+    /* Scattered starlight - bioluminescent points */
+    radial-gradient(3px 3px at 12% 18%, #42e2ed 40%, transparent 100%),
+    radial-gradient(2px 2px at 24% 8%, #b7adc799 40%, transparent 100%),
+    radial-gradient(3.5px 3.5px at 88% 22%, #42e2edaa 40%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 48% 32%, #b7adc7 40%, transparent 100%),
+    radial-gradient(2px 2px at 68% 15%, #42e2ed88 40%, transparent 100%),
+    radial-gradient(3px 3px at 82% 42%, #b7adc7aa 40%, transparent 100%),
+    radial-gradient(2px 2px at 18% 58%, #42e2ed 40%, transparent 100%),
+    radial-gradient(3.5px 3.5px at 38% 72%, #b7adc799 40%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 58% 52%, #42e2edaa 40%, transparent 100%),
+    radial-gradient(2px 2px at 92% 68%, #b7adc7 40%, transparent 100%),
+    radial-gradient(3px 3px at 8% 85%, #42e2ed88 40%, transparent 100%),
+    radial-gradient(2px 2px at 52% 92%, #b7adc7aa 40%, transparent 100%),
+    /* Forest green base with subtle depth */
+    linear-gradient(165deg, #1a2820 0%, #1f2e24 30%, #243428 60%, #1f2e24 90%, #1a2820 100%);
 }
 
-/* Animations */
-@keyframes cyan-glow {
+.parchment-bg {
+  background-image: radial-gradient(ellipse 70% 60% at 20% 30%, oklch(0.75 0.15 210 / 0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 70%, oklch(0.4 0.08 270 / 0.08) 0%, transparent 70%);
+  border-radius: var(--radius-xl);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS - Gentle, organic movements inspired by nature
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes fairy-dust-float {
+  0% {
+    transform: translateY(100vh) translateX(0) scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(90vh) translateX(15px) scale(1) rotate(45deg);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(45vh) translateX(-20px) scale(0.9) rotate(180deg);
+  }
+  90% {
+    opacity: 0.5;
+    transform: translateY(8vh) translateX(25px) scale(0.7) rotate(315deg);
+  }
+  100% {
+    transform: translateY(-10vh) translateX(0) scale(0) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes twinkle {
   0%,
   100% {
-    opacity: 0.6;
+    opacity: 0.3;
+    transform: scale(0.9);
   }
   50% {
     opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes gentle-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    box-shadow: 0 0 20px -8px oklch(0.75 0.15 210 / 0.4);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 35px -8px oklch(0.75 0.15 210 / 0.6);
   }
 }
 
@@ -231,154 +260,204 @@
     transform: translateY(0) rotate(0deg);
   }
   33% {
-    transform: translateY(-4px) rotate(0.5deg);
+    transform: translateY(-5px) rotate(1deg);
   }
   66% {
-    transform: translateY(-2px) rotate(-0.5deg);
+    transform: translateY(-3px) rotate(-1deg);
   }
 }
 
-@keyframes pulse-cyan {
+@keyframes ethereal-glow {
   0%,
   100% {
-    box-shadow: 0 0 15px -5px #42e2ed66;
+    filter: drop-shadow(0 0 10px oklch(0.75 0.15 210 / 0.4));
   }
   50% {
-    box-shadow: 0 0 25px -5px #42e2ed99;
+    filter: drop-shadow(0 0 20px oklch(0.75 0.15 210 / 0.7));
   }
 }
 
-@keyframes wiggle {
+@keyframes crown-pulse {
   0%,
   100% {
-    transform: rotate(-1deg);
+    filter: drop-shadow(0 0 8px #a36424aa) drop-shadow(0 0 15px #a3642455);
   }
   50% {
-    transform: rotate(1deg);
+    filter: drop-shadow(0 0 12px #a36424cc) drop-shadow(0 0 25px #a3642477);
   }
 }
 
-@keyframes sparkle {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2);
-  }
-}
-
-/* New fairy dust animation for fey magic feel */
-@keyframes fairy-dust-float {
-  0% {
-    transform: translateY(100vh) translateX(0) scale(0);
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-    transform: translateY(90vh) translateX(10px) scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: translateY(50vh) translateX(-15px) scale(0.8);
-  }
-  90% {
-    opacity: 0.4;
-    transform: translateY(10vh) translateX(20px) scale(0.6);
-  }
-  100% {
-    transform: translateY(-10vh) translateX(0) scale(0);
-    opacity: 0;
-  }
-}
-
-@keyframes twinkle {
-  0%,
-  100% {
-    opacity: 0.2;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2);
-  }
-}
-
-.animate-cyan-glow {
-  animation: cyan-glow 3s ease-in-out infinite;
-}
-.animate-float-gentle {
-  animation: float-gentle 5s ease-in-out infinite;
-}
-.animate-pulse-cyan {
-  animation: pulse-cyan 3s ease-in-out infinite;
-}
-.animate-wiggle {
-  animation: wiggle 3s ease-in-out infinite;
-}
-.animate-sparkle {
-  animation: sparkle 2s ease-in-out infinite;
-}
 .animate-twinkle {
   animation: twinkle 3s ease-in-out infinite;
 }
+.animate-gentle-pulse {
+  animation: gentle-pulse 3s ease-in-out infinite;
+}
+.animate-float-gentle {
+  animation: float-gentle 6s ease-in-out infinite;
+}
+.animate-ethereal-glow {
+  animation: ethereal-glow 3s ease-in-out infinite;
+}
+.animate-crown-glow {
+  animation: crown-pulse 2.5s ease-in-out infinite;
+}
 
-/* Fairy dust particle container */
+/* ═══════════════════════════════════════════════════════════════════════════
+   FEY MAGIC PARTICLE EFFECTS - Floating fairy dust and glowing orbs
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .fairy-dust {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
 }
 
 .fairy-dust::before,
 .fairy-dust::after {
   content: "";
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  animation: fairy-dust-float 8s ease-in-out infinite;
+  animation: fairy-dust-float 12s ease-in-out infinite;
 }
 
 .fairy-dust::before {
-  background: #42e2ed;
-  left: 20%;
+  background: radial-gradient(circle, #42e2ed, #42e2edaa);
+  left: 25%;
   animation-delay: 0s;
-  box-shadow: 0 0 10px 2px #42e2ed88;
+  box-shadow: 0 0 15px 3px #42e2ed88;
 }
 
 .fairy-dust::after {
-  background: #c4853a;
-  left: 70%;
-  animation-delay: 3s;
-  box-shadow: 0 0 10px 2px #c4853a88;
+  background: radial-gradient(circle, #b7adc7, #b7adc7aa);
+  left: 65%;
+  animation-delay: 5s;
+  box-shadow: 0 0 15px 3px #b7adc788;
 }
 
-/* Additional fairy dust particles via pseudo-elements on wrapper */
-.fairy-dust-wrapper {
+/* Additional floating particles */
+.floating-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+  animation: float-gentle 8s ease-in-out infinite;
+}
+
+.floating-orb.cyan {
+  background: radial-gradient(circle, #42e2ed44, transparent);
+}
+
+.floating-orb.lavender {
+  background: radial-gradient(circle, #b7adc744, transparent);
+}
+
+.floating-orb.copper {
+  background: radial-gradient(circle, #a3642444, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLASS MORPHISM CARDS - Modern elven craftsmanship aesthetic
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.glass-card {
+  background: oklch(0.32 0.04 280 / 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid oklch(0.75 0.15 210 / 0.15);
+  border-radius: calc(var(--radius) + 8px);
+  box-shadow: 0 8px 32px -8px oklch(0 0 0 / 0.3), inset 0 1px 0 oklch(1 0 0 / 0.1);
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.glass-card:hover {
+  border-color: oklch(0.75 0.15 210 / 0.4);
+  box-shadow: 0 12px 40px -8px oklch(0.75 0.15 210 / 0.3), 0 0 0 1px oklch(0.75 0.15 210 / 0.2), inset 0 1px 0
+    oklch(1 0 0 / 0.15);
+  transform: translateY(-2px);
+}
+
+/* Stat cards with individual color theming */
+.stat-card {
+  background: oklch(0.32 0.04 280 / 0.75);
+  backdrop-filter: blur(15px);
+  border: 1px solid oklch(0.75 0.15 210 / 0.12);
+  border-radius: calc(var(--radius) + 8px);
+  transition: all 0.3s ease;
   position: relative;
+  overflow: hidden;
 }
 
-.fairy-dust-wrapper::before {
+.stat-card::before {
   content: "";
   position: absolute;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: #b7adc7;
-  left: 45%;
-  animation: fairy-dust-float 10s ease-in-out infinite;
-  animation-delay: 5s;
-  box-shadow: 0 0 8px 2px #b7adc788;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at top, var(--stat-glow-color) 0%, transparent 70%);
+  opacity: 0.08;
   pointer-events: none;
-  z-index: 1;
 }
 
-/* Gradient text - Copper for headers */
+.stat-card:hover {
+  border-color: oklch(0.75 0.15 210 / 0.3);
+  box-shadow: 0 8px 30px -8px var(--stat-glow-color);
+  transform: translateY(-3px);
+}
+
+.stat-card:hover::before {
+  opacity: 0.15;
+}
+
+/* Campaign scroll with decorative borders */
+.campaign-scroll {
+  background: oklch(0.32 0.04 280 / 0.8);
+  backdrop-filter: blur(20px);
+  border: 2px solid oklch(0.75 0.15 210 / 0.2);
+  border-radius: calc(var(--radius) + 12px);
+  position: relative;
+  overflow: visible;
+  box-shadow: 0 4px 24px -6px oklch(0 0 0 / 0.3), inset 0 1px 0 oklch(1 0 0 / 0.08);
+}
+
+.campaign-scroll::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 8%;
+  right: 8%;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    oklch(0.65 0.15 40 / 0.6),
+    oklch(0.75 0.15 210 / 0.8),
+    oklch(0.65 0.15 40 / 0.6),
+    transparent
+  );
+  border-radius: 999px;
+  filter: blur(1px);
+}
+
+.campaign-scroll::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, oklch(0.55 0.08 180 / 0.5), transparent);
+  border-radius: 999px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY - Elegant headers with magical gradients
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .text-gold-gradient {
   background: linear-gradient(135deg, #c4853a 0%, #a36424 50%, #c4853a 100%);
   -webkit-background-clip: text;
@@ -387,110 +466,120 @@
 }
 
 .text-fey-gradient {
-  background: linear-gradient(135deg, #42e2ed 0%, #347975 50%, #42e2ed 100%);
+  background: linear-gradient(135deg, #42e2ed 0%, #347975 35%, #b7adc7 65%, #42e2ed 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Whimsical border effects with soft rounded glow */
-.border-fey-glow {
-  box-shadow: 0 0 25px -8px #42e2ed55, 0 0 50px -15px #34797544, inset 0 1px 0 #ffffff10;
-  border-color: #42e2ed44;
-  border-radius: var(--radius-xl);
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   NAVIGATION - Whimsical pill-shaped items with color-coded sections
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-.border-glow {
-  box-shadow: 0 0 25px -8px #42e2ed33, inset 0 1px 0 #ffffff08;
-  border-radius: var(--radius-lg);
-}
-
-/* Whimsical card styles with organic shapes and playful shadows */
-.stat-card-glow {
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border: 1px solid #3a5442;
-  background: linear-gradient(145deg, #283d2e 0%, #1e3024 50%, #243828 100%);
-  border-radius: var(--radius-xl);
+.nav-item-magic {
   position: relative;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border-radius: calc(var(--radius) + 8px);
   overflow: hidden;
 }
-.stat-card-glow::before {
+
+.nav-item-magic::before {
   content: "";
   position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(ellipse at center, #42e2ed08 0%, transparent 70%);
-  pointer-events: none;
-}
-.stat-card-glow:hover {
-  border-color: #42e2ed55;
-  box-shadow: 0 8px 35px -10px #42e2ed44, 0 4px 15px -5px #00000044;
-  transform: translateY(-4px) rotate(-0.5deg);
+  inset: 0;
+  background: linear-gradient(100deg, var(--nav-accent-color) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-.card-hover {
+.nav-item-magic:hover::before {
+  opacity: 0.12;
+}
+
+.nav-item-magic:hover {
+  transform: translateX(5px);
+}
+
+/* Individual icon colors for each nav section */
+.icon-forge {
+  color: #42e2ed;
+}
+.icon-characters {
+  color: #b7adc7;
+}
+.icon-dice {
+  color: #a36424;
+}
+.icon-npcs {
+  color: #347975;
+}
+.icon-sessions {
+  color: #42e2ed;
+}
+.icon-combat {
+  color: #a36424;
+}
+.icon-codex {
+  color: #b7adc7;
+}
+.icon-world {
+  color: #347975;
+}
+.icon-dm {
+  color: #a36424;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUTTONS - Glowing with soft ethereal effects
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.btn-fey-glow {
+  background: linear-gradient(135deg, #42e2ed 0%, #3bc4ce 50%, #347975 100%);
+  box-shadow: 0 4px 20px -6px oklch(0.75 0.15 210 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border-radius: var(--radius-lg);
-}
-.card-hover:hover {
-  box-shadow: 0 6px 30px -8px #34797544;
-  transform: translateY(-3px);
+  color: #0a1612;
+  font-weight: 600;
+  border-radius: calc(var(--radius) + 2px);
 }
 
-/* Whimsical campaign scroll with wavy edges effect */
-.campaign-scroll {
-  background: linear-gradient(150deg, #2a3f30 0%, #243828 50%, #2a3f30 100%);
-  border: 2px solid #3a5442;
-  border-radius: var(--radius-2xl);
-  position: relative;
-  overflow: hidden;
-}
-.campaign-scroll::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 5%;
-  right: 5%;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, #a3642488, #42e2ed77, #a3642488, transparent);
-  border-radius: var(--radius-full);
-}
-.campaign-scroll::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 10%;
-  right: 10%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #347975, transparent);
-  border-radius: var(--radius-full);
+.btn-fey-glow:hover {
+  box-shadow: 0 6px 30px -6px oklch(0.75 0.15 210 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.4);
+  transform: translateY(-2px) scale(1.02);
 }
 
-.parchment-bg {
-  background-image: radial-gradient(ellipse 60% 50% at 15% 25%, #42e2ed0a 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 85% 75%, #44488812 0%, transparent 60%);
-  border-radius: var(--radius-xl);
+.btn-copper-glow {
+  background: linear-gradient(135deg, #c4853a 0%, #b5752f 50%, #a36424 100%);
+  box-shadow: 0 4px 20px -6px oklch(0.65 0.15 40 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: #fff;
+  font-weight: 600;
+  border-radius: calc(var(--radius) + 2px);
 }
 
-/* Updated magical divider with anvil/forge symbol */
+.btn-copper-glow:hover {
+  box-shadow: 0 6px 30px -6px oklch(0.65 0.15 40 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.4);
+  transform: translateY(-2px) scale(1.02);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DECORATIVE ELEMENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .magical-divider {
   height: 2px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    #37594666 10%,
-    #347975 25%,
-    #42e2ed 50%,
-    #347975 75%,
-    #37594666 90%,
+    oklch(0.55 0.08 180 / 0.3) 15%,
+    oklch(0.75 0.15 210) 50%,
+    oklch(0.55 0.08 180 / 0.3) 85%,
     transparent 100%
   );
-  border-radius: var(--radius-full);
+  border-radius: 999px;
   position: relative;
   margin: 1.5rem 0;
 }
+
 .magical-divider::before {
   content: "⚒";
   position: absolute;
@@ -498,140 +587,102 @@
   top: 50%;
   transform: translate(-50%, -50%);
   color: #42e2ed;
-  font-size: 16px;
-  /* Added line-height and display flex for proper vertical centering */
+  font-size: 18px;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  text-shadow: 0 0 15px #42e2edaa, 0 0 30px #42e2ed55;
-  background: #1a2e22;
-  padding: 4px 12px;
-  animation: sparkle 3s ease-in-out infinite;
+  text-shadow: 0 0 15px oklch(0.75 0.15 210 / 0.8), 0 0 30px oklch(0.75 0.15 210 / 0.4);
+  background: #1f2e24;
+  padding: 6px 14px;
+  border-radius: 999px;
+  animation: twinkle 3s ease-in-out infinite;
 }
 
-/* Icons with playful glow */
-.icon-glow {
-  filter: drop-shadow(0 0 8px #42e2ed88) drop-shadow(0 0 15px #42e2ed44);
-}
-
-.icon-glow-hover {
-  transition: filter 0.3s ease;
-}
-.icon-glow-hover:hover {
-  filter: drop-shadow(0 0 10px #42e2edaa) drop-shadow(0 0 20px #42e2ed66);
-}
-
-/* Whimsical nav items with rounded pill shape */
-.nav-item-magic {
-  position: relative;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border-radius: var(--radius-xl);
-}
-.nav-item-magic:hover {
-  background: linear-gradient(100deg, #42e2ed18, #34797512, transparent);
-  transform: translateX(4px);
-}
-
-/* Whimsical buttons with bouncy feel */
-.btn-fey-glow {
-  background: linear-gradient(135deg, #42e2ed 0%, #3bc4ce 50%, #347975 100%);
-  box-shadow: 0 4px 20px -4px #42e2ed66, inset 0 1px 0 #ffffff33;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: #1a2e22;
+/* Badges - Pill-shaped with color coding */
+.badge-cyan {
+  background: oklch(0.75 0.15 210 / 0.15);
+  border: 1px solid oklch(0.75 0.15 210 / 0.3);
+  color: #42e2ed;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  border-radius: var(--radius-xl);
-}
-.btn-fey-glow:hover {
-  box-shadow: 0 6px 30px -4px #42e2ed99, inset 0 1px 0 #ffffff44;
-  transform: translateY(-2px) scale(1.02);
-}
-.btn-fey-glow:active {
-  transform: translateY(0) scale(0.98);
 }
 
-.btn-gold-glow {
-  background: linear-gradient(135deg, #c4853a 0%, #b5752f 50%, #a36424 100%);
-  box-shadow: 0 4px 20px -4px #a3642466, inset 0 1px 0 #ffffff33;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: #fff;
+.badge-copper {
+  background: oklch(0.65 0.15 40 / 0.15);
+  border: 1px solid oklch(0.65 0.15 40 / 0.3);
+  color: #c4853a;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  border-radius: var(--radius-xl);
-}
-.btn-gold-glow:hover {
-  box-shadow: 0 6px 30px -4px #a3642499, inset 0 1px 0 #ffffff44;
-  transform: translateY(-2px) scale(1.02);
-}
-.btn-gold-glow:active {
-  transform: translateY(0) scale(0.98);
 }
 
-.btn-forest-glow {
-  background: linear-gradient(135deg, #4a7a5f 0%, #3f6850 50%, #375946 100%);
-  box-shadow: 0 4px 20px -4px #37594666, inset 0 1px 0 #ffffff22;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: #fff;
+.badge-lavender {
+  background: oklch(0.75 0.08 300 / 0.15);
+  border: 1px solid oklch(0.75 0.08 300 / 0.3);
+  color: #b7adc7;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  border-radius: var(--radius-xl);
-}
-.btn-forest-glow:hover {
-  box-shadow: 0 6px 30px -4px #37594699, inset 0 1px 0 #ffffff33;
-  transform: translateY(-2px) scale(1.02);
-}
-.btn-forest-glow:active {
-  transform: translateY(0) scale(0.98);
 }
 
-.btn-indigo-glow {
-  background: linear-gradient(135deg, #5a5a9a 0%, #4f4f8a 50%, #444888 100%);
-  box-shadow: 0 4px 20px -4px #44488866, inset 0 1px 0 #ffffff22;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: #fff;
+.badge-teal {
+  background: oklch(0.55 0.08 180 / 0.15);
+  border: 1px solid oklch(0.55 0.08 180 / 0.3);
+  color: #4a9a95;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  border-radius: var(--radius-xl);
-}
-.btn-indigo-glow:hover {
-  box-shadow: 0 6px 30px -4px #44488899, inset 0 1px 0 #ffffff33;
-  transform: translateY(-2px) scale(1.02);
-}
-.btn-indigo-glow:active {
-  transform: translateY(0) scale(0.98);
 }
 
-/* Whimsical scrollbar with rounded thumb */
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCROLLBAR - Organic, rounded
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: #152218;
-  border-radius: var(--radius-full);
-  margin: 4px;
-}
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #4a7a5f, #3a5442);
-  border-radius: var(--radius-full);
-  border: 2px solid #152218;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #5a8a6f, #4a7a5f);
+  width: 12px;
+  height: 12px;
 }
 
-/* Added always-visible scrollbar styles */
+::-webkit-scrollbar-track {
+  background: oklch(0.22 0.04 160);
+  border-radius: 999px;
+  margin: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, oklch(0.45 0.06 160), oklch(0.35 0.04 160));
+  border-radius: 999px;
+  border: 3px solid oklch(0.22 0.04 160);
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, oklch(0.55 0.08 160), oklch(0.45 0.06 160));
+}
+
+/* Set html and body to overflow-hidden to prevent duplicate scrollbars */
 html,
 body {
-  overflow: scroll;
+  overflow: hidden;
+  height: 100%;
 }
 
-/* Add responsive container utilities */
-/* Responsive container that always fits within viewport */
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .responsive-container {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
 }
 
-/* Card that shrinks/grows to fit container */
 .responsive-card {
   width: 100%;
   min-width: 0;
@@ -640,7 +691,6 @@ body {
   overflow-wrap: break-word;
 }
 
-/* Text that truncates when too long */
 .truncate-responsive {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -648,169 +698,47 @@ body {
   min-width: 0;
 }
 
-/* Flex item that shrinks properly */
 .flex-shrink-item {
   min-width: 0;
   flex-shrink: 1;
 }
 
-/* Grid that collapses on small screens */
-.responsive-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-}
-
 /* Selection & Focus */
 ::selection {
-  background: #42e2ed44;
-  color: #e8f0ec;
+  background: oklch(0.75 0.15 210 / 0.3);
+  color: #e8f0e8;
 }
+
 input:focus,
 textarea:focus,
 select:focus {
-  box-shadow: 0 0 0 3px #42e2ed44;
-  border-radius: var(--radius-lg);
+  outline: none;
+  box-shadow: 0 0 0 3px oklch(0.75 0.15 210 / 0.3);
+  border-color: #42e2ed;
 }
 
-/* Whimsical badges with pill shape */
-.badge-cyan {
-  background: linear-gradient(135deg, #42e2ed22, #34797518);
-  border: 1px solid #42e2ed44;
-  color: #42e2ed;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-.badge-copper {
-  background: linear-gradient(135deg, #a3642422, #c4853a18);
-  border: 1px solid #a3642444;
-  color: #c4853a;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-.badge-forest {
-  background: linear-gradient(135deg, #37594622, #4a7a5f18);
-  border: 1px solid #37594644;
-  color: #4a7a5f;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-.badge-indigo {
-  background: linear-gradient(135deg, #44488822, #5a5a9a18);
-  border: 1px solid #44488844;
-  color: #5a5a9a;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-.badge-lavender {
-  background: linear-gradient(135deg, #b7adc722, #b7adc718);
-  border: 1px solid #b7adc744;
-  color: #b7adc7;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-.badge-teal {
-  background: linear-gradient(135deg, #34797522, #4a9a9518);
-  border: 1px solid #34797544;
-  color: #4a9a95;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-/* Legacy badge names */
-.badge-fey {
-  background: linear-gradient(135deg, #42e2ed22, #34797518);
-  border: 1px solid #42e2ed44;
-  color: #42e2ed;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-.badge-cosmic {
-  background: linear-gradient(135deg, #44488822, #5a5a9a18);
-  border: 1px solid #44488844;
-  color: #5a5a9a;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-.badge-nature {
-  background: linear-gradient(135deg, #37594622, #4a7a5f18);
-  border: 1px solid #37594644;
-  color: #4a7a5f;
-  border-radius: var(--radius-full);
-  padding: 0.25rem 0.75rem;
-}
-
-/* Whimsical input fields with rounded corners */
-.whimsy-input {
-  border-radius: var(--radius-xl);
-  border: 2px solid #3a5442;
-  background: linear-gradient(135deg, #1e3024, #243828);
-  transition: all 0.3s ease;
-}
-.whimsy-input:focus {
-  border-color: #42e2ed66;
-  box-shadow: 0 0 20px -5px #42e2ed44;
-}
-
-/* Whimsical tooltip */
+/* Tooltips */
 .whimsy-tooltip {
-  background: linear-gradient(135deg, #2a3f30, #1e3024);
-  border: 1px solid #42e2ed44;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 30px -10px #00000066, 0 0 20px -10px #42e2ed44;
+  background: oklch(0.28 0.04 280 / 0.95);
+  border: 1px solid oklch(0.75 0.15 210 / 0.3);
+  border-radius: calc(var(--radius) + 4px);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 16px -4px oklch(0 0 0 / 0.3);
 }
 
-/* Fun staggered animation for lists */
-.stagger-item {
-  opacity: 0;
-  transform: translateY(10px);
-  animation: stagger-in 0.4s ease forwards;
-}
-@keyframes stagger-in {
+/* Stagger animation for list items */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-.stagger-item:nth-child(1) {
-  animation-delay: 0.05s;
-}
-.stagger-item:nth-child(2) {
-  animation-delay: 0.1s;
-}
-.stagger-item:nth-child(3) {
-  animation-delay: 0.15s;
-}
-.stagger-item:nth-child(4) {
-  animation-delay: 0.2s;
-}
-.stagger-item:nth-child(5) {
-  animation-delay: 0.25s;
-}
-.stagger-item:nth-child(6) {
-  animation-delay: 0.3s;
-}
-.stagger-item:nth-child(7) {
-  animation-delay: 0.35s;
-}
-.stagger-item:nth-child(8) {
-  animation-delay: 0.4s;
-}
 
-/* Floating decoration elements */
-.floating-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(40px);
-  opacity: 0.3;
-  pointer-events: none;
-  animation: float-gentle 8s ease-in-out infinite;
-}
-.floating-orb.cyan {
-  background: #42e2ed;
-}
-.floating-orb.indigo {
-  background: #444888;
-}
-.floating-orb.teal {
-  background: #347975;
+.stagger-item {
+  animation: fade-in-up 0.4s ease backwards;
 }

@@ -16,7 +16,7 @@ export function FeyForgeLogo({ size = "md", showText = true, collapsed = false }
   }
 
   return (
-    <div className="flex items-center gap-3 group">
+    <div className="flex items-center gap-3 group px-10">
       {/* Magical Anvil Icon with ethereal glow and sparkles */}
       <div className="relative shrink-0">
         {/* Outer glow ring */}

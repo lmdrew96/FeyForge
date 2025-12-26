@@ -19,13 +19,13 @@ export function RecentSessions() {
   // Show placeholder if no sessions
   if (recentSessions.length === 0) {
     return (
-      <Card className="bg-card border-border card-hover">
+      <Card className="glass-card">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <div className="flex items-center gap-2">
-            <Scroll className="h-5 w-5 text-primary icon-glow" />
+            <Scroll className="h-5 w-5 text-primary animate-ethereal-glow" />
             <CardTitle className="font-serif text-xl text-gold-gradient">Recent Sessions</CardTitle>
           </div>
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground rounded-xl">
             <Link href="/sessions">
               View All <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
@@ -34,14 +34,14 @@ export function RecentSessions() {
         <div className="magical-divider mx-6" />
         <CardContent className="pt-4">
           <div className="text-center py-12 space-y-4">
-            <div className="h-16 w-16 mx-auto rounded-xl bg-accent/50 flex items-center justify-center border border-border">
-              <Scroll className="h-8 w-8 text-muted-foreground" />
+            <div className="h-20 w-20 mx-auto rounded-2xl bg-accent/30 flex items-center justify-center border border-border/50 backdrop-blur-sm">
+              <Scroll className="h-10 w-10 text-lavender" />
             </div>
             <div>
               <p className="text-foreground font-medium">No sessions recorded yet</p>
               <p className="text-sm text-muted-foreground mt-1">Begin your adventure!</p>
             </div>
-            <Button asChild className="animate-pulse-glow">
+            <Button asChild className="btn-fey-glow animate-gentle-pulse">
               <Link href="/sessions/new">Start Your First Session</Link>
             </Button>
           </div>
@@ -51,13 +51,13 @@ export function RecentSessions() {
   }
 
   return (
-    <Card className="bg-card border-border card-hover">
+    <Card className="glass-card">
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <div className="flex items-center gap-2">
-          <Scroll className="h-5 w-5 text-primary icon-glow" />
+          <Scroll className="h-5 w-5 text-primary animate-ethereal-glow" />
           <CardTitle className="font-serif text-xl text-gold-gradient">Recent Sessions</CardTitle>
         </div>
-        <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground rounded-xl">
           <Link href="/sessions">
             View All <ChevronRight className="ml-1 h-4 w-4" />
           </Link>
@@ -69,27 +69,26 @@ export function RecentSessions() {
           <Link
             key={session.id}
             href={`/sessions/${session.id}`}
-            className="flex items-center justify-between p-4 rounded-lg bg-accent/20 hover:bg-accent/40 transition-all duration-300 cursor-pointer block border border-transparent hover:border-primary/20 hover:shadow-[0_0_20px_-10px_oklch(0.55_0.25_280_/_0.3)]"
+            className="flex items-center justify-between p-4 rounded-2xl bg-card/40 hover:bg-accent/50 backdrop-blur-sm transition-all duration-300 cursor-pointer block border border-transparent hover:border-primary/30 hover:shadow-[0_0_25px_-10px_oklch(0.75_0.15_210_/_0.3)]"
             style={{ animationDelay: `${index * 100}ms` }}
           >
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono text-muted-foreground">#{session.number}</span>
-                <h3 className="font-medium text-foreground">{session.title}</h3>
+                <h3 className="font-medium text-foreground truncate">{session.title}</h3>
                 <Badge
-                  variant={session.status === "planned" ? "default" : "secondary"}
                   className={
                     session.status === "planned"
-                      ? "bg-primary/20 text-primary border border-primary/30"
+                      ? "badge-cyan"
                       : session.status === "completed"
-                        ? "bg-forest-green/20 text-forest-green border border-forest-green/30"
-                        : "bg-secondary text-secondary-foreground"
+                        ? "badge-teal"
+                        : "badge-lavender"
                   }
                 >
                   {session.status}
                 </Badge>
               </div>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
                   {format(new Date(session.date), "MMM d, yyyy")}
@@ -102,12 +101,12 @@ export function RecentSessions() {
                 )}
               </div>
               {session.highlights.length > 0 && (
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 flex-wrap">
                   {session.highlights.slice(0, 2).map((highlight) => (
                     <Badge
                       key={highlight}
                       variant="outline"
-                      className="text-xs border-border/50 text-muted-foreground bg-background/50"
+                      className="text-xs border-border/40 text-muted-foreground bg-background/30 backdrop-blur-sm rounded-full"
                     >
                       {highlight}
                     </Badge>
@@ -115,7 +114,7 @@ export function RecentSessions() {
                 </div>
               )}
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 ml-2" />
           </Link>
         ))}
       </CardContent>

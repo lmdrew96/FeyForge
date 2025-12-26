@@ -50,30 +50,28 @@ const quickActions = [
 
 export function QuickActions() {
   return (
-    <Card className="bg-card border-border card-hover">
+    <Card className="glass-card">
       <CardHeader className="pb-3">
         <CardTitle className="font-serif text-xl text-gold-gradient">Quick Actions</CardTitle>
-        <div className="magical-divider mt-2" />
       </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2">
+      <div className="magical-divider mx-6" />
+      <CardContent className="grid gap-3 sm:grid-cols-2 pt-4">
         {quickActions.map((action) => (
           <Button
             key={action.name}
             variant={action.primary ? "default" : "outline"}
-            className={`h-auto py-4 px-4 justify-start transition-all duration-300 ${
+            className={`h-auto py-4 px-4 justify-start transition-all duration-300 rounded-2xl ${
               action.primary
-                ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 border border-primary/50 animate-pulse-glow"
-                : "border-border hover:border-primary/50 hover:bg-accent/50 hover:shadow-[0_0_20px_-5px_oklch(0.55_0.25_280_/_0.3)]"
+                ? "btn-fey-glow shadow-lg"
+                : "border-border/50 hover:border-primary/40 bg-card/50 hover:bg-accent/50 backdrop-blur-sm hover:shadow-[0_0_20px_-5px_oklch(0.75_0.15_210_/_0.25)]"
             }`}
             asChild
           >
             <Link href={action.href}>
-              <action.icon
-                className={`h-5 w-5 mr-3 ${action.primary ? "icon-glow" : "text-primary icon-glow-hover"}`}
-              />
+              <action.icon className={`h-5 w-5 mr-3 ${action.primary ? "" : "text-primary"}`} />
               <div className="text-left">
                 <div className="font-medium">{action.name}</div>
-                <div className={`text-xs ${action.primary ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                <div className={`text-xs ${action.primary ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                   {action.description}
                 </div>
               </div>
