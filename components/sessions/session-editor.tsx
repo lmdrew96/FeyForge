@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,11 +9,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useSessionStore, type Session, type SessionNote } from "@/lib/session-store"
-import { useCampaignSessions, useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { useSessionStore, type Session, type SessionNote, type SessionObjective, type PlannedEncounter } from "@/lib/session-store"
+import { useCampaignSessions, useActiveCampaignId, useCampaignNPCs } from "@/lib/hooks/use-campaign-data"
+import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { useRouter } from "next/navigation"
-import { Save, Plus, X, Sparkles, BookOpen, Swords, MessageSquare, Gem, GitBranch, Clock, Calendar } from "lucide-react"
+import { Save, Plus, X, Sparkles, BookOpen, Swords, MessageSquare, Gem, GitBranch, Clock, Calendar, Target, Users, Skull, ChevronDown, ChevronUp, Search, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { XPCalculator } from "./xp-calculator"
 
 interface SessionEditorProps {
   session?: Session
@@ -36,11 +40,26 @@ const noteTypeColors = {
   decision: "border-purple-500/50 bg-purple-500/10",
 }
 
+const difficultyColors = {
+  trivial: "text-gray-400",
+  easy: "text-green-500",
+  medium: "text-yellow-500",
+  hard: "text-orange-500",
+  deadly: "text-red-500",
+}
+
+const priorityColors = {
+  primary: "border-primary bg-primary/10",
+  secondary: "border-blue-500/50 bg-blue-500/10",
+  optional: "border-muted-foreground/30 bg-muted/10",
+}
+
 export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
   const router = useRouter()
   const { addSession, updateSession, addNoteToSession } = useSessionStore()
   const sessions = useCampaignSessions()
   const activeCampaignId = useActiveCampaignId()
+  const campaignNPCs = useCampaignNPCs()
 
   const [formData, setFormData] = useState<Partial<Session>>({
     number: session?.number || sessions.length + 1,
@@ -56,6 +75,10 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
     notes: session?.notes || [],
     plotThreads: session?.plotThreads || [],
     playerRecap: session?.playerRecap || "",
+    objectives: session?.objectives || [],
+    plannedEncounters: session?.plannedEncounters || [],
+    plannedNPCs: session?.plannedNPCs || [],
+    xpAwarded: session?.xpAwarded,
   })
 
   const [newHighlight, setNewHighlight] = useState("")
@@ -65,6 +88,42 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   const [isGeneratingPrep, setIsGeneratingPrep] = useState(false)
   const [isGeneratingRecap, setIsGeneratingRecap] = useState(false)
+
+  // New state for objectives
+  const [newObjective, setNewObjective] = useState("")
+  const [objectivePriority, setObjectivePriority] = useState<SessionObjective["priority"]>("primary")
+
+  // New state for encounters
+  const [showEncounterForm, setShowEncounterForm] = useState(false)
+  const [encounterName, setEncounterName] = useState("")
+  const [encounterDescription, setEncounterDescription] = useState("")
+  const [encounterDifficulty, setEncounterDifficulty] = useState<PlannedEncounter["difficulty"]>("medium")
+  const [monsterSearch, setMonsterSearch] = useState("")
+  const [searchResults, setSearchResults] = useState<Open5eMonster[]>([])
+  const [selectedMonsters, setSelectedMonsters] = useState<Open5eMonster[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  // Search monsters from Open5e
+  useEffect(() => {
+    if (!monsterSearch.trim()) {
+      setSearchResults([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const results = await open5eApi.getMonsters({ search: monsterSearch })
+        setSearchResults(results.slice(0, 10))
+      } catch (error) {
+        console.error("Monster search failed:", error)
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [monsterSearch])
 
   const handleSave = () => {
     if (isNew) {
@@ -126,6 +185,108 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
     }))
     setNewNote("")
   }
+
+  // Objective helpers
+  const addObjective = () => {
+    if (!newObjective.trim()) return
+    const objective: SessionObjective = {
+      id: crypto.randomUUID(),
+      text: newObjective.trim(),
+      completed: false,
+      priority: objectivePriority,
+    }
+    setFormData((prev) => ({
+      ...prev,
+      objectives: [...(prev.objectives || []), objective],
+    }))
+    setNewObjective("")
+  }
+
+  const toggleObjective = (id: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      objectives: prev.objectives?.map((obj) =>
+        obj.id === id ? { ...obj, completed: !obj.completed } : obj
+      ),
+    }))
+  }
+
+  const removeObjective = (id: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      objectives: prev.objectives?.filter((obj) => obj.id !== id),
+    }))
+  }
+
+  // Encounter helpers
+  const addEncounter = () => {
+    if (!encounterName.trim()) return
+    const encounter: PlannedEncounter = {
+      id: crypto.randomUUID(),
+      name: encounterName.trim(),
+      description: encounterDescription.trim() || undefined,
+      difficulty: encounterDifficulty,
+      monsterSlugs: selectedMonsters.map((m) => m.slug),
+      status: "planned",
+      xpReward: selectedMonsters.reduce((sum, m) => sum + getXPByCR(m.cr), 0),
+    }
+    setFormData((prev) => ({
+      ...prev,
+      plannedEncounters: [...(prev.plannedEncounters || []), encounter],
+    }))
+    // Reset form
+    setEncounterName("")
+    setEncounterDescription("")
+    setEncounterDifficulty("medium")
+    setSelectedMonsters([])
+    setMonsterSearch("")
+    setShowEncounterForm(false)
+  }
+
+  const updateEncounterStatus = (id: string, status: PlannedEncounter["status"]) => {
+    setFormData((prev) => ({
+      ...prev,
+      plannedEncounters: prev.plannedEncounters?.map((enc) =>
+        enc.id === id ? { ...enc, status } : enc
+      ),
+    }))
+  }
+
+  const removeEncounter = (id: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      plannedEncounters: prev.plannedEncounters?.filter((enc) => enc.id !== id),
+    }))
+  }
+
+  // NPC roster helpers
+  const toggleNPC = (npcId: string) => {
+    setFormData((prev) => {
+      const current = prev.plannedNPCs || []
+      const isSelected = current.includes(npcId)
+      return {
+        ...prev,
+        plannedNPCs: isSelected
+          ? current.filter((id) => id !== npcId)
+          : [...current, npcId],
+      }
+    })
+  }
+
+  // XP calculation helper
+  const getXPByCR = (cr: number): number => {
+    const xpTable: Record<number, number> = {
+      0: 10, 0.125: 25, 0.25: 50, 0.5: 100, 1: 200, 2: 450, 3: 700, 4: 1100,
+      5: 1800, 6: 2300, 7: 2900, 8: 3900, 9: 5000, 10: 5900, 11: 7200,
+      12: 8400, 13: 10000, 14: 11500, 15: 13000, 16: 15000, 17: 18000,
+      18: 20000, 19: 22000, 20: 25000, 21: 33000, 22: 41000, 23: 50000,
+      24: 62000, 25: 75000, 26: 90000, 27: 105000, 28: 120000, 29: 135000, 30: 155000,
+    }
+    return xpTable[cr] || 0
+  }
+
+  // Calculate total planned XP
+  const totalPlannedXP = formData.plannedEncounters?.reduce((sum, enc) => sum + (enc.xpReward || 0), 0) || 0
 
   const handleGenerateSummary = async () => {
     setIsGeneratingSummary(true)
@@ -396,6 +557,17 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* XP Calculator - only show for existing sessions */}
+          {!isNew && session && (
+            <XPCalculator
+              sessionId={session.id}
+              plannedEncounters={formData.plannedEncounters}
+              onXPAwarded={(xp) => {
+                setFormData((prev) => ({ ...prev, xpAwarded: xp }))
+              }}
+            />
+          )}
         </TabsContent>
 
         {/* Notes Tab */}
@@ -473,18 +645,347 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
         {/* Prep Tab */}
         <TabsContent value="prep" className="mt-6 space-y-6">
+          {/* Session Objectives */}
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="font-serif text-foreground">Session Preparation</CardTitle>
+              <CardTitle className="font-serif text-foreground flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                Session Objectives
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Add Objective */}
+              <div className="flex gap-2">
+                <Select value={objectivePriority} onValueChange={(v) => setObjectivePriority(v as SessionObjective["priority"])}>
+                  <SelectTrigger className="w-[120px] bg-input border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border">
+                    <SelectItem value="primary" className="focus:bg-accent">Primary</SelectItem>
+                    <SelectItem value="secondary" className="focus:bg-accent">Secondary</SelectItem>
+                    <SelectItem value="optional" className="focus:bg-accent">Optional</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Add an objective..."
+                  value={newObjective}
+                  onChange={(e) => setNewObjective(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addObjective()}
+                  className="flex-1 bg-input border-border"
+                />
+                <Button onClick={addObjective} className="bg-primary hover:bg-primary/90">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Objectives List */}
+              <div className="space-y-2">
+                {formData.objectives?.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4 text-sm">
+                    No objectives yet. Add goals for this session!
+                  </p>
+                ) : (
+                  formData.objectives?.map((objective) => (
+                    <div
+                      key={objective.id}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-lg border transition-opacity",
+                        priorityColors[objective.priority],
+                        objective.completed && "opacity-60"
+                      )}
+                    >
+                      <Checkbox
+                        checked={objective.completed}
+                        onCheckedChange={() => toggleObjective(objective.id)}
+                        className="border-muted-foreground"
+                      />
+                      <span className={cn(
+                        "flex-1 text-sm",
+                        objective.completed && "line-through text-muted-foreground"
+                      )}>
+                        {objective.text}
+                      </span>
+                      <Badge variant="outline" className="text-xs capitalize">
+                        {objective.priority}
+                      </Badge>
+                      <button
+                        onClick={() => removeObjective(objective.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Planned Encounters */}
+          <Card className="bg-card border-border">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="font-serif text-foreground flex items-center gap-2">
+                <Skull className="h-5 w-5 text-destructive" />
+                Planned Encounters
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  Total XP: {totalPlannedXP.toLocaleString()}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowEncounterForm(!showEncounterForm)}
+                  className="border-border"
+                >
+                  {showEncounterForm ? <ChevronUp className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Add Encounter Form */}
+              {showEncounterForm && (
+                <div className="space-y-3 p-4 rounded-lg border border-border bg-accent/20">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-foreground text-sm">Encounter Name</Label>
+                      <Input
+                        placeholder="Goblin Ambush"
+                        value={encounterName}
+                        onChange={(e) => setEncounterName(e.target.value)}
+                        className="bg-input border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-foreground text-sm">Difficulty</Label>
+                      <Select value={encounterDifficulty} onValueChange={(v) => setEncounterDifficulty(v as PlannedEncounter["difficulty"])}>
+                        <SelectTrigger className="bg-input border-border">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border-border">
+                          <SelectItem value="trivial" className="focus:bg-accent">Trivial</SelectItem>
+                          <SelectItem value="easy" className="focus:bg-accent">Easy</SelectItem>
+                          <SelectItem value="medium" className="focus:bg-accent">Medium</SelectItem>
+                          <SelectItem value="hard" className="focus:bg-accent">Hard</SelectItem>
+                          <SelectItem value="deadly" className="focus:bg-accent">Deadly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">Description (optional)</Label>
+                    <Textarea
+                      placeholder="Brief description of the encounter..."
+                      value={encounterDescription}
+                      onChange={(e) => setEncounterDescription(e.target.value)}
+                      className="bg-input border-border min-h-[60px]"
+                    />
+                  </div>
+
+                  {/* Monster Search */}
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">Add Monsters (Open5e)</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search monsters..."
+                        value={monsterSearch}
+                        onChange={(e) => setMonsterSearch(e.target.value)}
+                        className="bg-input border-border pl-9"
+                      />
+                    </div>
+
+                    {/* Search Results */}
+                    {searchResults.length > 0 && (
+                      <ScrollArea className="h-[150px] rounded border border-border bg-background">
+                        <div className="p-2 space-y-1">
+                          {searchResults.map((monster) => (
+                            <button
+                              key={monster.slug}
+                              onClick={() => {
+                                if (!selectedMonsters.find((m) => m.slug === monster.slug)) {
+                                  setSelectedMonsters([...selectedMonsters, monster])
+                                }
+                                setMonsterSearch("")
+                                setSearchResults([])
+                              }}
+                              className="w-full flex items-center justify-between p-2 rounded hover:bg-accent text-left"
+                            >
+                              <span className="text-sm">{monster.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                CR {monster.challenge_rating} ({getXPByCR(monster.cr).toLocaleString()} XP)
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    )}
+
+                    {isSearching && (
+                      <p className="text-xs text-muted-foreground">Searching...</p>
+                    )}
+
+                    {/* Selected Monsters */}
+                    {selectedMonsters.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {selectedMonsters.map((monster) => (
+                          <Badge key={monster.slug} variant="secondary" className="gap-1">
+                            {monster.name} (CR {monster.challenge_rating})
+                            <button
+                              onClick={() => setSelectedMonsters(selectedMonsters.filter((m) => m.slug !== monster.slug))}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button onClick={addEncounter} disabled={!encounterName.trim()} className="w-full bg-primary hover:bg-primary/90">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Encounter
+                  </Button>
+                </div>
+              )}
+
+              {/* Encounters List */}
+              <div className="space-y-2">
+                {formData.plannedEncounters?.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4 text-sm">
+                    No encounters planned. Click + to add one!
+                  </p>
+                ) : (
+                  formData.plannedEncounters?.map((encounter) => (
+                    <div
+                      key={encounter.id}
+                      className={cn(
+                        "p-3 rounded-lg border border-border",
+                        encounter.status === "completed" && "opacity-60 bg-green-500/5",
+                        encounter.status === "skipped" && "opacity-40"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Swords className={cn("h-4 w-4", difficultyColors[encounter.difficulty])} />
+                          <span className="font-medium">{encounter.name}</span>
+                          <Badge variant="outline" className={cn("text-xs capitalize", difficultyColors[encounter.difficulty])}>
+                            {encounter.difficulty}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {encounter.xpReward?.toLocaleString() || 0} XP
+                          </span>
+                          <Select
+                            value={encounter.status}
+                            onValueChange={(v) => updateEncounterStatus(encounter.id, v as PlannedEncounter["status"])}
+                          >
+                            <SelectTrigger className="h-7 w-[100px] text-xs bg-input border-border">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover border-border">
+                              <SelectItem value="planned" className="focus:bg-accent text-xs">Planned</SelectItem>
+                              <SelectItem value="completed" className="focus:bg-accent text-xs">Completed</SelectItem>
+                              <SelectItem value="skipped" className="focus:bg-accent text-xs">Skipped</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <button
+                            onClick={() => removeEncounter(encounter.id)}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      {encounter.description && (
+                        <p className="text-sm text-muted-foreground mb-2">{encounter.description}</p>
+                      )}
+                      {encounter.monsterSlugs.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {encounter.monsterSlugs.map((slug) => (
+                            <Badge key={slug} variant="outline" className="text-xs">
+                              {slug.replace(/-/g, " ")}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* NPC Roster */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="font-serif text-foreground flex items-center gap-2">
+                <Users className="h-5 w-5 text-green-500" />
+                NPC Roster for This Session
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {campaignNPCs.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4 text-sm">
+                  No NPCs in this campaign yet. Create some in the NPCs section!
+                </p>
+              ) : (
+                <ScrollArea className="h-[200px]">
+                  <div className="space-y-2 pr-4">
+                    {campaignNPCs.map((npc) => {
+                      const isSelected = formData.plannedNPCs?.includes(npc.id)
+                      return (
+                        <button
+                          key={npc.id}
+                          onClick={() => toggleNPC(npc.id)}
+                          className={cn(
+                            "w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left",
+                            isSelected
+                              ? "border-primary bg-primary/10"
+                              : "border-border hover:border-primary/50"
+                          )}
+                        >
+                          <div>
+                            <span className="font-medium">{npc.name}</span>
+                            <span className="text-sm text-muted-foreground ml-2">
+                              {npc.race} {npc.occupation}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {npc.relationship}
+                            </Badge>
+                            {isSelected && <Check className="h-4 w-4 text-primary" />}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+              {(formData.plannedNPCs?.length || 0) > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {formData.plannedNPCs?.length} NPC{formData.plannedNPCs?.length !== 1 ? "s" : ""} selected
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Prep Notes */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="font-serif text-foreground">Additional Prep Notes</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-foreground">Prep Notes</Label>
                 <Textarea
-                  placeholder="What do you need to prepare for this session..."
+                  placeholder="What else do you need to prepare for this session..."
                   value={formData.prepNotes}
                   onChange={(e) => setFormData((prev) => ({ ...prev, prepNotes: e.target.value }))}
-                  className="bg-input border-border min-h-[200px]"
+                  className="bg-input border-border min-h-[150px]"
                 />
               </div>
 

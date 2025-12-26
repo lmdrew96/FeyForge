@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell"
 import { SessionList } from "@/components/sessions/session-list"
 import { PlotThreads } from "@/components/sessions/plot-threads"
+import { CampaignTimeline } from "@/components/sessions/campaign-timeline"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function SessionsPage() {
@@ -14,6 +15,9 @@ export default function SessionsPage() {
           <TabsTrigger value="plots" className="data-[state=active]:bg-accent">
             Plot Threads
           </TabsTrigger>
+          <TabsTrigger value="timeline" className="data-[state=active]:bg-accent">
+            Timeline
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="sessions">
@@ -22,6 +26,10 @@ export default function SessionsPage() {
 
         <TabsContent value="plots">
           <PlotThreads />
+        </TabsContent>
+
+        <TabsContent value="timeline">
+          <CampaignTimeline />
         </TabsContent>
       </Tabs>
     </AppShell>

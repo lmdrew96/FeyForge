@@ -24,6 +24,24 @@ export interface SessionNote {
   type: "narrative" | "combat" | "roleplay" | "loot" | "decision"
 }
 
+export interface SessionObjective {
+  id: string
+  text: string
+  completed: boolean
+  priority: "primary" | "secondary" | "optional"
+}
+
+export interface PlannedEncounter {
+  id: string
+  name: string
+  description?: string
+  difficulty: "trivial" | "easy" | "medium" | "hard" | "deadly"
+  monsterSlugs: string[] // Open5e monster slugs
+  status: "planned" | "completed" | "skipped"
+  notes?: string
+  xpReward?: number
+}
+
 export interface Session {
   id: string
   campaignId: string
@@ -42,6 +60,10 @@ export interface Session {
   locationsVisited: string[]
   prepNotes?: string
   playerRecap?: string
+  objectives: SessionObjective[]
+  plannedEncounters: PlannedEncounter[]
+  plannedNPCs: string[] // NPC IDs from NPC store
+  xpAwarded?: number
   createdAt: Date
   updatedAt: Date
 }
