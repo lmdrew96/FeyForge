@@ -64,7 +64,7 @@ export function ConditionsReference() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words overflow-hidden">
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words overflow-hidden min-w-0 overflow-wrap-anywhere">
                     {condition.desc}
                   </div>
                 </CardContent>

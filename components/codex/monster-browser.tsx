@@ -363,9 +363,9 @@ export function MonsterBrowser() {
                     <div className="space-y-2">
                       <h4 className="font-semibold text-primary">Traits</h4>
                       {selectedMonster.special_abilities.map((ability, i) => (
-                        <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3">
+                        <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3 min-w-0">
                           <p className="font-medium">{ability.name}</p>
-                          <p className="text-sm text-muted-foreground">{ability.desc}</p>
+                          <p className="text-sm text-muted-foreground break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{ability.desc}</p>
                         </div>
                       ))}
                     </div>
@@ -376,9 +376,9 @@ export function MonsterBrowser() {
                     <div className="space-y-2">
                       <h4 className="font-semibold text-primary">Actions</h4>
                       {selectedMonster.actions.map((action, i) => (
-                        <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3">
+                        <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3 min-w-0">
                           <p className="font-medium">{action.name}</p>
-                          <p className="text-sm text-muted-foreground">{action.desc}</p>
+                          <p className="text-sm text-muted-foreground break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{action.desc}</p>
                         </div>
                       ))}
                     </div>
@@ -389,9 +389,9 @@ export function MonsterBrowser() {
                     <div className="space-y-2">
                       <h4 className="font-semibold text-primary">Reactions</h4>
                       {selectedMonster.reactions.map((reaction, i) => (
-                        <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3">
+                        <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3 min-w-0">
                           <p className="font-medium">{reaction.name}</p>
-                          <p className="text-sm text-muted-foreground">{reaction.desc}</p>
+                          <p className="text-sm text-muted-foreground break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{reaction.desc}</p>
                         </div>
                       ))}
                     </div>
@@ -405,9 +405,9 @@ export function MonsterBrowser() {
                         The creature can take 3 legendary actions, choosing from the options below.
                       </p>
                       {selectedMonster.legendary_actions.map((action, i) => (
-                        <div key={i} className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                        <div key={i} className="rounded-lg border border-primary/30 bg-primary/5 p-3 min-w-0">
                           <p className="font-medium">{action.name}</p>
-                          <p className="text-sm text-muted-foreground">{action.desc}</p>
+                          <p className="text-sm text-muted-foreground break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{action.desc}</p>
                         </div>
                       ))}
                     </div>
