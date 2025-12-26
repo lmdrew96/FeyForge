@@ -5,11 +5,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, ChevronRight, Scroll } from "lucide-react"
 import Link from "next/link"
-import { useSessionStore } from "@/lib/session-store"
+import { useCampaignSessions } from "@/lib/hooks/use-campaign-data"
 import { format } from "date-fns"
 
 export function RecentSessions() {
-  const sessions = useSessionStore((s) => s.sessions)
+  const sessions = useCampaignSessions()
 
   // Sort by date descending and take last 3
   const recentSessions = [...sessions]

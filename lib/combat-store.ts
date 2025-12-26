@@ -20,6 +20,7 @@ export interface Combatant {
 
 export interface EncounterRecord {
   id: string
+  campaignId?: string
   date: Date
   combatants: string[]
   rounds: number

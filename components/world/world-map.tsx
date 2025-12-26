@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { MapPin, Plus, Castle, Home, Skull, Mountain, Trees, Star, Eye, EyeOff, Trash2 } from "lucide-react"
 import { useWorldStore, type MapLocation } from "@/lib/world-store"
+import { useCampaignLocations, useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 
 const locationTypeConfig: Record<MapLocation["type"], { icon: typeof MapPin; color: string; label: string }> = {
   city: { icon: Castle, color: "text-amber-400", label: "City" },
@@ -26,7 +27,9 @@ const locationTypeConfig: Record<MapLocation["type"], { icon: typeof MapPin; col
 }
 
 export function WorldMap() {
-  const { locations, addLocation, updateLocation, deleteLocation, toggleVisited } = useWorldStore()
+  const locations = useCampaignLocations()
+  const { addLocation, updateLocation, deleteLocation, toggleVisited } = useWorldStore()
+  const activeCampaignId = useActiveCampaignId()
   const [selectedLocation, setSelectedLocation] = useState<MapLocation | null>(null)
   const [isAddingLocation, setIsAddingLocation] = useState(false)
   const [showUnvisited, setShowUnvisited] = useState(true)
@@ -50,6 +53,7 @@ export function WorldMap() {
     if (!clickPosition || !newLocation.name) return
     addLocation({
       ...newLocation,
+      campaignId: activeCampaignId || undefined,
       x: clickPosition.x,
       y: clickPosition.y,
       visited: false,

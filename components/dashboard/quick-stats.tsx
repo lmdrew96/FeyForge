@@ -2,16 +2,18 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Users, Scroll, Swords, BookOpen } from "lucide-react"
-import { useCharacterStore } from "@/lib/character-store"
-import { useSessionStore } from "@/lib/session-store"
-import { useNPCStore } from "@/lib/npc-store"
-import { useCombatStore } from "@/lib/combat-store"
+import {
+  useCampaignCharacters,
+  useCampaignSessions,
+  useCampaignNPCs,
+  useCampaignEncounters,
+} from "@/lib/hooks/use-campaign-data"
 
 export function QuickStats() {
-  const characters = useCharacterStore((s) => s.characters)
-  const sessions = useSessionStore((s) => s.sessions)
-  const npcs = useNPCStore((s) => s.npcs)
-  const encounterHistory = useCombatStore((s) => s.encounterHistory)
+  const characters = useCampaignCharacters()
+  const sessions = useCampaignSessions()
+  const npcs = useCampaignNPCs()
+  const encounterHistory = useCampaignEncounters()
 
   const stats = [
     {
@@ -32,7 +34,7 @@ export function QuickStats() {
       name: "NPCs Created",
       value: npcs.length,
       icon: BookOpen,
-      description: "Across all campaigns",
+      description: "In this campaign",
       glowColor: "#42e2ed",
     },
     {

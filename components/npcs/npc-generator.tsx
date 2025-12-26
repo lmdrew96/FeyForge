@@ -9,11 +9,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useNPCStore, npcRaces, npcOccupations, type NPC } from "@/lib/npc-store"
+import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 import { Sparkles, Save, RefreshCw, User, MapPin, Volume2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function NPCGenerator() {
   const addNPC = useNPCStore((state) => state.addNPC)
+  const activeCampaignId = useActiveCampaignId()
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedNPC, setGeneratedNPC] = useState<Partial<NPC> | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -44,6 +46,7 @@ export function NPCGenerator() {
       setGeneratedNPC({
         ...data.npc,
         id: crypto.randomUUID(),
+        campaignId: activeCampaignId || "",
         location: options.location || "Unknown",
         relationship: "neutral",
         status: "alive",

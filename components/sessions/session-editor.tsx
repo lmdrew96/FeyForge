@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSessionStore, type Session, type SessionNote } from "@/lib/session-store"
+import { useCampaignSessions, useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 import { useRouter } from "next/navigation"
 import { Save, Plus, X, Sparkles, BookOpen, Swords, MessageSquare, Gem, GitBranch, Clock, Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -38,7 +39,8 @@ const noteTypeColors = {
 export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
   const router = useRouter()
   const { addSession, updateSession, addNoteToSession } = useSessionStore()
-  const sessions = useSessionStore((state) => state.sessions)
+  const sessions = useCampaignSessions()
+  const activeCampaignId = useActiveCampaignId()
 
   const [formData, setFormData] = useState<Partial<Session>>({
     number: session?.number || sessions.length + 1,
@@ -66,7 +68,11 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
   const handleSave = () => {
     if (isNew) {
-      const id = addSession(formData as Omit<Session, "id" | "createdAt" | "updatedAt">)
+      const sessionData = {
+        ...formData,
+        campaignId: activeCampaignId || "",
+      } as Omit<Session, "id" | "createdAt" | "updatedAt">
+      const id = addSession(sessionData)
       router.push(`/sessions/${id}`)
     } else if (session) {
       updateSession(session.id, formData)

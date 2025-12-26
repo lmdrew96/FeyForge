@@ -4,12 +4,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useSessionStore, type Session } from "@/lib/session-store"
+import { useCampaignSessions } from "@/lib/hooks/use-campaign-data"
 import { Calendar, Clock, Plus, Scroll, ChevronRight, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 export function SessionList() {
-  const { sessions, deleteSession } = useSessionStore()
+  const sessions = useCampaignSessions()
+  const { deleteSession } = useSessionStore()
 
   const sortedSessions = [...sessions].sort((a, b) => {
     if (a.status === "planned" && b.status !== "planned") return -1

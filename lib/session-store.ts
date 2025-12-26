@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware"
 
 export interface PlotThread {
   id: string
+  campaignId: string
   title: string
   description: string
   status: "active" | "resolved" | "abandoned"
@@ -25,6 +26,7 @@ export interface SessionNote {
 
 export interface Session {
   id: string
+  campaignId: string
   number: number
   title: string
   date: Date

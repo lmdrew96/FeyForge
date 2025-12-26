@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware"
 
 export interface NPC {
   id: string
+  campaignId: string
   name: string
   race: string
   occupation: string

@@ -327,6 +327,7 @@ export function formatModifier(mod: number): string {
 
 export interface Character {
   id: string
+  campaignId?: string
   name: string
   race: string
   subrace?: string

@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useNPCStore, type NPC } from "@/lib/npc-store"
+import { useCampaignNPCs } from "@/lib/hooks/use-campaign-data"
 import { Search, User, MapPin, Trash2, Heart, Skull, HelpCircle, Plus } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 export function NPCList() {
-  const { npcs, deleteNPC } = useNPCStore()
+  const npcs = useCampaignNPCs()
+  const { deleteNPC } = useNPCStore()
   const [search, setSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterRelationship, setFilterRelationship] = useState<string>("all")

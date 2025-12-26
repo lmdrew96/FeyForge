@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware"
 
 export interface MapLocation {
   id: string
+  campaignId?: string
   name: string
   type: "city" | "town" | "village" | "dungeon" | "landmark" | "wilderness" | "poi"
   description: string

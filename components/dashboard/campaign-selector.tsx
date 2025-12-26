@@ -3,19 +3,144 @@
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Crown, Users } from "lucide-react"
-
-const campaigns = [
-  { id: "1", name: "Curse of Strahd", role: "DM", players: 4 },
-  { id: "2", name: "Waterdeep Dragon Heist", role: "Player", players: 5 },
-  { id: "3", name: "Homebrew: The Lost Kingdom", role: "DM", players: 3 },
-]
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Plus, Crown, Users, Trash2 } from "lucide-react"
+import { useCampaignStore, type Campaign } from "@/lib/campaign-store"
 
 export function CampaignSelector() {
-  const [selectedCampaign, setSelectedCampaign] = useState(campaigns[0].id)
+  const { campaigns, activeCampaignId, setActiveCampaign, createCampaign, deleteCampaign } = useCampaignStore()
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null)
 
-  const currentCampaign = campaigns.find((c) => c.id === selectedCampaign)
+  // Form state for new campaign
+  const [newCampaign, setNewCampaign] = useState({
+    name: "",
+    description: "",
+    role: "DM" as "DM" | "Player",
+    playerCount: 4,
+  })
+
+  const currentCampaign = campaigns.find((c) => c.id === activeCampaignId)
+
+  const handleCreateCampaign = () => {
+    if (!newCampaign.name.trim()) return
+
+    createCampaign(newCampaign)
+    setNewCampaign({ name: "", description: "", role: "DM", playerCount: 4 })
+    setIsCreateOpen(false)
+  }
+
+  const handleDeleteCampaign = () => {
+    if (campaignToDelete) {
+      deleteCampaign(campaignToDelete.id)
+      setCampaignToDelete(null)
+      setIsDeleteOpen(false)
+    }
+  }
+
+  const handleDeleteClick = (campaign: Campaign, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setCampaignToDelete(campaign)
+    setIsDeleteOpen(true)
+  }
+
+  // Show create prompt if no campaigns exist
+  if (campaigns.length === 0) {
+    return (
+      <Card className="campaign-scroll overflow-hidden">
+        <CardContent className="p-5">
+          <div className="text-center py-4">
+            <Crown className="h-10 w-10 mx-auto text-copper/50 mb-3" />
+            <h3 className="font-serif text-lg font-bold mb-2">No Campaigns Yet</h3>
+            <p className="text-muted-foreground text-sm mb-4">Create your first campaign to get started</p>
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Campaign
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle className="font-serif">Create New Campaign</DialogTitle>
+                  <DialogDescription>Start a new adventure. Add details about your campaign.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Campaign Name</Label>
+                    <Input
+                      id="name"
+                      value={newCampaign.name}
+                      onChange={(e) => setNewCampaign({ ...newCampaign, name: e.target.value })}
+                      placeholder="Curse of Strahd"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={newCampaign.description}
+                      onChange={(e) => setNewCampaign({ ...newCampaign, description: e.target.value })}
+                      placeholder="A gothic horror adventure in Barovia..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="role">Your Role</Label>
+                      <Select
+                        value={newCampaign.role}
+                        onValueChange={(value: "DM" | "Player") => setNewCampaign({ ...newCampaign, role: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DM">Dungeon Master</SelectItem>
+                          <SelectItem value="Player">Player</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="players">Players</Label>
+                      <Input
+                        id="players"
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={newCampaign.playerCount}
+                        onChange={(e) => setNewCampaign({ ...newCampaign, playerCount: parseInt(e.target.value) || 1 })}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateCampaign} disabled={!newCampaign.name.trim()}>
+                    Create Campaign
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className="campaign-scroll overflow-hidden">
@@ -27,9 +152,9 @@ export function CampaignSelector() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-lavender mb-1.5 uppercase tracking-wider font-medium">Active Campaign</p>
-              <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+              <Select value={activeCampaignId || ""} onValueChange={setActiveCampaign}>
                 <SelectTrigger className="w-full bg-input/50 border-border/50 focus:border-primary h-11 font-serif text-lg backdrop-blur-sm rounded-xl hover:bg-input/70 transition-colors">
-                  <SelectValue />
+                  <SelectValue placeholder="Select a campaign" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border rounded-xl backdrop-blur-xl">
                   {campaigns.map((campaign) => (
@@ -50,21 +175,125 @@ export function CampaignSelector() {
               </Select>
             </div>
           </div>
+
+          {/* Player count display */}
           <div className="text-center hidden sm:flex items-center gap-2 px-5 py-3 rounded-2xl bg-accent/30 border border-border/50 backdrop-blur-sm">
             <Users className="h-4 w-4 text-lavender" />
             <div>
-              <p className="text-3xl font-bold font-serif text-fey-gradient">{currentCampaign?.players}</p>
+              <p className="text-3xl font-bold font-serif text-fey-gradient">{currentCampaign?.playerCount ?? 0}</p>
             </div>
           </div>
-          <Button
-            size="icon"
-            variant="outline"
-            className="border-border/50 hover:border-primary/50 bg-transparent hover:bg-accent/50 h-11 w-11 rounded-xl backdrop-blur-sm"
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            {currentCampaign && (
+              <Button
+                size="icon"
+                variant="outline"
+                className="border-border/50 hover:border-destructive/50 bg-transparent hover:bg-destructive/10 h-11 w-11 rounded-xl backdrop-blur-sm"
+                onClick={(e) => handleDeleteClick(currentCampaign, e)}
+              >
+                <Trash2 className="h-5 w-5 text-muted-foreground hover:text-destructive" />
+              </Button>
+            )}
+
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="border-border/50 hover:border-primary/50 bg-transparent hover:bg-accent/50 h-11 w-11 rounded-xl backdrop-blur-sm"
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle className="font-serif">Create New Campaign</DialogTitle>
+                  <DialogDescription>Start a new adventure. Add details about your campaign.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name2">Campaign Name</Label>
+                    <Input
+                      id="name2"
+                      value={newCampaign.name}
+                      onChange={(e) => setNewCampaign({ ...newCampaign, name: e.target.value })}
+                      placeholder="Curse of Strahd"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="description2">Description</Label>
+                    <Textarea
+                      id="description2"
+                      value={newCampaign.description}
+                      onChange={(e) => setNewCampaign({ ...newCampaign, description: e.target.value })}
+                      placeholder="A gothic horror adventure in Barovia..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="role2">Your Role</Label>
+                      <Select
+                        value={newCampaign.role}
+                        onValueChange={(value: "DM" | "Player") => setNewCampaign({ ...newCampaign, role: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DM">Dungeon Master</SelectItem>
+                          <SelectItem value="Player">Player</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="players2">Players</Label>
+                      <Input
+                        id="players2"
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={newCampaign.playerCount}
+                        onChange={(e) => setNewCampaign({ ...newCampaign, playerCount: parseInt(e.target.value) || 1 })}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateCampaign} disabled={!newCampaign.name.trim()}>
+                    Create Campaign
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </CardContent>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Campaign</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{campaignToDelete?.name}&quot;? This will NOT delete NPCs,
+              sessions, or other data associated with this campaign, but they will no longer be visible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteCampaign}>
+              Delete Campaign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

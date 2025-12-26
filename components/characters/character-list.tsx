@@ -4,12 +4,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useCharacterStore } from "@/lib/character-store"
+import { useCampaignCharacters } from "@/lib/hooks/use-campaign-data"
 import { races, classes } from "@/lib/dnd-data"
 import { Plus, User, Trash2 } from "lucide-react"
 import Link from "next/link"
 
 export function CharacterList() {
-  const { characters, deleteCharacter } = useCharacterStore()
+  const characters = useCampaignCharacters()
+  const { deleteCharacter } = useCharacterStore()
 
   if (characters.length === 0) {
     return (
