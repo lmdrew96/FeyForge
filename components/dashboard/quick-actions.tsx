@@ -7,37 +7,37 @@ const quickActions = [
     name: "Roll Dice",
     icon: Dices,
     href: "/dice",
-    color: "#95B851",
+    colorClass: "text-primary",
   },
   {
     name: "Generate NPC",
     icon: Sparkles,
     href: "/npcs/generate",
-    color: "#931BE4",
+    colorClass: "text-accent",
   },
   {
     name: "New Character",
     icon: UserPlus,
     href: "/characters/new",
-    color: "#47D1BB",
+    colorClass: "text-primary",
   },
   {
     name: "Start Session",
     icon: Scroll,
     href: "/sessions/new",
-    color: "#521BC0",
+    colorClass: "text-accent",
   },
   {
     name: "Run Combat",
     icon: Swords,
     href: "/combat",
-    color: "#95B851",
+    colorClass: "text-primary",
   },
   {
     name: "Rules Lookup",
     icon: BookOpenCheck,
     href: "/codex",
-    color: "#47D1BB",
+    colorClass: "text-primary",
   },
 ]
 
@@ -54,7 +54,7 @@ export function QuickActions() {
             asChild
           >
             <Link href={action.href}>
-              <action.icon className="h-5 w-5 sm:h-6 sm:w-6" style={{ color: action.color }} />
+              <action.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${action.colorClass}`} />
               <span className="text-[10px] sm:text-xs font-medium text-center leading-tight">{action.name}</span>
             </Link>
           </Button>

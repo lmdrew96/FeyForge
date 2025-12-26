@@ -62,11 +62,11 @@ export function SpellBrowser() {
 
   const schoolColors: Record<string, string> = {
     Abjuration: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    Conjuration: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    Divination: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+    Conjuration: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    Divination: "bg-primary/20 text-primary border-primary/30",
     Enchantment: "bg-pink-500/20 text-pink-400 border-pink-500/30",
     Evocation: "bg-red-500/20 text-red-400 border-red-500/30",
-    Illusion: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    Illusion: "bg-accent/20 text-accent border-accent/30",
     Necromancy: "bg-gray-500/20 text-gray-400 border-gray-500/30",
     Transmutation: "bg-green-500/20 text-green-400 border-green-500/30",
   }
@@ -129,7 +129,14 @@ export function SpellBrowser() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="icon" onClick={() => mutate()} disabled={isLoading} title="Refresh from API" className="h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px] sm:min-w-[44px] sm:min-h-[44px]">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => mutate()}
+            disabled={isLoading}
+            title="Refresh from API"
+            className="h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px] sm:min-w-[44px] sm:min-h-[44px]"
+          >
             <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isLoading ? "animate-spin" : ""}`} />
           </Button>
         </div>
@@ -164,12 +171,18 @@ export function SpellBrowser() {
                         <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
                         <span className="font-medium text-sm sm:text-base">{spell.name}</span>
                         {spell.concentration === "yes" && (
-                          <Badge variant="outline" className="text-[10px] sm:text-xs text-yellow-400 border-yellow-500/30 px-1.5">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] sm:text-xs text-accent border-accent/30 px-1.5"
+                          >
                             C
                           </Badge>
                         )}
                         {spell.ritual === "yes" && (
-                          <Badge variant="outline" className="text-[10px] sm:text-xs text-cyan-400 border-cyan-500/30 px-1.5">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] sm:text-xs text-primary border-primary/30 px-1.5"
+                          >
                             R
                           </Badge>
                         )}
@@ -188,7 +201,9 @@ export function SpellBrowser() {
                 </Card>
               ))}
               {filteredSpells.length === 0 && !isLoading && (
-                <p className="py-6 sm:py-8 text-center text-sm sm:text-base text-muted-foreground">No spells found matching your criteria</p>
+                <p className="py-6 sm:py-8 text-center text-sm sm:text-base text-muted-foreground">
+                  No spells found matching your criteria
+                </p>
               )}
             </div>
           )}
@@ -253,7 +268,7 @@ export function SpellBrowser() {
                     </p>
                   </div>
 
-                  <div className="rounded-lg border border-border/50 bg-background/50 p-4">
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
                     <p className="text-xs text-muted-foreground mb-2">Description</p>
                     <div className="text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
                       {selectedSpell.desc}

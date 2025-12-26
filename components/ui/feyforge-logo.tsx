@@ -16,36 +16,36 @@ export function FeyForgeLogo({ size = "md", showText = true, collapsed = false }
   }
 
   return (
-    <div className="flex items-center group gap-0 px-0">
+    <div className="flex items-center group px-0 gap-0 mx-0 justify-center">
       {/* Magical Anvil Icon with ethereal glow and sparkles */}
       <div className="relative shrink-0">
         {/* Outer glow ring */}
-        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-magic-cyan/40 to-teal/20 blur-md group-hover:blur-lg transition-all duration-300" />
+        <div className="absolute inset-0 rounded-2xl bg-primary/40 blur-md group-hover:blur-lg transition-all duration-300" />
 
         {/* Main anvil container */}
         <div
-          className={`${sizes[size].container} rounded-2xl bg-gradient-to-br from-magic-cyan/20 via-teal/15 to-deep-indigo/20 border border-magic-cyan/40 relative overflow-hidden`}
+          className={`${sizes[size].container} rounded-2xl bg-gradient-to-br from-primary/20 via-primary/15 to-accent/20 border border-primary/40 relative overflow-hidden`}
         >
           {/* Inner shimmer effect */}
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
           {/* Anvil icon */}
           <Anvil
-            className={`${sizes[size].icon} text-primary relative z-10 drop-shadow-[0_0_8px_#42e2ed88] group-hover:drop-shadow-[0_0_12px_#42e2edcc] transition-all duration-300`}
+            className={`${sizes[size].icon} text-primary relative z-10 drop-shadow-[0_0_8px_var(--primary)] group-hover:drop-shadow-[0_0_12px_var(--primary)] transition-all duration-300`}
           />
         </div>
 
         {/* Floating sparkle particles */}
         <div
-          className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-magic-cyan animate-sparkle"
+          className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary animate-sparkle"
           style={{ animationDelay: "0s" }}
         />
         <div
-          className="absolute -bottom-0.5 -left-0.5 w-1.5 h-1.5 rounded-full bg-copper-bright animate-sparkle"
+          className="absolute -bottom-0.5 -left-0.5 w-1.5 h-1.5 rounded-full bg-accent animate-sparkle"
           style={{ animationDelay: "0.5s" }}
         />
         <div
-          className="absolute top-1/2 -right-2 w-1 h-1 rounded-full bg-lavender animate-sparkle"
+          className="absolute top-1/2 -right-2 w-1 h-1 rounded-full bg-accent animate-sparkle"
           style={{ animationDelay: "1s" }}
         />
       </div>
@@ -53,7 +53,7 @@ export function FeyForgeLogo({ size = "md", showText = true, collapsed = false }
       {/* Text */}
       {showText && !collapsed && (
         <div className="flex flex-col min-w-0">
-          <span className={`font-bold text-gold-gradient font-serif ${sizes[size].text} truncate tracking-wide`}>
+          <span className={`font-bold text-primary font-serif ${sizes[size].text} truncate tracking-wide`}>
             FeyForge
           </span>
         </div>

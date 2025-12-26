@@ -81,12 +81,18 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
         className={cn(
           "fixed left-0 top-0 z-40 h-screen border-r transition-all duration-300",
           "bg-card/95 backdrop-blur-md",
-          isMobile ? (mobileOpen ? "w-[85vw] max-w-64 translate-x-0" : "w-64 -translate-x-full") : collapsed ? "w-20" : "w-64",
+          isMobile
+            ? mobileOpen
+              ? "w-[85vw] max-w-64 translate-x-0"
+              : "w-64 -translate-x-full"
+            : collapsed
+              ? "w-20"
+              : "w-64",
         )}
       >
         <div className="flex h-full flex-col overflow-hidden">
           {/* Logo */}
-          <div className="flex h-14 sm:h-20 items-center justify-between border-b border-border/50 px-3 sm:px-4 shrink-0">
+          <div className="flex h-14 sm:h-20 items-center border-b border-border/50 px-3 sm:px-4 shrink-0 justify-center">
             {(!collapsed || isMobile) && (
               <Link href="/" className="flex items-center gap-3 group min-w-0">
                 <FeyForgeLogo size="md" showText={true} />
@@ -119,7 +125,7 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
                   <item.icon
                     className={cn(
                       "h-5 w-5 shrink-0 transition-all duration-200",
-                      isActive ? "text-primary drop-shadow-[0_0_8px_var(--turquoise)]" : item.iconClass,
+                      isActive ? "text-primary drop-shadow-[0_0_8px_var(--primary)]" : item.iconClass,
                       "group-hover:scale-110",
                     )}
                   />

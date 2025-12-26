@@ -23,7 +23,12 @@ export function RecentSessions() {
             <Scroll className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             <h2 className="font-serif text-base sm:text-xl text-silver">Recent Sessions</h2>
           </div>
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground rounded-xl text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-muted-foreground hover:text-foreground rounded-xl text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
+          >
             <Link href="/sessions">
               <span className="hidden xs:inline">View All</span>
               <span className="xs:hidden">All</span>
@@ -54,7 +59,12 @@ export function RecentSessions() {
           <Scroll className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           <h2 className="font-serif text-base sm:text-xl text-silver">Recent Sessions</h2>
         </div>
-        <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground rounded-xl text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          asChild
+          className="text-muted-foreground hover:text-foreground rounded-xl text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
+        >
           <Link href="/sessions">
             <span className="hidden xs:inline">View All</span>
             <span className="xs:hidden">All</span>
@@ -76,7 +86,7 @@ export function RecentSessions() {
                 <Badge
                   className={`text-[10px] sm:text-xs ${
                     session.status === "planned"
-                      ? "badge-cyan"
+                      ? "badge-emerald"
                       : session.status === "completed"
                         ? "badge-teal"
                         : "badge-lavender"

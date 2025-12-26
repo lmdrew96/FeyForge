@@ -160,8 +160,15 @@ export function DiceRoller() {
 
               {isRolling ? (
                 <div className="py-4 sm:py-8">
-                  <Dices className={cn("h-20 w-20 sm:h-24 sm:w-24 md:h-32 md:w-32 mx-auto text-primary", shouldAnimate && "animate-dice-tumble")} />
-                  <p className="text-base sm:text-lg md:text-xl mt-4 sm:mt-6 text-muted-foreground animate-pulse">Rolling...</p>
+                  <Dices
+                    className={cn(
+                      "h-20 w-20 sm:h-24 sm:w-24 md:h-32 md:w-32 mx-auto text-primary",
+                      shouldAnimate && "animate-dice-tumble",
+                    )}
+                  />
+                  <p className="text-base sm:text-lg md:text-xl mt-4 sm:mt-6 text-muted-foreground animate-pulse">
+                    Rolling...
+                  </p>
                 </div>
               ) : lastRoll ? (
                 <>
@@ -177,7 +184,9 @@ export function DiceRoller() {
                     {lastRoll.total}
                   </div>
                   {lastRoll.criticalHit && (
-                    <Badge className="badge-cyan text-sm sm:text-lg md:text-xl px-3 sm:px-4 md:px-6 py-1 sm:py-2 mb-2 sm:mb-4 animate-gentle-pulse">NATURAL 20!</Badge>
+                    <Badge className="badge-emerald text-sm sm:text-lg md:text-xl px-3 sm:px-4 md:px-6 py-1 sm:py-2 mb-2 sm:mb-4 animate-gentle-pulse">
+                      NATURAL 20!
+                    </Badge>
                   )}
                   {lastRoll.criticalMiss && (
                     <Badge className="bg-destructive/20 text-destructive border-destructive/50 text-sm sm:text-lg md:text-xl px-3 sm:px-4 md:px-6 py-1 sm:py-2 mb-2 sm:mb-4 animate-gentle-pulse">
@@ -206,7 +215,9 @@ export function DiceRoller() {
               ) : (
                 <div className="text-center py-4 sm:py-8">
                   <Dices className="h-20 w-20 sm:h-24 sm:w-24 md:h-32 md:w-32 mx-auto text-muted-foreground/30 animate-float-gentle" />
-                  <p className="text-base sm:text-lg md:text-xl mt-4 sm:mt-6 text-muted-foreground">Click a die to roll!</p>
+                  <p className="text-base sm:text-lg md:text-xl mt-4 sm:mt-6 text-muted-foreground">
+                    Click a die to roll!
+                  </p>
                 </div>
               )}
             </div>
@@ -246,7 +257,7 @@ export function DiceRoller() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8 sm:h-9 sm:w-9 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="h-8 w-8 sm:h-9 sm:w-9 min-w-[44px] min-h-[44px] flex items-center justify-center bg-transparent"
                     onClick={() => setConfig((prev) => ({ ...prev, count: Math.max(1, prev.count - 1) }))}
                   >
                     <Minus className="h-4 w-4" />
@@ -262,7 +273,7 @@ export function DiceRoller() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8 sm:h-9 sm:w-9 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="h-8 w-8 sm:h-9 sm:w-9 min-w-[44px] min-h-[44px] flex items-center justify-center bg-transparent"
                     onClick={() => setConfig((prev) => ({ ...prev, count: Math.min(100, prev.count + 1) }))}
                   >
                     <Plus className="h-4 w-4" />
@@ -288,7 +299,7 @@ export function DiceRoller() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8 sm:h-9 sm:w-9 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="h-8 w-8 sm:h-9 sm:w-9 min-w-[44px] min-h-[44px] flex items-center justify-center bg-transparent"
                     onClick={() => setConfig((prev) => ({ ...prev, modifier: prev.modifier - 1 }))}
                   >
                     <Minus className="h-4 w-4" />
@@ -302,7 +313,7 @@ export function DiceRoller() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8 sm:h-9 sm:w-9 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="h-8 w-8 sm:h-9 sm:w-9 min-w-[44px] min-h-[44px] flex items-center justify-center bg-transparent"
                     onClick={() => setConfig((prev) => ({ ...prev, modifier: prev.modifier + 1 }))}
                   >
                     <Plus className="h-4 w-4" />
@@ -341,7 +352,11 @@ export function DiceRoller() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-              <Button className="flex-1 h-12 sm:h-14 md:h-16 text-base sm:text-lg md:text-xl btn-primary" onClick={() => performRoll()} disabled={isRolling}>
+              <Button
+                className="flex-1 h-12 sm:h-14 md:h-16 text-base sm:text-lg md:text-xl btn-primary"
+                onClick={() => performRoll()}
+                disabled={isRolling}
+              >
                 <Dices className={cn("h-5 w-5 sm:h-6 sm:w-6 mr-2 sm:mr-3", isRolling && "animate-spin")} />
                 Roll {formatDiceNotation(config)}
               </Button>
@@ -355,7 +370,9 @@ export function DiceRoller() {
                 >
                   <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
                   Again
-                  <kbd className="ml-2 sm:ml-3 text-[10px] sm:text-xs bg-muted px-1.5 sm:px-2 py-0.5 sm:py-1 rounded hidden sm:inline">Space</kbd>
+                  <kbd className="ml-2 sm:ml-3 text-[10px] sm:text-xs bg-muted px-1.5 sm:px-2 py-0.5 sm:py-1 rounded hidden sm:inline">
+                    Space
+                  </kbd>
                 </Button>
               )}
             </div>
@@ -368,7 +385,11 @@ export function DiceRoller() {
                 onKeyDown={(e) => e.key === "Enter" && handleCustomRoll()}
                 className="text-sm sm:text-lg"
               />
-              <Button variant="outline" onClick={handleCustomRoll} className="px-3 sm:px-6 bg-transparent text-sm sm:text-base">
+              <Button
+                variant="outline"
+                onClick={handleCustomRoll}
+                className="px-3 sm:px-6 bg-transparent text-sm sm:text-base"
+              >
                 Roll
               </Button>
             </div>

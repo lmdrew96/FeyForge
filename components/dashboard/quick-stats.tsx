@@ -20,25 +20,25 @@ export function QuickStats() {
       name: "Characters",
       value: characters.length,
       icon: Users,
-      color: "#931BE4",
+      colorClass: "text-accent",
     },
     {
       name: "Sessions",
       value: sessions.filter((s) => s.status === "completed").length,
       icon: Scroll,
-      color: "#47D1BB",
+      colorClass: "text-primary",
     },
     {
       name: "NPCs",
       value: npcs.length,
       icon: BookOpen,
-      color: "#95B851",
+      colorClass: "text-primary",
     },
     {
       name: "Encounters",
       value: encounterHistory?.length ?? 0,
       icon: Swords,
-      color: "#521BC0",
+      colorClass: "text-accent",
     },
   ]
 
@@ -54,10 +54,8 @@ export function QuickStats() {
           )}
         >
           <div className="flex items-center gap-2 sm:gap-3">
-            <stat.icon className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 shrink-0" style={{ color: stat.color }} />
-            <p className="text-xl sm:text-2xl md:text-3xl font-bold font-serif" style={{ color: stat.color }}>
-              {stat.value}
-            </p>
+            <stat.icon className={`h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 shrink-0 ${stat.colorClass}`} />
+            <p className={`text-xl sm:text-2xl md:text-3xl font-bold font-serif ${stat.colorClass}`}>{stat.value}</p>
           </div>
           <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">{stat.name}</p>
         </div>

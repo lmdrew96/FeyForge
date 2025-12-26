@@ -8,6 +8,7 @@ import { useCampaignCharacters } from "@/lib/hooks/use-campaign-data"
 import { Plus, Trash2, Sword, Wand2, Target, Shield, Feather, Music } from "lucide-react"
 import Link from "next/link"
 import { ABILITY_ABBREVIATIONS, type Ability } from "@/lib/character/constants"
+import { cn } from "@/lib/utils"
 
 export function CharacterList() {
   const characters = useCampaignCharacters()
@@ -19,30 +20,29 @@ export function CharacterList() {
         <div className="fairy-dust" />
 
         <div className="text-center max-w-2xl">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-serif mb-3 sm:mb-4 text-foreground">No Characters Yet</h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold font-serif mb-3 sm:mb-4 text-foreground">
+            No Characters Yet
+          </h2>
           <p className="text-sm sm:text-base md:text-lg text-muted-foreground mb-6 sm:mb-8">
             Build heroes for your campaigns. Track their stats, spells, and progression.
           </p>
 
           <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mb-6 sm:mb-10">
             {[
-              { icon: Sword, name: "Fighter", color: "#47D1BB" },
-              { icon: Wand2, name: "Wizard", color: "#931BE4" },
-              { icon: Target, name: "Ranger", color: "#95B851" },
-              { icon: Shield, name: "Paladin", color: "#521BC0" },
-              { icon: Feather, name: "Rogue", color: "#47D1BB" },
-              { icon: Music, name: "Bard", color: "#931BE4" },
+              { icon: Sword, name: "Fighter", colorClass: "text-primary" },
+              { icon: Wand2, name: "Wizard", colorClass: "text-accent" },
+              { icon: Target, name: "Ranger", colorClass: "text-primary" },
+              { icon: Shield, name: "Paladin", colorClass: "text-accent" },
+              { icon: Feather, name: "Rogue", colorClass: "text-primary" },
+              { icon: Music, name: "Bard", colorClass: "text-accent" },
             ].map((classType) => {
               const Icon = classType.icon
               return (
                 <div
                   key={classType.name}
                   className="flex flex-col items-center p-2 sm:p-4 rounded-xl border border-border hover:border-primary/50 transition-all bg-card/30 backdrop-blur-sm hover:shadow-lg hover:shadow-primary/10"
-                  style={{
-                    borderColor: `${classType.color}33`,
-                  }}
                 >
-                  <Icon className="h-6 w-6 sm:h-10 sm:w-10 mb-1 sm:mb-2" style={{ color: classType.color }} />
+                  <Icon className={cn("h-6 w-6 sm:h-10 sm:w-10 mb-1 sm:mb-2", classType.colorClass)} />
                   <div className="text-[10px] sm:text-sm text-muted-foreground">{classType.name}</div>
                 </div>
               )
@@ -69,7 +69,10 @@ export function CharacterList() {
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-serif text-lg sm:text-2xl font-bold text-silver">Your Characters</h2>
-        <Button asChild className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
+        <Button
+          asChild
+          className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4"
+        >
           <Link href="/characters/new">
             <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             <span className="hidden xs:inline">New Character</span>
@@ -111,10 +114,10 @@ export function CharacterList() {
                   </div>
 
                   <div className="flex gap-2 mb-4">
-                    <Badge className="badge-cyan">
+                    <Badge className="badge-emerald">
                       HP: {character.hitPoints.current}/{character.hitPoints.max}
                     </Badge>
-                    <Badge className="badge-purple">AC: {stats?.armorClass || 10}</Badge>
+                    <Badge className="badge-violet">AC: {stats?.armorClass || 10}</Badge>
                   </div>
 
                   <div className="pt-4 border-t border-border/50">

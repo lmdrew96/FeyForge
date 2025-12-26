@@ -10,6 +10,7 @@ import {
   Source_Code_Pro as V0_Font_Source_Code_Pro,
   Abril_Fatface as V0_Font_Abril_Fatface,
 } from "next/font/google"
+import { ThemeProvider } from "@/components/theme-provider"
 
 // Initialize fonts
 const _acme = V0_Font_Acme({ subsets: ["latin"], weight: ["400"] })
@@ -30,7 +31,7 @@ const cinzel = Cinzel({
 })
 
 export const metadata: Metadata = {
-  title: "FeyForge | Where Campaigns Are Forged",
+  title: "FeyForge | Step into the Portal",
   description:
     "The ultimate D&D Campaign Management Suite with AI-powered DM assistance - forge your adventures with fey magic",
   generator: "v0.app",
@@ -54,7 +55,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#1a2e22",
+  themeColor: "#0D1F1A",
 }
 
 export default function RootLayout({
@@ -63,9 +64,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${cinzel.variable} font-sans antialiased h-full`}>
-        {children}
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+          {children}
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

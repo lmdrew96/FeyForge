@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useMemo } from "react"
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion"
 
@@ -44,12 +46,12 @@ export function CritParticles({ type, active }: CritParticlesProps) {
 
   const colors = {
     hit: {
-      primary: "#42e2ed",
-      glow: "rgba(66, 226, 237, 0.6)",
+      primary: "hsl(var(--primary))",
+      glow: "hsla(var(--primary) / 0.6)",
     },
     miss: {
-      primary: "#e05555",
-      glow: "rgba(224, 85, 85, 0.6)",
+      primary: "hsl(var(--destructive))",
+      glow: "hsla(var(--destructive) / 0.6)",
     },
   }
 
@@ -61,15 +63,17 @@ export function CritParticles({ type, active }: CritParticlesProps) {
         <div
           key={particle.id}
           className="absolute rounded-full animate-crit-particle"
-          style={{
-            width: particle.size,
-            height: particle.size,
-            backgroundColor: color.primary,
-            boxShadow: `0 0 ${particle.size * 2}px ${color.glow}`,
-            "--particle-x": `${particle.x}px`,
-            "--particle-y": `${particle.y}px`,
-            animationDelay: `${particle.delay}s`,
-          } as React.CSSProperties}
+          style={
+            {
+              width: particle.size,
+              height: particle.size,
+              backgroundColor: color.primary,
+              boxShadow: `0 0 ${particle.size * 2}px ${color.glow}`,
+              "--particle-x": `${particle.x}px`,
+              "--particle-y": `${particle.y}px`,
+              animationDelay: `${particle.delay}s`,
+            } as React.CSSProperties
+          }
         />
       ))}
       {/* Central flash effect */}
