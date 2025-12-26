@@ -9,12 +9,18 @@ import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Download, Upload, AlertTriangle } from "lucide-react"
 import { useState } from "react"
+import { useSettingsStore } from "@/lib/settings-store"
 
 export default function SettingsPage() {
-  const [diceSound, setDiceSound] = useState(true)
+  // Dice settings from persistent store
+  const diceSound = useSettingsStore((s) => s.diceSound)
+  const setDiceSound = useSettingsStore((s) => s.setDiceSound)
+  const diceAnimation = useSettingsStore((s) => s.diceAnimation)
+  const setDiceAnimation = useSettingsStore((s) => s.setDiceAnimation)
+
+  // Local state for other settings (could be moved to store later)
   const [autoSave, setAutoSave] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState(true)
-  const [diceAnimation, setDiceAnimation] = useState(true)
 
   const handleExportData = () => {
     const data = {

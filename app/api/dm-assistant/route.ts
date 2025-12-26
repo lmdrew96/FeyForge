@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
   const systemPrompt = context ? `${DM_SYSTEM_PROMPT}\n\nCurrent Campaign Context:\n${context}` : DM_SYSTEM_PROMPT
 
-  const prompt = convertToModelMessages(messages)
+  const prompt = await convertToModelMessages(messages)
 
   const result = streamText({
     model: "anthropic/claude-sonnet-4-5-20250929",

@@ -8,7 +8,7 @@ import { CampaignProvider } from "@/components/providers/campaign-provider"
 
 interface AppShellProps {
   children: React.ReactNode
-  title: string
+  title?: string
   subtitle?: string
 }
 

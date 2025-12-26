@@ -329,6 +329,7 @@ export interface Character {
   id: string
   campaignId?: string
   name: string
+  gender?: string
   race: string
   subrace?: string
   class: string

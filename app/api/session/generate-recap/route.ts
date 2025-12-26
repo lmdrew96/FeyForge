@@ -1,4 +1,5 @@
 import { generateText } from "ai"
+import { NextResponse } from "next/server"
 
 export const maxDuration = 60
 
@@ -31,9 +32,9 @@ This will be shared with players before the next session.`
       prompt,
     })
 
-    return Response.json({ recap: text.trim() })
+    return NextResponse.json({ recap: text.trim() })
   } catch (error) {
     console.error("[v0] Session recap generation error:", error)
-    return Response.json({ error: "Failed to generate session recap" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to generate session recap" }, { status: 500 })
   }
 }

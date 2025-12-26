@@ -8,16 +8,18 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useNPCStore, type NPC } from "@/lib/npc-store"
 import { useCampaignNPCs } from "@/lib/hooks/use-campaign-data"
-import { Search, User, MapPin, Trash2, Heart, Skull, HelpCircle, Plus } from "lucide-react"
+import { Search, User, MapPin, Trash2, Heart, Skull, HelpCircle, Plus, Edit } from "lucide-react"
+import { NPCEditDialog } from "./npc-edit-dialog"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 export function NPCList() {
   const npcs = useCampaignNPCs()
-  const { deleteNPC } = useNPCStore()
+  const { deleteNPC, updateNPC } = useNPCStore()
   const [search, setSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterRelationship, setFilterRelationship] = useState<string>("all")
+  const [editingNPC, setEditingNPC] = useState<NPC | null>(null)
 
   const filteredNPCs = npcs.filter((npc) => {
     const matchesSearch =
@@ -149,14 +151,24 @@ export function NPCList() {
                     {npc.name}
                   </h3>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                  onClick={() => deleteNPC(npc.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                    onClick={() => setEditingNPC(npc)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                    onClick={() => deleteNPC(npc.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <p className="text-sm text-muted-foreground mb-3">
@@ -192,6 +204,19 @@ export function NPCList() {
           <p className="text-muted-foreground">No NPCs match your filters</p>
         </div>
       )}
+
+      <NPCEditDialog
+        npc={editingNPC}
+        open={!!editingNPC}
+        onOpenChange={(open) => !open && setEditingNPC(null)}
+        onSave={(edited) => {
+          if (editingNPC) {
+            updateNPC(editingNPC.id, edited)
+          }
+          setEditingNPC(null)
+        }}
+        mode="edit"
+      />
     </div>
   )
 }

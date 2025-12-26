@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 
 interface HeaderProps {
-  title: string
+  title?: string
   subtitle?: string
 }
 
@@ -23,7 +23,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border bg-background/80 backdrop-blur-sm px-3 pl-14 md:pl-6 sm:pr-6">
       <div className="min-w-0 flex-1">
-        <h1 className="font-serif text-lg sm:text-2xl font-bold text-foreground truncate">{title}</h1>
+        {title && <h1 className="font-serif text-lg sm:text-2xl font-bold text-foreground truncate">{title}</h1>}
         {subtitle && <p className="text-xs sm:text-sm text-muted-foreground truncate hidden sm:block">{subtitle}</p>}
       </div>
 

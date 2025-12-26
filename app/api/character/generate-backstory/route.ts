@@ -1,4 +1,5 @@
 import { generateText } from "ai"
+import { NextResponse } from "next/server"
 
 export const maxDuration = 60
 
@@ -28,9 +29,9 @@ Write in a narrative style suitable for a player character.`
       prompt,
     })
 
-    return Response.json({ backstory: text.trim() })
+    return NextResponse.json({ backstory: text.trim() })
   } catch (error) {
     console.error("[v0] Character backstory generation error:", error)
-    return Response.json({ error: "Failed to generate character backstory" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to generate character backstory" }, { status: 500 })
   }
 }

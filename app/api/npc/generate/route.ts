@@ -1,4 +1,5 @@
 import { generateObject } from "ai"
+import { NextResponse } from "next/server"
 import { z } from "zod"
 
 const npcSchema = z.object({
@@ -20,7 +21,7 @@ const npcSchema = z.object({
 export async function POST(req: Request) {
   const { prompt, location, occupation, race } = await req.json()
 
-  const systemPrompt = `You are a creative D&D NPC generator. Create interesting, memorable NPCs that DMs can use in their campaigns. 
+  const systemPrompt = `You are a creative D&D NPC generator. Create interesting, memorable NPCs that DMs can use in their campaigns.
 Make them feel real with depth, flaws, and hooks for roleplay. Be creative but avoid clichés.
 ${location ? `The NPC should be found in or near: ${location}` : ""}
 ${occupation ? `The NPC's occupation is: ${occupation}` : ""}
@@ -35,5 +36,5 @@ ${race ? `The NPC's race is: ${race}` : ""}`
     prompt: userPrompt,
   })
 
-  return Response.json({ npc: object })
+  return NextResponse.json({ npc: object })
 }

@@ -1,12 +1,13 @@
 import { generateText } from "ai"
+import { NextResponse } from "next/server"
 
 export const maxDuration = 60
 
 export async function POST(req: Request) {
   try {
-    const { summary, plotThreads, sessionNumber, title } = await req.json()
+    const { summary, plotThreads, sessionNumber } = await req.json()
 
-    const threadsText = plotThreads?.map((t: any) => `- ${t.title} (${t.status})`).join("\n") || ""
+    const threadsText = plotThreads?.map((t: { title: string; status: string }) => `- ${t.title} (${t.status})`).join("\n") || ""
 
     const prompt = `Generate session prep notes for the NEXT D&D session (Session ${(sessionNumber || 0) + 1}).
 
@@ -31,9 +32,9 @@ Format as a bulleted list organized by category.`
       prompt,
     })
 
-    return Response.json({ prepNotes: text.trim() })
+    return NextResponse.json({ prepNotes: text.trim() })
   } catch (error) {
     console.error("[v0] Session prep generation error:", error)
-    return Response.json({ error: "Failed to generate session prep" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to generate session prep" }, { status: 500 })
   }
 }

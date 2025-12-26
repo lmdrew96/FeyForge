@@ -1,4 +1,5 @@
 import { generateText } from "ai"
+import { NextResponse } from "next/server"
 
 export const maxDuration = 60
 
@@ -6,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const { notes, highlights, sessionNumber, title } = await req.json()
 
-    const notesText = notes?.map((n: any) => `[${n.type}] ${n.content}`).join("\n") || ""
+    const notesText = notes?.map((n: { type: string; content: string }) => `[${n.type}] ${n.content}`).join("\n") || ""
     const highlightsText = highlights?.join(", ") || ""
 
     const prompt = `Generate a concise session summary (2-3 paragraphs) for D&D Session ${sessionNumber}${title ? `: ${title}` : ""}.
@@ -29,9 +30,9 @@ Create a summary that:
       prompt,
     })
 
-    return Response.json({ summary: text.trim() })
+    return NextResponse.json({ summary: text.trim() })
   } catch (error) {
     console.error("[v0] Session summary generation error:", error)
-    return Response.json({ error: "Failed to generate session summary" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to generate session summary" }, { status: 500 })
   }
 }

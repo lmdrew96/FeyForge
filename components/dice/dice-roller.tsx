@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,8 +19,12 @@ import {
   type DiceRoll,
   type DiceConfig,
 } from "@/lib/dice"
-import { Dices, Plus, Minus, Trash2 } from "lucide-react"
+import { Dices, Plus, Minus, Trash2, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useSettingsStore } from "@/lib/settings-store"
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion"
+import { useDiceSounds } from "@/lib/hooks/use-dice-sounds"
+import { CritParticles } from "./crit-particles"
 
 export function DiceRoller() {
   const [customDice, setCustomDice] = useState("")
@@ -30,11 +34,27 @@ export function DiceRoller() {
   const [history, setHistory] = useState<DiceRoll[]>([])
   const [lastRoll, setLastRoll] = useState<DiceRoll | null>(null)
   const [isRolling, setIsRolling] = useState(false)
+  const [showParticles, setShowParticles] = useState(false)
+  const [lastConfig, setLastConfig] = useState<DiceConfig | null>(null)
+
+  // Settings and accessibility
+  const animationEnabled = useSettingsStore((s) => s.diceAnimation)
+  const prefersReducedMotion = useReducedMotion()
+  const { playRollSound, playCritSound } = useDiceSounds()
+  const shouldAnimate = animationEnabled && !prefersReducedMotion
 
   const performRoll = useCallback(
     (overrideConfig?: DiceConfig, label?: string) => {
       const rollConfig = overrideConfig || config
+      setLastConfig(rollConfig)
       setIsRolling(true)
+      setShowParticles(false)
+
+      // Play roll sound at start
+      playRollSound()
+
+      // Animation duration: 1.2s when animations enabled, 300ms otherwise
+      const animationDuration = shouldAnimate ? 1200 : 300
 
       setTimeout(() => {
         let rolls: number[]
@@ -80,13 +100,40 @@ export function DiceRoller() {
           label,
         }
 
+        // Play crit sound and show particles for crits
+        if (criticalHit || criticalMiss) {
+          playCritSound(criticalHit)
+          setShowParticles(true)
+          // Hide particles after animation
+          setTimeout(() => setShowParticles(false), 1000)
+        }
+
         setLastRoll(roll)
         setHistory((prev) => [roll, ...prev].slice(0, 50))
         setIsRolling(false)
-      }, 300)
+      }, animationDuration)
     },
-    [config, advantage, disadvantage],
+    [config, advantage, disadvantage, playRollSound, playCritSound, shouldAnimate],
   )
+
+  // Keyboard shortcut: Space to roll again
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if not in an input field
+      const target = e.target as HTMLElement
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+        return
+      }
+
+      if (e.code === "Space" && lastConfig && !isRolling) {
+        e.preventDefault()
+        performRoll(lastConfig, lastRoll?.label)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [lastConfig, lastRoll?.label, isRolling, performRoll])
 
   const handleQuickRoll = (sides: number) => {
     setConfig((prev) => ({ ...prev, sides }))
@@ -120,15 +167,31 @@ export function DiceRoller() {
         {/* Result Display */}
         <Card className="bg-card border-border border-glow">
           <CardContent className="p-8">
-            <div className="text-center">
-              {lastRoll ? (
+            <div className="text-center relative">
+              {/* Particle effects for criticals */}
+              <CritParticles
+                type={lastRoll?.criticalHit ? "hit" : "miss"}
+                active={showParticles && (lastRoll?.criticalHit || lastRoll?.criticalMiss || false)}
+              />
+
+              {isRolling ? (
+                <div className="py-8">
+                  <Dices
+                    className={cn(
+                      "h-24 w-24 mx-auto text-primary",
+                      shouldAnimate && "animate-dice-tumble"
+                    )}
+                  />
+                  <p className="text-lg mt-4 text-muted-foreground">Rolling...</p>
+                </div>
+              ) : lastRoll ? (
                 <>
                   <div
                     className={cn(
-                      "text-7xl font-bold font-serif mb-4 transition-all",
-                      isRolling && "animate-pulse",
+                      "text-7xl font-bold font-serif mb-4",
+                      shouldAnimate && "animate-result-pop",
                       lastRoll.criticalHit && "text-primary animate-glow-pulse",
-                      lastRoll.criticalMiss && "text-destructive",
+                      lastRoll.criticalMiss && "text-destructive animate-glow-pulse-destructive",
                       !lastRoll.criticalHit && !lastRoll.criticalMiss && "text-gold-gradient",
                     )}
                   >
@@ -164,7 +227,7 @@ export function DiceRoller() {
                   )}
                 </>
               ) : (
-                <div className="text-6xl text-muted-foreground font-serif">
+                <div className="text-6xl text-muted-foreground font-serif py-8">
                   <Dices className="h-24 w-24 mx-auto opacity-30" />
                   <p className="text-lg mt-4">Roll the dice!</p>
                 </div>
@@ -310,15 +373,32 @@ export function DiceRoller() {
               </div>
             </div>
 
-            {/* Roll Button */}
-            <Button
-              className="w-full h-14 text-lg bg-primary hover:bg-primary/90 border-glow"
-              onClick={() => performRoll()}
-              disabled={isRolling}
-            >
-              <Dices className={cn("h-5 w-5 mr-2", isRolling && "animate-spin")} />
-              Roll {formatDiceNotation(config)}
-            </Button>
+            {/* Roll Buttons */}
+            <div className="flex gap-3">
+              <Button
+                className="flex-1 h-14 text-lg bg-primary hover:bg-primary/90 border-glow"
+                onClick={() => performRoll()}
+                disabled={isRolling}
+              >
+                <Dices className={cn("h-5 w-5 mr-2", isRolling && "animate-spin")} />
+                Roll {formatDiceNotation(config)}
+              </Button>
+              {lastConfig && (
+                <Button
+                  variant="outline"
+                  className="h-14 px-6 border-border bg-transparent hover:border-primary/50"
+                  onClick={() => performRoll(lastConfig, lastRoll?.label)}
+                  disabled={isRolling}
+                  title="Press Space to roll again"
+                >
+                  <RefreshCw className="h-5 w-5 mr-2" />
+                  Again
+                  <kbd className="ml-2 text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                    Space
+                  </kbd>
+                </Button>
+              )}
+            </div>
 
             {/* Custom Notation */}
             <div className="flex gap-2">

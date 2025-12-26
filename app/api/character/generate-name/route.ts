@@ -1,4 +1,5 @@
 import { generateText } from "ai"
+import { NextResponse } from "next/server"
 
 export const maxDuration = 60
 
@@ -19,9 +20,9 @@ Examples: "Thorgrim Ironforge", "Lyra Moonwhisper", "Zephyr Stormwind"`
       prompt,
     })
 
-    return Response.json({ name: text.trim() })
+    return NextResponse.json({ name: text.trim() })
   } catch (error) {
     console.error("[v0] Character name generation error:", error)
-    return Response.json({ error: "Failed to generate character name" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to generate character name" }, { status: 500 })
   }
 }

@@ -744,3 +744,110 @@ select:focus {
 .stagger-item {
   animation: fade-in-up 0.4s ease backwards;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DICE ROLLER ANIMATIONS - Satisfying roll effects
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes dice-tumble {
+  0% {
+    transform: perspective(400px) rotateX(0deg) rotateY(0deg) scale(0.8);
+    opacity: 0.3;
+  }
+  15% {
+    transform: perspective(400px) rotateX(180deg) rotateY(90deg) scale(1.1);
+    opacity: 0.7;
+  }
+  35% {
+    transform: perspective(400px) rotateX(360deg) rotateY(180deg) scale(1);
+    opacity: 0.9;
+  }
+  55% {
+    transform: perspective(400px) rotateX(540deg) rotateY(270deg) scale(1.05);
+    opacity: 1;
+  }
+  75% {
+    transform: perspective(400px) rotateX(650deg) rotateY(340deg) scale(1.02);
+  }
+  100% {
+    transform: perspective(400px) rotateX(720deg) rotateY(360deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes result-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes crit-particle {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--particle-x, 0), var(--particle-y, 0)) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes glow-pulse-strong {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px var(--glow-color, #42e2ed));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px var(--glow-color, #42e2ed)) drop-shadow(0 0 40px var(--glow-color, #42e2ed));
+  }
+}
+
+.animate-dice-tumble {
+  animation: dice-tumble 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-result-pop {
+  animation: result-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-crit-particle {
+  animation: crit-particle 0.8s ease-out forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse-strong 1.5s ease-in-out infinite;
+  --glow-color: #42e2ed;
+}
+
+.animate-glow-pulse-destructive {
+  animation: glow-pulse-strong 1.5s ease-in-out infinite;
+  --glow-color: #e05555;
+}
+
+/* Reduced motion support for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .animate-dice-tumble,
+  .animate-result-pop,
+  .animate-crit-particle,
+  .animate-glow-pulse,
+  .animate-glow-pulse-destructive {
+    animation: none !important;
+    transition: opacity 0.3s ease !important;
+  }
+
+  .animate-result-pop {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

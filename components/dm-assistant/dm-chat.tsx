@@ -2,8 +2,9 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport } from "ai"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -48,12 +49,20 @@ export function DmChat({ campaignContext }: DmChatProps) {
   const [hasUsedInitialPrompt, setHasUsedInitialPrompt] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const contextRef = useRef(campaignContext)
+  contextRef.current = campaignContext
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/dm-assistant",
+        body: () => ({ context: contextRef.current }),
+      }),
+    []
+  )
 
   const { messages, sendMessage, status, setMessages } = useChat({
-    api: "/api/dm-assistant",
-    body: {
-      context: campaignContext,
-    },
+    transport,
   })
 
   const isLoading = status === "streaming" || status === "submitted"

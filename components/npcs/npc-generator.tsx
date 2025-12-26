@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { useNPCStore, npcRaces, npcOccupations, type NPC } from "@/lib/npc-store"
 import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
-import { Sparkles, Save, RefreshCw, User, MapPin, Volume2 } from "lucide-react"
+import { Sparkles, Save, RefreshCw, User, MapPin, Volume2, Edit } from "lucide-react"
+import { NPCEditDialog } from "./npc-edit-dialog"
 import { cn } from "@/lib/utils"
 
 export function NPCGenerator() {
@@ -26,6 +27,7 @@ export function NPCGenerator() {
     occupation: "",
     race: "",
   })
+  const [isEditing, setIsEditing] = useState(false)
 
   const generateNPC = async () => {
     setIsGenerating(true)
@@ -263,6 +265,14 @@ export function NPCGenerator() {
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditing(true)}
+                  className="border-border bg-transparent"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
                 <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={saveNPC}>
                   <Save className="h-4 w-4 mr-2" />
                   Save NPC
@@ -272,6 +282,17 @@ export function NPCGenerator() {
           )}
         </CardContent>
       </Card>
+
+      <NPCEditDialog
+        npc={generatedNPC}
+        open={isEditing}
+        onOpenChange={setIsEditing}
+        onSave={(edited) => {
+          setGeneratedNPC(edited)
+          setIsEditing(false)
+        }}
+        mode="review"
+      />
     </div>
   )
 }
