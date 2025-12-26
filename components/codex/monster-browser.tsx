@@ -365,7 +365,7 @@ export function MonsterBrowser() {
                       {selectedMonster.special_abilities.map((ability, i) => (
                         <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3 min-w-0">
                           <p className="font-medium">{ability.name}</p>
-                          <p className="text-sm text-muted-foreground break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{ability.desc}</p>
+                          <p className="text-sm text-muted-foreground overflow-hidden min-w-0 overflow-wrap-anywhere">{ability.desc}</p>
                         </div>
                       ))}
                     </div>
@@ -378,7 +378,7 @@ export function MonsterBrowser() {
                       {selectedMonster.actions.map((action, i) => (
                         <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3 min-w-0">
                           <p className="font-medium">{action.name}</p>
-                          <p className="text-sm text-muted-foreground break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{action.desc}</p>
+                          <p className="text-sm text-muted-foreground overflow-hidden min-w-0 overflow-wrap-anywhere">{action.desc}</p>
                         </div>
                       ))}
                     </div>
@@ -391,7 +391,7 @@ export function MonsterBrowser() {
                       {selectedMonster.reactions.map((reaction, i) => (
                         <div key={i} className="rounded-lg border border-border/50 bg-background/50 p-3 min-w-0">
                           <p className="font-medium">{reaction.name}</p>
-                          <p className="text-sm text-muted-foreground break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{reaction.desc}</p>
+                          <p className="text-sm text-muted-foreground overflow-hidden min-w-0 overflow-wrap-anywhere">{reaction.desc}</p>
                         </div>
                       ))}
                     </div>
@@ -407,7 +407,7 @@ export function MonsterBrowser() {
                       {selectedMonster.legendary_actions.map((action, i) => (
                         <div key={i} className="rounded-lg border border-primary/30 bg-primary/5 p-3 min-w-0">
                           <p className="font-medium">{action.name}</p>
-                          <p className="text-sm text-muted-foreground break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{action.desc}</p>
+                          <p className="text-sm text-muted-foreground overflow-hidden min-w-0 overflow-wrap-anywhere">{action.desc}</p>
                         </div>
                       ))}
                     </div>

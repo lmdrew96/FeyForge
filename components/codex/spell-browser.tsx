@@ -255,7 +255,7 @@ export function SpellBrowser() {
 
                   <div className="rounded-lg border border-border/50 bg-background/50 p-4 min-w-0">
                     <p className="text-xs text-muted-foreground mb-2">Description</p>
-                    <div className="text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-w-0 overflow-wrap-anywhere">
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap overflow-hidden min-w-0 overflow-wrap-anywhere">
                       {selectedSpell.desc}
                     </div>
                   </div>
@@ -263,7 +263,7 @@ export function SpellBrowser() {
                   {selectedSpell.higher_level && (
                     <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 min-w-0">
                       <p className="text-xs font-medium text-primary mb-2">At Higher Levels</p>
-                      <p className="text-sm leading-relaxed break-words overflow-hidden min-w-0 overflow-wrap-anywhere">{selectedSpell.higher_level}</p>
+                      <p className="text-sm leading-relaxed overflow-hidden min-w-0 overflow-wrap-anywhere">{selectedSpell.higher_level}</p>
                     </div>
                   )}
                 </div>
