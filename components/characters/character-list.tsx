@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useCharacterStore } from "@/lib/character-store"
 import { useCampaignCharacters } from "@/lib/hooks/use-campaign-data"
-import { races, classes } from "@/lib/dnd-data"
 import { Plus, User, Trash2 } from "lucide-react"
 import Link from "next/link"
+import { ABILITY_ABBREVIATIONS, type Ability } from "@/lib/character/constants"
 
 export function CharacterList() {
   const characters = useCampaignCharacters()
-  const { deleteCharacter } = useCharacterStore()
+  const { deleteCharacter, getCalculatedStats } = useCharacterStore()
 
   if (characters.length === 0) {
     return (
@@ -47,8 +47,7 @@ export function CharacterList() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {characters.map((character) => {
-          const race = races.find((r) => r.id === character.race)
-          const charClass = classes.find((c) => c.id === character.class)
+          const stats = getCalculatedStats(character.id)
 
           return (
             <Link key={character.id} href={`/characters/${character.id}`}>
@@ -60,7 +59,7 @@ export function CharacterList() {
                         {character.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        Level {character.level} {race?.name} {charClass?.name}
+                        Level {character.level} {character.race} {character.class}
                       </p>
                     </div>
                     <Button
@@ -81,17 +80,17 @@ export function CharacterList() {
                       HP: {character.hitPoints.current}/{character.hitPoints.max}
                     </Badge>
                     <Badge variant="outline" className="border-border text-muted-foreground">
-                      AC: {character.armorClass}
+                      AC: {stats?.armorClass || 10}
                     </Badge>
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-border">
                     <div className="grid grid-cols-6 gap-1 text-center text-xs">
-                      {["str", "dex", "con", "int", "wis", "cha"].map((ability) => (
+                      {(["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as Ability[]).map((ability) => (
                         <div key={ability}>
-                          <p className="text-muted-foreground uppercase">{ability}</p>
+                          <p className="text-muted-foreground uppercase">{ABILITY_ABBREVIATIONS[ability]}</p>
                           <p className="font-medium text-foreground">
-                            {character.abilityScores[ability as keyof typeof character.abilityScores]}
+                            {stats?.abilities[ability] || character.baseAbilities[ability]}
                           </p>
                         </div>
                       ))}

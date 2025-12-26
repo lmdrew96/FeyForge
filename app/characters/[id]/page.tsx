@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { AppShell } from "@/components/layout/app-shell"
-import { CharacterSheet } from "@/components/characters/character-sheet"
+import { CharacterSheet } from "@/components/characters/character-sheet/character-sheet"
 import { useCharacterStore } from "@/lib/character-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,9 @@ export default function CharacterPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const characters = useCharacterStore((state) => state.characters)
+  const getCalculatedStats = useCharacterStore((state) => state.getCalculatedStats)
   const character = characters.find((c) => c.id === id)
+  const calculatedStats = character ? getCalculatedStats(character.id) : undefined
 
   useEffect(() => {
     setMounted(true)
@@ -77,16 +79,12 @@ export default function CharacterPage() {
   }
 
   return (
-    <AppShell title={character.name} subtitle={`Level ${character.level} Character Sheet`}>
-      <div className="mb-4">
-        <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-          <Link href="/characters">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Characters
-          </Link>
-        </Button>
-      </div>
-      <CharacterSheet character={character} />
+    <AppShell title={character.name} subtitle={`Level ${character.level} ${character.race} ${character.class}`}>
+      <CharacterSheet 
+        character={character} 
+        calculatedStats={calculatedStats}
+        onBack={() => router.push("/characters")}
+      />
     </AppShell>
   )
 }
