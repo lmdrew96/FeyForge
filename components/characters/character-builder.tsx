@@ -39,6 +39,7 @@ import {
   BookOpen,
   Library,
 } from "lucide-react"
+import ReactMarkdown from "react-markdown"
 
 const steps = ["Basics", "Race", "Class", "Abilities", "Skills", "Background", "Spells", "Details"]
 
@@ -194,6 +195,9 @@ export function CharacterBuilder() {
     }
   }
 
+  // Memoize selected class before useEffect that depends on it
+  const selectedClass = useMemo(() => classes.find((c) => c.slug === character.class), [classes, character.class])
+  
   // Fetch spells when class is selected (for spellcasters)
   useEffect(() => {
     async function fetchSpells() {
@@ -210,14 +214,14 @@ export function CharacterBuilder() {
       }
     }
     fetchSpells()
-  }, [character.class])
+  }, [selectedClass])
 
   const selectedRace = useMemo(() => races.find((r) => r.slug === character.race), [races, character.race])
   const selectedSubrace = useMemo(
     () => selectedRace?.subraces?.find((s) => s.slug === character.subrace),
     [selectedRace, character.subrace]
   )
-  const selectedClass = useMemo(() => classes.find((c) => c.slug === character.class), [classes, character.class])
+  // selectedClass is already defined above the useEffect
   const selectedBackground = useMemo(
     () => backgrounds.find((b) => b.slug === character.background),
     [backgrounds, character.background]
@@ -724,15 +728,19 @@ export function CharacterBuilder() {
                     <CardTitle className="text-lg font-serif">{selectedRace.name} Traits</CardTitle>
                   </CardHeader>
                   <CardContent className="text-sm text-muted-foreground space-y-2">
-                    <p><strong>Age:</strong> {selectedRace.age}</p>
-                    <p><strong>Size:</strong> {selectedRace.size}</p>
-                    <p><strong>Languages:</strong> {selectedRace.languages}</p>
-                    {selectedRace.traits && (
-                      <div>
-                        <strong>Traits:</strong>
-                        <p className="mt-1 whitespace-pre-wrap">{selectedRace.traits.slice(0, 500)}...</p>
-                      </div>
-                    )}
+                    <div className="prose prose-sm prose-invert max-w-none">
+                      <p><strong>Age:</strong> <ReactMarkdown className="inline">{selectedRace.age}</ReactMarkdown></p>
+                      <p><strong>Size:</strong> <ReactMarkdown className="inline">{selectedRace.size}</ReactMarkdown></p>
+                      <p><strong>Languages:</strong> <ReactMarkdown className="inline">{selectedRace.languages}</ReactMarkdown></p>
+                      {selectedRace.traits && (
+                        <div>
+                          <strong>Traits:</strong>
+                          <div className="mt-1">
+                            <ReactMarkdown>{selectedRace.traits}</ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               )}
