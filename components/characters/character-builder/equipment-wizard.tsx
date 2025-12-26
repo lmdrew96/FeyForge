@@ -475,7 +475,7 @@ export function EquipmentWizard({
       <CardContent className="space-y-6">
         {/* Gold vs Equipment Toggle */}
         <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h4 className="font-medium">Equipment Selection</h4>
             <p className="text-sm text-muted-foreground">
               Choose starting equipment or take gold instead

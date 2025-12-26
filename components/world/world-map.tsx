@@ -66,7 +66,7 @@ export function WorldMap() {
   const filteredLocations = showUnvisited ? locations : locations.filter((loc) => loc.visited)
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr,350px]">
+    <div className="grid gap-6 lg:grid-cols-[1fr,350px] min-w-0">
       {/* Map Area */}
       <Card className="border-primary/20 bg-card/50 backdrop-blur overflow-hidden">
         <CardHeader className="pb-2">

@@ -535,7 +535,7 @@ function SpellDetails({ spell }: SpellDetailsProps) {
       </div>
 
       {/* Description */}
-      <div className="prose prose-sm max-w-none">
+      <div className="prose prose-sm max-w-none break-words overflow-hidden">
         <ReactMarkdown>{spell.desc}</ReactMarkdown>
       </div>
 
@@ -543,7 +543,7 @@ function SpellDetails({ spell }: SpellDetailsProps) {
       {spell.higher_level && (
         <div className="border-t pt-4">
           <h4 className="font-medium mb-2">At Higher Levels</h4>
-          <p className="text-sm text-muted-foreground">{spell.higher_level}</p>
+          <p className="text-sm text-muted-foreground break-words">{spell.higher_level}</p>
         </div>
       )}
 

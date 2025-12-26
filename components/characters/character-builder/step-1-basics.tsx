@@ -321,10 +321,10 @@ export function Step1Basics({
             </ScrollArea>
 
             {/* Race Details */}
-            <div className="rounded-lg border border-border p-3 sm:p-4 overflow-hidden w-full min-w-0">
+            <div className="rounded-lg border border-border p-3 sm:p-4 overflow-hidden w-full min-w-0 max-w-full">
               {raceData ? (
-                <ScrollArea className="h-[280px] sm:h-[380px]">
-                  <div className="space-y-3 sm:space-y-4 pr-4 w-full min-w-0">
+                <ScrollArea className="h-[280px] sm:h-[380px] max-w-full [&>div]:max-w-full">
+                  <div className="space-y-3 sm:space-y-4 pr-4 w-full min-w-0 max-w-full overflow-hidden">
                     <div className="min-w-0">
                       <h3 className="font-serif text-lg sm:text-xl font-bold truncate">{raceData.name}</h3>
                       <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2">
@@ -449,10 +449,10 @@ export function Step1Basics({
             </ScrollArea>
 
             {/* Class Details */}
-            <div className="rounded-lg border border-border p-4 overflow-hidden">
+            <div className="rounded-lg border border-border p-4 overflow-hidden w-full min-w-0 max-w-full">
               {classData ? (
-                <ScrollArea className="h-[380px]">
-                  <div className="space-y-4 pr-4">
+                <ScrollArea className="h-[380px] max-w-full [&>div]:max-w-full">
+                  <div className="space-y-4 pr-4 w-full min-w-0 max-w-full overflow-hidden">
                     <div>
                       <h3 className="font-serif text-xl font-bold truncate">{classData.name}</h3>
                       <Badge variant="outline" className="mt-2">
@@ -483,9 +483,9 @@ export function Step1Basics({
                       </div>
                     </div>
 
-                    <div className="overflow-hidden">
+                    <div className="overflow-hidden min-w-0 w-full max-w-full">
                       <h4 className="font-medium text-sm text-muted-foreground mb-1">Starting Equipment</h4>
-                      <div className="text-sm prose prose-sm max-w-none overflow-hidden break-words">
+                      <div className="text-sm prose prose-sm max-w-none w-full [&>*]:max-w-full overflow-hidden break-words">
                         <ReactMarkdown>{classData.equipment}</ReactMarkdown>
                       </div>
                     </div>
@@ -546,10 +546,10 @@ export function Step1Basics({
             </ScrollArea>
 
             {/* Background Details */}
-            <div className="rounded-lg border border-border p-4 overflow-hidden">
+            <div className="rounded-lg border border-border p-4 overflow-hidden w-full min-w-0 max-w-full">
               {backgroundData ? (
-                <ScrollArea className="h-[380px]">
-                  <div className="space-y-4 pr-4">
+                <ScrollArea className="h-[380px] max-w-full [&>div]:max-w-full">
+                  <div className="space-y-4 pr-4 w-full min-w-0 max-w-full overflow-hidden">
                     <h3 className="font-serif text-xl font-bold truncate">{backgroundData.name}</h3>
 
                     <div className="overflow-hidden">
@@ -571,11 +571,11 @@ export function Step1Basics({
                       </div>
                     )}
 
-                    <div className="overflow-hidden">
+                    <div className="overflow-hidden min-w-0 w-full max-w-full">
                       <h4 className="font-medium text-sm text-muted-foreground mb-1 truncate">
                         Feature: {backgroundData.feature}
                       </h4>
-                      <div className="text-sm prose prose-sm max-w-none overflow-hidden break-words">
+                      <div className="text-sm prose prose-sm max-w-none w-full [&>*]:max-w-full overflow-hidden break-words">
                         <ReactMarkdown>{backgroundData.feature_desc}</ReactMarkdown>
                       </div>
                     </div>

@@ -741,7 +741,7 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                     <div
                       key={objective.id}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border transition-opacity",
+                        "flex items-center gap-3 p-3 rounded-lg border transition-opacity min-w-0",
                         priorityColors[objective.priority],
                         objective.completed && "opacity-60",
                       )}
@@ -749,19 +749,19 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
                       <Checkbox
                         checked={objective.completed}
                         onCheckedChange={() => toggleObjective(objective.id)}
-                        className="border-muted-foreground"
+                        className="border-muted-foreground shrink-0"
                       />
                       <span
-                        className={cn("flex-1 text-sm", objective.completed && "line-through text-muted-foreground")}
+                        className={cn("flex-1 text-sm min-w-0 break-words", objective.completed && "line-through text-muted-foreground")}
                       >
                         {objective.text}
                       </span>
-                      <Badge variant="outline" className="text-xs capitalize">
+                      <Badge variant="outline" className="text-xs capitalize shrink-0">
                         {objective.priority}
                       </Badge>
                       <button
                         onClick={() => removeObjective(objective.id)}
-                        className="text-muted-foreground hover:text-destructive"
+                        className="text-muted-foreground hover:text-destructive shrink-0"
                       >
                         <X className="h-4 w-4" />
                       </button>

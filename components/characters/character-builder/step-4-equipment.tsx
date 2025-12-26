@@ -286,21 +286,21 @@ export function Step4Equipment({ data, onUpdate, classEquipment, backgroundEquip
               <ScrollArea className="h-[300px] rounded-lg border border-border p-3">
                 <div className="space-y-2">
                   {equipment.map((item) => (
-                    <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card">
-                      <span className="flex-1 text-sm text-foreground">{item.name}</span>
+                    <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card min-w-0">
+                      <span className="flex-1 text-sm text-foreground min-w-0 truncate">{item.name}</span>
                       <Input
                         type="number"
                         min={1}
                         value={item.quantity}
                         onChange={(e) => updateItemQuantity(item.id, Number.parseInt(e.target.value) || 1)}
-                        className="w-16 h-8 text-center bg-input border-border"
+                        className="w-16 h-8 text-center bg-input border-border shrink-0"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         onClick={() => removeItem(item.id)}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
                       >
                         <X className="h-4 w-4" />
                       </Button>

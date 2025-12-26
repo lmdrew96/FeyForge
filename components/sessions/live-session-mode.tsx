@@ -328,24 +328,24 @@ export function LiveSessionMode({ session, onExit }: LiveSessionModeProps) {
                         key={objective.id}
                         onClick={() => toggleObjective(objective.id)}
                         className={cn(
-                          "w-full flex items-center gap-2 p-2 rounded text-left transition-opacity",
+                          "w-full flex items-center gap-2 p-2 rounded text-left transition-opacity min-w-0",
                           objective.completed && "opacity-60",
                         )}
                       >
                         <div
                           className={cn(
-                            "h-4 w-4 rounded border flex items-center justify-center",
+                            "h-4 w-4 rounded border flex items-center justify-center shrink-0",
                             objective.completed ? "bg-primary border-primary" : "border-muted-foreground",
                           )}
                         >
                           {objective.completed && <Check className="h-3 w-3 text-primary-foreground" />}
                         </div>
                         <span
-                          className={cn("text-sm flex-1", objective.completed && "line-through text-muted-foreground")}
+                          className={cn("text-sm flex-1 min-w-0 break-words", objective.completed && "line-through text-muted-foreground")}
                         >
                           {objective.text}
                         </span>
-                        <Badge variant="outline" className="text-xs capitalize">
+                        <Badge variant="outline" className="text-xs capitalize shrink-0">
                           {objective.priority}
                         </Badge>
                       </button>

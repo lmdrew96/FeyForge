@@ -268,7 +268,7 @@ export function CampaignTimeline() {
                         "bg-card hover:bg-accent/20 transition-colors"
                       )}>
                         <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-xs text-muted-foreground">
                                 {event.date.toLocaleDateString("en-US", {

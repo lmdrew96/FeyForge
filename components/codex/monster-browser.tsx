@@ -160,12 +160,12 @@ export function MonsterBrowser() {
   }
 
   return (
-    <div className="flex h-full gap-4">
+    <div className="flex flex-col lg:flex-row h-full gap-4 min-w-0">
       {/* Monster List */}
-      <div className="flex w-1/2 flex-col gap-4">
+      <div className="flex flex-1 min-w-0 lg:max-w-[50%] flex-col gap-4">
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search monsters..."
@@ -271,7 +271,7 @@ export function MonsterBrowser() {
       </div>
 
       {/* Monster Detail */}
-      <div className="w-1/2">
+      <div className="flex-1 min-w-0 lg:max-w-[50%]">
         {selectedMonster ? (
           <Card className="h-full border-border/50 bg-card/50">
             <CardHeader className="pb-2">

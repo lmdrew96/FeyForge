@@ -331,7 +331,7 @@ export function InitiativeTracker() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
                     {/* Initiative */}
-                    <div className="text-center min-w-[60px]">
+                    <div className="text-center w-14 shrink-0">
                       <button
                         onClick={() => rollInitiative(combatant.id)}
                         className="text-3xl font-bold text-gold-gradient hover:opacity-80 transition-opacity"
@@ -356,11 +356,11 @@ export function InitiativeTracker() {
                     </div>
 
                     {/* Name & Stats */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <div className="flex items-center gap-2 min-w-0">
                         <h3
                           className={cn(
-                            "font-medium truncate",
+                            "font-medium truncate flex-1 min-w-0",
                             isDead ? "text-muted-foreground line-through" : "text-foreground",
                           )}
                         >
@@ -385,7 +385,7 @@ export function InitiativeTracker() {
                             )}
                           />
                         </div>
-                        <div className="flex items-center gap-1 min-w-[80px]">
+                        <div className="flex items-center gap-1 shrink-0">
                           <Button
                             variant="ghost"
                             size="icon"

@@ -711,6 +711,7 @@ h4 {
   padding: 1rem;
   border-radius: var(--radius);
   overflow-x: auto;
+  max-width: 100%;
   margin: 1.5em 0;
 }
 

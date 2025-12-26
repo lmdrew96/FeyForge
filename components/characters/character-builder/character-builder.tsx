@@ -336,7 +336,7 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
   }
 
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-6 min-w-0">
       {/* Main Builder Content */}
       <div className={`space-y-6 ${showPreview ? "flex-1" : "w-full"}`}>
         {/* Progress Header */}
