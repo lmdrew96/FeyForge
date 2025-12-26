@@ -116,6 +116,73 @@ export interface Open5eMagicItem {
   document__title: string
 }
 
+export interface Open5eRace {
+  slug: string
+  name: string
+  desc: string
+  asi_desc: string
+  asi: Array<{ attributes: string[]; value: number }>
+  age: string
+  alignment: string
+  size: string
+  size_raw: string
+  speed: { walk: number; swim?: number; fly?: number }
+  speed_desc: string
+  languages: string
+  vision: string
+  traits: string
+  subraces: Array<{
+    name: string
+    slug: string
+    desc: string
+    asi_desc: string
+    asi: Array<{ attributes: string[]; value: number }>
+    traits: string
+  }>
+  document__slug: string
+  document__title: string
+}
+
+export interface Open5eClass {
+  slug: string
+  name: string
+  desc: string
+  hit_dice: string
+  hp_at_1st_level: string
+  hp_at_higher_levels: string
+  prof_armor: string
+  prof_weapons: string
+  prof_tools: string
+  prof_saving_throws: string
+  prof_skills: string
+  equipment: string
+  table: string
+  spellcasting_ability: string
+  subtypes_name: string
+  archetypes: Array<{
+    name: string
+    slug: string
+    desc: string
+  }>
+  document__slug: string
+  document__title: string
+}
+
+export interface Open5eBackground {
+  slug: string
+  name: string
+  desc: string
+  skill_proficiencies: string
+  tool_proficiencies?: string
+  languages?: string
+  equipment: string
+  feature: string
+  feature_desc: string
+  suggested_characteristics?: string
+  document__slug: string
+  document__title: string
+}
+
 interface PaginatedResponse<T> {
   count: number
   next: string | null
@@ -312,6 +379,39 @@ export const open5eApi = {
     if (params?.rarity) queryParams.rarity = params.rarity
     if (params?.type) queryParams.type__icontains = params.type
     return fetchAllPages<Open5eMagicItem>("/v1/magicitems/", queryParams)
+  },
+
+  // Races
+  async getRaces(): Promise<Open5eRace[]> {
+    return fetchAllPages<Open5eRace>("/v1/races/", {
+      document__slug: "wotc-srd",
+    })
+  },
+
+  async getRace(slug: string): Promise<Open5eRace> {
+    return fetchWithCache<Open5eRace>(`/v1/races/${slug}/`)
+  },
+
+  // Classes
+  async getClasses(): Promise<Open5eClass[]> {
+    return fetchAllPages<Open5eClass>("/v1/classes/", {
+      document__slug: "wotc-srd",
+    })
+  },
+
+  async getClass(slug: string): Promise<Open5eClass> {
+    return fetchWithCache<Open5eClass>(`/v1/classes/${slug}/`)
+  },
+
+  // Backgrounds
+  async getBackgrounds(): Promise<Open5eBackground[]> {
+    return fetchAllPages<Open5eBackground>("/v1/backgrounds/", {
+      document__slug: "wotc-srd",
+    })
+  },
+
+  async getBackground(slug: string): Promise<Open5eBackground> {
+    return fetchWithCache<Open5eBackground>(`/v1/backgrounds/${slug}/`)
   },
 
   // Clear cache

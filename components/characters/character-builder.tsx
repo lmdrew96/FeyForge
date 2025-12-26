@@ -1,29 +1,44 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { useState, useEffect, useMemo } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 import {
-  races,
-  classes,
-  backgrounds,
-  abilities,
-  calculateModifier,
-  formatModifier,
-  type Character,
-} from "@/lib/dnd-data"
+  open5eApi,
+  type Open5eRace,
+  type Open5eClass,
+  type Open5eBackground,
+  type Open5eSpell,
+} from "@/lib/open5e-api"
+import { abilities, calculateModifier, formatModifier, type Character } from "@/lib/dnd-data"
 import { useCharacterStore } from "@/lib/character-store"
 import { useRouter } from "next/navigation"
-import { Sparkles, Dices, ChevronRight, ChevronLeft, Check, Shield, Heart, Zap, User } from "lucide-react"
+import {
+  Sparkles,
+  Dices,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Shield,
+  Heart,
+  Zap,
+  User,
+  Loader2,
+  Scroll,
+  Swords,
+  BookOpen,
+} from "lucide-react"
 
-const steps = ["Basics", "Race", "Class", "Abilities", "Background", "Details"]
+const steps = ["Basics", "Race", "Class", "Abilities", "Skills", "Background", "Spells", "Details"]
 
 const alignments = [
   "Lawful Good",
@@ -37,12 +52,75 @@ const alignments = [
   "Chaotic Evil",
 ]
 
+// Parse skill choices from prof_skills string like "Choose two from Arcana, History..."
+function parseSkillChoices(profSkills: string): { count: number; skills: string[] } {
+  const match = profSkills.match(/Choose (\w+)(?: skills)? from (.+)/i)
+  if (!match) return { count: 0, skills: [] }
+
+  const countMap: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+  }
+  const count = countMap[match[1].toLowerCase()] || parseInt(match[1]) || 2
+  const skills = match[2]
+    .split(/,\s*(?:and\s*)?|(?:\s+and\s+)/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  return { count, skills }
+}
+
+// Parse ASI from race data
+function parseRacialASI(race: Open5eRace, subrace?: Open5eRace["subraces"][0]): Record<string, number> {
+  const bonuses: Record<string, number> = {}
+
+  // Parse base race ASI
+  for (const asi of race.asi || []) {
+    for (const attr of asi.attributes) {
+      const key = attr.toLowerCase().slice(0, 3)
+      bonuses[key] = (bonuses[key] || 0) + asi.value
+    }
+  }
+
+  // Parse subrace ASI
+  if (subrace) {
+    for (const asi of subrace.asi || []) {
+      for (const attr of asi.attributes) {
+        const key = attr.toLowerCase().slice(0, 3)
+        bonuses[key] = (bonuses[key] || 0) + asi.value
+      }
+    }
+  }
+
+  return bonuses
+}
+
+// Get hit die value from string like "1d12"
+function getHitDieValue(hitDice: string): number {
+  const match = hitDice.match(/d(\d+)/)
+  return match ? parseInt(match[1]) : 8
+}
+
 export function CharacterBuilder() {
   const router = useRouter()
   const addCharacter = useCharacterStore((state) => state.addCharacter)
+
+  // Loading states
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadingError, setLoadingError] = useState<string | null>(null)
+
+  // Open5e data
+  const [races, setRaces] = useState<Open5eRace[]>([])
+  const [classes, setClasses] = useState<Open5eClass[]>([])
+  const [backgrounds, setBackgrounds] = useState<Open5eBackground[]>([])
+  const [availableSpells, setAvailableSpells] = useState<Open5eSpell[]>([])
+
+  // Form state
   const [currentStep, setCurrentStep] = useState(0)
-  const [mounted, setMounted] = useState(false)
-  const [character, setCharacter] = useState<Partial<Character>>({
+  const [character, setCharacter] = useState<Partial<Character> & { selectedSkills: string[]; selectedSpells: string[] }>({
     name: "",
     race: "",
     subrace: "",
@@ -51,14 +129,7 @@ export function CharacterBuilder() {
     background: "",
     alignment: "",
     experiencePoints: 0,
-    abilityScores: {
-      str: 10,
-      dex: 10,
-      con: 10,
-      int: 10,
-      wis: 10,
-      cha: 10,
-    },
+    abilityScores: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
     proficiencies: [],
     hitPoints: { current: 0, max: 0, temp: 0 },
     armorClass: 10,
@@ -71,6 +142,8 @@ export function CharacterBuilder() {
     backstory: "",
     equipment: [],
     features: [],
+    selectedSkills: [],
+    selectedSpells: [],
   })
 
   const [pointBuyRemaining, setPointBuyRemaining] = useState(27)
@@ -78,17 +151,104 @@ export function CharacterBuilder() {
   const [isGeneratingName, setIsGeneratingName] = useState(false)
   const [isGeneratingBackstory, setIsGeneratingBackstory] = useState(false)
 
+  // Fetch Open5e data on mount
   useEffect(() => {
-    setMounted(true)
+    async function fetchData() {
+      try {
+        setIsLoading(true)
+        const [racesData, classesData, backgroundsData] = await Promise.all([
+          open5eApi.getRaces(),
+          open5eApi.getClasses(),
+          open5eApi.getBackgrounds(),
+        ])
+        setRaces(racesData)
+        setClasses(classesData)
+        setBackgrounds(backgroundsData)
+        setLoadingError(null)
+      } catch (error) {
+        console.error("Failed to fetch Open5e data:", error)
+        setLoadingError("Failed to load character data. Please refresh the page.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchData()
   }, [])
 
-  const updateCharacter = (updates: Partial<Character>) => {
-    setCharacter((prev) => ({ ...prev, ...updates }))
-  }
+  // Fetch spells when class is selected (for spellcasters)
+  useEffect(() => {
+    async function fetchSpells() {
+      if (!selectedClass?.spellcasting_ability) {
+        setAvailableSpells([])
+        return
+      }
+      try {
+        const spells = await open5eApi.getSpells({ class: selectedClass.name, level: 0 })
+        const level1Spells = await open5eApi.getSpells({ class: selectedClass.name, level: 1 })
+        setAvailableSpells([...spells, ...level1Spells])
+      } catch (error) {
+        console.error("Failed to fetch spells:", error)
+      }
+    }
+    fetchSpells()
+  }, [character.class])
 
-  const selectedRace = races.find((r) => r.id === character.race)
-  const selectedClass = classes.find((c) => c.id === character.class)
-  const selectedBackground = backgrounds.find((b) => b.id === character.background)
+  const selectedRace = useMemo(() => races.find((r) => r.slug === character.race), [races, character.race])
+  const selectedSubrace = useMemo(
+    () => selectedRace?.subraces?.find((s) => s.slug === character.subrace),
+    [selectedRace, character.subrace]
+  )
+  const selectedClass = useMemo(() => classes.find((c) => c.slug === character.class), [classes, character.class])
+  const selectedBackground = useMemo(
+    () => backgrounds.find((b) => b.slug === character.background),
+    [backgrounds, character.background]
+  )
+
+  // Calculate racial bonuses
+  const racialBonuses = useMemo(() => {
+    if (!selectedRace) return {}
+    return parseRacialASI(selectedRace, selectedSubrace)
+  }, [selectedRace, selectedSubrace])
+
+  // Calculate final ability scores with racial bonuses
+  const finalAbilityScores = useMemo(() => {
+    if (!character.abilityScores) return { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }
+    return {
+      str: character.abilityScores.str + (racialBonuses.str || 0),
+      dex: character.abilityScores.dex + (racialBonuses.dex || 0),
+      con: character.abilityScores.con + (racialBonuses.con || 0),
+      int: character.abilityScores.int + (racialBonuses.int || 0),
+      wis: character.abilityScores.wis + (racialBonuses.wis || 0),
+      cha: character.abilityScores.cha + (racialBonuses.cha || 0),
+    }
+  }, [character.abilityScores, racialBonuses])
+
+  // Get skill choices for selected class
+  const skillChoices = useMemo(() => {
+    if (!selectedClass) return { count: 0, skills: [] }
+    return parseSkillChoices(selectedClass.prof_skills)
+  }, [selectedClass])
+
+  // Check if class is a spellcaster
+  const isSpellcaster = !!selectedClass?.spellcasting_ability
+
+  // Cantrips and spells known at level 1 (simplified)
+  const spellsKnown = useMemo(() => {
+    if (!isSpellcaster) return { cantrips: 0, spells: 0 }
+    // Simplified spell slots for level 1
+    const className = selectedClass?.name.toLowerCase()
+    if (className === "wizard") return { cantrips: 3, spells: 6 }
+    if (className === "sorcerer") return { cantrips: 4, spells: 2 }
+    if (className === "bard") return { cantrips: 2, spells: 4 }
+    if (className === "cleric") return { cantrips: 3, spells: 0 } // Clerics prepare spells
+    if (className === "druid") return { cantrips: 2, spells: 0 } // Druids prepare spells
+    if (className === "warlock") return { cantrips: 2, spells: 2 }
+    return { cantrips: 2, spells: 2 }
+  }, [isSpellcaster, selectedClass])
+
+  const updateCharacter = <K extends keyof typeof character>(key: K, value: (typeof character)[K]) => {
+    setCharacter((prev) => ({ ...prev, [key]: value }))
+  }
 
   const getPointCost = (score: number): number => {
     if (score <= 8) return 0
@@ -108,11 +268,9 @@ export function CharacterBuilder() {
 
     if (pointBuyRemaining - costDiff >= 0 || value < currentScore) {
       setPointBuyRemaining((prev) => prev - costDiff)
-      updateCharacter({
-        abilityScores: {
-          ...character.abilityScores,
-          [ability]: value,
-        },
+      updateCharacter("abilityScores", {
+        ...character.abilityScores,
+        [ability]: value,
       })
     }
   }
@@ -124,63 +282,90 @@ export function CharacterBuilder() {
       return rolls.slice(0, 3).reduce((a, b) => a + b, 0)
     }
 
-    updateCharacter({
-      abilityScores: {
-        str: rollStat(),
-        dex: rollStat(),
-        con: rollStat(),
-        int: rollStat(),
-        wis: rollStat(),
-        cha: rollStat(),
-      },
+    updateCharacter("abilityScores", {
+      str: rollStat(),
+      dex: rollStat(),
+      con: rollStat(),
+      int: rollStat(),
+      wis: rollStat(),
+      cha: rollStat(),
     })
   }
 
-  const handleSubmit = () => {
-    console.log("[v0] Starting character submission...")
-    console.log("[v0] Character data:", character)
-    console.log("[v0] Selected class:", selectedClass)
-    console.log("[v0] Selected race:", selectedRace)
+  const toggleSkill = (skill: string) => {
+    const current = character.selectedSkills || []
+    if (current.includes(skill)) {
+      updateCharacter(
+        "selectedSkills",
+        current.filter((s) => s !== skill)
+      )
+    } else if (current.length < skillChoices.count) {
+      updateCharacter("selectedSkills", [...current, skill])
+    }
+  }
 
-    const hitDie = selectedClass?.hitDie || 8
-    const conMod = calculateModifier(character.abilityScores?.con || 10)
+  const toggleSpell = (spellSlug: string) => {
+    const current = character.selectedSpells || []
+    const totalAllowed = spellsKnown.cantrips + spellsKnown.spells
+    if (current.includes(spellSlug)) {
+      updateCharacter(
+        "selectedSpells",
+        current.filter((s) => s !== spellSlug)
+      )
+    } else if (current.length < totalAllowed) {
+      updateCharacter("selectedSpells", [...current, spellSlug])
+    }
+  }
+
+  const handleSubmit = () => {
+    const hitDie = selectedClass ? getHitDieValue(selectedClass.hit_dice) : 8
+    const conMod = calculateModifier(finalAbilityScores.con)
     const maxHP = hitDie + conMod
+
+    // Collect all proficiencies
+    const proficiencies = [
+      ...(character.selectedSkills || []),
+      ...(selectedBackground?.skill_proficiencies?.split(", ") || []),
+    ]
+
+    // Collect features from race and class
+    const features: string[] = []
+    if (selectedRace?.traits) features.push(selectedRace.traits)
+    if (selectedSubrace?.traits) features.push(selectedSubrace.traits)
 
     const newCharacter: Character = {
       id: crypto.randomUUID(),
       name: character.name || "Unnamed Hero",
-      race: character.race || "human",
-      subrace: character.subrace,
-      class: character.class || "fighter",
+      race: selectedRace?.name || "Human",
+      subrace: selectedSubrace?.name,
+      class: selectedClass?.name || "Fighter",
       level: 1,
-      background: character.background || "acolyte",
+      background: selectedBackground?.name || "Acolyte",
       alignment: character.alignment || "True Neutral",
       experiencePoints: 0,
-      abilityScores: character.abilityScores || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
-      proficiencies: character.proficiencies || [],
+      abilityScores: finalAbilityScores,
+      proficiencies,
       hitPoints: { current: maxHP, max: maxHP, temp: 0 },
-      armorClass: 10 + calculateModifier(character.abilityScores?.dex || 10),
-      initiative: calculateModifier(character.abilityScores?.dex || 10),
-      speed: selectedRace?.speed || 30,
+      armorClass: 10 + calculateModifier(finalAbilityScores.dex),
+      initiative: calculateModifier(finalAbilityScores.dex),
+      speed: selectedRace?.speed?.walk || 30,
       personalityTraits: character.personalityTraits || "",
       ideals: character.ideals || "",
       bonds: character.bonds || "",
       flaws: character.flaws || "",
       backstory: character.backstory || "",
       equipment: character.equipment || [],
-      features: [...(selectedRace?.traits || []), ...(selectedClass?.features || [])],
+      spells: character.selectedSpells,
+      features,
       createdAt: new Date(),
       updatedAt: new Date(),
     }
 
-    console.log("[v0] New character to add:", newCharacter)
-
     try {
       addCharacter(newCharacter)
-      console.log("[v0] Character added successfully, navigating to:", `/characters/${newCharacter.id}`)
       router.push(`/characters/${newCharacter.id}`)
     } catch (error) {
-      console.error("[v0] Error adding character:", error)
+      console.error("Error adding character:", error)
     }
   }
 
@@ -195,31 +380,39 @@ export function CharacterBuilder() {
       case 3:
         return true
       case 4:
-        return character.background
+        return character.selectedSkills.length === skillChoices.count
       case 5:
+        return character.background
+      case 6:
+        return !isSpellcaster || character.selectedSpells.length > 0
+      case 7:
         return true
       default:
         return false
     }
   }
 
+  // Skip spells step if not a spellcaster
+  const actualSteps = isSpellcaster ? steps : steps.filter((s) => s !== "Spells")
+  const actualCurrentStep = currentStep
+  const getStepIndex = (stepName: string) => actualSteps.indexOf(stepName)
+
   const previewStats = {
-    hp: (selectedClass?.hitDie || 8) + calculateModifier(character.abilityScores?.con || 10),
-    ac: 10 + calculateModifier(character.abilityScores?.dex || 10),
-    initiative: formatModifier(calculateModifier(character.abilityScores?.dex || 10)),
-    speed: selectedRace?.speed || 30,
+    hp: (selectedClass ? getHitDieValue(selectedClass.hit_dice) : 8) + calculateModifier(finalAbilityScores.con),
+    ac: 10 + calculateModifier(finalAbilityScores.dex),
+    initiative: formatModifier(calculateModifier(finalAbilityScores.dex)),
+    speed: selectedRace?.speed?.walk || 30,
   }
 
   const handleGenerateName = async () => {
     setIsGeneratingName(true)
-    console.log("[v0] Generating character name...")
     try {
       const response = await fetch("/api/character/generate-name", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          race: character.race,
-          characterClass: character.class,
+          race: selectedRace?.name,
+          characterClass: selectedClass?.name,
           gender: character.gender,
         }),
       })
@@ -227,11 +420,9 @@ export function CharacterBuilder() {
       if (!response.ok) throw new Error("Failed to generate name")
 
       const data = await response.json()
-      setCharacter((prev) => ({ ...prev, name: data.name }))
-      console.log("[v0] Generated name:", data.name)
+      updateCharacter("name", data.name)
     } catch (error) {
-      console.error("[v0] Name generation error:", error)
-      alert("Failed to generate name. Please try again.")
+      console.error("Name generation error:", error)
     } finally {
       setIsGeneratingName(false)
     }
@@ -239,16 +430,15 @@ export function CharacterBuilder() {
 
   const handleGenerateBackstory = async () => {
     setIsGeneratingBackstory(true)
-    console.log("[v0] Generating character backstory...")
     try {
       const response = await fetch("/api/character/generate-backstory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: character.name,
-          race: character.race,
-          characterClass: character.class,
-          background: character.background,
+          race: selectedRace?.name,
+          characterClass: selectedClass?.name,
+          background: selectedBackground?.name,
           alignment: character.alignment,
           personality: `${character.personalityTraits}, ${character.ideals}, ${character.bonds}, ${character.flaws}`,
         }),
@@ -257,22 +447,31 @@ export function CharacterBuilder() {
       if (!response.ok) throw new Error("Failed to generate backstory")
 
       const data = await response.json()
-      setCharacter((prev) => ({ ...prev, backstory: data.backstory }))
-      console.log("[v0] Generated backstory length:", data.backstory.length)
+      updateCharacter("backstory", data.backstory)
     } catch (error) {
-      console.error("[v0] Backstory generation error:", error)
-      alert("Failed to generate backstory. Please try again.")
+      console.error("Backstory generation error:", error)
     } finally {
       setIsGeneratingBackstory(false)
     }
   }
 
-  if (!mounted) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-4">
-          <Dices className="h-12 w-12 text-primary mx-auto animate-spin" />
-          <p className="text-muted-foreground">Loading character builder...</p>
+          <Loader2 className="h-12 w-12 text-primary mx-auto animate-spin" />
+          <p className="text-muted-foreground">Loading character options from Open5e...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loadingError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <p className="text-destructive">{loadingError}</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </div>
     )
@@ -282,26 +481,26 @@ export function CharacterBuilder() {
     <div className="space-y-6">
       {/* Progress Steps */}
       <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap">
-        {steps.map((step, index) => (
+        {actualSteps.map((step, index) => (
           <div key={step} className="flex items-center">
             <button
-              onClick={() => index < currentStep && setCurrentStep(index)}
+              onClick={() => index < actualCurrentStep && setCurrentStep(index)}
               className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-300 ${
-                index === currentStep
+                index === actualCurrentStep
                   ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-                  : index < currentStep
+                  : index < actualCurrentStep
                     ? "bg-accent/80 text-foreground cursor-pointer hover:bg-accent"
                     : "bg-muted/50 text-muted-foreground"
               }`}
             >
-              {index < currentStep ? (
+              {index < actualCurrentStep ? (
                 <Check className="h-4 w-4 text-green-400" />
               ) : (
                 <span className="w-4 text-center text-sm font-bold">{index + 1}</span>
               )}
               <span className="text-sm font-medium hidden sm:inline">{step}</span>
             </button>
-            {index < steps.length - 1 && (
+            {index < actualSteps.length - 1 && (
               <ChevronRight className="h-4 w-4 mx-1 text-muted-foreground hidden sm:block" />
             )}
           </div>
@@ -315,14 +514,15 @@ export function CharacterBuilder() {
             <User className="h-4 w-4 text-primary" />
             <span className="font-serif font-bold text-foreground">{character.name || "Unnamed"}</span>
           </div>
-          {character.race && (
+          {selectedRace && (
             <Badge variant="outline" className="border-primary/50 text-primary">
-              {selectedRace?.name}
+              {selectedRace.name}
+              {selectedSubrace && ` (${selectedSubrace.name})`}
             </Badge>
           )}
-          {character.class && (
+          {selectedClass && (
             <Badge variant="outline" className="border-primary/50 text-primary">
-              {selectedClass?.name}
+              {selectedClass.name}
             </Badge>
           )}
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -343,7 +543,7 @@ export function CharacterBuilder() {
       <Card className="bg-card/80 backdrop-blur border-border shadow-xl">
         <CardContent className="p-6">
           {/* Step 0: Basics */}
-          {currentStep === 0 && (
+          {actualSteps[actualCurrentStep] === "Basics" && (
             <div className="space-y-6">
               <div className="text-center mb-8">
                 <h2 className="font-serif text-2xl font-bold text-gold-gradient">Name Your Hero</h2>
@@ -359,32 +559,29 @@ export function CharacterBuilder() {
                     id="name"
                     placeholder="Enter your character's name..."
                     value={character.name}
-                    onChange={(e) => updateCharacter({ name: e.target.value })}
+                    onChange={(e) => updateCharacter("name", e.target.value)}
                     className="bg-input border-border focus:border-primary focus:ring-primary/20 text-lg h-12"
                     autoFocus
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="alignment" className="text-foreground font-medium">
-                    Alignment
-                  </Label>
-                  <Select value={character.alignment} onValueChange={(v) => updateCharacter({ alignment: v })}>
-                    <SelectTrigger className="bg-input border-border focus:border-primary">
-                      <SelectValue placeholder="Choose alignment..." />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      {alignments.map((alignment) => (
-                        <SelectItem
-                          key={alignment}
-                          value={alignment}
-                          className="focus:bg-accent focus:text-accent-foreground"
-                        >
-                          {alignment}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-foreground font-medium">Alignment</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {alignments.map((alignment) => (
+                      <button
+                        key={alignment}
+                        onClick={() => updateCharacter("alignment", alignment)}
+                        className={`p-2 text-sm rounded-lg border transition-all ${
+                          character.alignment === alignment
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-card hover:border-primary/50"
+                        }`}
+                      >
+                        {alignment}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <Button
@@ -401,7 +598,7 @@ export function CharacterBuilder() {
           )}
 
           {/* Step 1: Race */}
-          {currentStep === 1 && (
+          {actualSteps[actualCurrentStep] === "Race" && (
             <div className="space-y-6">
               <div className="text-center mb-8">
                 <h2 className="font-serif text-2xl font-bold text-gold-gradient">Choose Your Race</h2>
@@ -411,24 +608,22 @@ export function CharacterBuilder() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {races.map((race) => (
                   <button
-                    key={race.id}
-                    onClick={() => updateCharacter({ race: race.id, subrace: "" })}
+                    key={race.slug}
+                    onClick={() => updateCharacter("race", race.slug)}
                     className={`p-4 rounded-lg border text-left transition-all duration-300 hover:scale-[1.02] ${
-                      character.race === race.id
+                      character.race === race.slug
                         ? "border-primary bg-primary/10 border-glow shadow-lg"
                         : "border-border bg-card hover:border-primary/50 hover:bg-accent/30"
                     }`}
                   >
                     <h3 className="font-serif font-bold text-foreground text-lg">{race.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{race.description}</p>
-                    <div className="flex flex-wrap gap-1 mt-3">
-                      {race.traits.slice(0, 3).map((trait) => (
-                        <Badge key={trait} variant="outline" className="text-xs border-border text-muted-foreground">
-                          {trait}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="mt-2 text-xs text-primary/80">Speed: {race.speed} ft.</div>
+                    <p className="text-sm text-primary mt-1">{race.asi_desc}</p>
+                    <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{race.size} • Speed: {race.speed?.walk || 30} ft.</p>
+                    {race.vision && (
+                      <Badge variant="outline" className="mt-2 text-xs border-border text-muted-foreground">
+                        {race.vision.includes("60") ? "Darkvision 60ft" : race.vision.includes("120") ? "Darkvision 120ft" : "Normal Vision"}
+                      </Badge>
+                    )}
                   </button>
                 ))}
               </div>
@@ -439,36 +634,45 @@ export function CharacterBuilder() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     {selectedRace.subraces.map((subrace) => (
                       <button
-                        key={subrace.id}
-                        onClick={() => updateCharacter({ subrace: subrace.id })}
+                        key={subrace.slug}
+                        onClick={() => updateCharacter("subrace", subrace.slug)}
                         className={`p-3 rounded-lg border text-left transition-all ${
-                          character.subrace === subrace.id
+                          character.subrace === subrace.slug
                             ? "border-primary bg-primary/10"
                             : "border-border bg-card hover:border-primary/50"
                         }`}
                       >
                         <h4 className="font-medium text-foreground">{subrace.name}</h4>
-                        <div className="flex gap-1 mt-2">
-                          {subrace.traits.map((trait) => (
-                            <Badge
-                              key={trait}
-                              variant="outline"
-                              className="text-xs border-border text-muted-foreground"
-                            >
-                              {trait}
-                            </Badge>
-                          ))}
-                        </div>
+                        <p className="text-sm text-primary mt-1">{subrace.asi_desc}</p>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
+
+              {selectedRace && (
+                <Card className="bg-accent/10 border-border mt-4">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-serif">{selectedRace.name} Traits</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Age:</strong> {selectedRace.age}</p>
+                    <p><strong>Size:</strong> {selectedRace.size}</p>
+                    <p><strong>Languages:</strong> {selectedRace.languages}</p>
+                    {selectedRace.traits && (
+                      <div>
+                        <strong>Traits:</strong>
+                        <p className="mt-1 whitespace-pre-wrap">{selectedRace.traits.slice(0, 500)}...</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
           {/* Step 2: Class */}
-          {currentStep === 2 && (
+          {actualSteps[actualCurrentStep] === "Class" && (
             <div className="space-y-6">
               <div className="text-center mb-8">
                 <h2 className="font-serif text-2xl font-bold text-gold-gradient">Choose Your Class</h2>
@@ -478,10 +682,14 @@ export function CharacterBuilder() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {classes.map((cls) => (
                   <button
-                    key={cls.id}
-                    onClick={() => updateCharacter({ class: cls.id })}
+                    key={cls.slug}
+                    onClick={() => {
+                      updateCharacter("class", cls.slug)
+                      updateCharacter("selectedSkills", [])
+                      updateCharacter("selectedSpells", [])
+                    }}
                     className={`p-4 rounded-lg border text-left transition-all duration-300 hover:scale-[1.02] ${
-                      character.class === cls.id
+                      character.class === cls.slug
                         ? "border-primary bg-primary/10 border-glow shadow-lg"
                         : "border-border bg-card hover:border-primary/50 hover:bg-accent/30"
                     }`}
@@ -489,18 +697,16 @@ export function CharacterBuilder() {
                     <div className="flex items-center justify-between">
                       <h3 className="font-serif font-bold text-foreground text-lg">{cls.name}</h3>
                       <Badge variant="outline" className="border-red-500/50 text-red-400">
-                        d{cls.hitDie}
+                        {cls.hit_dice}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{cls.description}</p>
-                    <div className="flex flex-wrap gap-1 mt-3">
-                      {cls.features.map((feature) => (
-                        <Badge key={feature} variant="outline" className="text-xs border-border text-muted-foreground">
-                          {feature}
-                        </Badge>
-                      ))}
-                      {cls.spellcaster && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Saves: {cls.prof_saving_throws}
+                    </p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {cls.spellcasting_ability && (
                         <Badge className="text-xs bg-purple-500/20 text-purple-300 border-purple-500/30">
+                          <Scroll className="h-3 w-3 mr-1" />
                           Spellcaster
                         </Badge>
                       )}
@@ -508,15 +714,41 @@ export function CharacterBuilder() {
                   </button>
                 ))}
               </div>
+
+              {selectedClass && (
+                <Card className="bg-accent/10 border-border mt-4">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-serif flex items-center gap-2">
+                      <Swords className="h-5 w-5" />
+                      {selectedClass.name} Proficiencies
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Hit Points:</strong> {selectedClass.hp_at_1st_level}</p>
+                    <p><strong>Armor:</strong> {selectedClass.prof_armor || "None"}</p>
+                    <p><strong>Weapons:</strong> {selectedClass.prof_weapons}</p>
+                    <p><strong>Tools:</strong> {selectedClass.prof_tools || "None"}</p>
+                    <p><strong>Skills:</strong> {selectedClass.prof_skills}</p>
+                    {selectedClass.spellcasting_ability && (
+                      <p><strong>Spellcasting:</strong> {selectedClass.spellcasting_ability}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
           {/* Step 3: Abilities */}
-          {currentStep === 3 && (
+          {actualSteps[actualCurrentStep] === "Abilities" && (
             <div className="space-y-6">
               <div className="text-center mb-8">
                 <h2 className="font-serif text-2xl font-bold text-gold-gradient">Ability Scores</h2>
                 <p className="text-muted-foreground mt-2">Define your character's capabilities</p>
+                {Object.keys(racialBonuses).length > 0 && (
+                  <p className="text-primary text-sm mt-2">
+                    Racial bonuses: {Object.entries(racialBonuses).map(([k, v]) => `${k.toUpperCase()} +${v}`).join(", ")}
+                  </p>
+                )}
               </div>
 
               <Tabs
@@ -553,22 +785,25 @@ export function CharacterBuilder() {
 
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl mx-auto">
                     {abilities.map((ability) => {
-                      const score = character.abilityScores?.[ability.id as keyof typeof character.abilityScores] || 10
-                      const mod = calculateModifier(score)
+                      const baseScore = character.abilityScores?.[ability.id as keyof typeof character.abilityScores] || 10
+                      const bonus = racialBonuses[ability.id] || 0
+                      const finalScore = baseScore + bonus
+                      const mod = calculateModifier(finalScore)
                       return (
                         <div key={ability.id} className="p-4 rounded-lg border border-border bg-card/50">
                           <div className="text-center">
                             <h4 className="font-serif font-bold text-foreground">{ability.name}</h4>
                             <p className="text-xs text-muted-foreground">{ability.abbr}</p>
                           </div>
-                          <div className="flex items-center justify-center gap-4 mt-3">
-                            <span className="text-3xl font-bold text-gold-gradient">{score}</span>
+                          <div className="flex items-center justify-center gap-2 mt-3">
+                            <span className="text-3xl font-bold text-gold-gradient">{finalScore}</span>
+                            {bonus > 0 && <span className="text-sm text-primary">(+{bonus})</span>}
                             <span className={`text-lg font-medium ${mod >= 0 ? "text-green-400" : "text-red-400"}`}>
                               ({formatModifier(mod)})
                             </span>
                           </div>
                           <Slider
-                            value={[score]}
+                            value={[baseScore]}
                             min={8}
                             max={15}
                             step={1}
@@ -601,14 +836,17 @@ export function CharacterBuilder() {
 
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl mx-auto">
                     {abilities.map((ability) => {
-                      const score = character.abilityScores?.[ability.id as keyof typeof character.abilityScores] || 10
-                      const mod = calculateModifier(score)
+                      const baseScore = character.abilityScores?.[ability.id as keyof typeof character.abilityScores] || 10
+                      const bonus = racialBonuses[ability.id] || 0
+                      const finalScore = baseScore + bonus
+                      const mod = calculateModifier(finalScore)
                       return (
                         <div key={ability.id} className="p-4 rounded-lg border border-border bg-card/50 text-center">
                           <h4 className="font-serif font-bold text-foreground">{ability.name}</h4>
                           <p className="text-xs text-muted-foreground">{ability.abbr}</p>
                           <div className="flex items-center justify-center gap-2 mt-3">
-                            <span className="text-3xl font-bold text-gold-gradient">{score}</span>
+                            <span className="text-3xl font-bold text-gold-gradient">{finalScore}</span>
+                            {bonus > 0 && <span className="text-sm text-primary">(+{bonus})</span>}
                             <span className={`text-lg font-medium ${mod >= 0 ? "text-green-400" : "text-red-400"}`}>
                               ({formatModifier(mod)})
                             </span>
@@ -622,8 +860,58 @@ export function CharacterBuilder() {
             </div>
           )}
 
-          {/* Step 4: Background */}
-          {currentStep === 4 && (
+          {/* Step 4: Skills */}
+          {actualSteps[actualCurrentStep] === "Skills" && (
+            <div className="space-y-6">
+              <div className="text-center mb-8">
+                <h2 className="font-serif text-2xl font-bold text-gold-gradient">Choose Skills</h2>
+                <p className="text-muted-foreground mt-2">
+                  Select {skillChoices.count} skill{skillChoices.count > 1 ? "s" : ""} from your class options
+                </p>
+                <p className="text-primary text-sm mt-2">
+                  Selected: {character.selectedSkills.length} / {skillChoices.count}
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl mx-auto">
+                {skillChoices.skills.map((skill) => {
+                  const isSelected = character.selectedSkills.includes(skill)
+                  const canSelect = isSelected || character.selectedSkills.length < skillChoices.count
+                  return (
+                    <button
+                      key={skill}
+                      onClick={() => canSelect && toggleSkill(skill)}
+                      disabled={!canSelect}
+                      className={`p-4 rounded-lg border text-left transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/10"
+                          : canSelect
+                            ? "border-border bg-card hover:border-primary/50"
+                            : "border-border bg-muted/50 opacity-50 cursor-not-allowed"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Checkbox checked={isSelected} className="pointer-events-none" />
+                        <span className="font-medium text-foreground">{skill}</span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {selectedBackground && (
+                <div className="mt-6 p-4 rounded-lg bg-accent/20 border border-border max-w-3xl mx-auto">
+                  <p className="text-sm text-muted-foreground">
+                    <strong className="text-foreground">Background Skills:</strong> Your {selectedBackground.name} background
+                    will also grant proficiency in: {selectedBackground.skill_proficiencies}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 5: Background */}
+          {actualSteps[actualCurrentStep] === "Background" && (
             <div className="space-y-6">
               <div className="text-center mb-8">
                 <h2 className="font-serif text-2xl font-bold text-gold-gradient">Choose Your Background</h2>
@@ -633,31 +921,127 @@ export function CharacterBuilder() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {backgrounds.map((bg) => (
                   <button
-                    key={bg.id}
-                    onClick={() => updateCharacter({ background: bg.id })}
+                    key={bg.slug}
+                    onClick={() => updateCharacter("background", bg.slug)}
                     className={`p-4 rounded-lg border text-left transition-all duration-300 hover:scale-[1.02] ${
-                      character.background === bg.id
+                      character.background === bg.slug
                         ? "border-primary bg-primary/10 border-glow shadow-lg"
                         : "border-border bg-card hover:border-primary/50 hover:bg-accent/30"
                     }`}
                   >
                     <h3 className="font-serif font-bold text-foreground text-lg">{bg.name}</h3>
                     <p className="text-sm text-primary mt-1">{bg.feature}</p>
-                    <div className="flex flex-wrap gap-1 mt-3">
-                      {bg.skillProficiencies.map((skill) => (
-                        <Badge key={skill} variant="outline" className="text-xs border-border text-muted-foreground">
-                          {skill}
-                        </Badge>
-                      ))}
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">Skills: {bg.skill_proficiencies}</p>
                   </button>
                 ))}
+              </div>
+
+              {selectedBackground && (
+                <Card className="bg-accent/10 border-border mt-4">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-serif flex items-center gap-2">
+                      <BookOpen className="h-5 w-5" />
+                      {selectedBackground.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground space-y-2">
+                    <p><strong>Feature: {selectedBackground.feature}</strong></p>
+                    <p>{selectedBackground.feature_desc}</p>
+                    <Separator className="my-2" />
+                    <p><strong>Equipment:</strong> {selectedBackground.equipment}</p>
+                    {selectedBackground.languages && (
+                      <p><strong>Languages:</strong> {selectedBackground.languages}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Step 6: Spells (only for spellcasters) */}
+          {actualSteps[actualCurrentStep] === "Spells" && isSpellcaster && (
+            <div className="space-y-6">
+              <div className="text-center mb-8">
+                <h2 className="font-serif text-2xl font-bold text-gold-gradient">Choose Your Spells</h2>
+                <p className="text-muted-foreground mt-2">
+                  Select {spellsKnown.cantrips} cantrip{spellsKnown.cantrips > 1 ? "s" : ""}
+                  {spellsKnown.spells > 0 && ` and ${spellsKnown.spells} 1st-level spell${spellsKnown.spells > 1 ? "s" : ""}`}
+                </p>
+                <p className="text-primary text-sm mt-2">
+                  Selected: {character.selectedSpells.length} / {spellsKnown.cantrips + spellsKnown.spells}
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                {/* Cantrips */}
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-foreground mb-4">Cantrips</h3>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {availableSpells
+                      .filter((s) => s.level_int === 0)
+                      .map((spell) => {
+                        const isSelected = character.selectedSpells.includes(spell.slug)
+                        return (
+                          <button
+                            key={spell.slug}
+                            onClick={() => toggleSpell(spell.slug)}
+                            className={`p-3 rounded-lg border text-left transition-all ${
+                              isSelected
+                                ? "border-primary bg-primary/10"
+                                : "border-border bg-card hover:border-primary/50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Checkbox checked={isSelected} className="pointer-events-none" />
+                              <span className="font-medium text-foreground">{spell.name}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{spell.desc.slice(0, 100)}...</p>
+                          </button>
+                        )
+                      })}
+                  </div>
+                </div>
+
+                {/* 1st Level Spells */}
+                {spellsKnown.spells > 0 && (
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-foreground mb-4">1st Level Spells</h3>
+                    <ScrollArea className="h-[300px]">
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pr-4">
+                        {availableSpells
+                          .filter((s) => s.level_int === 1)
+                          .map((spell) => {
+                            const isSelected = character.selectedSpells.includes(spell.slug)
+                            return (
+                              <button
+                                key={spell.slug}
+                                onClick={() => toggleSpell(spell.slug)}
+                                className={`p-3 rounded-lg border text-left transition-all ${
+                                  isSelected
+                                    ? "border-primary bg-primary/10"
+                                    : "border-border bg-card hover:border-primary/50"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Checkbox checked={isSelected} className="pointer-events-none" />
+                                  <span className="font-medium text-foreground">{spell.name}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {spell.school} • {spell.casting_time}
+                                </p>
+                              </button>
+                            )
+                          })}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Step 5: Details */}
-          {currentStep === 5 && (
+          {/* Step 7: Details */}
+          {actualSteps[actualCurrentStep] === "Details" && (
             <div className="space-y-6">
               <div className="text-center mb-8">
                 <h2 className="font-serif text-2xl font-bold text-gold-gradient">Character Details</h2>
@@ -673,7 +1057,7 @@ export function CharacterBuilder() {
                     id="personality"
                     placeholder="I always have a plan for what to do when things go wrong..."
                     value={character.personalityTraits}
-                    onChange={(e) => updateCharacter({ personalityTraits: e.target.value })}
+                    onChange={(e) => updateCharacter("personalityTraits", e.target.value)}
                     className="bg-input border-border focus:border-primary min-h-[100px]"
                   />
                 </div>
@@ -686,7 +1070,7 @@ export function CharacterBuilder() {
                     id="ideals"
                     placeholder="Freedom. The sea is freedom—the freedom to go anywhere..."
                     value={character.ideals}
-                    onChange={(e) => updateCharacter({ ideals: e.target.value })}
+                    onChange={(e) => updateCharacter("ideals", e.target.value)}
                     className="bg-input border-border focus:border-primary min-h-[100px]"
                   />
                 </div>
@@ -699,7 +1083,7 @@ export function CharacterBuilder() {
                     id="bonds"
                     placeholder="I'll never forget the crushing defeat my company suffered..."
                     value={character.bonds}
-                    onChange={(e) => updateCharacter({ bonds: e.target.value })}
+                    onChange={(e) => updateCharacter("bonds", e.target.value)}
                     className="bg-input border-border focus:border-primary min-h-[100px]"
                   />
                 </div>
@@ -712,7 +1096,7 @@ export function CharacterBuilder() {
                     id="flaws"
                     placeholder="I have a 'tell' that reveals when I'm lying..."
                     value={character.flaws}
-                    onChange={(e) => updateCharacter({ flaws: e.target.value })}
+                    onChange={(e) => updateCharacter("flaws", e.target.value)}
                     className="bg-input border-border focus:border-primary min-h-[100px]"
                   />
                 </div>
@@ -725,7 +1109,7 @@ export function CharacterBuilder() {
                     id="backstory"
                     placeholder="Write your character's history..."
                     value={character.backstory}
-                    onChange={(e) => updateCharacter({ backstory: e.target.value })}
+                    onChange={(e) => updateCharacter("backstory", e.target.value)}
                     className="bg-input border-border focus:border-primary min-h-[150px]"
                   />
                 </div>
@@ -750,14 +1134,14 @@ export function CharacterBuilder() {
             <Button
               variant="outline"
               onClick={() => setCurrentStep((prev) => prev - 1)}
-              disabled={currentStep === 0}
+              disabled={actualCurrentStep === 0}
               className="border-border hover:border-primary/50 bg-transparent"
             >
               <ChevronLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
 
-            {currentStep < steps.length - 1 ? (
+            {actualCurrentStep < actualSteps.length - 1 ? (
               <Button
                 onClick={() => setCurrentStep((prev) => prev + 1)}
                 disabled={!canProceed()}
