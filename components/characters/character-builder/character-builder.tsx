@@ -59,7 +59,17 @@ interface CharacterBuilderProps {
 
 export function CharacterBuilder({ onComplete, onCancel, initialData }: CharacterBuilderProps) {
   const [currentStep, setCurrentStep] = useState(1)
-  const { data, updateData, reset } = useCharacterBuilderStore()
+  const { 
+    data, 
+    updateData, 
+    reset,
+    raceData,
+    classData,
+    backgroundData,
+    setRaceData,
+    setClassData,
+    setBackgroundData,
+  } = useCharacterBuilderStore()
 
   // Initialize with any provided data
   useState(() => {
@@ -123,6 +133,9 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
       used: 0,
     }]
 
+    // Get speed from race data
+    const speed = raceData?.speed?.walk || 30
+
     const character: Character = {
       id,
       name: data.name || "Unnamed Hero",
@@ -148,7 +161,7 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
         successes: 0,
         failures: 0,
       },
-      speed: 30, // Default speed, should be based on race
+      speed,
       inspiration: false,
       
       savingThrowProficiencies: [],
@@ -181,7 +194,7 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
     }
 
     return character
-  }, [data])
+  }, [data, raceData])
 
   const handleComplete = useCallback(() => {
     const character = buildCharacter()
@@ -217,7 +230,18 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1Basics data={data} onUpdate={updateData} />
+        return (
+          <Step1Basics 
+            data={data} 
+            onUpdate={updateData}
+            raceData={raceData}
+            classData={classData}
+            backgroundData={backgroundData}
+            onRaceSelect={setRaceData}
+            onClassSelect={setClassData}
+            onBackgroundSelect={setBackgroundData}
+          />
+        )
       case 2:
         return <Step2Abilities data={data} onUpdate={updateData} racialBonuses={data.racialBonuses} />
       case 3:
@@ -241,7 +265,7 @@ export function CharacterBuilder({ onComplete, onCancel, initialData }: Characte
   const canGoNext = () => {
     switch (currentStep) {
       case 1:
-        return !!data.name && data.name.trim().length > 0
+        return !!data.name && data.name.trim().length > 0 && !!data.race && !!data.class
       case 2:
         return !!data.baseAbilities
       case 3:
