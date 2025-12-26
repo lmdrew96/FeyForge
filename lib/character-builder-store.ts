@@ -15,6 +15,7 @@ import type {
   CharacterProperty,
 } from './character/types';
 import type { Ability, Skill, Alignment } from './character/constants';
+import type { Open5eRace, Open5eClass, Open5eBackground } from './open5e-api';
 import { 
   ABILITIES, 
   STANDARD_ARRAY,
@@ -35,9 +36,9 @@ interface CharacterBuilderStore {
   data: CharacterCreationData;
   
   // Open5e data cache
-  raceData: any | null;
-  classData: any | null;
-  backgroundData: any | null;
+  raceData: Open5eRace | null;
+  classData: Open5eClass | null;
+  backgroundData: Open5eBackground | null;
   
   // Navigation
   setStep: (step: BuilderStep) => void;
@@ -46,9 +47,9 @@ interface CharacterBuilderStore {
   
   // Data updates
   updateData: (updates: Partial<CharacterCreationData>) => void;
-  setRaceData: (data: any) => void;
-  setClassData: (data: any) => void;
-  setBackgroundData: (data: any) => void;
+  setRaceData: (data: Open5eRace | null) => void;
+  setClassData: (data: Open5eClass | null) => void;
+  setBackgroundData: (data: Open5eBackground | null) => void;
   
   // Ability score helpers
   setAbilityScore: (ability: Ability, value: number) => void;

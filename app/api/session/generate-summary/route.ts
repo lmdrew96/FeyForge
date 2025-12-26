@@ -32,7 +32,7 @@ Create a summary that:
 
     return NextResponse.json({ summary: text.trim() })
   } catch (error) {
-    console.error("[v0] Session summary generation error:", error)
+    console.error("[FeyForge] Session summary generation error:", error)
     return NextResponse.json({ error: "Failed to generate session summary" }, { status: 500 })
   }
 }

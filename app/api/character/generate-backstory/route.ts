@@ -31,7 +31,7 @@ Write in a narrative style suitable for a player character.`
 
     return NextResponse.json({ backstory: text.trim() })
   } catch (error) {
-    console.error("[v0] Character backstory generation error:", error)
+    console.error("[FeyForge] Character backstory generation error:", error)
     return NextResponse.json({ error: "Failed to generate character backstory" }, { status: 500 })
   }
 }

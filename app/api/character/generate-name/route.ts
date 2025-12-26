@@ -22,7 +22,7 @@ Examples: "Thorgrim Ironforge", "Lyra Moonwhisper", "Zephyr Stormwind"`
 
     return NextResponse.json({ name: text.trim() })
   } catch (error) {
-    console.error("[v0] Character name generation error:", error)
+    console.error("[FeyForge] Character name generation error:", error)
     return NextResponse.json({ error: "Failed to generate character name" }, { status: 500 })
   }
 }

@@ -34,7 +34,7 @@ Format as a bulleted list organized by category.`
 
     return NextResponse.json({ prepNotes: text.trim() })
   } catch (error) {
-    console.error("[v0] Session prep generation error:", error)
+    console.error("[FeyForge] Session prep generation error:", error)
     return NextResponse.json({ error: "Failed to generate session prep" }, { status: 500 })
   }
 }

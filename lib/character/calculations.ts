@@ -26,8 +26,7 @@ import { applyModifiers, combineModifiers, filterModifiersByTarget } from './mod
  * Calculate final ability scores including racial bonuses and modifiers
  */
 export function calculateAbilityScores(character: Character): AbilityScores {
-  // Support both old schema (abilityScores) and new schema (baseAbilities)
-  const baseScores = character.baseAbilities || (character as any).abilityScores || {
+  const baseScores = character.baseAbilities || {
     strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10
   };
   const result: AbilityScores = { ...baseScores };

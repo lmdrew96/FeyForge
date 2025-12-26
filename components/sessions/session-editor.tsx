@@ -290,7 +290,6 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
   const handleGenerateSummary = async () => {
     setIsGeneratingSummary(true)
-    console.log("[v0] Generating session summary...")
     try {
       const response = await fetch("/api/session/generate-summary", {
         method: "POST",
@@ -307,9 +306,8 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
       const data = await response.json()
       setFormData((prev) => ({ ...prev, summary: data.summary }))
-      console.log("[v0] Generated summary length:", data.summary.length)
     } catch (error) {
-      console.error("[v0] Summary generation error:", error)
+      console.error("Summary generation error:", error)
       alert("Failed to generate summary. Please try again.")
     } finally {
       setIsGeneratingSummary(false)
@@ -318,7 +316,6 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
   const handleGeneratePrep = async () => {
     setIsGeneratingPrep(true)
-    console.log("[v0] Generating session prep...")
     try {
       const response = await fetch("/api/session/generate-prep", {
         method: "POST",
@@ -335,9 +332,8 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
       const data = await response.json()
       setFormData((prev) => ({ ...prev, prepNotes: data.prepNotes }))
-      console.log("[v0] Generated prep notes length:", data.prepNotes.length)
     } catch (error) {
-      console.error("[v0] Prep generation error:", error)
+      console.error("Prep generation error:", error)
       alert("Failed to generate prep notes. Please try again.")
     } finally {
       setIsGeneratingPrep(false)
@@ -346,7 +342,6 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
   const handleGenerateRecap = async () => {
     setIsGeneratingRecap(true)
-    console.log("[v0] Generating player recap...")
     try {
       const response = await fetch("/api/session/generate-recap", {
         method: "POST",
@@ -363,9 +358,8 @@ export function SessionEditor({ session, isNew = false }: SessionEditorProps) {
 
       const data = await response.json()
       setFormData((prev) => ({ ...prev, playerRecap: data.recap }))
-      console.log("[v0] Generated recap length:", data.recap.length)
     } catch (error) {
-      console.error("[v0] Recap generation error:", error)
+      console.error("Recap generation error:", error)
       alert("Failed to generate recap. Please try again.")
     } finally {
       setIsGeneratingRecap(false)

@@ -34,7 +34,7 @@ This will be shared with players before the next session.`
 
     return NextResponse.json({ recap: text.trim() })
   } catch (error) {
-    console.error("[v0] Session recap generation error:", error)
+    console.error("[FeyForge] Session recap generation error:", error)
     return NextResponse.json({ error: "Failed to generate session recap" }, { status: 500 })
   }
 }
