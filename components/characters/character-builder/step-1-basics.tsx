@@ -50,20 +50,34 @@ export function Step1Basics({
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("race")
   const [selectedSubrace, setSelectedSubrace] = useState<string | null>(data.subrace || null)
+  const [showSrdOnly, setShowSrdOnly] = useState(false)
+
+  // Filter content based on SRD toggle
+  const filteredRaces = showSrdOnly 
+    ? races.filter(r => r.document__slug === "wotc-srd")
+    : races
+  const filteredClasses = showSrdOnly 
+    ? classes.filter(c => c.document__slug === "wotc-srd")
+    : classes
+  const filteredBackgrounds = showSrdOnly 
+    ? backgrounds.filter(b => b.document__slug === "wotc-srd")
+    : backgrounds
 
   // Load data from Open5e API
   useEffect(() => {
     async function loadData() {
       setLoading(true)
       try {
+        // Fetch all available content, not just SRD
         const [racesData, classesData, backgroundsData] = await Promise.all([
-          open5eApi.getRaces("srd"),
-          open5eApi.getClasses("srd"),
-          open5eApi.getBackgrounds("srd"),
+          open5eApi.getRaces("all"),
+          open5eApi.getClasses("all"),
+          open5eApi.getBackgrounds("all"),
         ])
-        setRaces(racesData)
-        setClasses(classesData)
-        setBackgrounds(backgroundsData)
+        // Sort alphabetically for easier browsing
+        setRaces(racesData.sort((a, b) => a.name.localeCompare(b.name)))
+        setClasses(classesData.sort((a, b) => a.name.localeCompare(b.name)))
+        setBackgrounds(backgroundsData.sort((a, b) => a.name.localeCompare(b.name)))
       } catch (error) {
         console.error("Failed to load Open5e data:", error)
       } finally {
@@ -205,23 +219,49 @@ export function Step1Basics({
 
       {/* Race, Class, Background Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
-          <TabsTrigger value="race" className="gap-2">
-            <User className="h-4 w-4" />
-            Race
-            {data.race && <Check className="h-3 w-3 text-green-500" />}
-          </TabsTrigger>
-          <TabsTrigger value="class" className="gap-2">
-            <Sword className="h-4 w-4" />
-            Class
-            {data.class && <Check className="h-3 w-3 text-green-500" />}
-          </TabsTrigger>
-          <TabsTrigger value="background" className="gap-2">
-            <BookOpen className="h-4 w-4" />
-            Background
-            {data.background && <Check className="h-3 w-3 text-green-500" />}
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between mb-4">
+          <TabsList className="grid grid-cols-3">
+            <TabsTrigger value="race" className="gap-2">
+              <User className="h-4 w-4" />
+              Race
+              {data.race && <Check className="h-3 w-3 text-green-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="class" className="gap-2">
+              <Sword className="h-4 w-4" />
+              Class
+              {data.class && <Check className="h-3 w-3 text-green-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="background" className="gap-2">
+              <BookOpen className="h-4 w-4" />
+              Background
+              {data.background && <Check className="h-3 w-3 text-green-500" />}
+            </TabsTrigger>
+          </TabsList>
+          
+          {/* Content Source Filter */}
+          <div className="flex items-center gap-2">
+            <Label htmlFor="srd-filter" className="text-sm text-muted-foreground">
+              SRD Only
+            </Label>
+            <button
+              id="srd-filter"
+              type="button"
+              onClick={() => setShowSrdOnly(!showSrdOnly)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                showSrdOnly ? "bg-primary" : "bg-muted"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showSrdOnly ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+            <span className="text-xs text-muted-foreground">
+              ({activeTab === "race" ? filteredRaces.length : activeTab === "class" ? filteredClasses.length : filteredBackgrounds.length} options)
+            </span>
+          </div>
+        </div>
 
         {/* Race Selection */}
         <TabsContent value="race" className="mt-0">
@@ -229,7 +269,7 @@ export function Step1Basics({
             {/* Race List */}
             <ScrollArea className="h-[400px] rounded-lg border border-border p-2">
               <div className="space-y-2">
-                {races.map((race) => (
+                {filteredRaces.map((race) => (
                   <Card
                     key={race.slug}
                     className={`cursor-pointer transition-all hover:border-primary/50 ${
@@ -240,7 +280,14 @@ export function Step1Basics({
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium">{race.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{race.name}</h4>
+                            {race.document__slug !== "wotc-srd" && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                {race.document__title?.split(":")?.[0] || "3rd Party"}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground line-clamp-1">
                             {race.asi_desc}
                           </p>
@@ -348,7 +395,7 @@ export function Step1Basics({
             {/* Class List */}
             <ScrollArea className="h-[400px] rounded-lg border border-border p-2">
               <div className="space-y-2">
-                {classes.map((cls) => (
+                {filteredClasses.map((cls) => (
                   <Card
                     key={cls.slug}
                     className={`cursor-pointer transition-all hover:border-primary/50 ${
@@ -359,7 +406,14 @@ export function Step1Basics({
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium">{cls.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{cls.name}</h4>
+                            {cls.document__slug !== "wotc-srd" && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                {cls.document__title?.split(":")?.[0] || "3rd Party"}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             Hit Die: {cls.hit_dice}
                           </p>
@@ -432,7 +486,7 @@ export function Step1Basics({
             {/* Background List */}
             <ScrollArea className="h-[400px] rounded-lg border border-border p-2">
               <div className="space-y-2">
-                {backgrounds.map((bg) => (
+                {filteredBackgrounds.map((bg) => (
                   <Card
                     key={bg.slug}
                     className={`cursor-pointer transition-all hover:border-primary/50 ${
@@ -443,7 +497,14 @@ export function Step1Basics({
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium">{bg.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{bg.name}</h4>
+                            {bg.document__slug !== "wotc-srd" && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                {bg.document__title?.split(":")?.[0] || "3rd Party"}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             Skills: {bg.skill_proficiencies}
                           </p>
