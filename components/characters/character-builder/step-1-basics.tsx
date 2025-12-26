@@ -342,14 +342,28 @@ export function Step1Basics({
                         Ability Score Increase
                       </h4>
                       <div className="text-xs sm:text-sm prose prose-sm max-w-none w-full [&>*]:max-w-full overflow-hidden break-words">
-                        <ReactMarkdown>{raceData.asi_desc}</ReactMarkdown>
+                        <ReactMarkdown
+                          components={{
+                            pre: ({node, ...props}) => <pre className="overflow-x-auto" {...props} />,
+                            code: ({node, ...props}) => <code className="break-all" {...props} />,
+                          }}
+                        >
+                          {raceData.asi_desc}
+                        </ReactMarkdown>
                       </div>
                     </div>
 
                     <div className="overflow-hidden min-w-0 w-full">
                       <h4 className="font-medium text-xs sm:text-sm text-muted-foreground mb-1">Traits</h4>
                       <div className="text-xs sm:text-sm prose prose-sm max-w-none w-full [&>*]:max-w-full overflow-hidden break-words">
-                        <ReactMarkdown>{raceData.traits}</ReactMarkdown>
+                        <ReactMarkdown
+                          components={{
+                            pre: ({node, ...props}) => <pre className="overflow-x-auto" {...props} />,
+                            code: ({node, ...props}) => <code className="break-all" {...props} />,
+                          }}
+                        >
+                          {raceData.traits}
+                        </ReactMarkdown>
                       </div>
                     </div>
 
@@ -388,7 +402,14 @@ export function Step1Basics({
                           <div className="mt-3 p-3 bg-muted/50 rounded-lg overflow-hidden min-w-0 w-full">
                             <h5 className="font-medium text-sm mb-1 truncate">{selectedSubraceData.name} Traits</h5>
                             <div className="text-sm prose prose-sm max-w-none w-full [&>*]:max-w-full overflow-hidden break-words">
-                              <ReactMarkdown>{selectedSubraceData.traits}</ReactMarkdown>
+                              <ReactMarkdown
+                                components={{
+                                  pre: ({node, ...props}) => <pre className="overflow-x-auto" {...props} />,
+                                  code: ({node, ...props}) => <code className="break-all" {...props} />,
+                                }}
+                              >
+                                {selectedSubraceData.traits}
+                              </ReactMarkdown>
                             </div>
                           </div>
                         )}
@@ -486,7 +507,14 @@ export function Step1Basics({
                     <div className="overflow-hidden">
                       <h4 className="font-medium text-sm text-muted-foreground mb-1">Starting Equipment</h4>
                       <div className="text-sm prose prose-sm max-w-none overflow-hidden break-words">
-                        <ReactMarkdown>{classData.equipment}</ReactMarkdown>
+                        <ReactMarkdown
+                          components={{
+                            pre: ({node, ...props}) => <pre className="overflow-x-auto" {...props} />,
+                            code: ({node, ...props}) => <code className="break-all" {...props} />,
+                          }}
+                        >
+                          {classData.equipment}
+                        </ReactMarkdown>
                       </div>
                     </div>
 
@@ -576,7 +604,14 @@ export function Step1Basics({
                         Feature: {backgroundData.feature}
                       </h4>
                       <div className="text-sm prose prose-sm max-w-none overflow-hidden break-words">
-                        <ReactMarkdown>{backgroundData.feature_desc}</ReactMarkdown>
+                        <ReactMarkdown
+                          components={{
+                            pre: ({node, ...props}) => <pre className="overflow-x-auto" {...props} />,
+                            code: ({node, ...props}) => <code className="break-all" {...props} />,
+                          }}
+                        >
+                          {backgroundData.feature_desc}
+                        </ReactMarkdown>
                       </div>
                     </div>
                   </div>

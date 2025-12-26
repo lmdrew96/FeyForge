@@ -283,7 +283,7 @@ export function SpellsPanel({
                                 )}
 
                                 {spell.description && (
-                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words overflow-hidden line-clamp-4">
+                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words overflow-hidden line-clamp-4 min-w-0">
                                     {spell.description}
                                   </p>
                                 )}

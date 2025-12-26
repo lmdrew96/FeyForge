@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 interface HeaderProps {
   title?: string
@@ -23,9 +24,25 @@ export function Header({ title, subtitle }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border/50 bg-card/90 backdrop-blur-md px-3 pl-14 md:pl-6 sm:pr-6">
       <div className="min-w-0 flex-1 mr-2">
-        {title && <h1 className="font-serif text-sm sm:text-lg md:text-xl font-bold text-silver truncate">{title}</h1>}
+        {title && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <h1 className="font-serif text-sm sm:text-lg md:text-xl font-bold text-silver truncate">{title}</h1>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{title}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
         {subtitle && (
-          <p className="text-[10px] sm:text-xs text-muted-foreground truncate hidden sm:block">{subtitle}</p>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate hidden sm:block">{subtitle}</p>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{subtitle}</p>
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
 

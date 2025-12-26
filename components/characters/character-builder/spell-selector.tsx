@@ -535,8 +535,15 @@ function SpellDetails({ spell }: SpellDetailsProps) {
       </div>
 
       {/* Description */}
-      <div className="prose prose-sm max-w-none">
-        <ReactMarkdown>{spell.desc}</ReactMarkdown>
+      <div className="prose prose-sm max-w-none break-words overflow-hidden">
+        <ReactMarkdown
+          components={{
+            pre: ({node, ...props}) => <pre className="overflow-x-auto" {...props} />,
+            code: ({node, ...props}) => <code className="break-all" {...props} />,
+          }}
+        >
+          {spell.desc}
+        </ReactMarkdown>
       </div>
 
       {/* Higher Levels */}

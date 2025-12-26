@@ -3,6 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { useSessionStore, type Session } from "@/lib/session-store"
 import { useCampaignSessions } from "@/lib/hooks/use-campaign-data"
 import { Calendar, Clock, Plus, Scroll, ChevronRight, Trash2 } from "lucide-react"
@@ -85,9 +86,16 @@ export function SessionList() {
                     {/* Session Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-serif font-bold text-foreground group-hover:text-primary transition-colors truncate">
-                          {session.title}
-                        </h3>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <h3 className="font-serif font-bold text-foreground group-hover:text-primary transition-colors truncate">
+                              {session.title}
+                            </h3>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{session.title}</p>
+                          </TooltipContent>
+                        </Tooltip>
                         <Badge className={cn("text-xs shrink-0", getStatusColor(session.status))}>
                           {session.status}
                         </Badge>

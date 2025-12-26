@@ -192,7 +192,7 @@ export function NPCList() {
               </div>
 
               {npc.personality && (
-                <p className="text-xs text-muted-foreground line-clamp-2">{npc.personality.join(", ")}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2 min-w-0">{npc.personality.join(", ")}</p>
               )}
             </CardContent>
           </Card>

@@ -326,7 +326,7 @@ export function WorldMap() {
                         <span className="font-medium">{location.name}</span>
                         {!location.visited && <EyeOff className="h-3 w-3 text-muted-foreground ml-auto" />}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{location.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1 min-w-0">{location.description}</p>
                     </button>
                   )
                 })}

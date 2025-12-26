@@ -299,7 +299,7 @@ export function CampaignTimeline() {
                             </div>
                             <h4 className="font-medium">{event.title}</h4>
                             {event.description && !isExpanded && (
-                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1 min-w-0">
                                 {event.description}
                               </p>
                             )}
