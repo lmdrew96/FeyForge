@@ -1,6 +1,4 @@
 "use client"
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, ChevronRight, Scroll } from "lucide-react"
@@ -19,58 +17,53 @@ export function RecentSessions() {
   // Show placeholder if no sessions
   if (recentSessions.length === 0) {
     return (
-      <Card className="glass-card">
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
+      <div>
+        <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/20">
           <div className="flex items-center gap-2">
-            <Scroll className="h-5 w-5 text-primary animate-ethereal-glow" />
-            <CardTitle className="font-serif text-xl text-gold-gradient">Recent Sessions</CardTitle>
+            <Scroll className="h-5 w-5 text-primary" />
+            <h2 className="font-serif text-xl text-silver">Recent Sessions</h2>
           </div>
           <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground rounded-xl">
             <Link href="/sessions">
               View All <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
           </Button>
-        </CardHeader>
-        <div className="magical-divider mx-6" />
-        <CardContent className="pt-4">
-          <div className="text-center py-12 space-y-4">
-            <div className="h-20 w-20 mx-auto rounded-2xl bg-accent/30 flex items-center justify-center border border-border/50 backdrop-blur-sm">
-              <Scroll className="h-10 w-10 text-lavender" />
-            </div>
-            <div>
-              <p className="text-foreground font-medium">No sessions recorded yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Begin your adventure!</p>
-            </div>
-            <Button asChild className="btn-fey-glow animate-gentle-pulse">
-              <Link href="/sessions/new">Start Your First Session</Link>
-            </Button>
+        </div>
+        <div className="text-center py-12 space-y-4">
+          <div className="h-20 w-20 mx-auto rounded-2xl bg-primary/5 flex items-center justify-center border border-primary/10">
+            <Scroll className="h-10 w-10 text-primary/50" />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <p className="text-foreground font-medium">No sessions recorded yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Begin your adventure!</p>
+          </div>
+          <Button asChild className="btn-primary">
+            <Link href="/sessions/new">Start Your First Session</Link>
+          </Button>
+        </div>
+      </div>
     )
   }
 
   return (
-    <Card className="glass-card">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
+    <div>
+      <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/20">
         <div className="flex items-center gap-2">
-          <Scroll className="h-5 w-5 text-primary animate-ethereal-glow" />
-          <CardTitle className="font-serif text-xl text-gold-gradient">Recent Sessions</CardTitle>
+          <Scroll className="h-5 w-5 text-primary" />
+          <h2 className="font-serif text-xl text-silver">Recent Sessions</h2>
         </div>
         <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground rounded-xl">
           <Link href="/sessions">
             View All <ChevronRight className="ml-1 h-4 w-4" />
           </Link>
         </Button>
-      </CardHeader>
-      <div className="magical-divider mx-6" />
-      <CardContent className="space-y-3 pt-4">
+      </div>
+      <div className="space-y-3">
         {recentSessions.map((session, index) => (
           <Link
             key={session.id}
             href={`/sessions/${session.id}`}
-            className="flex items-center justify-between p-4 rounded-2xl bg-card/40 hover:bg-accent/50 backdrop-blur-sm transition-all duration-300 cursor-pointer block border border-transparent hover:border-primary/30 hover:shadow-[0_0_25px_-10px_oklch(0.75_0.15_210_/_0.3)]"
-            style={{ animationDelay: `${index * 100}ms` }}
+            className="flex items-center justify-between p-4 rounded-2xl hover:bg-primary/5 transition-colors cursor-pointer block border border-border/10 hover:border-primary/30"
           >
             <div className="space-y-1.5 flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -117,7 +110,7 @@ export function RecentSessions() {
             <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 ml-2" />
           </Link>
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

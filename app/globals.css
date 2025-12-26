@@ -4,115 +4,126 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   FEY WILD ENCHANTED FOREST THEME - FeyForge D&D Campaign Manager
+   FUTURISTIC FEY MAGIC THEME - FeyForge D&D Campaign Manager
    
-   Color Palette:
-   - #375946 Forest Green (main canvas, base background)
-   - #444888 Mystic Purple (cards, navigation, glass panels)
-   - #42E2ED Glowing Cyan (fairy lights, primary accents, bioluminescence)
-   - #347975 Enchanted Teal (interactive elements, secondary)
-   - #B7ADC7 Majestic Lavender (soft magical glow, highlights)
-   - #A36424 Ancient Copper (decorative elements, gold accents)
+   Color Palette - Vibrant & Sleek:
+   - Primary: Bright Turquoise #47D1BB (fey bioluminescence)
+   - Secondary: Vibrant Magenta #931BE4 (arcane energy)
+   - Accent: Deep Royal Purple #521BC0 (mystical power)
+   - Success: Light Olive Green #95B851 (nature magic)
+   - Base Dark: Dark Forest Green #0D4502
+   - Base Light: Cream White #F0F5E6
    
-   Aesthetic: Modern elven craftsmanship meets ethereal fey magic
+   Aesthetic: Sleek futuristic meets vibrant fey magic with bold neon accents
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Base: Deep forest green */
-  --background: #1f2e24; /* lightened from pure forest to 15% for better visibility */
-  --foreground: #e8f0e8; /* soft greenish white */
+  /* Light mode - bright green base instead of cream */
+  --background: oklch(0.88 0.08 125); /* Bright elven green #c8e6b8 */
+  --foreground: oklch(0.2 0.06 145); /* Deep forest green for text */
 
-  /* Cards: Glass morphism with mystic purple */
-  --card: oklch(0.32 0.04 280 / 0.85); /* #444888 at 85% opacity */
-  --card-foreground: #e8f0e8;
+  --card: oklch(0.92 0.06 125 / 0.9);
+  --card-foreground: oklch(0.2 0.06 145);
 
-  --popover: oklch(0.28 0.04 280 / 0.9);
-  --popover-foreground: #e8f0e8;
+  --popover: oklch(0.94 0.05 125);
+  --popover-foreground: oklch(0.2 0.06 145);
 
-  /* Primary: Glowing cyan (fairy lights, bioluminescence) */
-  --primary: #42e2ed;
-  --primary-foreground: #0a1612;
+  /* Primary: Bright Turquoise #47D1BB */
+  --primary: oklch(0.75 0.12 185);
+  --primary-foreground: oklch(0.15 0.05 145);
 
-  /* Secondary: Enchanted teal */
-  --secondary: #347975;
-  --secondary-foreground: #e8f0e8;
+  /* Secondary: Vibrant Magenta #931BE4 */
+  --secondary: oklch(0.55 0.25 295);
+  --secondary-foreground: oklch(0.98 0.015 95);
 
-  /* Muted: Based on forest green with lavender tint */
-  --muted: #2d4236;
-  --muted-foreground: #b7adc7; /* lavender for muted text */
+  /* Muted: Soft olive gray */
+  --muted: oklch(0.85 0.06 125);
+  --muted-foreground: oklch(0.45 0.05 145);
 
-  /* Accent: Mystic purple for special elements */
-  --accent: #444888;
-  --accent-foreground: #e8f0e8;
+  /* Accent: Deep Royal Purple #521BC0 */
+  --accent: oklch(0.45 0.22 285);
+  --accent-foreground: oklch(0.98 0.015 95);
 
-  --destructive: #e05555;
-  --destructive-foreground: #fff;
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0.015 95);
 
-  /* Borders: Subtle glowing borders */
-  --border: oklch(0.35 0.03 160 / 0.3);
-  --input: oklch(0.28 0.04 280 / 0.6);
-  --ring: #42e2ed;
+  --border: oklch(0.75 0.06 125 / 0.4);
+  --input: oklch(0.9 0.06 125);
+  --ring: oklch(0.75 0.12 185);
 
-  /* Charts */
-  --chart-1: #42e2ed; /* cyan */
-  --chart-2: #b7adc7; /* lavender */
-  --chart-3: #347975; /* teal */
-  --chart-4: #a36424; /* copper */
-  --chart-5: #444888; /* purple */
+  --chart-1: oklch(0.75 0.12 185); /* turquoise */
+  --chart-2: oklch(0.55 0.25 295); /* magenta */
+  --chart-3: oklch(0.45 0.22 285); /* purple */
+  --chart-4: oklch(0.7 0.12 115); /* olive green */
+  --chart-5: oklch(0.65 0.15 40); /* warm accent */
 
-  /* Organic, flowing corners */
   --radius: 1.25rem;
 
-  /* Sidebar: Glass effect with purple tint */
-  --sidebar: oklch(0.28 0.04 280 / 0.95);
-  --sidebar-foreground: #e8f0e8;
-  --sidebar-primary: #42e2ed;
-  --sidebar-primary-foreground: #0a1612;
-  --sidebar-accent: oklch(0.32 0.04 280 / 0.6);
-  --sidebar-accent-foreground: #e8f0e8;
-  --sidebar-border: oklch(0.35 0.03 160 / 0.2);
-  --sidebar-ring: #42e2ed;
+  --sidebar: oklch(0.9 0.06 125 / 0.95);
+  --sidebar-foreground: oklch(0.2 0.06 145);
+  --sidebar-primary: oklch(0.75 0.12 185);
+  --sidebar-primary-foreground: oklch(0.15 0.05 145);
+  --sidebar-accent: oklch(0.85 0.06 125);
+  --sidebar-accent-foreground: oklch(0.2 0.06 145);
+  --sidebar-border: oklch(0.75 0.06 125 / 0.3);
+  --sidebar-ring: oklch(0.75 0.12 185);
 
-  /* Custom Palette Variables */
-  --forest-green: #375946;
-  --mystic-purple: #444888;
-  --magic-cyan: #42e2ed;
-  --teal: #347975;
-  --lavender: #b7adc7;
-  --copper: #a36424;
+  /* Custom vibrant palette */
+  --turquoise: oklch(0.75 0.12 185); /* #47D1BB */
+  --magenta: oklch(0.55 0.25 295); /* #931BE4 */
+  --royal-purple: oklch(0.45 0.22 285); /* #521BC0 */
+  --olive-green: oklch(0.7 0.12 115); /* #95B851 */
+  --forest-green: oklch(0.25 0.05 145); /* #0D4502 */
+  --cream: oklch(0.96 0.02 95); /* #F0F5E6 */
 }
 
 .dark {
-  --background: #1f2e24;
-  --foreground: #e8f0e8;
-  --card: oklch(0.32 0.04 280 / 0.85);
-  --card-foreground: #e8f0e8;
-  --popover: oklch(0.28 0.04 280 / 0.9);
-  --popover-foreground: #e8f0e8;
-  --primary: #42e2ed;
-  --primary-foreground: #0a1612;
-  --secondary: #347975;
-  --secondary-foreground: #e8f0e8;
-  --muted: #2d4236;
-  --muted-foreground: #b7adc7;
-  --accent: #444888;
-  --accent-foreground: #e8f0e8;
-  --destructive: #e05555;
-  --destructive-foreground: #fff;
-  --border: oklch(0.35 0.03 160 / 0.3);
-  --input: oklch(0.28 0.04 280 / 0.6);
-  --ring: #42e2ed;
-  --sidebar: oklch(0.28 0.04 280 / 0.95);
-  --sidebar-foreground: #e8f0e8;
-  --sidebar-primary: #42e2ed;
-  --sidebar-primary-foreground: #0a1612;
-  --sidebar-accent: oklch(0.32 0.04 280 / 0.6);
-  --sidebar-accent-foreground: #e8f0e8;
-  --sidebar-border: oklch(0.35 0.03 160 / 0.2);
-  --sidebar-ring: #42e2ed;
-  --radius: 1.25rem;
+  /* Dark mode - add silver headers color */
+  --background: oklch(0.2 0.05 145); /* Dark forest green base */
+  --foreground: oklch(0.85 0.02 0); /* Silver text for readability */
+
+  --card: oklch(0.25 0.05 145 / 0.85);
+  --card-foreground: oklch(0.85 0.02 0);
+
+  --popover: oklch(0.22 0.05 145 / 0.95);
+  --popover-foreground: oklch(0.85 0.02 0);
+
+  /* Primary: Bright Turquoise - brightened for dark mode */
+  --primary: oklch(0.75 0.12 185);
+  --primary-foreground: oklch(0.15 0.05 145);
+
+  /* Secondary: Vibrant Magenta */
+  --secondary: oklch(0.65 0.25 295);
+  --secondary-foreground: oklch(0.85 0.02 0);
+
+  --muted: oklch(0.28 0.05 145);
+  --muted-foreground: oklch(0.65 0.02 0);
+
+  /* Accent: Deep Royal Purple - lightened for visibility */
+  --accent: oklch(0.55 0.22 285);
+  --accent-foreground: oklch(0.85 0.02 0);
+
+  --destructive: oklch(0.6 0.22 25);
+  --destructive-foreground: oklch(0.85 0.02 0);
+
+  --border: oklch(0.35 0.05 145 / 0.4);
+  --input: oklch(0.25 0.05 145);
+  --ring: oklch(0.75 0.12 185);
+
+  --sidebar: oklch(0.22 0.05 145 / 0.95);
+  --sidebar-foreground: oklch(0.85 0.02 0);
+  --sidebar-primary: oklch(0.75 0.12 185);
+  --sidebar-primary-foreground: oklch(0.15 0.05 145);
+  --sidebar-accent: oklch(0.28 0.05 145);
+  --sidebar-accent-foreground: oklch(0.85 0.02 0);
+  --sidebar-border: oklch(0.35 0.05 145 / 0.3);
+  --sidebar-ring: oklch(0.75 0.12 185);
+
+  /* Add specific silver color for headers */
+  --silver: oklch(0.85 0.02 0);
 }
 
+/* Update theme inline with new color variables */
 @theme inline {
   --font-sans: "Acme", "Acme Fallback";
   --font-serif: "Abril Fatface", "Abril Fatface Fallback";
@@ -172,34 +183,58 @@
    ENCHANTED FOREST BACKGROUND - Ethereal atmosphere with floating particles
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Update magical background with new color palette - turquoise, magenta, purple, olive */
 .magical-bg {
-  /* Ethereal glows - organic blob shapes simulating fairy light clusters */
+  /* Light mode - bright green forest base */
   background:
-    radial-gradient(ellipse 220px 180px at 15% 20%, oklch(0.75 0.15 210 / 0.12) 0%, transparent 65%),
-    radial-gradient(ellipse 180px 220px at 85% 25%, oklch(0.75 0.15 210 / 0.08) 0%, transparent 65%),
-    radial-gradient(ellipse 200px 160px at 25% 75%, oklch(0.35 0.08 270 / 0.15) 0%, transparent 65%),
-    radial-gradient(ellipse 160px 200px at 75% 80%, oklch(0.55 0.08 180 / 0.12) 0%, transparent 65%),
-    radial-gradient(ellipse 140px 180px at 50% 40%, oklch(0.4 0.08 270 / 0.1) 0%, transparent 65%),
-    /* Scattered starlight - bioluminescent points */
-    radial-gradient(3px 3px at 12% 18%, #42e2ed 40%, transparent 100%),
-    radial-gradient(2px 2px at 24% 8%, #b7adc799 40%, transparent 100%),
-    radial-gradient(3.5px 3.5px at 88% 22%, #42e2edaa 40%, transparent 100%),
-    radial-gradient(2.5px 2.5px at 48% 32%, #b7adc7 40%, transparent 100%),
-    radial-gradient(2px 2px at 68% 15%, #42e2ed88 40%, transparent 100%),
-    radial-gradient(3px 3px at 82% 42%, #b7adc7aa 40%, transparent 100%),
-    radial-gradient(2px 2px at 18% 58%, #42e2ed 40%, transparent 100%),
-    radial-gradient(3.5px 3.5px at 38% 72%, #b7adc799 40%, transparent 100%),
-    radial-gradient(2.5px 2.5px at 58% 52%, #42e2edaa 40%, transparent 100%),
-    radial-gradient(2px 2px at 92% 68%, #b7adc7 40%, transparent 100%),
-    radial-gradient(3px 3px at 8% 85%, #42e2ed88 40%, transparent 100%),
-    radial-gradient(2px 2px at 52% 92%, #b7adc7aa 40%, transparent 100%),
-    /* Forest green base with subtle depth */
-    linear-gradient(165deg, #1a2820 0%, #1f2e24 30%, #243428 60%, #1f2e24 90%, #1a2820 100%);
+    radial-gradient(ellipse 220px 180px at 15% 20%, oklch(0.75 0.12 185 / 0.15) 0%, transparent 65%),
+    radial-gradient(ellipse 180px 220px at 85% 25%, oklch(0.65 0.25 295 / 0.1) 0%, transparent 65%),
+    radial-gradient(ellipse 200px 160px at 25% 75%, oklch(0.55 0.22 285 / 0.18) 0%, transparent 65%),
+    radial-gradient(ellipse 160px 200px at 75% 80%, oklch(0.7 0.12 115 / 0.15) 0%, transparent 65%),
+    radial-gradient(ellipse 140px 180px at 50% 40%, oklch(0.65 0.25 295 / 0.12) 0%, transparent 65%),
+    /* Scattered starlight - turquoise and magenta sparkles */
+    radial-gradient(3px 3px at 12% 18%, #47d1bb 40%, transparent 100%),
+    radial-gradient(2px 2px at 24% 8%, #931be499 40%, transparent 100%),
+    radial-gradient(3.5px 3.5px at 88% 22%, #47d1bbaa 40%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 48% 32%, #521bc0 40%, transparent 100%),
+    radial-gradient(2px 2px at 68% 15%, #47d1bb88 40%, transparent 100%),
+    radial-gradient(3px 3px at 82% 42%, #931be4aa 40%, transparent 100%),
+    radial-gradient(2px 2px at 18% 58%, #47d1bb 40%, transparent 100%),
+    radial-gradient(3.5px 3.5px at 38% 72%, #931be499 40%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 58% 52%, #47d1bbaa 40%, transparent 100%),
+    radial-gradient(2px 2px at 92% 68%, #521bc0 40%, transparent 100%),
+    radial-gradient(3px 3px at 8% 85%, #47d1bb88 40%, transparent 100%),
+    radial-gradient(2px 2px at 52% 92%, #931be4aa 40%, transparent 100%),
+    /* Bright elven green base */
+    linear-gradient(165deg, #95b851 0%, #7a9640 30%, #95b851 60%, #7a9640 90%, #95b851 100%);
+}
+
+.dark .magical-bg {
+  /* Dark mode - deep forest green with vibrant accents */
+  background:
+    radial-gradient(ellipse 220px 180px at 15% 20%, oklch(0.75 0.12 185 / 0.15) 0%, transparent 65%),
+    radial-gradient(ellipse 180px 220px at 85% 25%, oklch(0.65 0.25 295 / 0.12) 0%, transparent 65%),
+    radial-gradient(ellipse 200px 160px at 25% 75%, oklch(0.55 0.22 285 / 0.18) 0%, transparent 65%),
+    radial-gradient(ellipse 160px 200px at 75% 80%, oklch(0.7 0.12 115 / 0.15) 0%, transparent 65%),
+    radial-gradient(ellipse 140px 180px at 50% 40%, oklch(0.65 0.25 295 / 0.12) 0%, transparent 65%),
+    radial-gradient(3px 3px at 12% 18%, #47d1bb 40%, transparent 100%),
+    radial-gradient(2px 2px at 24% 8%, #931be499 40%, transparent 100%),
+    radial-gradient(3.5px 3.5px at 88% 22%, #47d1bbaa 40%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 48% 32%, #521bc0 40%, transparent 100%),
+    radial-gradient(2px 2px at 68% 15%, #47d1bb88 40%, transparent 100%),
+    radial-gradient(3px 3px at 82% 42%, #931be4aa 40%, transparent 100%),
+    radial-gradient(2px 2px at 18% 58%, #47d1bb 40%, transparent 100%),
+    radial-gradient(3.5px 3.5px at 38% 72%, #931be499 40%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 58% 52%, #47d1bbaa 40%, transparent 100%),
+    radial-gradient(2px 2px at 92% 68%, #521bc0 40%, transparent 100%),
+    radial-gradient(3px 3px at 8% 85%, #47d1bb88 40%, transparent 100%),
+    radial-gradient(2px 2px at 52% 92%, #931be4aa 40%, transparent 100%),
+    linear-gradient(165deg, #0d4502 0%, #12551a 30%, #0f4d10 60%, #12551a 90%, #0d4502 100%);
 }
 
 .parchment-bg {
-  background-image: radial-gradient(ellipse 70% 60% at 20% 30%, oklch(0.75 0.15 210 / 0.06) 0%, transparent 70%),
-    radial-gradient(ellipse 60% 50% at 80% 70%, oklch(0.4 0.08 270 / 0.08) 0%, transparent 70%);
+  background-image: radial-gradient(ellipse 70% 60% at 20% 30%, oklch(0.75 0.12 185 / 0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 70%, oklch(0.55 0.22 285 / 0.08) 0%, transparent 70%);
   border-radius: var(--radius-xl);
 }
 
@@ -242,15 +277,16 @@
   }
 }
 
+/* Update animation colors to match new palette */
 @keyframes gentle-pulse {
   0%,
   100% {
     opacity: 0.7;
-    box-shadow: 0 0 20px -8px oklch(0.75 0.15 210 / 0.4);
+    box-shadow: 0 0 20px -8px oklch(0.75 0.12 185 / 0.4);
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 35px -8px oklch(0.75 0.15 210 / 0.6);
+    box-shadow: 0 0 35px -8px oklch(0.75 0.12 185 / 0.6);
   }
 }
 
@@ -270,10 +306,10 @@
 @keyframes ethereal-glow {
   0%,
   100% {
-    filter: drop-shadow(0 0 10px oklch(0.75 0.15 210 / 0.4));
+    filter: drop-shadow(0 0 10px oklch(0.75 0.12 185 / 0.4));
   }
   50% {
-    filter: drop-shadow(0 0 20px oklch(0.75 0.15 210 / 0.7));
+    filter: drop-shadow(0 0 20px oklch(0.75 0.12 185 / 0.7));
   }
 }
 
@@ -325,18 +361,19 @@
   animation: fairy-dust-float 12s ease-in-out infinite;
 }
 
+/* Update particle colors to new palette */
 .fairy-dust::before {
-  background: radial-gradient(circle, #42e2ed, #42e2edaa);
+  background: radial-gradient(circle, #47d1bb, #47d1bbaa);
   left: 25%;
   animation-delay: 0s;
-  box-shadow: 0 0 15px 3px #42e2ed88;
+  box-shadow: 0 0 15px 3px #47d1bb88;
 }
 
 .fairy-dust::after {
-  background: radial-gradient(circle, #b7adc7, #b7adc7aa);
+  background: radial-gradient(circle, #931be4, #931be4aa);
   left: 65%;
   animation-delay: 5s;
-  box-shadow: 0 0 15px 3px #b7adc788;
+  box-shadow: 0 0 15px 3px #931be488;
 }
 
 /* Additional floating particles */
@@ -349,124 +386,106 @@
 }
 
 .floating-orb.cyan {
-  background: radial-gradient(circle, #42e2ed44, transparent);
+  background: radial-gradient(circle, #47d1bb44, transparent);
 }
 
 .floating-orb.lavender {
-  background: radial-gradient(circle, #b7adc744, transparent);
+  background: radial-gradient(circle, #931be444, transparent);
 }
 
 .floating-orb.copper {
-  background: radial-gradient(circle, #a3642444, transparent);
+  background: radial-gradient(circle, #95b85144, transparent);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GLASS MORPHISM CARDS - Modern elven craftsmanship aesthetic
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Simplified card system - remove heavy glass morphism, use subtle backgrounds */
 .glass-card {
-  background: oklch(0.32 0.04 280 / 0.85);
-  backdrop-filter: blur(20px);
-  border: 1px solid oklch(0.75 0.15 210 / 0.15);
-  border-radius: calc(var(--radius) + 8px);
-  box-shadow: 0 8px 32px -8px oklch(0 0 0 / 0.3), inset 0 1px 0 oklch(1 0 0 / 0.1);
-  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .glass-card:hover {
-  border-color: oklch(0.75 0.15 210 / 0.4);
-  box-shadow: 0 12px 40px -8px oklch(0.75 0.15 210 / 0.3), 0 0 0 1px oklch(0.75 0.15 210 / 0.2), inset 0 1px 0
-    oklch(1 0 0 / 0.15);
-  transform: translateY(-2px);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.dark .glass-card {
+  background: transparent; /* Changed from oklch(0.28 0.05 145 / 0.85) */
+}
+
+.dark .glass-card:hover {
+  box-shadow: none; /* Changed from glass morphism specific shadow */
 }
 
 /* Stat cards with individual color theming */
+/* Remove stat card backgrounds, use clean layout with subtle dividers */
 .stat-card {
-  background: oklch(0.32 0.04 280 / 0.75);
-  backdrop-filter: blur(15px);
-  border: 1px solid oklch(0.75 0.15 210 / 0.12);
-  border-radius: calc(var(--radius) + 8px);
-  transition: all 0.3s ease;
+  background: transparent;
+  backdrop-filter: none;
+  border: none;
+  border-bottom: 1px solid oklch(0.75 0.12 185 / 0.15);
+  border-radius: 0;
+  transition: all 0.2s ease;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .stat-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(ellipse at top, var(--stat-glow-color) 0%, transparent 70%);
-  opacity: 0.08;
-  pointer-events: none;
+  display: none;
 }
 
 .stat-card:hover {
-  border-color: oklch(0.75 0.15 210 / 0.3);
-  box-shadow: 0 8px 30px -8px var(--stat-glow-color);
-  transform: translateY(-3px);
+  border-color: oklch(0.75 0.12 185 / 0.3);
+  box-shadow: none;
+  transform: none;
+  background: oklch(0.75 0.12 185 / 0.04);
 }
 
 .stat-card:hover::before {
-  opacity: 0.15;
+  display: none;
 }
 
 /* Campaign scroll with decorative borders */
+/* Simplified campaign selector - remove heavy styling */
 .campaign-scroll {
-  background: oklch(0.32 0.04 280 / 0.8);
-  backdrop-filter: blur(20px);
-  border: 2px solid oklch(0.75 0.15 210 / 0.2);
-  border-radius: calc(var(--radius) + 12px);
+  background: transparent;
+  backdrop-filter: none;
+  border: none;
+  border-bottom: 2px solid oklch(0.75 0.12 185 / 0.2);
+  border-radius: 0;
   position: relative;
   overflow: visible;
-  box-shadow: 0 4px 24px -6px oklch(0 0 0 / 0.3), inset 0 1px 0 oklch(1 0 0 / 0.08);
+  box-shadow: none;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 
-.campaign-scroll::before {
-  content: "";
-  position: absolute;
-  top: -2px;
-  left: 8%;
-  right: 8%;
-  height: 3px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    oklch(0.65 0.15 40 / 0.6),
-    oklch(0.75 0.15 210 / 0.8),
-    oklch(0.65 0.15 40 / 0.6),
-    transparent
-  );
-  border-radius: 999px;
-  filter: blur(1px);
-}
-
+.campaign-scroll::before,
 .campaign-scroll::after {
-  content: "";
-  position: absolute;
-  bottom: -2px;
-  left: 12%;
-  right: 12%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, oklch(0.55 0.08 180 / 0.5), transparent);
-  border-radius: 999px;
+  display: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TYPOGRAPHY - Elegant headers with magical gradients
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Update text gradients with new color palette */
 .text-gold-gradient {
-  background: linear-gradient(135deg, #c4853a 0%, #a36424 50%, #c4853a 100%);
+  background: linear-gradient(135deg, #95b851 0%, #7a9640 50%, #95b851 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .text-fey-gradient {
-  background: linear-gradient(135deg, #42e2ed 0%, #347975 35%, #b7adc7 65%, #42e2ed 100%);
+  background: linear-gradient(135deg, #47d1bb 0%, #931be4 35%, #521bc0 65%, #47d1bb 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -500,354 +519,95 @@
   transform: translateX(5px);
 }
 
-/* Individual icon colors for each nav section */
+/* Update individual icon colors for each nav section with new palette */
 .icon-forge {
-  color: #42e2ed;
+  color: #47d1bb;
 }
 .icon-characters {
-  color: #b7adc7;
+  color: #931be4;
 }
 .icon-dice {
-  color: #a36424;
+  color: #95b851;
 }
 .icon-npcs {
-  color: #347975;
+  color: #521bc0;
 }
 .icon-sessions {
-  color: #42e2ed;
+  color: #47d1bb;
 }
 .icon-combat {
-  color: #a36424;
+  color: #95b851;
 }
 .icon-codex {
-  color: #b7adc7;
+  color: #931be4;
 }
 .icon-world {
-  color: #347975;
+  color: #521bc0;
 }
 .icon-dm {
-  color: #a36424;
+  color: #95b851;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   BUTTONS - Glowing with soft ethereal effects
+   BUTTONS - Clean, modern with glowing accents
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.btn-fey-glow {
-  background: linear-gradient(135deg, #42e2ed 0%, #3bc4ce 50%, #347975 100%);
-  box-shadow: 0 4px 20px -6px oklch(0.75 0.15 210 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: #0a1612;
-  font-weight: 600;
-  border-radius: calc(var(--radius) + 2px);
+.btn-primary {
+  background: linear-gradient(135deg, #47d1bb 0%, #3ab3a0 100%);
+  color: #0d4502;
+  border: none;
+  box-shadow: 0 0 20px -5px #47d1bb88, 0 2px 8px -2px #47d1bb33;
+  transition: all 0.2s ease;
 }
 
-.btn-fey-glow:hover {
-  box-shadow: 0 6px 30px -6px oklch(0.75 0.15 210 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.4);
-  transform: translateY(-2px) scale(1.02);
+.btn-primary:hover {
+  box-shadow: 0 0 30px -5px #47d1bbaa, 0 4px 12px -2px #47d1bb44;
+  transform: translateY(-1px);
 }
 
-.btn-copper-glow {
-  background: linear-gradient(135deg, #c4853a 0%, #b5752f 50%, #a36424 100%);
-  box-shadow: 0 4px 20px -6px oklch(0.65 0.15 40 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: #fff;
-  font-weight: 600;
-  border-radius: calc(var(--radius) + 2px);
+.btn-secondary {
+  background: linear-gradient(135deg, #931be4 0%, #7915b8 100%);
+  color: #f0f5e6;
+  border: none;
+  box-shadow: 0 0 20px -5px #931be488, 0 2px 8px -2px #931be433;
+  transition: all 0.2s ease;
 }
 
-.btn-copper-glow:hover {
-  box-shadow: 0 6px 30px -6px oklch(0.65 0.15 40 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.4);
-  transform: translateY(-2px) scale(1.02);
+.btn-secondary:hover {
+  box-shadow: 0 0 30px -5px #931be4aa, 0 4px 12px -2px #931be444;
+  transform: translateY(-1px);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   DECORATIVE ELEMENTS
+   BADGES - Color-coded pills for quick scanning (ADHD-friendly)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.magical-divider {
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    oklch(0.55 0.08 180 / 0.3) 15%,
-    oklch(0.75 0.15 210) 50%,
-    oklch(0.55 0.08 180 / 0.3) 85%,
-    transparent 100%
-  );
-  border-radius: 999px;
-  position: relative;
-  margin: 1.5rem 0;
-}
-
-.magical-divider::before {
-  content: "⚒";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  color: #42e2ed;
-  font-size: 18px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-shadow: 0 0 15px oklch(0.75 0.15 210 / 0.8), 0 0 30px oklch(0.75 0.15 210 / 0.4);
-  background: #1f2e24;
-  padding: 6px 14px;
-  border-radius: 999px;
-  animation: twinkle 3s ease-in-out infinite;
-}
-
-/* Badges - Pill-shaped with color coding */
 .badge-cyan {
-  background: oklch(0.75 0.15 210 / 0.15);
-  border: 1px solid oklch(0.75 0.15 210 / 0.3);
-  color: #42e2ed;
-  border-radius: 999px;
+  background: linear-gradient(135deg, #47d1bb22, #47d1bb33);
+  color: #47d1bb;
+  border: 1px solid #47d1bb44;
   padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge-copper {
-  background: oklch(0.65 0.15 40 / 0.15);
-  border: 1px solid oklch(0.65 0.15 40 / 0.3);
-  color: #c4853a;
-  border-radius: 999px;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge-lavender {
-  background: oklch(0.75 0.08 300 / 0.15);
-  border: 1px solid oklch(0.75 0.08 300 / 0.3);
-  color: #b7adc7;
-  border-radius: 999px;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge-teal {
-  background: oklch(0.55 0.08 180 / 0.15);
-  border: 1px solid oklch(0.55 0.08 180 / 0.3);
-  color: #4a9a95;
-  border-radius: 999px;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SCROLLBAR - Organic, rounded
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-::-webkit-scrollbar-track {
-  background: oklch(0.22 0.04 160);
-  border-radius: 999px;
-  margin: 6px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, oklch(0.45 0.06 160), oklch(0.35 0.04 160));
-  border-radius: 999px;
-  border: 3px solid oklch(0.22 0.04 160);
-  transition: background 0.2s ease;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, oklch(0.55 0.08 160), oklch(0.45 0.06 160));
-}
-
-/* Set html and body to overflow-hidden to prevent duplicate scrollbars */
-html,
-body {
-  overflow: hidden;
-  height: 100%;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   RESPONSIVE UTILITIES
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.responsive-container {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
-.responsive-card {
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-.truncate-responsive {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.flex-shrink-item {
-  min-width: 0;
-  flex-shrink: 1;
-}
-
-/* Selection & Focus */
-::selection {
-  background: oklch(0.75 0.15 210 / 0.3);
-  color: #e8f0e8;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px oklch(0.75 0.15 210 / 0.3);
-  border-color: #42e2ed;
-}
-
-/* Tooltips */
-.whimsy-tooltip {
-  background: oklch(0.28 0.04 280 / 0.95);
-  border: 1px solid oklch(0.75 0.15 210 / 0.3);
-  border-radius: calc(var(--radius) + 4px);
-  padding: 0.5rem 0.75rem;
+  border-radius: 9999px;
   font-size: 0.875rem;
-  box-shadow: 0 4px 16px -4px oklch(0 0 0 / 0.3);
-  /* Added lighter text color for better contrast against green background */
-  color: oklch(0.92 0.02 280);
+  font-weight: 500;
 }
 
-/* Stagger animation for list items */
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.badge-magenta {
+  background: linear-gradient(135deg, #931be422, #931be433);
+  color: #931be4;
+  border: 1px solid #931be444;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
-.stagger-item {
-  animation: fade-in-up 0.4s ease backwards;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   DICE ROLLER ANIMATIONS - Satisfying roll effects
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-@keyframes dice-tumble {
-  0% {
-    transform: perspective(400px) rotateX(0deg) rotateY(0deg) scale(0.8);
-    opacity: 0.3;
-  }
-  15% {
-    transform: perspective(400px) rotateX(180deg) rotateY(90deg) scale(1.1);
-    opacity: 0.7;
-  }
-  35% {
-    transform: perspective(400px) rotateX(360deg) rotateY(180deg) scale(1);
-    opacity: 0.9;
-  }
-  55% {
-    transform: perspective(400px) rotateX(540deg) rotateY(270deg) scale(1.05);
-    opacity: 1;
-  }
-  75% {
-    transform: perspective(400px) rotateX(650deg) rotateY(340deg) scale(1.02);
-  }
-  100% {
-    transform: perspective(400px) rotateX(720deg) rotateY(360deg) scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes result-pop {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.15);
-    opacity: 1;
-  }
-  70% {
-    transform: scale(0.95);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes crit-particle {
-  0% {
-    transform: translate(0, 0) scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--particle-x, 0), var(--particle-y, 0)) scale(0);
-    opacity: 0;
-  }
-}
-
-@keyframes glow-pulse-strong {
-  0%, 100% {
-    filter: drop-shadow(0 0 8px var(--glow-color, #42e2ed));
-  }
-  50% {
-    filter: drop-shadow(0 0 20px var(--glow-color, #42e2ed)) drop-shadow(0 0 40px var(--glow-color, #42e2ed));
-  }
-}
-
-.animate-dice-tumble {
-  animation: dice-tumble 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.animate-result-pop {
-  animation: result-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.animate-crit-particle {
-  animation: crit-particle 0.8s ease-out forwards;
-}
-
-.animate-glow-pulse {
-  animation: glow-pulse-strong 1.5s ease-in-out infinite;
-  --glow-color: #42e2ed;
-}
-
-.animate-glow-pulse-destructive {
-  animation: glow-pulse-strong 1.5s ease-in-out infinite;
-  --glow-color: #e05555;
-}
-
-/* Reduced motion support for accessibility */
-@media (prefers-reduced-motion: reduce) {
-  .animate-dice-tumble,
-  .animate-result-pop,
-  .animate-crit-particle,
-  .animate-glow-pulse,
-  .animate-glow-pulse-destructive {
-    animation: none !important;
-    transition: opacity 0.3s ease !important;
-  }
-
-  .animate-result-pop {
-    opacity: 1;
-    transform: scale(1);
-  }
+.badge-purple {
+  background: linear-gradient(135deg, #521bc022, #521bc033);
+  color: #521bc0;
+  border: 1px solid #521bc044;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
 }

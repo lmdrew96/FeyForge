@@ -17,7 +17,7 @@ export function AppShell({ children, title, subtitle }: AppShellProps) {
 
   return (
     <CampaignProvider>
-      <div className="min-h-screen max-h-screen bg-background magical-bg parchment-bg overflow-hidden flex">
+      <div className="min-h-screen max-h-screen bg-background overflow-hidden flex">
         <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
         <div
           className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${

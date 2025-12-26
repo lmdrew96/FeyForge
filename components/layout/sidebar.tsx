@@ -86,25 +86,14 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen border-r border-sidebar-border transition-all duration-300",
-          "backdrop-blur-xl shadow-2xl",
-          "rounded-r-3xl",
+          "fixed left-0 top-0 z-40 h-screen border-r transition-all duration-300",
+          "bg-card",
+          "shadow-sm",
           isMobile ? (mobileOpen ? "w-64 translate-x-0" : "w-64 -translate-x-full") : collapsed ? "w-20" : "w-64",
-          "max-md:shadow-2xl",
         )}
-        style={{
-          background: "oklch(0.28 0.04 280 / 0.95)",
-        }}
       >
-        <div className="fairy-dust" />
-        <div className="floating-orb cyan w-32 h-32 -top-10 -right-10 opacity-30" />
-        <div
-          className="floating-orb lavender w-24 h-24 -bottom-10 -left-10 opacity-25"
-          style={{ animationDelay: "4s" }}
-        />
-
-        <div className="flex h-full flex-col relative z-10 overflow-hidden">
-          <div className="flex h-20 md:h-20 items-center justify-between border-b border-sidebar-border/50 px-4 shrink-0">
+        <div className="flex h-full flex-col overflow-hidden">
+          <div className="flex h-20 md:h-20 items-center justify-between border-b px-4 shrink-0">
             {(!collapsed || isMobile) && (
               <Link href="/" className="flex items-center gap-3 group min-w-0">
                 <FeyForgeLogo size="md" showText={true} />
@@ -118,7 +107,7 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-2 px-3 py-6 overflow-y-auto overflow-x-hidden">
+          <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto overflow-x-hidden">
             {navigation.map((item, index) => {
               const isActive = pathname === item.href
               const showFull = !collapsed || isMobile
@@ -129,29 +118,17 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
                   key={item.name}
                   href={item.href}
                   className={cn(
-                    "stagger-item group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-200 nav-item-magic relative",
+                    "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
                     isActive
-                      ? "bg-gradient-to-r from-accent/60 to-accent/30 text-foreground border border-primary/30 shadow-[0_0_25px_-5px_oklch(0.75_0.15_210_/_0.3)]"
-                      : "text-muted-foreground hover:text-foreground border border-transparent",
+                      ? "bg-primary/10 text-primary border-l-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                     !showFull && "justify-center px-3",
                   )}
-                  style={{
-                    animationDelay: `${index * 0.05}s`,
-                    ["--nav-accent-color" as any]:
-                      item.color === "cyan"
-                        ? "#42e2ed"
-                        : item.color === "lavender"
-                          ? "#b7adc7"
-                          : item.color === "copper"
-                            ? "#a36424"
-                            : "#347975",
-                  }}
                 >
                   <item.icon
                     className={cn(
-                      "h-5 w-5 shrink-0 transition-all duration-200",
-                      isActive ? "animate-ethereal-glow" : "",
-                      iconColorClass,
+                      "h-5 w-5 shrink-0 transition-colors duration-150",
+                      isActive ? "text-primary" : "group-hover:text-foreground",
                     )}
                   />
                   {showFull && <span className="truncate">{item.name}</span>}
@@ -183,8 +160,10 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
                   key={item.name}
                   href={item.href}
                   className={cn(
-                    "group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-200 nav-item-magic",
-                    isActive ? "bg-accent/60 text-primary" : "text-muted-foreground hover:text-foreground",
+                    "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                    isActive
+                      ? "bg-primary/10 text-primary border-l-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground",
                     !showFull && "justify-center px-3",
                   )}
                 >

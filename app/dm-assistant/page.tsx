@@ -13,8 +13,8 @@ export default function DmAssistantPage() {
 
   return (
     <AppShell title="DM Assistant" subtitle="AI-powered tools to help you run your game">
-      <div className="flex h-[calc(100vh-10rem)] flex-col">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col min-h-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-1 flex-col min-h-0">
           <div className="border-b border-border bg-card/30 px-6">
             <TabsList className="bg-transparent">
               <TabsTrigger value="chat" className="gap-2 data-[state=active]:bg-accent">

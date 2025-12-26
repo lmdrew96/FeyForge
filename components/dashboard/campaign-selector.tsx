@@ -1,7 +1,8 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -60,10 +61,10 @@ export function CampaignSelector() {
   // Show create prompt if no campaigns exist
   if (campaigns.length === 0) {
     return (
-      <Card className="campaign-scroll overflow-hidden">
-        <CardContent className="p-5">
+      <div className="pb-6 mb-6 border-b-2 border-primary/10">
+        <div className="p-5">
           <div className="text-center py-4">
-            <Crown className="h-10 w-10 mx-auto text-copper/50 mb-3" />
+            <Crown className="h-10 w-10 mx-auto text-primary/50 mb-3" />
             <h3 className="font-serif text-lg font-bold mb-2">No Campaigns Yet</h3>
             <p className="text-muted-foreground text-sm mb-4">Create your first campaign to get started</p>
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -121,7 +122,9 @@ export function CampaignSelector() {
                         min={1}
                         max={10}
                         value={newCampaign.playerCount}
-                        onChange={(e) => setNewCampaign({ ...newCampaign, playerCount: parseInt(e.target.value) || 1 })}
+                        onChange={(e) =>
+                          setNewCampaign({ ...newCampaign, playerCount: Number.parseInt(e.target.value) || 1 })
+                        }
                       />
                     </div>
                   </div>
@@ -137,23 +140,23 @@ export function CampaignSelector() {
               </DialogContent>
             </Dialog>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   return (
-    <Card className="campaign-scroll overflow-hidden">
-      <CardContent className="p-5">
+    <div className="pb-6 mb-6 border-b-2 border-primary/10">
+      <div className="py-4">
         <div className="flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-4 flex-1 min-w-0">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-copper/30 to-primary/20 flex items-center justify-center border border-copper/40 shadow-lg shrink-0 backdrop-blur-sm">
-              <Crown className="h-7 w-7 text-copper animate-crown-glow" />
+            <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
+              <Crown className="h-7 w-7 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-lavender mb-1.5 uppercase tracking-wider font-medium">Active Campaign</p>
+              <p className="text-xs text-silver/70 mb-1.5 uppercase tracking-wider font-medium">Active Campaign</p>
               <Select value={activeCampaignId || ""} onValueChange={setActiveCampaign}>
-                <SelectTrigger className="w-full bg-input/50 border-border/50 focus:border-primary h-11 font-serif text-lg backdrop-blur-sm rounded-xl hover:bg-input/70 transition-colors">
+                <SelectTrigger className="w-full bg-transparent border-none focus:ring-0 h-11 px-0 text-foreground font-serif text-xl">
                   <SelectValue placeholder="Select a campaign" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border rounded-xl backdrop-blur-xl">
@@ -177,11 +180,10 @@ export function CampaignSelector() {
           </div>
 
           {/* Player count display */}
-          <div className="text-center hidden sm:flex items-center gap-2 px-5 py-3 rounded-2xl bg-accent/30 border border-border/50 backdrop-blur-sm">
-            <Users className="h-4 w-4 text-lavender" />
-            <div>
-              <p className="text-3xl font-bold font-serif text-fey-gradient">{currentCampaign?.playerCount ?? 0}</p>
-            </div>
+          <div className="text-center hidden sm:flex flex-col items-center gap-1 px-5">
+            <Users className="h-5 w-5 text-primary" />
+            <p className="text-3xl font-bold font-serif text-primary">{currentCampaign?.playerCount ?? 0}</p>
+            <p className="text-xs text-muted-foreground">Players</p>
           </div>
 
           {/* Action buttons */}
@@ -189,8 +191,8 @@ export function CampaignSelector() {
             {currentCampaign && (
               <Button
                 size="icon"
-                variant="outline"
-                className="border-border/50 hover:border-destructive/50 bg-transparent hover:bg-destructive/10 h-11 w-11 rounded-xl backdrop-blur-sm"
+                variant="ghost"
+                className="hover:bg-destructive/10 h-11 w-11 rounded-xl"
                 onClick={(e) => handleDeleteClick(currentCampaign, e)}
               >
                 <Trash2 className="h-5 w-5 text-muted-foreground hover:text-destructive" />
@@ -199,12 +201,8 @@ export function CampaignSelector() {
 
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="border-border/50 hover:border-primary/50 bg-transparent hover:bg-accent/50 h-11 w-11 rounded-xl backdrop-blur-sm"
-                >
-                  <Plus className="h-5 w-5" />
+                <Button size="icon" variant="ghost" className="hover:bg-primary/10 h-11 w-11 rounded-xl">
+                  <Plus className="h-5 w-5 text-primary" />
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
@@ -255,7 +253,9 @@ export function CampaignSelector() {
                         min={1}
                         max={10}
                         value={newCampaign.playerCount}
-                        onChange={(e) => setNewCampaign({ ...newCampaign, playerCount: parseInt(e.target.value) || 1 })}
+                        onChange={(e) =>
+                          setNewCampaign({ ...newCampaign, playerCount: Number.parseInt(e.target.value) || 1 })
+                        }
                       />
                     </div>
                   </div>
@@ -272,7 +272,7 @@ export function CampaignSelector() {
             </Dialog>
           </div>
         </div>
-      </CardContent>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
@@ -280,8 +280,8 @@ export function CampaignSelector() {
           <DialogHeader>
             <DialogTitle>Delete Campaign</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete &quot;{campaignToDelete?.name}&quot;? This will NOT delete NPCs,
-              sessions, or other data associated with this campaign, but they will no longer be visible.
+              Are you sure you want to delete &quot;{campaignToDelete?.name}&quot;? This will NOT delete NPCs, sessions,
+              or other data associated with this campaign, but they will no longer be visible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -294,6 +294,6 @@ export function CampaignSelector() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   )
 }

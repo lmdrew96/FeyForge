@@ -58,7 +58,7 @@ export function DmChat({ campaignContext }: DmChatProps) {
         api: "/api/dm-assistant",
         body: () => ({ context: contextRef.current }),
       }),
-    []
+    [],
   )
 
   const { messages, sendMessage, status, setMessages } = useChat({
@@ -112,9 +112,9 @@ export function DmChat({ campaignContext }: DmChatProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col min-h-0">
       {/* Chat Messages */}
-      <ScrollArea ref={scrollRef} className="flex-1 p-4">
+      <ScrollArea ref={scrollRef} className="flex-1 p-4 min-h-0">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-6 py-12">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
