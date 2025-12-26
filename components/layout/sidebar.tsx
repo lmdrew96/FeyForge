@@ -64,10 +64,10 @@ export function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="fixed top-2.5 left-2.5 z-50 md:hidden rounded-xl bg-card/90 backdrop-blur-sm border border-border shadow-lg"
+        className="fixed top-2.5 left-2.5 z-50 md:hidden rounded-button bg-card/90 backdrop-blur-sm border border-border shadow-lg"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
-        {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        {mobileOpen ? <X className="icon-md" /> : <Menu className="icon-md" />}
       </Button>
 
       {mobileOpen && isMobile && (

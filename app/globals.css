@@ -189,6 +189,185 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS - Reusable responsive utilities
+   
+   These utility classes encapsulate common responsive patterns to:
+   - Reduce repetition in components
+   - Enable easy global adjustments
+   - Maintain consistent spacing and sizing
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer utilities {
+  /* ─────────────────────────────────────────────────────────────────────────
+     Icon Sizes - Responsive icon scaling
+     ───────────────────────────────────────────────────────────────────────── */
+  .icon-xs {
+    @apply h-3 w-3 sm:h-3.5 sm:w-3.5;
+  }
+  .icon-sm {
+    @apply h-4 w-4 sm:h-5 sm:w-5;
+  }
+  .icon-md {
+    @apply h-5 w-5 sm:h-6 sm:w-6;
+  }
+  .icon-lg {
+    @apply h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8;
+  }
+  .icon-xl {
+    @apply h-8 w-8 sm:h-10 sm:w-10;
+  }
+  .icon-2xl {
+    @apply h-7 w-7 sm:h-10 sm:w-10;
+  }
+  .icon-crown {
+    @apply h-5 w-5 sm:h-7 sm:w-7;
+  }
+  
+  /* ─────────────────────────────────────────────────────────────────────────
+     Container Sizes - Avatar/icon container sizing
+     ───────────────────────────────────────────────────────────────────────── */
+  .container-xs {
+    @apply h-7 w-7 sm:h-8 sm:w-8;
+  }
+  .container-sm {
+    @apply h-10 w-10 sm:h-12 sm:w-12;
+  }
+  .container-md {
+    @apply h-10 w-10 sm:h-14 sm:w-14;
+  }
+  .container-lg {
+    @apply h-14 w-14 sm:h-20 sm:w-20;
+  }
+  .container-icon-btn {
+    @apply h-9 w-9 sm:h-11 sm:w-11;
+  }
+  
+  /* ─────────────────────────────────────────────────────────────────────────
+     Gap Patterns - Responsive spacing between flex/grid items
+     ───────────────────────────────────────────────────────────────────────── */
+  .gap-fluid-xs {
+    @apply gap-1 sm:gap-1.5;
+  }
+  .gap-fluid-sm {
+    @apply gap-1.5 sm:gap-2;
+  }
+  .gap-fluid {
+    @apply gap-2 sm:gap-4;
+  }
+  .gap-fluid-md {
+    @apply gap-2 sm:gap-3;
+  }
+  .gap-fluid-lg {
+    @apply gap-3 sm:gap-4 md:gap-6;
+  }
+  
+  /* ─────────────────────────────────────────────────────────────────────────
+     Space-Y Patterns - Responsive vertical spacing
+     ───────────────────────────────────────────────────────────────────────── */
+  .space-y-fluid {
+    @apply space-y-2 sm:space-y-3;
+  }
+  .space-y-fluid-md {
+    @apply space-y-3 sm:space-y-4;
+  }
+  .space-y-fluid-lg {
+    @apply space-y-3 sm:space-y-4 md:space-y-6;
+  }
+  
+  /* ─────────────────────────────────────────────────────────────────────────
+     Section Spacing - Padding/margin for sections
+     ───────────────────────────────────────────────────────────────────────── */
+  .spacing-section {
+    @apply pb-4 sm:pb-6 mb-4 sm:mb-6;
+  }
+  .spacing-section-bottom {
+    @apply pb-4 sm:pb-6;
+  }
+  .spacing-card {
+    @apply p-3 sm:p-5;
+  }
+  .spacing-compact {
+    @apply p-2.5 sm:p-4 md:p-6;
+  }
+  .spacing-py {
+    @apply py-3 sm:py-4;
+  }
+  .spacing-header {
+    @apply pb-2 sm:pb-3 mb-3 sm:mb-4;
+  }
+  .spacing-mb-title {
+    @apply mb-3 sm:mb-4;
+  }
+  
+  /* ─────────────────────────────────────────────────────────────────────────
+     Border Radius - Semantic radius utilities
+     ───────────────────────────────────────────────────────────────────────── */
+  .rounded-card {
+    @apply rounded-xl sm:rounded-2xl;
+  }
+  .rounded-button {
+    @apply rounded-xl;
+  }
+  
+  /* ─────────────────────────────────────────────────────────────────────────
+     Text Sizes - Responsive typography
+     ───────────────────────────────────────────────────────────────────────── */
+  .text-stat {
+    @apply text-xl sm:text-2xl md:text-3xl;
+  }
+  .text-stat-lg {
+    @apply text-xl sm:text-3xl;
+  }
+  .text-label {
+    @apply text-[10px] sm:text-xs md:text-sm;
+  }
+  .text-label-sm {
+    @apply text-[10px] sm:text-xs;
+  }
+  .text-title {
+    @apply text-base sm:text-lg;
+  }
+  .text-title-lg {
+    @apply text-base sm:text-xl;
+  }
+  .text-subtitle {
+    @apply text-xs sm:text-sm;
+  }
+  .text-display {
+    @apply text-sm sm:text-base;
+  }
+  .text-body {
+    @apply text-xs sm:text-sm;
+  }
+  
+  /* ─────────────────────────────────────────────────────────────────────────
+     Button Heights - Responsive button sizing
+     ───────────────────────────────────────────────────────────────────────── */
+  .btn-height-sm {
+    @apply h-7 sm:h-8;
+  }
+  .btn-height {
+    @apply h-9 sm:h-10;
+  }
+  .btn-height-lg {
+    @apply h-9 sm:h-11;
+  }
+  .min-h-action {
+    @apply min-h-[60px] sm:min-h-[80px];
+  }
+  
+  /* ─────────────────────────────────────────────────────────────────────────
+     Padding Patterns - Common padding utilities
+     ───────────────────────────────────────────────────────────────────────── */
+  .px-fluid-sm {
+    @apply px-2 sm:px-3;
+  }
+  .py-action {
+    @apply py-2.5 sm:py-4;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    MAGICAL BACKGROUNDS - Floating particles and ethereal glows
    ═══════════════════════════════════════════════════════════════════════════ */
 

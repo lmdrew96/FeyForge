@@ -107,10 +107,10 @@ export function InitiativeTracker() {
   const currentCombatant = combatants[currentTurn]
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-fluid-lg">
       {/* Combat Controls */}
       <Card className="bg-card border-border">
-        <CardContent className="p-2.5 sm:p-4">
+        <CardContent className="spacing-compact">
           <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -123,15 +123,15 @@ export function InitiativeTracker() {
                       }
                     }}
                     disabled={combatants.length === 0}
-                    className="bg-primary hover:bg-primary/90 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4"
+                    className="bg-primary hover:bg-primary/90 text-subtitle btn-height-sm px-fluid-sm"
                   >
-                    <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <Play className="icon-xs mr-1 sm:mr-2" />
                     <span className="hidden xs:inline">Start Combat</span>
                     <span className="xs:hidden">Start</span>
                   </Button>
                 ) : (
-                  <Button onClick={endCombat} variant="outline" className="border-border bg-transparent text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
-                    <Pause className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <Button onClick={endCombat} variant="outline" className="border-border bg-transparent text-subtitle btn-height-sm px-fluid-sm">
+                    <Pause className="icon-xs mr-1 sm:mr-2" />
                     Pause
                   </Button>
                 )}
@@ -139,11 +139,11 @@ export function InitiativeTracker() {
 
               {isActive && (
                 <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" onClick={previousTurn} className="border-border bg-transparent h-8 w-8 sm:h-10 sm:w-10 min-w-[44px] min-h-[44px]">
-                    <SkipBack className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <Button variant="outline" size="icon" onClick={previousTurn} className="border-border bg-transparent btn-height-sm min-w-[44px] min-h-[44px]">
+                    <SkipBack className="icon-xs" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={nextTurn} className="border-border bg-transparent h-8 w-8 sm:h-10 sm:w-10 min-w-[44px] min-h-[44px]">
-                    <SkipForward className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <Button variant="outline" size="icon" onClick={nextTurn} className="border-border bg-transparent btn-height-sm min-w-[44px] min-h-[44px]">
+                    <SkipForward className="icon-xs" />
                   </Button>
                 </div>
               )}
@@ -161,32 +161,32 @@ export function InitiativeTracker() {
                   variant="outline"
                   onClick={rollAllInitiatives}
                   disabled={combatants.length === 0}
-                  className="border-border bg-transparent text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-3"
+                  className="border-border bg-transparent text-subtitle btn-height-sm px-fluid-sm"
                 >
-                  <Dices className="h-3.5 w-3.5 sm:h-4 sm:w-4 sm:mr-2" />
+                  <Dices className="icon-xs sm:mr-2" />
                   <span className="hidden sm:inline">Roll All</span>
                 </Button>
                 <Button
                   variant="outline"
                   onClick={sortByInitiative}
                   disabled={combatants.length === 0}
-                  className="border-border bg-transparent text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-3"
+                  className="border-border bg-transparent text-subtitle btn-height-sm px-fluid-sm"
                 >
                   Sort
                 </Button>
                 <Button
                   variant="outline"
                   onClick={resetCombat}
-                  className="border-border bg-transparent text-destructive hover:text-destructive h-8 w-8 sm:h-10 sm:w-10 p-0 min-w-[44px] min-h-[44px]"
+                  className="border-border bg-transparent text-destructive hover:text-destructive btn-height-sm p-0 min-w-[44px] min-h-[44px]"
                 >
-                  <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <RotateCcw className="icon-xs" />
                 </Button>
               </div>
 
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-primary hover:bg-primary/90 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4">
-                    <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 sm:mr-2" />
+                  <Button className="bg-primary hover:bg-primary/90 text-subtitle btn-height-sm px-fluid-sm">
+                    <Plus className="icon-xs sm:mr-2" />
                     <span className="hidden sm:inline">Add Combatant</span>
                     <span className="sm:hidden">Add</span>
                   </Button>

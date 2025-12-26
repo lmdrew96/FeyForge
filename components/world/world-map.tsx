@@ -71,8 +71,8 @@ export function WorldMap() {
       <Card className="border-primary/20 bg-card/50 backdrop-blur overflow-hidden">
         <CardHeader className="pb-2 px-3 sm:px-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
-            <CardTitle className="font-cinzel text-gold flex items-center gap-2 text-base sm:text-lg">
-              <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
+            <CardTitle className="font-cinzel text-gold flex items-center gap-2 text-title-lg">
+              <MapPin className="icon-sm" />
               World Map
             </CardTitle>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4">
@@ -128,7 +128,7 @@ export function WorldMap() {
                   }}
                 >
                   <div className="relative">
-                    <MapPin className={`h-6 w-6 sm:h-8 sm:w-8 ${config.color} drop-shadow-lg`} />
+                    <MapPin className={`icon-lg ${config.color} drop-shadow-lg`} />
                     <Icon className="absolute top-0.5 sm:top-1 left-1/2 -translate-x-1/2 h-2.5 w-2.5 sm:h-3 sm:w-3 text-background" />
                   </div>
                   {/* Tooltip - hidden on touch devices */}

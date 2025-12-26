@@ -60,12 +60,12 @@ export function NPCList() {
     return (
       <Card className="bg-card border-border border-dashed">
         <CardContent className="p-6 sm:p-12 text-center">
-          <User className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground opacity-30 mb-3 sm:mb-4" />
-          <h3 className="font-serif text-lg sm:text-xl font-bold text-foreground mb-2">No NPCs Yet</h3>
-          <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">Generate your first NPC to populate your world</p>
-          <Button asChild className="bg-primary hover:bg-primary/90 text-sm sm:text-base h-9 sm:h-10">
+          <User className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground opacity-30 spacing-mb-title" />
+          <h3 className="font-serif text-title-lg font-bold text-foreground mb-2">No NPCs Yet</h3>
+          <p className="text-display text-muted-foreground mb-4 sm:mb-6">Generate your first NPC to populate your world</p>
+          <Button asChild className="bg-primary hover:bg-primary/90 text-display btn-height">
             <Link href="/npcs/generate">
-              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+              <Plus className="icon-xs mr-1.5 sm:mr-2" />
               Generate NPC
             </Link>
           </Button>
@@ -75,11 +75,11 @@ export function NPCList() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-fluid-lg">
       {/* Filters */}
       <Card className="bg-card border-border">
-        <CardContent className="p-2.5 sm:p-4">
-          <div className="flex flex-wrap gap-2 sm:gap-4">
+        <CardContent className="spacing-compact">
+          <div className="flex flex-wrap gap-fluid">
             <div className="flex-1 min-w-0 w-full sm:w-auto">
               <div className="relative">
                 <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />

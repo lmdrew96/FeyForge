@@ -46,7 +46,7 @@ export function Header({ title, subtitle }: HeaderProps) {
         <Button
           variant="outline"
           size="sm"
-          className="border-primary/50 text-primary hover:bg-primary/15 hover:border-primary gap-1 bg-primary/5 text-[10px] sm:text-xs h-7 sm:h-8 px-1.5 sm:px-3 shadow-[0_0_15px_-3px_var(--primary)] hover:shadow-[0_0_25px_-3px_var(--primary)] transition-all"
+          className="border-primary/50 text-primary hover:bg-primary/15 hover:border-primary gap-1 bg-primary/5 text-label-sm btn-height-sm px-1.5 sm:px-3 shadow-[0_0_15px_-3px_var(--primary)] hover:shadow-[0_0_25px_-3px_var(--primary)] transition-all"
           asChild
         >
           <Link href="/dm-assistant">
@@ -63,9 +63,9 @@ export function Header({ title, subtitle }: HeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full h-8 w-8 sm:h-9 sm:w-9 hover:bg-primary/10 min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="rounded-full container-xs hover:bg-primary/10 min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
-              <div className="h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 border border-primary/30 flex items-center justify-center">
+              <div className="icon-md rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 border border-primary/30 flex items-center justify-center">
                 <User className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-foreground" />
               </div>
             </Button>

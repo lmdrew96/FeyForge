@@ -27,7 +27,7 @@ export function CharacterList() {
             Build heroes for your campaigns. Track their stats, spells, and progression.
           </p>
 
-          <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mb-6 sm:mb-10">
+          <div className="flex flex-wrap justify-center gap-fluid mb-6 sm:mb-10">
             {[
               { icon: Sword, name: "Fighter", colorClass: "text-primary" },
               { icon: Wand2, name: "Wizard", colorClass: "text-accent" },
@@ -40,10 +40,10 @@ export function CharacterList() {
               return (
                 <div
                   key={classType.name}
-                  className="flex flex-col items-center p-2 sm:p-4 rounded-xl border border-border hover:border-primary/50 transition-all bg-card/30 backdrop-blur-sm hover:shadow-lg hover:shadow-primary/10"
+                  className="flex flex-col items-center p-2 sm:p-4 rounded-button border border-border hover:border-primary/50 transition-all bg-card/30 backdrop-blur-sm hover:shadow-lg hover:shadow-primary/10"
                 >
-                  <Icon className={cn("h-6 w-6 sm:h-10 sm:w-10 mb-1 sm:mb-2", classType.colorClass)} />
-                  <div className="text-[10px] sm:text-sm text-muted-foreground">{classType.name}</div>
+                  <Icon className={cn("icon-2xl mb-1 sm:mb-2", classType.colorClass)} />
+                  <div className="text-label-sm text-muted-foreground">{classType.name}</div>
                 </div>
               )
             })}
@@ -56,7 +56,7 @@ export function CharacterList() {
             className="text-sm sm:text-lg px-4 sm:px-8 py-3 sm:py-6 h-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30"
           >
             <Link href="/characters/new">
-              <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
+              <Plus className="icon-sm mr-1.5 sm:mr-2" />
               Create Your First Character
             </Link>
           </Button>
@@ -81,7 +81,7 @@ export function CharacterList() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-fluid-lg grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {characters.map((character) => {
           const stats = getCalculatedStats(character.id)
 
@@ -101,7 +101,7 @@ export function CharacterList() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0 h-8 w-8 sm:h-9 sm:w-9"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0 container-xs"
                       onClick={(e) => {
                         e.preventDefault()
                         if (confirm(`Delete ${character.name}?`)) {

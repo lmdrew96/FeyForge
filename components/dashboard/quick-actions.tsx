@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Dices, UserPlus, Sparkles, Scroll, Swords, BookOpenCheck } from "lucide-react"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 
 const quickActions = [
   {
@@ -44,18 +45,18 @@ const quickActions = [
 export function QuickActions() {
   return (
     <div>
-      <h2 className="font-serif text-base sm:text-xl mb-3 sm:mb-4 text-silver text-center">Quick Actions</h2>
-      <div className="grid gap-2 sm:gap-3 grid-cols-3 sm:grid-cols-3">
+      <h2 className="font-serif text-title-lg spacing-mb-title text-silver text-center">Quick Actions</h2>
+      <div className="grid gap-fluid-md grid-cols-3 sm:grid-cols-3">
         {quickActions.map((action) => (
           <Button
             key={action.name}
             variant="outline"
-            className="h-auto py-2.5 sm:py-4 px-2 sm:px-3 flex-col gap-1 sm:gap-2 rounded-xl sm:rounded-2xl border-border/20 hover:border-primary/30 bg-transparent hover:bg-primary/5 transition-colors active:scale-[0.97] min-h-[60px] sm:min-h-[80px]"
+            className="h-auto py-action px-fluid-sm flex-col gap-fluid-xs rounded-card border-border/20 hover:border-primary/30 bg-transparent hover:bg-primary/5 transition-colors active:scale-[0.97] min-h-action"
             asChild
           >
             <Link href={action.href}>
-              <action.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${action.colorClass}`} />
-              <span className="text-[10px] sm:text-xs font-medium text-center leading-tight">{action.name}</span>
+              <action.icon className={cn("icon-md", action.colorClass)} />
+              <span className="text-label-sm font-medium text-center leading-tight">{action.name}</span>
             </Link>
           </Button>
         ))}

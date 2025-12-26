@@ -43,21 +43,21 @@ export function QuickStats() {
   ]
 
   return (
-    <div className="grid gap-0 grid-cols-2 lg:grid-cols-4 pb-4 sm:pb-6">
+    <div className="grid gap-0 grid-cols-2 lg:grid-cols-4 spacing-section-bottom">
       {stats.map((stat, index) => (
         <div
           key={stat.name}
           className={cn(
-            "p-2.5 sm:p-4 md:p-6 flex flex-col gap-1.5 sm:gap-2 transition-colors duration-150 hover:bg-accent/30",
+            "spacing-compact flex flex-col gap-fluid-sm transition-colors duration-150 hover:bg-accent/30",
             index < stats.length - 1 && "border-r",
             index < 2 && "border-b lg:border-b-0",
           )}
         >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <stat.icon className={`h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 shrink-0 ${stat.colorClass}`} />
-            <p className={`text-xl sm:text-2xl md:text-3xl font-bold font-serif ${stat.colorClass}`}>{stat.value}</p>
+          <div className="flex items-center gap-fluid-md">
+            <stat.icon className={cn("icon-lg shrink-0", stat.colorClass)} />
+            <p className={cn("text-stat font-bold font-serif", stat.colorClass)}>{stat.value}</p>
           </div>
-          <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">{stat.name}</p>
+          <p className="text-label text-muted-foreground">{stat.name}</p>
         </div>
       ))}
     </div>

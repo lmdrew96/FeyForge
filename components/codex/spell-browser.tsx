@@ -135,9 +135,9 @@ export function SpellBrowser() {
             onClick={() => mutate()}
             disabled={isLoading}
             title="Refresh from API"
-            className="h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px] sm:min-w-[44px] sm:min-h-[44px]"
+            className="btn-height min-w-[36px] min-h-[36px] sm:min-w-[44px] sm:min-h-[44px]"
           >
-            <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isLoading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`icon-xs ${isLoading ? "animate-spin" : ""}`} />
           </Button>
         </div>
 

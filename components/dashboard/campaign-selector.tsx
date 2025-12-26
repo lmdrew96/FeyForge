@@ -61,16 +61,16 @@ export function CampaignSelector() {
   // Show create prompt if no campaigns exist
   if (campaigns.length === 0) {
     return (
-      <div className="pb-4 sm:pb-6 mb-4 sm:mb-6 border-b-2 border-primary/10">
-        <div className="p-3 sm:p-5">
-          <div className="text-center py-3 sm:py-4">
-            <Crown className="h-8 w-8 sm:h-10 sm:w-10 mx-auto text-primary/50 mb-2 sm:mb-3" />
-            <h3 className="font-serif text-base sm:text-lg font-bold mb-1.5 sm:mb-2">No Campaigns Yet</h3>
-            <p className="text-muted-foreground text-xs sm:text-sm mb-3 sm:mb-4">Create your first campaign to get started</p>
+      <div className="spacing-section border-b-2 border-primary/10">
+        <div className="spacing-card">
+          <div className="text-center spacing-py">
+            <Crown className="icon-xl mx-auto text-primary/50 mb-2 sm:mb-3" />
+            <h3 className="font-serif text-title font-bold mb-1.5 sm:mb-2">No Campaigns Yet</h3>
+            <p className="text-muted-foreground text-subtitle mb-3 sm:mb-4">Create your first campaign to get started</p>
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 h-9 sm:h-10 text-sm">
-                  <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <Button className="bg-primary hover:bg-primary/90 btn-height text-sm">
+                  <Plus className="icon-sm mr-1.5 sm:mr-2" />
                   Create Campaign
                 </Button>
               </DialogTrigger>
@@ -146,17 +146,17 @@ export function CampaignSelector() {
   }
 
   return (
-    <div className="pb-4 sm:pb-6 mb-4 sm:mb-6 border-b-2 border-primary/10">
-      <div className="py-3 sm:py-4">
-        <div className="flex items-center justify-between gap-2 sm:gap-4 flex-wrap sm:flex-nowrap">
-          <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-            <div className="h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
-              <Crown className="h-5 w-5 sm:h-7 sm:w-7 text-primary" />
+    <div className="spacing-section border-b-2 border-primary/10">
+      <div className="spacing-py">
+        <div className="flex items-center justify-between gap-fluid flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-fluid flex-1 min-w-0">
+            <div className="container-md rounded-card bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
+              <Crown className="icon-crown text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] sm:text-xs text-silver/70 mb-1 sm:mb-1.5 uppercase tracking-wider font-medium">Active Campaign</p>
+              <p className="text-label-sm text-silver/70 mb-1 sm:mb-1.5 uppercase tracking-wider font-medium">Active Campaign</p>
               <Select value={activeCampaignId || ""} onValueChange={setActiveCampaign}>
-                <SelectTrigger className="w-full bg-transparent border-none focus:ring-0 h-9 sm:h-11 px-0 text-foreground font-serif text-base sm:text-xl">
+                <SelectTrigger className="w-full bg-transparent border-none focus:ring-0 btn-height-lg px-0 text-foreground font-serif text-title-lg">
                   <SelectValue placeholder="Select a campaign" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border rounded-xl backdrop-blur-xl">
@@ -181,28 +181,28 @@ export function CampaignSelector() {
 
           {/* Player count display */}
           <div className="text-center hidden sm:flex flex-col items-center gap-1 px-3 sm:px-5">
-            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-            <p className="text-xl sm:text-3xl font-bold font-serif text-primary">{currentCampaign?.playerCount ?? 0}</p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">Players</p>
+            <Users className="icon-sm text-primary" />
+            <p className="text-stat-lg font-bold font-serif text-primary">{currentCampaign?.playerCount ?? 0}</p>
+            <p className="text-label-sm text-muted-foreground">Players</p>
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-1.5 sm:gap-2">
+          <div className="flex gap-fluid-sm">
             {currentCampaign && (
               <Button
                 size="icon"
                 variant="ghost"
-                className="hover:bg-destructive/10 h-9 w-9 sm:h-11 sm:w-11 rounded-xl min-w-[36px] min-h-[36px]"
+                className="hover:bg-destructive/10 container-icon-btn rounded-button min-w-[36px] min-h-[36px]"
                 onClick={(e) => handleDeleteClick(currentCampaign, e)}
               >
-                <Trash2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-destructive" />
+                <Trash2 className="icon-sm text-muted-foreground hover:text-destructive" />
               </Button>
             )}
 
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
-                <Button size="icon" variant="ghost" className="hover:bg-primary/10 h-11 w-11 rounded-xl">
-                  <Plus className="h-5 w-5 text-primary" />
+                <Button size="icon" variant="ghost" className="hover:bg-primary/10 h-11 w-11 rounded-button">
+                  <Plus className="icon-md text-primary" />
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">

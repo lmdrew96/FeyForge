@@ -34,12 +34,12 @@ export function SessionList() {
     return (
       <Card className="bg-card border-border border-dashed">
         <CardContent className="p-6 sm:p-12 text-center">
-          <Scroll className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground opacity-30 mb-3 sm:mb-4" />
-          <h3 className="font-serif text-lg sm:text-xl font-bold text-foreground mb-2">No Sessions Yet</h3>
-          <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">Start tracking your campaign sessions</p>
-          <Button asChild className="bg-primary hover:bg-primary/90 text-sm sm:text-base h-9 sm:h-10">
+          <Scroll className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground opacity-30 spacing-mb-title" />
+          <h3 className="font-serif text-title-lg font-bold text-foreground mb-2">No Sessions Yet</h3>
+          <p className="text-display text-muted-foreground mb-4 sm:mb-6">Start tracking your campaign sessions</p>
+          <Button asChild className="bg-primary hover:bg-primary/90 text-display btn-height">
             <Link href="/sessions/new">
-              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+              <Plus className="icon-xs mr-1.5 sm:mr-2" />
               Create Session
             </Link>
           </Button>
@@ -77,10 +77,10 @@ export function SessionList() {
             <Link href={`/sessions/${session.id}`}>
               <CardContent className="p-2.5 sm:p-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+                  <div className="flex items-center gap-fluid flex-1 min-w-0">
                     {/* Session Number */}
                     <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-lg bg-accent flex items-center justify-center shrink-0">
-                      <span className="font-serif text-base sm:text-xl font-bold text-primary">#{session.number}</span>
+                      <span className="font-serif text-title-lg font-bold text-primary">#{session.number}</span>
                     </div>
 
                     {/* Session Info */}

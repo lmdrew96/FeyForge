@@ -35,16 +35,16 @@ export function ConditionsReference() {
             className="pl-8 sm:pl-9 h-9 sm:h-10 text-sm"
           />
         </div>
-        <Button variant="ghost" size="icon" onClick={() => mutate()} disabled={isLoading} title="Refresh from API" className="h-9 w-9 sm:h-10 sm:w-10 min-w-[36px] min-h-[36px]">
-          <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isLoading ? "animate-spin" : ""}`} />
+        <Button variant="ghost" size="icon" onClick={() => mutate()} disabled={isLoading} title="Refresh from API" className="btn-height min-w-[36px] min-h-[36px]">
+          <RefreshCw className={`icon-xs ${isLoading ? "animate-spin" : ""}`} />
         </Button>
       </div>
 
       <ScrollArea className="h-[250px] sm:h-[300px] lg:h-[calc(100vh-280px)]">
         {isLoading ? (
           <div className="flex items-center justify-center py-8 sm:py-12">
-            <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-primary" />
-            <span className="ml-2 text-sm sm:text-base text-muted-foreground">Loading conditions...</span>
+            <Loader2 className="icon-lg animate-spin text-primary" />
+            <span className="ml-2 text-display text-muted-foreground">Loading conditions...</span>
           </div>
         ) : error ? (
           <div className="py-6 sm:py-8 text-center text-destructive">
@@ -58,8 +58,8 @@ export function ConditionsReference() {
             {filteredConditions.map((condition) => (
               <Card key={condition.slug} className="border-border/50 bg-card/50">
                 <CardHeader className="pb-1.5 sm:pb-2 p-3 sm:p-4">
-                  <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-base sm:text-lg">
-                    <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500 shrink-0" />
+                  <CardTitle className="flex items-center gap-fluid-sm text-title-lg">
+                    <AlertTriangle className="icon-sm text-yellow-500 shrink-0" />
                     {condition.name}
                   </CardTitle>
                 </CardHeader>
