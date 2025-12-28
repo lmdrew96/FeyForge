@@ -34,11 +34,11 @@
   --input: #e8e4d4;
   --ring: #00ced1;
 
-  /* FeyForge Custom Colors */
-  --fey-gold: #ffd700;
-  --fey-silver: #c0c0c0;
-  --fey-cyan: #00ced1;
-  --fey-purple: #9370db;
+  /* Use darker gold (#b8860b DarkGoldenrod) for light mode - WCAG AA compliant */
+  --fey-gold: #b8860b;
+  --fey-silver: #6b7280; /* Darker silver for light mode */
+  --fey-cyan: #0891b2; /* Darker cyan for light mode */
+  --fey-purple: #7c3aed; /* Darker purple for light mode */
   --fey-indigo: #4b0082;
   --fey-elven: #2d5016;
   --fey-forest: #4a7c59;
@@ -85,7 +85,7 @@
   --input: #2a2a2a;
   --ring: #00e5e8;
 
-  /* FeyForge Custom Colors (Dark Mode) */
+  /* Keep bright colors for dark mode where they have good contrast */
   --fey-gold: #ffd700;
   --fey-silver: #c0c0c0;
   --fey-cyan: #00e5e8;
@@ -158,6 +158,11 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Prevent horizontal scrolling globally */
+  html,
+  body {
+    @apply overflow-x-hidden max-w-full;
   }
   body {
     @apply bg-background text-foreground;

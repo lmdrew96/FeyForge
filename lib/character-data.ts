@@ -133,7 +133,7 @@ export const classes = [
   {
     value: "barbarian",
     label: "Barbarian",
-    icon: "⚔️",
+    icon: "Axe",
     description: "A fierce warrior of primitive background who can enter a battle rage",
     hitDie: "d12",
     primaryAbility: "Strength",
@@ -143,7 +143,7 @@ export const classes = [
   {
     value: "bard",
     label: "Bard",
-    icon: "🎭",
+    icon: "Music",
     description: "An inspiring magician whose power echoes the music of creation",
     hitDie: "d8",
     primaryAbility: "Charisma",
@@ -153,7 +153,7 @@ export const classes = [
   {
     value: "cleric",
     label: "Cleric",
-    icon: "✨",
+    icon: "Sparkles",
     description: "A priestly champion who wields divine magic in service of a higher power",
     hitDie: "d8",
     primaryAbility: "Wisdom",
@@ -163,7 +163,7 @@ export const classes = [
   {
     value: "druid",
     label: "Druid",
-    icon: "🌿",
+    icon: "Leaf",
     description: "A priest of the Old Faith, wielding the powers of nature",
     hitDie: "d8",
     primaryAbility: "Wisdom",
@@ -174,7 +174,7 @@ export const classes = [
   {
     value: "fighter",
     label: "Fighter",
-    icon: "🛡️",
+    icon: "Shield",
     description: "A master of martial combat, skilled with a variety of weapons and armor",
     hitDie: "d10",
     primaryAbility: "Strength or Dexterity",
@@ -184,7 +184,7 @@ export const classes = [
   {
     value: "monk",
     label: "Monk",
-    icon: "👊",
+    icon: "Hand",
     description: "A master of martial arts, harnessing the power of body and soul",
     hitDie: "d8",
     primaryAbility: "Dexterity & Wisdom",
@@ -194,7 +194,7 @@ export const classes = [
   {
     value: "paladin",
     label: "Paladin",
-    icon: "⚜️",
+    icon: "Cross",
     description: "A holy warrior bound to a sacred oath",
     hitDie: "d10",
     primaryAbility: "Strength & Charisma",
@@ -204,7 +204,7 @@ export const classes = [
   {
     value: "ranger",
     label: "Ranger",
-    icon: "🏹",
+    icon: "Target",
     description: "A warrior who uses martial prowess and nature magic to combat threats",
     hitDie: "d10",
     primaryAbility: "Dexterity & Wisdom",
@@ -214,7 +214,7 @@ export const classes = [
   {
     value: "rogue",
     label: "Rogue",
-    icon: "🗡️",
+    icon: "Sword",
     description: "A scoundrel who uses stealth and trickery to overcome obstacles",
     hitDie: "d8",
     primaryAbility: "Dexterity",
@@ -224,7 +224,7 @@ export const classes = [
   {
     value: "sorcerer",
     label: "Sorcerer",
-    icon: "🔮",
+    icon: "Flame",
     description: "A spellcaster who draws on inherent magic from a gift or bloodline",
     hitDie: "d6",
     primaryAbility: "Charisma",
@@ -234,7 +234,7 @@ export const classes = [
   {
     value: "warlock",
     label: "Warlock",
-    icon: "👁️",
+    icon: "Eye",
     description: "A wielder of magic derived from a bargain with an extraplanar entity",
     hitDie: "d8",
     primaryAbility: "Charisma",
@@ -244,7 +244,7 @@ export const classes = [
   {
     value: "wizard",
     label: "Wizard",
-    icon: "📚",
+    icon: "BookOpen",
     description: "A scholarly magic-user capable of manipulating the structures of reality",
     hitDie: "d6",
     primaryAbility: "Intelligence",

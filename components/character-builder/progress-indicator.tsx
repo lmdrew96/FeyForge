@@ -25,7 +25,7 @@ export function ProgressIndicator({ currentStep, totalSteps }: ProgressIndicator
         <span className="text-sm font-medium text-foreground">
           Step {currentStep} of {totalSteps}
         </span>
-        <span className="text-muted-foreground">•</span>
+        <span className="text-foreground/50">•</span>
         <span className="text-sm text-fey-gold font-semibold">{steps[currentStep - 1]?.label}</span>
       </div>
 
@@ -59,7 +59,7 @@ export function ProgressIndicator({ currentStep, totalSteps }: ProgressIndicator
                   "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 border-2",
                   isCompleted && "bg-fey-cyan border-fey-cyan text-accent-foreground",
                   isCurrent && "bg-card border-fey-gold text-fey-gold shadow-lg shadow-fey-gold/20",
-                  !isCompleted && !isCurrent && "bg-secondary border-secondary text-muted-foreground",
+                  !isCompleted && !isCurrent && "bg-secondary border-secondary text-foreground/60",
                 )}
               >
                 {isCompleted ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
@@ -69,7 +69,7 @@ export function ProgressIndicator({ currentStep, totalSteps }: ProgressIndicator
                   "mt-2 text-sm font-medium transition-colors",
                   isCurrent && "text-fey-gold",
                   isCompleted && "text-fey-cyan",
-                  !isCompleted && !isCurrent && "text-muted-foreground",
+                  !isCompleted && !isCurrent && "text-foreground/70",
                 )}
               >
                 {step.label}

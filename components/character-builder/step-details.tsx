@@ -172,9 +172,9 @@ export function StepDetails() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="age" className="text-sm text-muted-foreground">
+              <Label htmlFor="age" className="text-sm text-foreground/80 font-medium">
                 Age
               </Label>
               <Input
@@ -186,7 +186,7 @@ export function StepDetails() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="height" className="text-sm text-muted-foreground">
+              <Label htmlFor="height" className="text-sm text-foreground/80 font-medium">
                 Height
               </Label>
               <Input
@@ -198,7 +198,7 @@ export function StepDetails() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="weight" className="text-sm text-muted-foreground">
+              <Label htmlFor="weight" className="text-sm text-foreground/80 font-medium">
                 Weight
               </Label>
               <Input
@@ -210,7 +210,7 @@ export function StepDetails() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="eyes" className="text-sm text-muted-foreground">
+              <Label htmlFor="eyes" className="text-sm text-foreground/80 font-medium">
                 Eyes
               </Label>
               <Input
@@ -222,7 +222,7 @@ export function StepDetails() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="skin" className="text-sm text-muted-foreground">
+              <Label htmlFor="skin" className="text-sm text-foreground/80 font-medium">
                 Skin
               </Label>
               <Input
@@ -234,7 +234,7 @@ export function StepDetails() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="hair" className="text-sm text-muted-foreground">
+              <Label htmlFor="hair" className="text-sm text-foreground/80 font-medium">
                 Hair
               </Label>
               <Input
@@ -260,7 +260,7 @@ export function StepDetails() {
         <CardContent>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="imageUrl" className="text-sm text-muted-foreground">
+              <Label htmlFor="imageUrl" className="text-sm text-foreground/80 font-medium">
                 Image URL
               </Label>
               <Input
@@ -282,7 +282,7 @@ export function StepDetails() {
               </div>
             )}
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-foreground/70">
               Tip: You can use AI art generators to create your character's portrait!
             </p>
           </div>

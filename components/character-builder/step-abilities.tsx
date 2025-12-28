@@ -142,15 +142,15 @@ export function StepAbilities() {
       <Card className="bg-card border-2 border-border">
         <CardContent className="p-4 text-center">
           <div className="text-xs font-bold text-fey-purple uppercase tracking-wide mb-1">{ability.abbr}</div>
-          <div className="text-sm text-muted-foreground mb-3">{ability.label}</div>
+          
 
           {children}
 
-          {racialBonus > 0 && <div className="mt-2 text-xs text-fey-cyan font-medium">+{racialBonus} racial</div>}
+          {racialBonus > 0 && <div className="mt-2 text-xs text-fey-cyan font-semibold">+{racialBonus} racial</div>}
 
           <div className="mt-2 pt-2 border-t border-border">
             <div className="flex items-center justify-center gap-2">
-              <span className="text-xs text-muted-foreground">Final:</span>
+              <span className="text-xs text-foreground/70 font-medium">Final:</span>
               <span className="text-xl font-bold text-foreground">{finalScore}</span>
             </div>
             <div className="text-lg font-semibold text-fey-gold">{getModifier(finalScore)}</div>
@@ -161,17 +161,17 @@ export function StepAbilities() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       {character.race && (
-        <div className="p-3 bg-fey-cyan/10 border border-fey-cyan/30 rounded-lg">
-          <p className="text-sm text-foreground">
+        <div className="p-3 bg-fey-cyan/10 border border-fey-cyan/30 rounded-lg overflow-hidden">
+          <p className="text-sm text-foreground break-words">
             <span className="font-medium">Selected Race:</span>{" "}
             <span className="text-fey-cyan font-semibold">
               {races.find((r) => r.value === character.race)?.label}
               {character.subrace && ` (${character.subrace})`}
             </span>
             {Object.keys(racialBonuses).length > 0 && (
-              <span className="ml-2 text-muted-foreground">
+              <span className="block sm:inline sm:ml-2 text-foreground/80 mt-1 sm:mt-0">
                 — Bonuses:{" "}
                 {Object.entries(racialBonuses)
                   .map(
@@ -193,19 +193,19 @@ export function StepAbilities() {
         <TabsList className="grid w-full grid-cols-3 bg-secondary h-auto p-1">
           <TabsTrigger
             value="pointBuy"
-            className="text-xs sm:text-sm py-2 data-[state=active]:bg-fey-cyan data-[state=active]:text-accent-foreground"
+            className="text-[10px] sm:text-sm py-2 px-1 sm:px-3 data-[state=active]:bg-fey-cyan data-[state=active]:text-accent-foreground"
           >
             Point Buy
           </TabsTrigger>
           <TabsTrigger
             value="standardArray"
-            className="text-xs sm:text-sm py-2 data-[state=active]:bg-fey-cyan data-[state=active]:text-accent-foreground"
+            className="text-[10px] sm:text-sm py-2 px-1 sm:px-3 data-[state=active]:bg-fey-cyan data-[state=active]:text-accent-foreground"
           >
-            Standard Array
+            Standard
           </TabsTrigger>
           <TabsTrigger
             value="manual"
-            className="text-xs sm:text-sm py-2 data-[state=active]:bg-fey-cyan data-[state=active]:text-accent-foreground"
+            className="text-[10px] sm:text-sm py-2 px-1 sm:px-3 data-[state=active]:bg-fey-cyan data-[state=active]:text-accent-foreground"
           >
             Manual
           </TabsTrigger>
@@ -213,13 +213,13 @@ export function StepAbilities() {
 
         {/* Point Buy */}
         <TabsContent value="pointBuy" className="mt-6">
-          <div className="flex items-center justify-between mb-6 p-4 bg-secondary/50 rounded-lg">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6 p-3 sm:p-4 bg-secondary/50 rounded-lg">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-fey-gold" />
-              <span className="font-semibold text-foreground">Points Remaining:</span>
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-fey-gold flex-shrink-0" />
+              <span className="font-semibold text-foreground text-sm sm:text-base">Points:</span>
               <span
                 className={cn(
-                  "font-bold text-2xl",
+                  "font-bold text-xl sm:text-2xl",
                   pointsRemaining > 5 ? "text-fey-cyan" : pointsRemaining > 0 ? "text-fey-gold" : "text-destructive",
                 )}
               >
@@ -232,41 +232,43 @@ export function StepAbilities() {
               onClick={resetAbilities}
               className="border-border hover:border-fey-purple bg-transparent"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reset
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Reset</span>
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
             {abilities.map((ability) => {
               const score = character.abilities[ability.key as keyof typeof character.abilities]
               return (
                 <AbilityCard key={ability.key} ability={ability}>
-                  <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className="flex items-center justify-center gap-1 sm:gap-2 mb-2">
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 border-border hover:border-fey-cyan hover:bg-fey-cyan/10 bg-transparent"
+                      className="h-7 w-7 sm:h-8 sm:w-8 border-border hover:border-fey-cyan hover:bg-fey-cyan/10 bg-transparent"
                       onClick={() => updateAbility(ability.key as keyof typeof character.abilities, -1)}
                       disabled={score <= 8}
                     >
-                      <Minus className="h-4 w-4" />
+                      <Minus className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
-                    <div className="w-12 text-center">
-                      <div className="text-2xl font-bold text-muted-foreground">{score}</div>
-                      <div className="text-[10px] text-muted-foreground">base</div>
+                    <div className="w-8 sm:w-12 text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-foreground/80">{score}</div>
+                      <div className="text-[8px] sm:text-[10px] text-foreground/60 font-medium">base</div>
                     </div>
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 border-border hover:border-fey-cyan hover:bg-fey-cyan/10 bg-transparent"
+                      className="h-7 w-7 sm:h-8 sm:w-8 border-border hover:border-fey-cyan hover:bg-fey-cyan/10 bg-transparent"
                       onClick={() => updateAbility(ability.key as keyof typeof character.abilities, 1)}
                       disabled={score >= 15 || pointsRemaining <= 0}
                     >
-                      <Plus className="h-4 w-4" />
+                      <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
                   </div>
-                  <div className="text-xs text-muted-foreground">Cost: {POINT_BUY_COSTS[score]}</div>
+                  <div className="text-[10px] sm:text-xs text-foreground/70 font-medium">
+                    Cost: {POINT_BUY_COSTS[score]}
+                  </div>
                 </AbilityCard>
               )
             })}
@@ -276,13 +278,13 @@ export function StepAbilities() {
         {/* Standard Array */}
         <TabsContent value="standardArray" className="mt-6">
           <div className="mb-6 p-4 bg-secondary/50 rounded-lg">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-foreground/80">
               Assign these values to your abilities:{" "}
               <span className="font-semibold text-fey-cyan">{standardArray.join(", ")}</span>
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
             {abilities.map((ability) => {
               const score = character.abilities[ability.key as keyof typeof character.abilities]
               return (
@@ -290,7 +292,7 @@ export function StepAbilities() {
                   <select
                     value={score}
                     onChange={(e) => assignStandardArray(ability.key, Number.parseInt(e.target.value))}
-                    className="w-full h-10 text-center text-lg font-bold bg-secondary border-2 border-border rounded-lg focus:border-fey-cyan text-foreground"
+                    className="w-full h-8 sm:h-10 text-center text-base sm:text-lg font-bold bg-secondary border-2 border-border rounded-lg focus:border-fey-cyan text-foreground"
                   >
                     {standardArray.map((val) => (
                       <option key={val} value={val}>
@@ -298,7 +300,7 @@ export function StepAbilities() {
                       </option>
                     ))}
                   </select>
-                  <div className="text-[10px] text-muted-foreground mt-1">base</div>
+                  <div className="text-[8px] sm:text-[10px] text-foreground/60 font-medium mt-1">base</div>
                 </AbilityCard>
               )
             })}
@@ -308,10 +310,10 @@ export function StepAbilities() {
         {/* Manual Entry */}
         <TabsContent value="manual" className="mt-6">
           <div className="mb-6 p-4 bg-secondary/50 rounded-lg">
-            <p className="text-sm text-muted-foreground">Enter your base ability scores directly (1-20).</p>
+            <p className="text-sm text-foreground/80">Enter your base ability scores directly (1-20).</p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
             {abilities.map((ability) => {
               const score = character.abilities[ability.key as keyof typeof character.abilities]
               return (
@@ -324,9 +326,9 @@ export function StepAbilities() {
                     onChange={(e) =>
                       setAbility(ability.key as keyof typeof character.abilities, Number.parseInt(e.target.value) || 8)
                     }
-                    className="text-center text-lg font-bold h-10 bg-secondary border-2 border-border focus:border-fey-cyan"
+                    className="text-center text-base sm:text-lg font-bold h-8 sm:h-10 bg-secondary border-2 border-border focus:border-fey-cyan"
                   />
-                  <div className="text-[10px] text-muted-foreground mt-1">base</div>
+                  <div className="text-[8px] sm:text-[10px] text-foreground/60 font-medium mt-1">base</div>
                 </AbilityCard>
               )
             })}

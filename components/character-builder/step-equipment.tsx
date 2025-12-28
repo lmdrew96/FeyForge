@@ -27,7 +27,7 @@ export function StepEquipment() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 min-w-0">
       {/* Equipment Choice */}
       <RadioGroup
         value={character.equipmentChoice}
@@ -37,21 +37,21 @@ export function StepEquipment() {
         <Label htmlFor="packages" className="cursor-pointer">
           <Card
             className={cn(
-              "border-2 transition-all duration-300",
+              "border-2 transition-all duration-300 overflow-hidden",
               character.equipmentChoice === "packages"
                 ? "border-fey-cyan bg-fey-cyan/10 shadow-lg shadow-fey-cyan/20"
                 : "border-border bg-card hover:border-fey-purple/50",
             )}
           >
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <RadioGroupItem value="packages" id="packages" className="mt-1" />
-                <div className="flex-1">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+                <RadioGroupItem value="packages" id="packages" className="mt-1 shrink-0" />
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <Package className="h-5 w-5 text-fey-cyan" />
-                    <span className="font-semibold text-lg text-card-foreground">Starting Equipment</span>
+                    <Package className="h-5 w-5 text-fey-cyan shrink-0" />
+                    <span className="font-semibold text-base sm:text-lg text-foreground">Starting Equipment</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-foreground/80 break-words">
                     Choose from pre-selected equipment packages based on your class.
                   </p>
                 </div>
@@ -63,22 +63,24 @@ export function StepEquipment() {
         <Label htmlFor="gold" className="cursor-pointer">
           <Card
             className={cn(
-              "border-2 transition-all duration-300",
+              "border-2 transition-all duration-300 overflow-hidden",
               character.equipmentChoice === "gold"
                 ? "border-fey-gold bg-fey-gold/10 shadow-lg shadow-fey-gold/20"
                 : "border-border bg-card hover:border-fey-purple/50",
             )}
           >
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <RadioGroupItem value="gold" id="gold" className="mt-1" />
-                <div className="flex-1">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+                <RadioGroupItem value="gold" id="gold" className="mt-1 shrink-0" />
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <Coins className="h-5 w-5 text-fey-gold" />
-                    <span className="font-semibold text-lg text-card-foreground">Starting Gold</span>
+                    <Coins className="h-5 w-5 text-fey-gold shrink-0" />
+                    <span className="font-semibold text-base sm:text-lg text-foreground">Starting Gold</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">Roll for gold and buy your own equipment.</p>
-                  <Badge className="mt-2 bg-fey-gold/20 text-fey-gold border-fey-gold/30">{goldAmount}</Badge>
+                  <p className="text-sm text-foreground/80">Roll for gold and buy your own equipment.</p>
+                  <Badge className="mt-2 bg-fey-gold/20 text-fey-forest dark:text-fey-gold font-medium border border-fey-gold/30">
+                    {goldAmount}
+                  </Badge>
                 </div>
               </div>
             </CardContent>
@@ -90,13 +92,13 @@ export function StepEquipment() {
       {character.equipmentChoice === "packages" && (
         <div className="space-y-4">
           <Label className="text-lg font-semibold flex items-center gap-2 text-foreground">
-            <Sparkles className="h-4 w-4 text-fey-cyan" />
+            <Sparkles className="h-4 w-4 text-fey-cyan shrink-0" />
             Select Your Equipment
           </Label>
 
-          <Card className="bg-card border-2 border-border">
-            <CardContent className="p-6">
-              <div className="space-y-4">
+          <Card className="bg-card border-2 border-border overflow-hidden">
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-3 sm:space-y-4">
                 {equipment.map((item, index) => {
                   const isSelected = character.selectedEquipment.includes(item.name)
 
@@ -104,7 +106,7 @@ export function StepEquipment() {
                     <div
                       key={index}
                       className={cn(
-                        "flex items-center gap-4 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                        "flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border-2 transition-all cursor-pointer min-w-0 overflow-hidden",
                         isSelected
                           ? "border-fey-cyan bg-fey-cyan/10"
                           : "border-border hover:border-fey-purple/50 bg-secondary/30",
@@ -113,19 +115,21 @@ export function StepEquipment() {
                     >
                       <Checkbox
                         checked={isSelected}
-                        className="data-[state=checked]:bg-fey-cyan data-[state=checked]:border-fey-cyan"
+                        className="data-[state=checked]:bg-fey-cyan data-[state=checked]:border-fey-cyan shrink-0"
                       />
-                      <div className="flex items-center gap-3 flex-1">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 overflow-hidden">
                         {item.name.toLowerCase().includes("weapon") ||
                         item.name.toLowerCase().includes("sword") ||
                         item.name.toLowerCase().includes("axe") ? (
-                          <Sword className="h-5 w-5 text-fey-purple" />
+                          <Sword className="h-5 w-5 text-fey-purple shrink-0" />
                         ) : item.name.toLowerCase().includes("armor") || item.name.toLowerCase().includes("shield") ? (
-                          <Shield className="h-5 w-5 text-fey-silver" />
+                          <Shield className="h-5 w-5 text-fey-silver shrink-0" />
                         ) : (
-                          <Package className="h-5 w-5 text-fey-sage" />
+                          <Package className="h-5 w-5 text-fey-sage shrink-0" />
                         )}
-                        <span className={cn("font-medium", isSelected ? "text-foreground" : "text-muted-foreground")}>
+                        <span
+                          className={cn("font-medium truncate", isSelected ? "text-foreground" : "text-foreground/80")}
+                        >
                           {item.name}
                         </span>
                       </div>
@@ -140,19 +144,19 @@ export function StepEquipment() {
 
       {/* Gold Option Info */}
       {character.equipmentChoice === "gold" && (
-        <Card className="bg-secondary/30 border-2 border-fey-gold/30">
-          <CardHeader>
+        <Card className="bg-secondary/30 border-2 border-fey-gold/30 overflow-hidden">
+          <CardHeader className="px-4 sm:px-6">
             <CardTitle className="flex items-center gap-2 text-fey-gold">
-              <Coins className="h-5 w-5" />
+              <Coins className="h-5 w-5 shrink-0" />
               Starting Gold
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">
+          <CardContent className="px-4 sm:px-6">
+            <p className="text-foreground/80 mb-4 break-words">
               Your class ({character.characterClass || "Not selected"}) grants you{" "}
               <span className="font-semibold text-fey-gold">{goldAmount}</span> to spend on equipment.
             </p>
-            <p className="text-sm text-muted-foreground italic">
+            <p className="text-sm text-foreground/70 italic">
               Equipment purchasing will be available when you view your character sheet.
             </p>
           </CardContent>
@@ -162,13 +166,13 @@ export function StepEquipment() {
       {/* Equipment Preview */}
       {character.selectedEquipment.length > 0 && (
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-muted-foreground">Selected Equipment:</Label>
-          <div className="flex flex-wrap gap-2">
+          <Label className="text-sm font-semibold text-foreground/80">Selected Equipment:</Label>
+          <div className="flex flex-wrap gap-2 overflow-hidden">
             {character.selectedEquipment.map((item) => (
               <Badge
                 key={item}
                 variant="secondary"
-                className="px-3 py-1 bg-fey-cyan/20 text-fey-cyan border border-fey-cyan/30"
+                className="px-3 py-1 bg-fey-cyan/20 text-fey-cyan font-medium border border-fey-cyan/30 max-w-full truncate"
               >
                 {item}
               </Badge>
