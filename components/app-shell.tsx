@@ -16,6 +16,7 @@ import {
   ScrollText,
   Map,
   Settings,
+  User,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FloatingParticles } from "@/components/floating-particles"
@@ -34,6 +35,7 @@ const navItems = [
   { label: "Sessions", href: "/sessions", icon: ScrollText },
   { label: "World Map", href: "/world-map", icon: Map },
   { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Account", href: "/account", icon: User },
 ]
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
