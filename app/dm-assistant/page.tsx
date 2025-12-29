@@ -6,7 +6,8 @@ import { DMAssistant } from "@/components/dm-assistant/dm-assistant"
 export default function DMAssistantPage() {
   return (
     <AppShell pageTitle="DM Assistant">
-      <div className="h-[calc(100vh-4rem)] lg:h-[calc(100vh-2rem)] flex flex-col">
+      {/* Full height container - subtracting header height */}
+      <div className="h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] lg:h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden">
         <DMAssistant />
       </div>
     </AppShell>

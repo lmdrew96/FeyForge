@@ -3,7 +3,7 @@
 import { MessageSquare, Trash2, X, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,19 +95,10 @@ export function ChatHistory({
     </div>
   )
 
-  // Mobile: Use Sheet component
+  // Mobile: Use Sheet component (controlled by open prop)
   if (mobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden h-8 w-8"
-          >
-            <History className="h-4 w-4" />
-          </Button>
-        </SheetTrigger>
         <SheetContent side="left" className="w-80 p-0">
           <SheetHeader className="sr-only">
             <SheetTitle>Chat History</SheetTitle>

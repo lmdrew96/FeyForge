@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Send, Bot, Sparkles, PanelLeftClose, PanelLeft, Plus, Trash2 } from "lucide-react"
+import { Send, Bot, Sparkles, PanelLeftClose, PanelLeft, Plus, Trash2, History } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -26,7 +26,8 @@ import {
 
 export function DMAssistant() {
   const [input, setInput] = useState("")
-  const [showHistory, setShowHistory] = useState(false)
+  const [showDesktopHistory, setShowDesktopHistory] = useState(false)
+  const [showMobileHistory, setShowMobileHistory] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -119,13 +120,13 @@ export function DMAssistant() {
       {/* Chat History Sidebar - Desktop */}
       <div
         className={cn(
-          "hidden md:flex flex-col border-r border-border bg-card/50 backdrop-blur-sm transition-all duration-300",
-          showHistory ? "w-64 lg:w-72" : "w-0"
+          "hidden md:flex flex-col border-r border-border bg-card/50 backdrop-blur-sm transition-all duration-300 overflow-hidden",
+          showDesktopHistory ? "w-64 lg:w-72" : "w-0"
         )}
       >
-        {showHistory && (
+        {showDesktopHistory && (
           <ChatHistory
-            onClose={() => setShowHistory(false)}
+            onClose={() => setShowDesktopHistory(false)}
             onSelectConversation={(id: string) => setActiveConversation(id)}
           />
         )}
@@ -136,13 +137,25 @@ export function DMAssistant() {
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-border bg-card/30 backdrop-blur-sm">
           <div className="flex items-center gap-2 min-w-0">
+            {/* Mobile history button */}
             <Button
               variant="ghost"
               size="icon"
-              className="hidden md:flex h-8 w-8"
-              onClick={() => setShowHistory(!showHistory)}
+              className="h-8 w-8 flex-shrink-0 md:hidden"
+              onClick={() => setShowMobileHistory(true)}
+              aria-label="Open chat history"
             >
-              {showHistory ? (
+              <History className="h-4 w-4" />
+            </Button>
+            {/* Desktop history button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 hidden md:flex"
+              onClick={() => setShowDesktopHistory(!showDesktopHistory)}
+              aria-label="Toggle chat history"
+            >
+              {showDesktopHistory ? (
                 <PanelLeftClose className="h-4 w-4" />
               ) : (
                 <PanelLeft className="h-4 w-4" />
@@ -283,11 +296,12 @@ export function DMAssistant() {
       {/* Mobile Chat History Sheet */}
       <ChatHistory
         mobile
-        open={showHistory}
-        onOpenChange={setShowHistory}
+        open={showMobileHistory}
+        onOpenChange={setShowMobileHistory}
+        onClose={() => setShowMobileHistory(false)}
         onSelectConversation={(id: string) => {
           setActiveConversation(id)
-          setShowHistory(false)
+          setShowMobileHistory(false)
         }}
       />
     </div>
