@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { Sparkles, Mail, Lock, Eye, EyeOff, Loader2, User, Check, X } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -39,6 +41,7 @@ const passwordRequirements: PasswordRequirement[] = [
 ]
 
 export function SignupForm() {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -140,17 +143,39 @@ export function SignupForm() {
     setErrors({})
     
     try {
-      // Simulate API call - replace with actual auth logic
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      
-      // For demo purposes, show success state
-      // In production, this would create account and redirect
-      console.log("Signup attempted with:", {
-        displayName: formData.displayName,
-        email: formData.email,
+      // Call signup API
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          displayName: formData.displayName,
+        }),
       })
       
-      setSignupSuccess(true)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        setErrors({ general: data.error || "Sign up failed. Please try again." })
+        return
+      }
+      
+      // Auto sign in after successful signup
+      const signInResult = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      })
+      
+      if (signInResult?.error) {
+        // Account created but sign in failed - show success and redirect to login
+        setSignupSuccess(true)
+      } else {
+        // Successfully signed in - redirect to home
+        router.push("/")
+        router.refresh()
+      }
       
     } catch {
       setErrors({ general: "Sign up failed. Please try again." })
@@ -164,10 +189,7 @@ export function SignupForm() {
     setErrors({})
     
     try {
-      // Simulate Google OAuth - replace with actual OAuth logic
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      console.log("Google signup initiated")
-      
+      await signIn("google", { callbackUrl: "/" })
     } catch {
       setErrors({ general: "Google sign-up failed. Please try again." })
     } finally {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   Calendar,
   Users,
@@ -13,6 +14,7 @@ import {
   EyeOff,
   Pencil,
   Trash2,
+  ExternalLink,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -208,6 +210,17 @@ export function SessionCard({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="bg-fey-cyan/10 border-fey-cyan/30 text-fey-cyan hover:bg-fey-cyan/20"
+                >
+                  <Link href={`/sessions/${session.id}`} onClick={(e) => e.stopPropagation()}>
+                    <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                    Full View
+                  </Link>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

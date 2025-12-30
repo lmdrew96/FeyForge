@@ -1,18 +1,14 @@
 "use client"
 
 import Link from "next/link"
+import { signOut } from "next-auth/react"
 import { Settings, LogOut, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
 export function AccountQuickLinks() {
-  const handleSignOut = () => {
-    // In a real app, this would call an auth provider's signOut method
-    // For now, we'll show what this would do
-    if (typeof window !== "undefined") {
-      // Could clear auth tokens, redirect to login, etc.
-      console.log("Sign out triggered")
-    }
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: "/login" })
   }
 
   return (

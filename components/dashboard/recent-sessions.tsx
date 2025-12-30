@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Calendar, ChevronRight, Scroll, Sparkles } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -33,9 +34,10 @@ export function RecentSessions() {
           <ScrollArea className="h-[280px] sm:h-[320px]">
             <div className="space-y-1 px-3 sm:px-4 pb-4">
               {recentSessions.map((session) => (
-                <button
+                <Link
                   key={session.id}
-                  className="w-full text-left p-2 sm:p-3 rounded-lg hover:bg-muted/50 transition-colors group"
+                  href={`/sessions/${session.id}`}
+                  className="block w-full text-left p-2 sm:p-3 rounded-lg hover:bg-muted/50 transition-colors group"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
@@ -66,7 +68,7 @@ export function RecentSessions() {
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1" />
                   </div>
-                </button>
+                </Link>
               ))}
             </div>
           </ScrollArea>

@@ -1,6 +1,8 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useCharacterStore } from "@/lib/character-store"
+import { useCharactersStore } from "@/lib/characters-store"
 import { ProgressIndicator } from "./progress-indicator"
 import { StepBasics } from "./step-basics"
 import { StepAbilities } from "./step-abilities"
@@ -24,7 +26,9 @@ const stepTitles = [
 ]
 
 export function CharacterBuilder() {
+  const router = useRouter()
   const { currentStep, setStep, character, resetCharacter } = useCharacterStore()
+  const { addCharacter } = useCharactersStore()
 
   const canProceed = () => {
     switch (currentStep) {
@@ -56,8 +60,84 @@ export function CharacterBuilder() {
   }
 
   const handleComplete = () => {
-    console.log("Character created:", character)
-    alert("Character created successfully!")
+    // Generate a unique ID for the new character
+    const newId = `char-${Date.now()}`
+    
+    // Transform character builder data to full character format
+    const newCharacter = {
+      id: newId,
+      name: character.name,
+      race: character.race,
+      subrace: character.subrace || "",
+      characterClass: character.characterClass,
+      level: 1,
+      background: character.background || "",
+      alignment: character.alignment || "",
+      experiencePoints: 0,
+      abilities: { ...character.abilities },
+      skillProficiencies: [...character.skillProficiencies],
+      savingThrowProficiencies: [],
+      toolProficiencies: [...character.toolProficiencies],
+      languages: [...character.languages],
+      proficiencyBonus: 2,
+      armorClass: 10 + Math.floor((character.abilities.dexterity - 10) / 2),
+      initiative: Math.floor((character.abilities.dexterity - 10) / 2),
+      speed: 30,
+      hitPoints: {
+        current: 10 + Math.floor((character.abilities.constitution - 10) / 2),
+        max: 10 + Math.floor((character.abilities.constitution - 10) / 2),
+        temp: 0,
+      },
+      hitDice: {
+        total: 1,
+        current: 1,
+        type: "d8",
+      },
+      deathSaves: {
+        successes: 0,
+        failures: 0,
+      },
+      attacks: [],
+      racialTraits: [],
+      classFeatures: [],
+      feats: [],
+      equipment: character.selectedEquipment.map((name) => ({
+        name,
+        quantity: 1,
+        weight: 0,
+        equipped: false,
+      })),
+      currency: {
+        cp: 0,
+        sp: 0,
+        ep: 0,
+        gp: character.equipmentChoice === "gold" ? character.startingGold : 0,
+        pp: 0,
+      },
+      personalityTraits: character.personalityTraits || "",
+      ideals: character.ideals || "",
+      bonds: character.bonds || "",
+      flaws: character.flaws || "",
+      backstory: character.backstory || "",
+      age: character.age || "",
+      height: character.height || "",
+      weight: character.weight || "",
+      eyes: character.eyes || "",
+      skin: character.skin || "",
+      hair: character.hair || "",
+      imageUrl: character.imageUrl || "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    
+    // Add character to the store
+    addCharacter(newCharacter)
+    
+    // Reset the builder
+    resetCharacter()
+    
+    // Navigate to the new character's sheet
+    router.push(`/characters/${newId}`)
   }
 
   const renderStep = () => {

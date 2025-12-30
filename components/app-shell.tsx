@@ -17,6 +17,7 @@ import {
   Map,
   Settings,
   User,
+  Book,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FloatingParticles } from "@/components/floating-particles"
@@ -31,6 +32,7 @@ const navItems = [
   { label: "Dice Roller", href: "/dice", icon: Dice6 },
   { label: "DM Assistant", href: "/dm-assistant", icon: Bot },
   { label: "NPCs", href: "/npcs", icon: UserCircle },
+  { label: "Campaign Wiki", href: "/wiki", icon: Book },
   { label: "Codex", href: "/codex", icon: BookOpen },
   { label: "Sessions", href: "/sessions", icon: ScrollText },
   { label: "World Map", href: "/world-map", icon: Map },

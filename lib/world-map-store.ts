@@ -261,8 +261,46 @@ export const useWorldMapStore = create<WorldMapStore>()(
         })),
       
       revealArea: (mapId, x, y, radius) => {
-        // For now, this is a placeholder. Full implementation would update fogMask
-        console.log(`Revealing area at ${x}, ${y} with radius ${radius}`)
+        // Fog mask uses a 100x100 grid (each cell represents 1% of the map)
+        const GRID_SIZE = 100
+        
+        set((state) => ({
+          maps: state.maps.map((m) => {
+            if (m.id !== mapId) return m
+            
+            // Initialize fog mask if it doesn't exist (all hidden by default)
+            let fogMask = m.fogMask
+            if (!fogMask) {
+              fogMask = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(false))
+            } else {
+              // Clone to avoid mutation
+              fogMask = fogMask.map(row => [...row])
+            }
+            
+            // Reveal cells within the radius (using circular reveal)
+            // x, y, and radius are in percentage coordinates (0-100)
+            const centerX = Math.round(x)
+            const centerY = Math.round(y)
+            const radiusCells = Math.round(radius)
+            
+            for (let i = 0; i < GRID_SIZE; i++) {
+              for (let j = 0; j < GRID_SIZE; j++) {
+                const distance = Math.sqrt(
+                  Math.pow(i - centerX, 2) + Math.pow(j - centerY, 2)
+                )
+                if (distance <= radiusCells) {
+                  fogMask[j][i] = true // [row][col] = [y][x]
+                }
+              }
+            }
+            
+            return {
+              ...m,
+              fogMask,
+              updatedAt: new Date().toISOString(),
+            }
+          }),
+        }))
       },
       
       revealPin: (pinId) =>

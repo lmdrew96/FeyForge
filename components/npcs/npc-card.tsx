@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { UserCircle, MapPin, Shield, ChevronDown, ChevronUp } from "lucide-react"
+import Link from "next/link"
+import { UserCircle, MapPin, Shield, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -172,6 +173,19 @@ export function NPCCard({ npc, isExpanded, onToggleExpand }: NPCCardProps) {
                 <p className="text-sm text-foreground leading-relaxed">{npc.relationships}</p>
               </div>
             )}
+
+            {/* View Full Sheet Link */}
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="w-full mt-2 bg-fey-cyan/10 border-fey-cyan/30 text-fey-cyan hover:bg-fey-cyan/20"
+            >
+              <Link href={`/npcs/${npc.id}`}>
+                <ExternalLink className="w-3 h-3 mr-1.5" />
+                View Full Sheet
+              </Link>
+            </Button>
           </div>
         )}
       </CardContent>

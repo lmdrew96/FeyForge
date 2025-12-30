@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { Sparkles, Mail, Lock, Eye, EyeOff, Loader2, Wand2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,6 +26,7 @@ interface FormErrors {
 }
 
 export function LoginForm() {
+  const router = useRouter()
   const [authMode, setAuthMode] = useState<AuthMode>("password")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -76,13 +79,18 @@ export function LoginForm() {
     setErrors({})
     
     try {
-      // Simulate API call - replace with actual auth logic
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const result = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      })
       
-      // For demo purposes, show a message
-      // In production, this would redirect to dashboard on success
-      console.log("Login attempted with:", formData.email)
-      
+      if (result?.error) {
+        setErrors({ general: "Invalid email or password. Please try again." })
+      } else {
+        router.push("/")
+        router.refresh()
+      }
     } catch {
       setErrors({ general: "Login failed. Please check your credentials and try again." })
     } finally {
@@ -95,10 +103,7 @@ export function LoginForm() {
     setErrors({})
     
     try {
-      // Simulate Google OAuth - replace with actual OAuth logic
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      console.log("Google login initiated")
-      
+      await signIn("google", { callbackUrl: "/" })
     } catch {
       setErrors({ general: "Google sign-in failed. Please try again." })
     } finally {
