@@ -1,9 +1,22 @@
 "use client"
 
 import { create } from "zustand"
-import type { Character, CharacterProperty, CalculatedStats, AlternateFormProperty, ClassResourceProperty, CharacterUpdateInput } from "./character/types"
+import type {
+  Character,
+  CharacterProperty,
+  CalculatedStats,
+  AlternateFormProperty,
+  ClassResourceProperty,
+  CharacterUpdateInput,
+} from "./character/types"
 import { calculateAllStats } from "./character/calculations"
-import { getLevelFromXP, getXPToNextLevel, getLevelsGained } from "./character/experience"
+import {
+  getLevelFromXP,
+  getXPToNextLevel,
+  getLevelsGained,
+  getXPForLevel,
+} from "./character/experience"
+import { XP_THRESHOLDS } from "./character/constants"
 import {
   fetchUserCharacters,
   createCharacter as createCharacterAction,
@@ -43,8 +56,15 @@ interface CharacterStore {
   getCharactersByCampaign: (campaignId: string) => Character[]
 
   // Property management (async - persist to DB)
-  addProperty: (characterId: string, property: CharacterProperty) => Promise<void>
-  updateProperty: (characterId: string, propertyId: string, updates: Partial<CharacterProperty>) => Promise<void>
+  addProperty: (
+    characterId: string,
+    property: CharacterProperty
+  ) => Promise<void>
+  updateProperty: (
+    characterId: string,
+    propertyId: string,
+    updates: Partial<CharacterProperty>
+  ) => Promise<void>
   removeProperty: (characterId: string, propertyId: string) => Promise<void>
   toggleProperty: (characterId: string, propertyId: string) => Promise<void>
 
@@ -62,13 +82,23 @@ interface CharacterStore {
   resetDeathSaves: (characterId: string) => void
 
   // Currency
-  updateCurrency: (characterId: string, currency: Partial<Character['currency']>) => void
+  updateCurrency: (
+    characterId: string,
+    currency: Partial<Character["currency"]>
+  ) => void
 
   // Experience & Leveling (XP-driven)
-  addExperience: (characterId: string, xp: number) => { newLevel: number; levelsGained: number[] }
+  addExperience: (
+    characterId: string,
+    xp: number
+  ) => { newLevel: number; levelsGained: number[] }
   setLevel: (characterId: string, level: number) => void
   getLevel: (characterId: string) => number
-  getXPProgress: (characterId: string) => { current: number; toNext: number; percentage: number }
+  getXPProgress: (characterId: string) => {
+    current: number
+    toNext: number
+    percentage: number
+  }
 
   // Spell Slots
   useSpellSlot: (characterId: string, level: number) => void
@@ -76,8 +106,16 @@ interface CharacterStore {
   restoreAllSpellSlots: (characterId: string) => void
 
   // Class Resources
-  useClassResource: (characterId: string, resourceId: string, amount?: number) => void
-  restoreClassResource: (characterId: string, resourceId: string, amount?: number) => void
+  useClassResource: (
+    characterId: string,
+    resourceId: string,
+    amount?: number
+  ) => void
+  restoreClassResource: (
+    characterId: string,
+    resourceId: string,
+    amount?: number
+  ) => void
   getClassResources: (characterId: string) => ClassResourceProperty[]
 
   // Alternate Forms (Wildshape/Polymorph)
@@ -85,7 +123,10 @@ interface CharacterStore {
   revertFromForm: (characterId: string) => void
   getActiveForm: (characterId: string) => AlternateFormProperty | null
   updateFormHP: (characterId: string, formId: string, hp: number) => void
-  addAlternateForm: (characterId: string, form: AlternateFormProperty) => Promise<void>
+  addAlternateForm: (
+    characterId: string,
+    form: AlternateFormProperty
+  ) => Promise<void>
   removeAlternateForm: (characterId: string, formId: string) => Promise<void>
 
   // Rest mechanics
@@ -116,7 +157,7 @@ function dbToLocal(dbChar: DBCharacter): Character {
     level: dbChar.level,
     experiencePoints: dbChar.experiencePoints,
     background: dbChar.background || undefined,
-    alignment: (dbChar.alignment as Character['alignment']) || undefined,
+    alignment: (dbChar.alignment as Character["alignment"]) || undefined,
     playerName: dbChar.playerName || undefined,
     age: dbChar.age || undefined,
     height: dbChar.height || undefined,
@@ -124,23 +165,29 @@ function dbToLocal(dbChar: DBCharacter): Character {
     eyes: dbChar.eyes || undefined,
     skin: dbChar.skin || undefined,
     hair: dbChar.hair || undefined,
-    size: (dbChar.size as Character['size']) || undefined,
-    baseAbilities: dbChar.baseAbilities as Character['baseAbilities'],
-    racialBonuses: (dbChar.racialBonuses as Record<string, number>) || undefined,
-    hitPoints: dbChar.hitPoints as Character['hitPoints'],
-    hitDice: (dbChar.hitDice as Character['hitDice']) || [],
-    deathSaves: dbChar.deathSaves as Character['deathSaves'],
+    size: (dbChar.size as Character["size"]) || undefined,
+    baseAbilities: dbChar.baseAbilities as Character["baseAbilities"],
+    racialBonuses:
+      (dbChar.racialBonuses as Record<string, number>) || undefined,
+    hitPoints: dbChar.hitPoints as Character["hitPoints"],
+    hitDice: (dbChar.hitDice as Character["hitDice"]) || [],
+    deathSaves: dbChar.deathSaves as Character["deathSaves"],
     speed: dbChar.speed,
     inspiration: dbChar.inspiration,
-    savingThrowProficiencies: (dbChar.savingThrowProficiencies as Character['savingThrowProficiencies']) || [],
-    skillProficiencies: (dbChar.skillProficiencies as Character['skillProficiencies']) || [],
-    skillExpertise: (dbChar.skillExpertise as Character['skillExpertise']) || [],
+    savingThrowProficiencies:
+      (dbChar.savingThrowProficiencies as Character["savingThrowProficiencies"]) ||
+      [],
+    skillProficiencies:
+      (dbChar.skillProficiencies as Character["skillProficiencies"]) || [],
+    skillExpertise:
+      (dbChar.skillExpertise as Character["skillExpertise"]) || [],
     armorProficiencies: (dbChar.armorProficiencies as string[]) || [],
     weaponProficiencies: (dbChar.weaponProficiencies as string[]) || [],
     toolProficiencies: (dbChar.toolProficiencies as string[]) || [],
     languages: (dbChar.languages as string[]) || [],
-    currency: dbChar.currency as Character['currency'],
-    spellcasting: (dbChar.spellcasting as Character['spellcasting']) || undefined,
+    currency: dbChar.currency as Character["currency"],
+    spellcasting:
+      (dbChar.spellcasting as Character["spellcasting"]) || undefined,
     personalityTraits: dbChar.personalityTraits || undefined,
     ideals: dbChar.ideals || undefined,
     bonds: dbChar.bonds || undefined,
@@ -185,7 +232,8 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to load characters",
+        error:
+          error instanceof Error ? error.message : "Failed to load characters",
         isLoading: false,
         isInitialized: true,
       })
@@ -196,7 +244,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     // Ensure properties array exists
     const charWithProperties = {
       ...character,
-      properties: character.properties || []
+      properties: character.properties || [],
     }
 
     // Optimistic update
@@ -241,20 +289,31 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         toolProficiencies: character.toolProficiencies,
         languages: character.languages,
         currency: character.currency,
-        spellcasting: character.spellcasting ? {
-          ability: character.spellcasting.ability,
-          spellSaveDC: character.spellcasting.spellSaveDC ?? character.spellcasting.saveDC ?? 0,
-          spellAttackBonus: character.spellcasting.spellAttackBonus ?? character.spellcasting.attackBonus ?? 0,
-          spellSlots: Array.isArray(character.spellcasting.spellSlots)
-            ? character.spellcasting.spellSlots.reduce((acc, slot) => {
-                acc[slot.level] = { total: slot.total, used: slot.used }
-                return acc
-              }, {} as Record<number, { total: number; used: number }>)
-            : character.spellcasting.spellSlots,
-          cantripsKnown: character.spellcasting.cantripsKnown,
-          spellsKnown: character.spellcasting.spellsKnown,
-          spellsPrepared: character.spellcasting.spellsPrepared,
-        } : null,
+        spellcasting: character.spellcasting
+          ? {
+              ability: character.spellcasting.ability,
+              spellSaveDC:
+                character.spellcasting.spellSaveDC ??
+                character.spellcasting.saveDC ??
+                0,
+              spellAttackBonus:
+                character.spellcasting.spellAttackBonus ??
+                character.spellcasting.attackBonus ??
+                0,
+              spellSlots: Array.isArray(character.spellcasting.spellSlots)
+                ? character.spellcasting.spellSlots.reduce(
+                    (acc, slot) => {
+                      acc[slot.level] = { total: slot.total, used: slot.used }
+                      return acc
+                    },
+                    {} as Record<number, { total: number; used: number }>
+                  )
+                : character.spellcasting.spellSlots,
+              cantripsKnown: character.spellcasting.cantripsKnown,
+              spellsKnown: character.spellcasting.spellsKnown,
+              spellsPrepared: character.spellcasting.spellsPrepared,
+            }
+          : null,
         personalityTraits: character.personalityTraits,
         ideals: character.ideals,
         bonds: character.bonds,
@@ -267,7 +326,8 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       // Rollback on error
       set((state) => ({
         characters: state.characters.filter((c) => c.id !== character.id),
-        error: error instanceof Error ? error.message : "Failed to save character",
+        error:
+          error instanceof Error ? error.message : "Failed to save character",
       }))
     }
   },
@@ -276,23 +336,29 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     // Optimistic update - merge the updates safely
     set((state) => ({
       characters: state.characters.map((char) =>
-        char.id === id 
-          ? { 
-              ...char, 
-              ...updates as Partial<Character>, 
-              updatedAt: new Date() 
-            } 
-          : char,
+        char.id === id
+          ? {
+              ...char,
+              ...(updates as Partial<Character>),
+              updatedAt: new Date(),
+            }
+          : char
       ),
     }))
     get().recalculateStats(id)
 
     // Persist to database
     try {
-      await updateCharacterAction(id, updates as Parameters<typeof updateCharacterAction>[1])
+      await updateCharacterAction(
+        id,
+        updates as Parameters<typeof updateCharacterAction>[1]
+      )
     } catch (error) {
       console.error("Failed to update character:", error)
-      set({ error: error instanceof Error ? error.message : "Failed to update character" })
+      set({
+        error:
+          error instanceof Error ? error.message : "Failed to update character",
+      })
     }
   },
 
@@ -302,7 +368,8 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     // Optimistic update
     set((state) => ({
       characters: state.characters.filter((char) => char.id !== id),
-      activeCharacterId: state.activeCharacterId === id ? null : state.activeCharacterId,
+      activeCharacterId:
+        state.activeCharacterId === id ? null : state.activeCharacterId,
       calculatedStats: Object.fromEntries(
         Object.entries(state.calculatedStats).filter(([key]) => key !== id)
       ),
@@ -317,7 +384,10 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       if (charToDelete) {
         set((state) => ({
           characters: [...state.characters, charToDelete],
-          error: error instanceof Error ? error.message : "Failed to delete character",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to delete character",
         }))
       }
     }
@@ -347,7 +417,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           ? {
               ...char,
               properties: [...(char.properties || []), property],
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -361,11 +431,12 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         type: property.type,
         name: property.name,
         description: property.description,
-        source: 'source' in property ? property.source : undefined,
+        source: "source" in property ? property.source : undefined,
         active: property.active,
-        equipped: 'equipped' in property ? property.equipped : undefined,
+        equipped: "equipped" in property ? property.equipped : undefined,
         data: property as unknown as Record<string, unknown>,
-        orderIndex: (get().getCharacter(characterId)?.properties?.length || 0) - 1,
+        orderIndex:
+          (get().getCharacter(characterId)?.properties?.length || 0) - 1,
       })
     } catch (error) {
       console.error("Failed to add property:", error)
@@ -380,9 +451,15 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           ? {
               ...char,
               properties: (char.properties || []).map((prop) =>
-                prop.id === propertyId ? { ...prop, ...updates, updatedAt: new Date() } as typeof prop : prop
+                prop.id === propertyId
+                  ? ({
+                      ...prop,
+                      ...updates,
+                      updatedAt: new Date(),
+                    } as typeof prop)
+                  : prop
               ),
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -401,7 +478,9 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   },
 
   removeProperty: async (characterId, propertyId) => {
-    const property = get().getCharacter(characterId)?.properties?.find(p => p.id === propertyId)
+    const property = get()
+      .getCharacter(characterId)
+      ?.properties?.find((p) => p.id === propertyId)
 
     // Optimistic update
     set((state) => ({
@@ -409,8 +488,10 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         char.id === characterId
           ? {
               ...char,
-              properties: (char.properties || []).filter((prop) => prop.id !== propertyId),
-              updatedAt: new Date()
+              properties: (char.properties || []).filter(
+                (prop) => prop.id !== propertyId
+              ),
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -436,7 +517,9 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   },
 
   toggleProperty: async (characterId, propertyId) => {
-    const property = get().getCharacter(characterId)?.properties?.find(p => p.id === propertyId)
+    const property = get()
+      .getCharacter(characterId)
+      ?.properties?.find((p) => p.id === propertyId)
     if (!property) return
 
     // Optimistic update
@@ -446,9 +529,11 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           ? {
               ...char,
               properties: (char.properties || []).map((prop) =>
-                prop.id === propertyId ? { ...prop, active: !prop.active, updatedAt: new Date() } : prop
+                prop.id === propertyId
+                  ? { ...prop, active: !prop.active, updatedAt: new Date() }
+                  : prop
               ),
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -473,9 +558,10 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
               hitPoints: {
                 ...char.hitPoints,
                 current: Math.max(0, Math.min(current, char.hitPoints.max)),
-                temp: temp !== undefined ? Math.max(0, temp) : char.hitPoints.temp,
+                temp:
+                  temp !== undefined ? Math.max(0, temp) : char.hitPoints.temp,
               },
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -500,7 +586,11 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     // First absorb from temp HP
     if (char.hitPoints.temp > 0) {
       if (remaining <= char.hitPoints.temp) {
-        get().updateHP(characterId, char.hitPoints.current, char.hitPoints.temp - remaining)
+        get().updateHP(
+          characterId,
+          char.hitPoints.current,
+          char.hitPoints.temp - remaining
+        )
         return
       }
       remaining -= char.hitPoints.temp
@@ -522,7 +612,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
                   ? { ...die, used: die.used + 1 }
                   : die
               ),
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -539,7 +629,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
                 ...die,
                 used: Math.max(0, die.used - Math.ceil(die.total / 2)),
               })),
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -561,7 +651,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
                   ? Math.min(3, char.deathSaves.failures + 1)
                   : char.deathSaves.failures,
               },
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -575,7 +665,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           ? {
               ...char,
               deathSaves: { successes: 0, failures: 0 },
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -590,7 +680,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           ? {
               ...char,
               currency: { ...char.currency, ...currency },
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -613,7 +703,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
               ...c,
               experiencePoints: newXP,
               level: newLevel,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : c
       ),
@@ -624,7 +714,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   },
 
   setLevel: (characterId, level) => {
-    const { getXPForLevel } = require('./character/experience')
     const xpForLevel = getXPForLevel(level)
 
     set((state) => ({
@@ -634,7 +723,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
               ...char,
               level: Math.max(1, Math.min(20, level)),
               experiencePoints: xpForLevel,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             }
           : char
       ),
@@ -654,12 +743,12 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
 
     const toNext = getXPToNextLevel(char.experiencePoints)
     const level = getLevelFromXP(char.experiencePoints)
-    const { XP_THRESHOLDS } = require('./character/constants')
     const currentLevelXP = XP_THRESHOLDS[level] || 0
     const nextLevelXP = XP_THRESHOLDS[level + 1] || currentLevelXP
     const xpInLevel = char.experiencePoints - currentLevelXP
     const xpNeeded = nextLevelXP - currentLevelXP
-    const percentage = xpNeeded > 0 ? Math.floor((xpInLevel / xpNeeded) * 100) : 100
+    const percentage =
+      xpNeeded > 0 ? Math.floor((xpInLevel / xpNeeded) * 100) : 100
 
     return { current: char.experiencePoints, toNext, percentage }
   },
@@ -703,7 +792,10 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
                   ...char.spellcasting.spellSlots,
                   [level]: {
                     ...char.spellcasting.spellSlots[level],
-                    used: Math.max(0, char.spellcasting.spellSlots[level].used - 1),
+                    used: Math.max(
+                      0,
+                      char.spellcasting.spellSlots[level].used - 1
+                    ),
                   },
                 },
               },
@@ -723,10 +815,9 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
               spellcasting: {
                 ...char.spellcasting,
                 spellSlots: Object.fromEntries(
-                  Object.entries(char.spellcasting.spellSlots).map(([lvl, slot]) => [
-                    lvl,
-                    { ...slot, used: 0 },
-                  ])
+                  Object.entries(char.spellcasting.spellSlots).map(
+                    ([lvl, slot]) => [lvl, { ...slot, used: 0 }]
+                  )
                 ),
               },
               updatedAt: new Date(),
@@ -744,10 +835,13 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           ? {
               ...char,
               properties: (char.properties || []).map((prop) =>
-                prop.id === resourceId && prop.type === 'classResource'
+                prop.id === resourceId && prop.type === "classResource"
                   ? {
                       ...prop,
-                      current: Math.max(0, (prop as ClassResourceProperty).current - amount),
+                      current: Math.max(
+                        0,
+                        (prop as ClassResourceProperty).current - amount
+                      ),
                       updatedAt: new Date(),
                     }
                   : prop
@@ -766,12 +860,15 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           ? {
               ...char,
               properties: (char.properties || []).map((prop) => {
-                if (prop.id === resourceId && prop.type === 'classResource') {
+                if (prop.id === resourceId && prop.type === "classResource") {
                   const resource = prop as ClassResourceProperty
                   const restoreAmount = amount ?? resource.max
                   return {
                     ...prop,
-                    current: Math.min(resource.max, resource.current + restoreAmount),
+                    current: Math.min(
+                      resource.max,
+                      resource.current + restoreAmount
+                    ),
                     updatedAt: new Date(),
                   }
                 }
@@ -788,7 +885,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     const char = get().getCharacter(characterId)
     if (!char) return []
     return (char.properties || []).filter(
-      (p): p is ClassResourceProperty => p.type === 'classResource'
+      (p): p is ClassResourceProperty => p.type === "classResource"
     )
   },
 
@@ -819,9 +916,12 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     const char = state.getCharacter(characterId)
     if (!char) return null
 
-    return (char.properties || []).find(
-      (p): p is AlternateFormProperty => p.type === 'alternateForm' && p.id === formId
-    ) || null
+    return (
+      (char.properties || []).find(
+        (p): p is AlternateFormProperty =>
+          p.type === "alternateForm" && p.id === formId
+      ) || null
+    )
   },
 
   updateFormHP: (characterId, formId, hp) => {
@@ -831,7 +931,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           ? {
               ...char,
               properties: (char.properties || []).map((prop) =>
-                prop.id === formId && prop.type === 'alternateForm'
+                prop.id === formId && prop.type === "alternateForm"
                   ? {
                       ...prop,
                       formHP: {
@@ -865,7 +965,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     // Restore class resources that recharge on short rest
     const resources = get().getClassResources(characterId)
     for (const resource of resources) {
-      if (resource.rechargeOn === 'shortRest') {
+      if (resource.rechargeOn === "shortRest") {
         get().restoreClassResource(characterId, resource.id)
       }
     }
@@ -892,7 +992,10 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     // Restore all class resources that recharge on long rest or short rest
     const resources = get().getClassResources(characterId)
     for (const resource of resources) {
-      if (resource.rechargeOn === 'shortRest' || resource.rechargeOn === 'longRest') {
+      if (
+        resource.rechargeOn === "shortRest" ||
+        resource.rechargeOn === "longRest"
+      ) {
         get().restoreClassResource(characterId, resource.id)
       }
     }
@@ -944,20 +1047,29 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         currency: char.currency,
         level: char.level,
         experiencePoints: char.experiencePoints,
-        spellcasting: char.spellcasting ? {
-          ability: char.spellcasting.ability,
-          spellSaveDC: char.spellcasting.spellSaveDC ?? char.spellcasting.saveDC ?? 0,
-          spellAttackBonus: char.spellcasting.spellAttackBonus ?? char.spellcasting.attackBonus ?? 0,
-          spellSlots: Array.isArray(char.spellcasting.spellSlots)
-            ? char.spellcasting.spellSlots.reduce((acc, slot) => {
-                acc[slot.level] = { total: slot.total, used: slot.used }
-                return acc
-              }, {} as Record<number, { total: number; used: number }>)
-            : char.spellcasting.spellSlots,
-          cantripsKnown: char.spellcasting.cantripsKnown,
-          spellsKnown: char.spellcasting.spellsKnown,
-          spellsPrepared: char.spellcasting.spellsPrepared,
-        } : null,
+        spellcasting: char.spellcasting
+          ? {
+              ability: char.spellcasting.ability,
+              spellSaveDC:
+                char.spellcasting.spellSaveDC ?? char.spellcasting.saveDC ?? 0,
+              spellAttackBonus:
+                char.spellcasting.spellAttackBonus ??
+                char.spellcasting.attackBonus ??
+                0,
+              spellSlots: Array.isArray(char.spellcasting.spellSlots)
+                ? char.spellcasting.spellSlots.reduce(
+                    (acc, slot) => {
+                      acc[slot.level] = { total: slot.total, used: slot.used }
+                      return acc
+                    },
+                    {} as Record<number, { total: number; used: number }>
+                  )
+                : char.spellcasting.spellSlots,
+              cantripsKnown: char.spellcasting.cantripsKnown,
+              spellsKnown: char.spellcasting.spellsKnown,
+              spellsPrepared: char.spellcasting.spellsPrepared,
+            }
+          : null,
         inspiration: char.inspiration,
       })
     } catch (error) {

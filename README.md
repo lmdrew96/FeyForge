@@ -1,30 +1,68 @@
-# FeyForge UI Redesign
+# FeyForge - D&D Campaign Manager
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+A comprehensive D&D 5e campaign management tool built with Next.js, featuring character creation, combat tracking, session management, and AI-powered DM assistance.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/adhd-agentic-development-of-human-designs/v0-fey-forge-ui-redesign)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/hy4zjGJUpPA)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://feyforge.adhdesigns.dev)
 
-## Overview
+## Features
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+- **Character Management** - Create and manage D&D 5e characters with full character sheets
+- **Combat Tracker** - Track initiative, HP, conditions, and manage encounters
+- **DM Assistant** - AI-powered chat for rules questions, encounter building, and loot generation
+- **Session Management** - Log sessions, track plot threads, and calculate XP
+- **Codex** - Browse spells, monsters, and items from Open5e API
+- **NPC Generator** - Create and manage NPCs with AI assistance
+- **Dice Roller** - Full-featured dice roller with history and saved rolls
+- **World Map** - Interactive world map with location pins
+- **Campaign Wiki** - Document your campaign lore
 
-## Deployment
+## Tech Stack
 
-Your project is live at:
+- **Framework:** Next.js 16 (App Router)
+- **Database:** PostgreSQL via Neon + Drizzle ORM
+- **Authentication:** NextAuth.js (Google OAuth + Credentials)
+- **Styling:** Tailwind CSS + shadcn/ui
+- **AI:** Anthropic Claude API
+- **State:** Zustand
+- **Deployment:** Vercel
 
-**[https://vercel.com/adhd-agentic-development-of-human-designs/v0-fey-forge-ui-redesign](https://vercel.com/adhd-agentic-development-of-human-designs/v0-fey-forge-ui-redesign)**
+## Getting Started
 
-## Build your app
+```bash
+# Install dependencies
+pnpm install
 
-Continue building your app on:
+# Run development server
+pnpm dev
 
-**[https://v0.app/chat/hy4zjGJUpPA](https://v0.app/chat/hy4zjGJUpPA)**
+# Build for production
+pnpm build
 
-## How It Works
+# Start production server
+pnpm start
+```
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+## Environment Variables
+
+Required environment variables:
+
+- `DATABASE_URL` - PostgreSQL connection string
+- `NEXTAUTH_SECRET` - Secret for NextAuth session encryption
+- `NEXTAUTH_URL` - Full URL of your deployment (include https://)
+- `AUTH_GOOGLE_ID` - Google OAuth client ID
+- `AUTH_GOOGLE_SECRET` - Google OAuth client secret
+- `ANTHROPIC_API_KEY` - Anthropic API key for AI features
+
+## Development
+
+```bash
+# Run linting
+pnpm lint
+
+# Type checking
+pnpm tsc --noEmit
+```
+
+## License
+
+MIT

@@ -3,7 +3,13 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Coins, Gem, Scroll, Sparkles, RefreshCw } from "lucide-react"
 
@@ -90,7 +96,12 @@ const ART_OBJECTS: Record<number, string[]> = {
 
 // Common magic items by rarity
 const MAGIC_ITEMS: Record<string, string[]> = {
-  common: ["Potion of Healing", "Spell Scroll (cantrip)", "Potion of Climbing", "Bag of Holding"],
+  common: [
+    "Potion of Healing",
+    "Spell Scroll (cantrip)",
+    "Potion of Climbing",
+    "Bag of Holding",
+  ],
   uncommon: [
     "Potion of Greater Healing",
     "Cloak of Protection",
@@ -142,7 +153,7 @@ export function LootGenerator() {
     if (treasureType === "individual") {
       // Individual treasure
       switch (crRange) {
-        case "0-4":
+        case "0-4": {
           const roll04 = rollDice(1, 100)
           if (roll04 <= 30) {
             loot.coins.cp = rollDice(5, 6)
@@ -156,7 +167,8 @@ export function LootGenerator() {
             loot.coins.pp = rollDice(1, 6)
           }
           break
-        case "5-10":
+        }
+        case "5-10": {
           const roll510 = rollDice(1, 100)
           if (roll510 <= 30) {
             loot.coins.cp = rollDice(4, 6) * 100
@@ -174,7 +186,8 @@ export function LootGenerator() {
             loot.coins.pp = rollDice(3, 6)
           }
           break
-        case "11-16":
+        }
+        case "11-16": {
           const roll1116 = rollDice(1, 100)
           if (roll1116 <= 20) {
             loot.coins.sp = rollDice(4, 6) * 100
@@ -190,7 +203,8 @@ export function LootGenerator() {
             loot.coins.pp = rollDice(2, 6) * 10
           }
           break
-        case "17+":
+        }
+        case "17+": {
           const roll17 = rollDice(1, 100)
           if (roll17 <= 15) {
             loot.coins.ep = rollDice(2, 6) * 1000
@@ -203,6 +217,7 @@ export function LootGenerator() {
             loot.coins.pp = rollDice(2, 6) * 100
           }
           break
+        }
       }
     } else {
       // Treasure hoard
@@ -233,7 +248,9 @@ export function LootGenerator() {
       if (hoardRoll > 50) {
         // Add gems
         const gemValues = Object.keys(GEMS).map(Number)
-        const gemValue = randomChoice(gemValues.slice(0, crRange === "0-4" ? 2 : crRange === "5-10" ? 3 : 5))
+        const gemValue = randomChoice(
+          gemValues.slice(0, crRange === "0-4" ? 2 : crRange === "5-10" ? 3 : 5)
+        )
         const gemCount = rollDice(2, 4)
         loot.gems = []
         for (let i = 0; i < gemCount; i++) {
@@ -247,7 +264,9 @@ export function LootGenerator() {
       if (hoardRoll > 70) {
         // Add art objects
         const artValues = Object.keys(ART_OBJECTS).map(Number)
-        const artValue = randomChoice(artValues.slice(0, crRange === "0-4" ? 1 : crRange === "5-10" ? 2 : 4))
+        const artValue = randomChoice(
+          artValues.slice(0, crRange === "0-4" ? 1 : crRange === "5-10" ? 2 : 4)
+        )
         const artCount = rollDice(1, 4)
         loot.artObjects = []
         for (let i = 0; i < artCount; i++) {
@@ -314,19 +333,27 @@ export function LootGenerator() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">Treasure Type</label>
-              <Select value={treasureType} onValueChange={(v) => setTreasureType(v as TreasureType)}>
+              <Select
+                value={treasureType}
+                onValueChange={(v) => setTreasureType(v as TreasureType)}
+              >
                 <SelectTrigger className="bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="individual">Individual Treasure</SelectItem>
+                  <SelectItem value="individual">
+                    Individual Treasure
+                  </SelectItem>
                   <SelectItem value="hoard">Treasure Hoard</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Challenge Rating</label>
-              <Select value={crRange} onValueChange={(v) => setCRRange(v as CRRange)}>
+              <Select
+                value={crRange}
+                onValueChange={(v) => setCRRange(v as CRRange)}
+              >
                 <SelectTrigger className="bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
@@ -339,8 +366,8 @@ export function LootGenerator() {
               </Select>
             </div>
           </div>
-          <Button 
-            onClick={generateLoot} 
+          <Button
+            onClick={generateLoot}
             className="w-full gap-2 bg-fey-cyan hover:bg-fey-cyan/90 text-white"
           >
             <RefreshCw className="h-4 w-4" />
@@ -363,7 +390,9 @@ export function LootGenerator() {
               <Coins className="mt-0.5 h-5 w-5 text-fey-gold" />
               <div>
                 <p className="font-medium">Coins</p>
-                <p className="text-sm text-muted-foreground">{formatCoins(result.coins)}</p>
+                <p className="text-sm text-muted-foreground">
+                  {formatCoins(result.coins)}
+                </p>
               </div>
             </div>
 
@@ -375,9 +404,16 @@ export function LootGenerator() {
                   <p className="font-medium">Gems</p>
                   <div className="mt-1 space-y-1">
                     {result.gems.map((gem, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{gem.description}</span>
-                        <Badge variant="outline" className="border-fey-gold/30">{gem.value} gp</Badge>
+                      <div
+                        key={i}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="text-muted-foreground">
+                          {gem.description}
+                        </span>
+                        <Badge variant="outline" className="border-fey-gold/30">
+                          {gem.value} gp
+                        </Badge>
                       </div>
                     ))}
                   </div>
@@ -393,9 +429,16 @@ export function LootGenerator() {
                   <p className="font-medium">Art Objects</p>
                   <div className="mt-1 space-y-1">
                     {result.artObjects.map((art, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{art.description}</span>
-                        <Badge variant="outline" className="border-fey-gold/30">{art.value} gp</Badge>
+                      <div
+                        key={i}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="text-muted-foreground">
+                          {art.description}
+                        </span>
+                        <Badge variant="outline" className="border-fey-gold/30">
+                          {art.value} gp
+                        </Badge>
                       </div>
                     ))}
                   </div>
@@ -411,9 +454,14 @@ export function LootGenerator() {
                   <p className="font-medium">Magic Items</p>
                   <div className="mt-1 space-y-1">
                     {result.magicItems.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm">
+                      <div
+                        key={i}
+                        className="flex items-center justify-between text-sm"
+                      >
                         <span>{item.name}</span>
-                        <Badge className={rarityColors[item.rarity]}>{item.rarity}</Badge>
+                        <Badge className={rarityColors[item.rarity]}>
+                          {item.rarity}
+                        </Badge>
                       </div>
                     ))}
                   </div>
