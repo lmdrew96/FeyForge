@@ -38,11 +38,11 @@ export default function CharacterSheetPage() {
     }
   }, [params.id, characters, router])
 
-  const calculatedStats = character ? getCalculatedStats(character.id) : null
+  const calculatedStats = character ? getCalculatedStats(character.id) ?? null : null
 
   const handleUpdate = (data: CharacterUpdateInput) => {
     if (isEditing) {
-      setPendingChanges((prev) => ({ ...prev, ...data }))
+      setPendingChanges((prev: CharacterUpdateInput) => ({ ...prev, ...data }))
       setCharacter((prev) => (prev ? { ...prev, ...data } as Character : null))
     }
   }

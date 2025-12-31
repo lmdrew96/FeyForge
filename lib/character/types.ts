@@ -190,6 +190,11 @@ export interface ItemProperty extends BaseProperty {
   equipped: boolean;
   attuned?: boolean;
   requiresAttunement?: boolean;
+  // Attunement object for components that expect this structure
+  attunement?: {
+    attuned: boolean;
+    maxAttunement?: number;
+  };
   quantity: number;
   weight: number;
   cost?: {
@@ -466,16 +471,42 @@ export interface Currency {
 }
 
 /**
+ * Spell slot info
+ */
+export interface SpellSlot {
+  level: number;
+  total: number;
+  used: number;
+}
+
+/**
+ * Known spell info (for UI)
+ */
+export interface KnownSpell {
+  name: string;
+  level: number;
+  prepared: boolean;
+  concentration?: boolean;
+  ritual?: boolean;
+}
+
+/**
  * Spellcasting info
  */
 export interface SpellcastingInfo {
   ability: Ability;
-  spellSaveDC: number;
-  spellAttackBonus: number;
-  spellSlots: Record<number, { total: number; used: number }>;
+  // Support both naming conventions
+  spellSaveDC?: number;
+  saveDC?: number;
+  spellAttackBonus?: number;
+  attackBonus?: number;
+  // Support both array and Record for spell slots
+  spellSlots: SpellSlot[] | Record<number, { total: number; used: number }>;
   cantripsKnown: number;
   spellsKnown?: number;
   spellsPrepared?: number;
+  // Spells list for UI
+  spells?: KnownSpell[];
 }
 
 /**
@@ -647,4 +678,32 @@ export interface ClassProficiencies {
   tools: string[];
   savingThrows: Ability[];
   skills: ClassSkillChoices;
+}
+
+/**
+ * CharacterUpdateInput
+ * Partial character data for updates
+ * Uses a simplified spellcasting type to avoid union conflicts
+ */
+export interface CharacterUpdateInput extends Omit<Partial<Character>, 'spellcasting'> {
+  // Allow updating spellcasting with simplified type
+  spellcasting?: {
+    ability?: Ability;
+    spellSaveDC?: number;
+    saveDC?: number;
+    spellAttackBonus?: number;
+    attackBonus?: number;
+    spellSlots?: SpellSlot[];
+    cantripsKnown?: number;
+    spellsKnown?: number;
+    spellsPrepared?: number;
+    spells?: KnownSpell[];
+  };
+  // Legacy equipment array support
+  equipment?: Array<{
+    name: string;
+    quantity: number;
+    weight: number;
+    equipped?: boolean;
+  }>;
 }

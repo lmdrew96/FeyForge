@@ -37,9 +37,8 @@ export async function POST(req: Request) {
 
   return result.toUIMessageStreamResponse({
     onFinish: async ({ isAborted }) => {
-      if (isAborted) {
-        console.log("DM Assistant stream aborted")
-      }
+      // Stream was aborted - no action needed
+      void isAborted
     },
     consumeSseStream: consumeStream,
   })

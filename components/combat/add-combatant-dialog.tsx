@@ -76,7 +76,7 @@ export function AddCombatantDialog() {
 
     // Get calculated stats for AC, or calculate basic DEX-based AC
     const calcStats = getCalculatedStats(characterId)
-    const dexMod = Math.floor((character.baseAbilities.dex - 10) / 2)
+    const dexMod = Math.floor((character.baseAbilities.dexterity - 10) / 2)
     const armorClass = calcStats?.armorClass ?? (10 + dexMod)
     const initBonus = dexMod
     const roll = Math.floor(Math.random() * 20) + 1 + initBonus
@@ -237,7 +237,7 @@ export function AddCombatantDialog() {
                     <div className="flex-1 min-w-0 overflow-hidden">
                       <p className="font-medium truncate text-sm sm:text-base">{character.name}</p>
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        Lv {character.level} {character.characterClass}
+                        Lv {character.level} {character.class}
                       </p>
                     </div>
                     <div className="text-xs sm:text-sm text-muted-foreground flex-shrink-0">

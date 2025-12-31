@@ -27,13 +27,13 @@ function getFeatures(character: Character): {
   
   if (featureProperties.length > 0) {
     const racialTraits = featureProperties
-      .filter(f => f.source?.type === 'race')
+      .filter(f => f.source === 'race')
       .map(f => f.name)
     const classFeatures = featureProperties
-      .filter(f => f.source?.type === 'class')
+      .filter(f => f.source === 'class')
       .map(f => f.name)
     const feats = featureProperties
-      .filter(f => f.source?.type === 'feat' || (!f.source && f.name))
+      .filter(f => f.source === 'feat' || f.source === 'other')
       .map(f => f.name)
     
     if (racialTraits.length || classFeatures.length || feats.length) {
@@ -42,11 +42,11 @@ function getFeatures(character: Character): {
   }
   
   // Fallback to legacy arrays
-  const char = character as any
+  const char = character as unknown as Record<string, unknown>
   return {
-    racialTraits: char.racialTraits ?? [],
-    classFeatures: char.classFeatures ?? [],
-    feats: char.feats ?? [],
+    racialTraits: (char.racialTraits as string[]) ?? [],
+    classFeatures: (char.classFeatures as string[]) ?? [],
+    feats: (char.feats as string[]) ?? [],
   }
 }
 
@@ -73,10 +73,11 @@ export function FeaturesPanel({ character, isEditing, onUpdate }: FeaturesPanelP
   }
 
   const removeFeature = (type: "racialTraits" | "classFeatures" | "feats", index: number) => {
-    const currentFeatures = (character as any)[type] ?? []
+    const char = character as unknown as Record<string, string[]>
+    const currentFeatures: string[] = char[type] ?? []
     onUpdate({
-      [type]: currentFeatures.filter((_: any, i: number) => i !== index),
-    } as any)
+      [type]: currentFeatures.filter((_, i) => i !== index),
+    } as CharacterUpdateInput)
   }
 
   const sections = [

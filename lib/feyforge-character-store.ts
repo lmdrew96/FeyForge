@@ -1,7 +1,7 @@
 "use client"
 
 import { create } from "zustand"
-import type { Character, CharacterProperty, CalculatedStats, AlternateFormProperty, ClassResourceProperty } from "./character/types"
+import type { Character, CharacterProperty, CalculatedStats, AlternateFormProperty, ClassResourceProperty, CharacterUpdateInput } from "./character/types"
 import { calculateAllStats } from "./character/calculations"
 import { getLevelFromXP, getXPToNextLevel, getLevelsGained } from "./character/experience"
 import {
@@ -35,7 +35,7 @@ interface CharacterStore {
 
   // CRUD operations (async - persist to DB)
   addCharacter: (character: Character) => Promise<void>
-  updateCharacter: (id: string, updates: Partial<Character>) => Promise<void>
+  updateCharacter: (id: string, updates: CharacterUpdateInput) => Promise<void>
   deleteCharacter: (id: string) => Promise<void>
   setActiveCharacter: (id: string | null) => void
   getActiveCharacter: () => Character | undefined
@@ -241,7 +241,20 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         toolProficiencies: character.toolProficiencies,
         languages: character.languages,
         currency: character.currency,
-        spellcasting: character.spellcasting,
+        spellcasting: character.spellcasting ? {
+          ability: character.spellcasting.ability,
+          spellSaveDC: character.spellcasting.spellSaveDC ?? character.spellcasting.saveDC ?? 0,
+          spellAttackBonus: character.spellcasting.spellAttackBonus ?? character.spellcasting.attackBonus ?? 0,
+          spellSlots: Array.isArray(character.spellcasting.spellSlots)
+            ? character.spellcasting.spellSlots.reduce((acc, slot) => {
+                acc[slot.level] = { total: slot.total, used: slot.used }
+                return acc
+              }, {} as Record<number, { total: number; used: number }>)
+            : character.spellcasting.spellSlots,
+          cantripsKnown: character.spellcasting.cantripsKnown,
+          spellsKnown: character.spellcasting.spellsKnown,
+          spellsPrepared: character.spellcasting.spellsPrepared,
+        } : null,
         personalityTraits: character.personalityTraits,
         ideals: character.ideals,
         bonds: character.bonds,
@@ -260,10 +273,16 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   },
 
   updateCharacter: async (id, updates) => {
-    // Optimistic update
+    // Optimistic update - merge the updates safely
     set((state) => ({
       characters: state.characters.map((char) =>
-        char.id === id ? { ...char, ...updates, updatedAt: new Date() } : char,
+        char.id === id 
+          ? { 
+              ...char, 
+              ...updates as Partial<Character>, 
+              updatedAt: new Date() 
+            } 
+          : char,
       ),
     }))
     get().recalculateStats(id)
@@ -925,7 +944,20 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         currency: char.currency,
         level: char.level,
         experiencePoints: char.experiencePoints,
-        spellcasting: char.spellcasting,
+        spellcasting: char.spellcasting ? {
+          ability: char.spellcasting.ability,
+          spellSaveDC: char.spellcasting.spellSaveDC ?? char.spellcasting.saveDC ?? 0,
+          spellAttackBonus: char.spellcasting.spellAttackBonus ?? char.spellcasting.attackBonus ?? 0,
+          spellSlots: Array.isArray(char.spellcasting.spellSlots)
+            ? char.spellcasting.spellSlots.reduce((acc, slot) => {
+                acc[slot.level] = { total: slot.total, used: slot.used }
+                return acc
+              }, {} as Record<number, { total: number; used: number }>)
+            : char.spellcasting.spellSlots,
+          cantripsKnown: char.spellcasting.cantripsKnown,
+          spellsKnown: char.spellcasting.spellsKnown,
+          spellsPrepared: char.spellcasting.spellsPrepared,
+        } : null,
         inspiration: char.inspiration,
       })
     } catch (error) {

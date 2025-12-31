@@ -99,9 +99,11 @@ export function CharacterHeader({
             <Badge variant="outline" className="border-fey-sage text-foreground">
               {character.subrace || character.race.charAt(0).toUpperCase() + character.race.slice(1)}
             </Badge>
-            <Badge variant="secondary" className="bg-fey-sage/20 text-foreground/70">
-              {character.background.charAt(0).toUpperCase() + character.background.slice(1)}
-            </Badge>
+            {character.background && (
+              <Badge variant="secondary" className="bg-fey-sage/20 text-foreground/70">
+                {character.background.charAt(0).toUpperCase() + character.background.slice(1)}
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-foreground/70 mt-1">{character.alignment}</p>
         </div>

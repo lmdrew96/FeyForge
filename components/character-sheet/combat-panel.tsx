@@ -53,25 +53,23 @@ export function CombatPanel({ character, isEditing, onUpdate }: CombatPanelProps
   // TODO: When adding attacks, should create ActionProperty in properties array
   const addAttack = () => {
     if (newAttack.name && newAttack.damage) {
-      const currentAttacks = (character as any).attacks ?? []
       onUpdate({
-        attacks: [...currentAttacks, newAttack],
-      } as any)
+        attacks: [...attacks, newAttack],
+      } as CharacterUpdateInput)
       setNewAttack({ name: "", attackBonus: 0, damage: "", damageType: "" })
     }
   }
 
   const removeAttack = (index: number) => {
-    const currentAttacks = (character as any).attacks ?? []
     onUpdate({
-      attacks: currentAttacks.filter((_: any, i: number) => i !== index),
-    } as any)
+      attacks: attacks.filter((_, i) => i !== index),
+    } as CharacterUpdateInput)
   }
 
   const updateAttack = (index: number, field: keyof SimpleAttack, value: string | number) => {
     const currentAttacks = [...attacks]
     currentAttacks[index] = { ...currentAttacks[index], [field]: value }
-    onUpdate({ attacks: currentAttacks } as any)
+    onUpdate({ attacks: currentAttacks } as CharacterUpdateInput)
   }
 
   return (

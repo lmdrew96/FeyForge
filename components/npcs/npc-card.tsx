@@ -53,19 +53,12 @@ export function NPCCard({ npc, isExpanded, onToggleExpand }: NPCCardProps) {
       <CardContent className="p-0">
         {/* Portrait Section */}
         <div className="relative aspect-[4/3] bg-gradient-to-br from-fey-forest/20 to-fey-purple/20 overflow-hidden">
-          {npc.imageUrl ? (
-            <img
-              src={npc.imageUrl}
-              alt={npc.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-muted/50 flex items-center justify-center">
-                <UserCircle className="w-8 h-8 sm:w-10 sm:h-10 text-fey-cyan" />
-              </div>
+          {/* NPC images are not yet supported - show placeholder */}
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-muted/50 flex items-center justify-center">
+              <UserCircle className="w-8 h-8 sm:w-10 sm:h-10 text-fey-cyan" />
             </div>
-          )}
+          </div>
 
           {/* Relationship & Status Badges */}
           <div className="absolute top-2 right-2 flex gap-1">

@@ -22,7 +22,8 @@ export function ActiveCampaigns() {
     return sessions.filter((s) => s.campaignId === campaignId).length
   }
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | null | undefined) => {
+    if (!date) return "Unknown"
     try {
       return date.toLocaleDateString("en-US", {
         month: "short",

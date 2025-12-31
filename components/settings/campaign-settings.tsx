@@ -69,7 +69,7 @@ export function CampaignSettings() {
 
   const openEditDialog = (campaign: Campaign) => {
     setFormName(campaign.name)
-    setFormDescription(campaign.description)
+    setFormDescription(campaign.description ?? "")
     setFormErrors({})
     setEditingCampaign(campaign)
   }
@@ -96,6 +96,7 @@ export function CampaignSettings() {
       await createCampaign({
         name: formName.trim(),
         description: formDescription.trim(),
+        isActive: false,
       })
       closeDialogs()
     } catch (error) {
@@ -188,7 +189,7 @@ export function CampaignSettings() {
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
-                        Created {new Date(campaign.createdAt).toLocaleDateString()}
+                        Created {campaign.createdAt ? new Date(campaign.createdAt).toLocaleDateString() : "Unknown"}
                       </p>
                     </div>
 

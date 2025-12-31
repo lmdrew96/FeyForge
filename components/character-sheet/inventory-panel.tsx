@@ -55,31 +55,29 @@ export function InventoryPanel({ character, calculatedStats, isEditing, onUpdate
 
   const addItem = () => {
     if (newItem.name.trim()) {
-      const currentEquipment = (character as any).equipment ?? []
       onUpdate({
-        equipment: [...currentEquipment, { ...newItem, name: newItem.name.trim(), equipped: false }],
-      } as any)
+        equipment: [...equipment, { ...newItem, name: newItem.name.trim(), equipped: false }],
+      })
       setNewItem({ name: "", quantity: 1, weight: 0 })
     }
   }
 
   const removeItem = (index: number) => {
-    const currentEquipment = (character as any).equipment ?? []
     onUpdate({
-      equipment: currentEquipment.filter((_: any, i: number) => i !== index),
-    } as any)
+      equipment: equipment.filter((_, i) => i !== index),
+    })
   }
 
   const toggleEquipped = (index: number) => {
     const updated = [...equipment]
     updated[index] = { ...updated[index], equipped: !updated[index].equipped }
-    onUpdate({ equipment: updated } as any)
+    onUpdate({ equipment: updated })
   }
 
   const toggleAttuned = (index: number) => {
     const updated = [...equipment]
     updated[index] = { ...updated[index], attuned: !updated[index].attuned }
-    onUpdate({ equipment: updated } as any)
+    onUpdate({ equipment: updated })
   }
 
   const updateCurrency = (type: keyof Character["currency"], value: number) => {
