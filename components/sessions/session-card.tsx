@@ -21,14 +21,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { format } from "date-fns"
-import type { Session } from "@/lib/sessions-store"
+import type { Session } from "@/lib/session-store"
 import { EditSessionDialog } from "./edit-session-dialog"
 
 interface SessionCardProps {
   session: Session
   isExpanded: boolean
   onToggleExpand: () => void
-  getCharacterName: (characterId: string) => string
   onDelete: () => void
 }
 
@@ -36,7 +35,6 @@ export function SessionCard({
   session,
   isExpanded,
   onToggleExpand,
-  getCharacterName,
   onDelete,
 }: SessionCardProps) {
   const [showDmNotes, setShowDmNotes] = useState(false)
@@ -62,7 +60,7 @@ export function SessionCard({
                       variant="outline"
                       className="shrink-0 text-xs bg-fey-purple/10 text-fey-purple border-fey-purple/30"
                     >
-                      Session {session.sessionNumber}
+                      Session {session.number}
                     </Badge>
                     <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">
                       {session.title}
@@ -84,16 +82,16 @@ export function SessionCard({
                       <Calendar className="h-3 w-3 flex-shrink-0" />
                       <span>{formattedDate}</span>
                     </div>
-                    {session.xpAwarded > 0 && (
+                    {(session.xpAwarded ?? 0) > 0 && (
                       <div className="flex items-center gap-1">
                         <Sparkles className="h-3 w-3 flex-shrink-0 text-fey-gold" />
                         <span className="text-fey-gold">{session.xpAwarded} XP</span>
                       </div>
                     )}
-                    {session.attendees.length > 0 && (
+                    {session.npcsEncountered && session.npcsEncountered.length > 0 && (
                       <div className="flex items-center gap-1">
                         <Users className="h-3 w-3 flex-shrink-0" />
-                        <span>{session.attendees.length} attendee{session.attendees.length !== 1 ? "s" : ""}</span>
+                        <span>{session.npcsEncountered.length} NPC{session.npcsEncountered.length !== 1 ? "s" : ""}</span>
                       </div>
                     )}
                   </div>
@@ -116,21 +114,21 @@ export function SessionCard({
               {/* Divider */}
               <div className="border-t border-border/50" />
 
-              {/* Attendees */}
-              {session.attendees.length > 0 && (
+              {/* NPCs Encountered */}
+              {session.npcsEncountered && session.npcsEncountered.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <Users className="h-4 w-4 text-fey-cyan" />
-                    <span>Attendees</span>
+                    <span>NPCs Encountered</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {session.attendees.map((attendeeId) => (
+                    {session.npcsEncountered.map((npcName, index) => (
                       <Badge
-                        key={attendeeId}
+                        key={index}
                         variant="secondary"
                         className="bg-fey-cyan/10 text-fey-cyan border-fey-cyan/20"
                       >
-                        {getCharacterName(attendeeId)}
+                        {npcName}
                       </Badge>
                     ))}
                   </div>
@@ -179,7 +177,7 @@ export function SessionCard({
               )}
 
               {/* DM Notes (Private - Collapsible) */}
-              {session.dmNotes && (
+              {session.prepNotes && (
                 <div className="space-y-2">
                   <Button
                     variant="ghost"
@@ -202,7 +200,7 @@ export function SessionCard({
                   </Button>
                   {showDmNotes && (
                     <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-xs sm:text-sm text-foreground/80 whitespace-pre-wrap">
-                      {session.dmNotes}
+                      {session.prepNotes}
                     </div>
                   )}
                 </div>

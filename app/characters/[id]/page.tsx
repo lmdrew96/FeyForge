@@ -11,17 +11,18 @@ import { SkillsPanel } from "@/components/character-sheet/skills-panel"
 import { SpellcastingPanel } from "@/components/character-sheet/spellcasting-panel"
 import { AppShell } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
-import { type Character, useCharactersStore } from "@/lib/characters-store"
+import { useCharacterStore } from "@/lib/feyforge-character-store"
+import type { Character, CharacterUpdateInput } from "@/lib/character/types"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 export default function CharacterSheetPage() {
   const params = useParams()
   const router = useRouter()
-  const { getCharacter, updateCharacter, deleteCharacter } = useCharactersStore()
+  const { characters, updateCharacter, deleteCharacter, getCalculatedStats } = useCharacterStore()
   const [character, setCharacter] = useState<Character | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [pendingChanges, setPendingChanges] = useState<Partial<Character>>({})
+  const [pendingChanges, setPendingChanges] = useState<CharacterUpdateInput>({})
 
   useEffect(() => {
     const id = params.id as string
@@ -31,16 +32,18 @@ export default function CharacterSheetPage() {
       return
     }
 
-    const found = getCharacter(id)
+    const found = characters.find((c) => c.id === id)
     if (found) {
       setCharacter(found)
     }
-  }, [params.id, getCharacter, router])
+  }, [params.id, characters, router])
 
-  const handleUpdate = (data: Partial<Character>) => {
+  const calculatedStats = character ? getCalculatedStats(character.id) : null
+
+  const handleUpdate = (data: CharacterUpdateInput) => {
     if (isEditing) {
       setPendingChanges((prev) => ({ ...prev, ...data }))
-      setCharacter((prev) => (prev ? { ...prev, ...data } : null))
+      setCharacter((prev) => (prev ? { ...prev, ...data } as Character : null))
     }
   }
 
@@ -54,7 +57,7 @@ export default function CharacterSheetPage() {
 
   const cancelEditing = () => {
     if (character) {
-      const original = getCharacter(character.id)
+      const original = characters.find((c) => c.id === character.id)
       if (original) setCharacter(original)
     }
     setPendingChanges({})
@@ -117,9 +120,9 @@ export default function CharacterSheetPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 w-full">
             {/* Left Column - Core Stats */}
             <div className="lg:col-span-4 space-y-4 sm:space-y-6 min-w-0">
-              <AbilityScoresPanel character={character} isEditing={isEditing} onUpdate={handleUpdate} />
+              <AbilityScoresPanel character={character} calculatedStats={calculatedStats} isEditing={isEditing} onUpdate={handleUpdate} />
               <HealthTracker character={character} isEditing={isEditing} onUpdate={handleUpdate} />
-              <SkillsPanel character={character} isEditing={isEditing} onUpdate={handleUpdate} />
+              <SkillsPanel character={character} calculatedStats={calculatedStats} isEditing={isEditing} onUpdate={handleUpdate} />
             </div>
 
             {/* Middle Column - Combat & Features */}
@@ -133,7 +136,7 @@ export default function CharacterSheetPage() {
 
             {/* Right Column - Inventory & Personality */}
             <div className="lg:col-span-4 space-y-4 sm:space-y-6 min-w-0">
-              <InventoryPanel character={character} isEditing={isEditing} onUpdate={handleUpdate} />
+              <InventoryPanel character={character} calculatedStats={calculatedStats} isEditing={isEditing} onUpdate={handleUpdate} />
               <PersonalityPanel character={character} isEditing={isEditing} onUpdate={handleUpdate} />
             </div>
           </div>

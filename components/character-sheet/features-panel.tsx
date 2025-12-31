@@ -5,17 +5,53 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CharacterUpdateInput, FeatureProperty } from "@/lib/character/types"
 import { ChevronDown, Plus, Sparkles, Star, Trash2, Users } from "lucide-react"
 import { useState } from "react"
 
 interface FeaturesPanelProps {
   character: Character
   isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+  onUpdate: (data: CharacterUpdateInput) => void
+}
+
+// Helper to extract features from properties or use fallback arrays
+function getFeatures(character: Character): {
+  racialTraits: string[]
+  classFeatures: string[]
+  feats: string[]
+} {
+  const featureProperties = character.properties?.filter(
+    (p): p is FeatureProperty => p.type === 'feature'
+  ) ?? []
+  
+  if (featureProperties.length > 0) {
+    const racialTraits = featureProperties
+      .filter(f => f.source?.type === 'race')
+      .map(f => f.name)
+    const classFeatures = featureProperties
+      .filter(f => f.source?.type === 'class')
+      .map(f => f.name)
+    const feats = featureProperties
+      .filter(f => f.source?.type === 'feat' || (!f.source && f.name))
+      .map(f => f.name)
+    
+    if (racialTraits.length || classFeatures.length || feats.length) {
+      return { racialTraits, classFeatures, feats }
+    }
+  }
+  
+  // Fallback to legacy arrays
+  const char = character as any
+  return {
+    racialTraits: char.racialTraits ?? [],
+    classFeatures: char.classFeatures ?? [],
+    feats: char.feats ?? [],
+  }
 }
 
 export function FeaturesPanel({ character, isEditing, onUpdate }: FeaturesPanelProps) {
+  const features = getFeatures(character)
   const [expandedSections, setExpandedSections] = useState<string[]>(["racial", "class"])
   const [newFeature, setNewFeature] = useState({ racial: "", class: "", feat: "" })
 
@@ -25,9 +61,10 @@ export function FeaturesPanel({ character, isEditing, onUpdate }: FeaturesPanelP
 
   const addFeature = (type: "racialTraits" | "classFeatures" | "feats", value: string) => {
     if (value.trim()) {
+      const currentFeatures = (character as any)[type] ?? []
       onUpdate({
-        [type]: [...character[type], value.trim()],
-      })
+        [type]: [...currentFeatures, value.trim()],
+      } as any)
       setNewFeature((prev) => ({
         ...prev,
         [type.replace("Traits", "").replace("Features", "").replace("feats", "feat")]: "",
@@ -36,9 +73,10 @@ export function FeaturesPanel({ character, isEditing, onUpdate }: FeaturesPanelP
   }
 
   const removeFeature = (type: "racialTraits" | "classFeatures" | "feats", index: number) => {
+    const currentFeatures = (character as any)[type] ?? []
     onUpdate({
-      [type]: character[type].filter((_, i) => i !== index),
-    })
+      [type]: currentFeatures.filter((_: any, i: number) => i !== index),
+    } as any)
   }
 
   const sections = [
@@ -46,7 +84,7 @@ export function FeaturesPanel({ character, isEditing, onUpdate }: FeaturesPanelP
       id: "racial",
       title: "Racial Traits",
       icon: <Users className="h-4 w-4" />,
-      items: character.racialTraits,
+      items: features.racialTraits,
       type: "racialTraits" as const,
       color: "text-fey-purple",
     },
@@ -54,7 +92,7 @@ export function FeaturesPanel({ character, isEditing, onUpdate }: FeaturesPanelP
       id: "class",
       title: "Class Features",
       icon: <Sparkles className="h-4 w-4" />,
-      items: character.classFeatures,
+      items: features.classFeatures,
       type: "classFeatures" as const,
       color: "text-fey-cyan",
     },
@@ -62,7 +100,7 @@ export function FeaturesPanel({ character, isEditing, onUpdate }: FeaturesPanelP
       id: "feats",
       title: "Feats",
       icon: <Star className="h-4 w-4" />,
-      items: character.feats,
+      items: features.feats,
       type: "feats" as const,
       color: "text-fey-gold",
     },

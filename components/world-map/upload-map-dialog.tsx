@@ -16,7 +16,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { useWorldMapStore, type WorldMapData } from "@/lib/world-map-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 
 interface UploadMapDialogProps {
   trigger?: React.ReactNode
@@ -29,7 +29,7 @@ export function UploadMapDialog({ trigger }: UploadMapDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const { addMap, updateMap, getMapByCampaign } = useWorldMapStore()
-  const { activeCampaignId } = useCampaignsStore()
+  const activeCampaignId = useActiveCampaignId()
   
   // Form state
   const [mapName, setMapName] = useState("")

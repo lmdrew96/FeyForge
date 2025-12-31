@@ -6,14 +6,14 @@ import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CharacterUpdateInput } from "@/lib/character/types"
 import { ChevronDown, Plus, Sparkles, Trash2, Wand2 } from "lucide-react"
 import { useState } from "react"
 
 interface SpellcastingPanelProps {
   character: Character
   isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+  onUpdate: (data: CharacterUpdateInput) => void
 }
 
 export function SpellcastingPanel({ character, isEditing, onUpdate }: SpellcastingPanelProps) {

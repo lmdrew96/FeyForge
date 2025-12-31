@@ -13,6 +13,11 @@ import {
   Heart,
   Pencil,
   Trash2,
+  Skull,
+  CircleHelp,
+  Eye,
+  MessageSquare,
+  Book,
 } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
@@ -29,52 +34,56 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { useNPCsStore, type NPC } from "@/lib/npcs-store"
+import { useNPCStore, type NPC } from "@/lib/npc-store"
 
 export default function NPCDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const { getNPC, deleteNPC } = useNPCsStore()
+  const { npcs, deleteNPC, initialize, isInitialized } = useNPCStore()
   const [npc, setNPC] = useState<NPC | null>(null)
 
   useEffect(() => {
+    if (!isInitialized) {
+      initialize()
+    }
+  }, [initialize, isInitialized])
+
+  useEffect(() => {
     const id = params.id as string
-    const found = getNPC(id)
+    const found = npcs.find(n => n.id === id)
     if (found) {
       setNPC(found)
     }
-  }, [params.id, getNPC])
+  }, [params.id, npcs])
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (npc) {
-      deleteNPC(npc.id)
+      await deleteNPC(npc.id)
       router.push("/npcs")
     }
   }
 
-  const getImportanceColor = () => {
-    switch (npc?.importance) {
-      case "key":
-        return "bg-fey-gold/20 border-fey-gold/50 text-fey-gold"
-      case "major":
-        return "bg-fey-purple/20 border-fey-purple/50 text-fey-purple"
-      case "minor":
-        return "bg-muted border-border text-muted-foreground"
+  const getRelationshipStyle = () => {
+    switch (npc?.relationship) {
+      case "friendly":
+        return { color: "bg-fey-forest/20 border-fey-forest/50 text-fey-forest", icon: Heart, label: "Friendly" }
+      case "hostile":
+        return { color: "bg-red-500/20 border-red-500/50 text-red-500", icon: Skull, label: "Hostile" }
+      case "neutral":
       default:
-        return "bg-muted border-border text-muted-foreground"
+        return { color: "bg-muted border-border text-muted-foreground", icon: CircleHelp, label: "Neutral" }
     }
   }
 
-  const getImportanceLabel = () => {
-    switch (npc?.importance) {
-      case "key":
-        return "Key NPC"
-      case "major":
-        return "Major NPC"
-      case "minor":
-        return "Minor NPC"
+  const getStatusStyle = () => {
+    switch (npc?.status) {
+      case "alive":
+        return "bg-fey-forest/20 border-fey-forest/50 text-fey-forest"
+      case "dead":
+        return "bg-red-500/20 border-red-500/50 text-red-500"
+      case "unknown":
       default:
-        return npc?.importance
+        return "bg-muted border-border text-muted-foreground"
     }
   }
 
@@ -99,6 +108,9 @@ export default function NPCDetailPage() {
     )
   }
 
+  const relationshipStyle = getRelationshipStyle()
+  const RelationshipIcon = relationshipStyle.icon
+
   return (
     <AppShell pageTitle={npc.name}>
       <div className="p-3 sm:p-4 lg:p-6 w-full max-w-full">
@@ -116,22 +128,20 @@ export default function NPCDetailPage() {
           <Card className="bg-card/80 backdrop-blur-sm border-border overflow-hidden">
             {/* Portrait Header */}
             <div className="relative h-48 sm:h-64 bg-gradient-to-br from-fey-forest/20 to-fey-purple/20">
-              {npc.imageUrl ? (
-                <img
-                  src={npc.imageUrl}
-                  alt={npc.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-muted/50 flex items-center justify-center">
-                    <UserCircle className="w-16 h-16 sm:w-20 sm:h-20 text-fey-cyan" />
-                  </div>
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-muted/50 flex items-center justify-center">
+                  <UserCircle className="w-16 h-16 sm:w-20 sm:h-20 text-fey-cyan" />
                 </div>
-              )}
-              <Badge className={`absolute top-4 right-4 border ${getImportanceColor()}`}>
-                {getImportanceLabel()}
-              </Badge>
+              </div>
+              <div className="absolute top-4 right-4 flex gap-2">
+                <Badge className={`border ${relationshipStyle.color}`}>
+                  <RelationshipIcon className="w-3 h-3 mr-1" />
+                  {relationshipStyle.label}
+                </Badge>
+                <Badge className={`border ${getStatusStyle()}`}>
+                  {npc.status}
+                </Badge>
+              </div>
             </div>
 
             <CardHeader className="pb-4">
@@ -139,9 +149,13 @@ export default function NPCDetailPage() {
                 <div>
                   <CardTitle className="text-2xl font-display">{npc.name}</CardTitle>
                   <CardDescription className="flex flex-wrap items-center gap-2 mt-2">
-                    {npc.race && <span>{npc.race}</span>}
-                    {npc.race && npc.class && <span>·</span>}
-                    {npc.class && <span>{npc.class}</span>}
+                    <span>{npc.race}</span>
+                    <span>·</span>
+                    <span>{npc.age}</span>
+                    <span>·</span>
+                    <span>{npc.gender}</span>
+                    <span>·</span>
+                    <span className="capitalize">{npc.alignment}</span>
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -182,24 +196,29 @@ export default function NPCDetailPage() {
             <CardContent className="space-y-6">
               {/* Quick Info */}
               <div className="flex flex-wrap gap-3">
-                {npc.role && (
-                  <Badge variant="outline" className="bg-fey-cyan/10 border-fey-cyan/30 text-fey-cyan">
-                    <Shield className="w-3 h-3 mr-1" />
-                    {npc.role}
-                  </Badge>
-                )}
+                <Badge variant="outline" className="bg-fey-cyan/10 border-fey-cyan/30 text-fey-cyan">
+                  <Shield className="w-3 h-3 mr-1" />
+                  {npc.occupation}
+                </Badge>
                 {npc.faction && (
                   <Badge variant="outline" className="bg-fey-purple/10 border-fey-purple/30 text-fey-purple">
                     <Users className="w-3 h-3 mr-1" />
                     {npc.faction}
                   </Badge>
                 )}
-                {npc.location && (
-                  <Badge variant="outline" className="bg-fey-forest/10 border-fey-forest/30 text-fey-forest">
-                    <MapPin className="w-3 h-3 mr-1" />
-                    {npc.location}
-                  </Badge>
-                )}
+                <Badge variant="outline" className="bg-fey-forest/10 border-fey-forest/30 text-fey-forest">
+                  <MapPin className="w-3 h-3 mr-1" />
+                  {npc.location}
+                </Badge>
+              </div>
+
+              {/* Appearance */}
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-fey-cyan" />
+                  Appearance
+                </h3>
+                <p className="text-foreground leading-relaxed">{npc.appearance}</p>
               </div>
 
               {/* Personality */}
@@ -208,30 +227,80 @@ export default function NPCDetailPage() {
                   <Heart className="h-4 w-4 text-fey-cyan" />
                   Personality
                 </h3>
-                <p className="text-foreground leading-relaxed">
-                  {npc.personality || "No personality notes yet."}
-                </p>
+                <div className="flex flex-wrap gap-2">
+                  {npc.personality.map((trait, index) => (
+                    <Badge key={index} variant="secondary">{trait}</Badge>
+                  ))}
+                </div>
               </div>
 
-              {/* Goals */}
-              {npc.goals && (
+              {/* Mannerisms & Voice */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
-                    <Target className="h-4 w-4 text-fey-gold" />
-                    Goals & Motivations
+                    <MessageSquare className="h-4 w-4 text-fey-purple" />
+                    Mannerisms
                   </h3>
-                  <p className="text-foreground leading-relaxed">{npc.goals}</p>
+                  <p className="text-foreground leading-relaxed">{npc.mannerisms}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    Voice
+                  </h3>
+                  <p className="text-foreground leading-relaxed">{npc.voiceDescription}</p>
+                </div>
+              </div>
+
+              {/* Motivation */}
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
+                  <Target className="h-4 w-4 text-fey-gold" />
+                  Motivation
+                </h3>
+                <p className="text-foreground leading-relaxed">{npc.motivation}</p>
+              </div>
+
+              {/* Secret */}
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
+                  <Skull className="h-4 w-4 text-red-400" />
+                  Secret
+                </h3>
+                <p className="text-foreground leading-relaxed italic">{npc.secret}</p>
+              </div>
+
+              {/* Backstory */}
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
+                  <Book className="h-4 w-4 text-fey-forest" />
+                  Backstory
+                </h3>
+                <p className="text-foreground leading-relaxed">{npc.backstory}</p>
+              </div>
+
+              {/* Tags */}
+              {npc.tags.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    Tags
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {npc.tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="bg-fey-cyan/10 border-fey-cyan/30 text-fey-cyan">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Relationships */}
-              {npc.relationships && (
+              {/* Notes */}
+              {npc.notes && (
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
-                    <Users className="h-4 w-4 text-fey-purple" />
-                    Relationships
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    Notes
                   </h3>
-                  <p className="text-foreground leading-relaxed">{npc.relationships}</p>
+                  <p className="text-foreground leading-relaxed">{npc.notes}</p>
                 </div>
               )}
             </CardContent>

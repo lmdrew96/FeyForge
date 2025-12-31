@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Pencil, Trash2, Check, Crown, X } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,17 +26,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useCampaignsStore, Campaign } from "@/lib/campaigns-store"
+import { useCampaignStore, type Campaign } from "@/lib/campaign-store"
 
 export function CampaignSettings() {
   const {
     campaigns,
     activeCampaignId,
-    addCampaign,
+    isInitialized,
+    initialize,
+    createCampaign,
     updateCampaign,
     deleteCampaign,
     setActiveCampaign,
-  } = useCampaignsStore()
+  } = useCampaignStore()
+
+  // Initialize store on mount
+  useEffect(() => {
+    if (!isInitialized) {
+      initialize()
+    }
+  }, [initialize, isInitialized])
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null)
@@ -80,35 +89,43 @@ export function CampaignSettings() {
     return Object.keys(errors).length === 0
   }
 
-  const handleAddCampaign = () => {
+  const handleAddCampaign = async () => {
     if (!validateForm()) return
 
-    const newCampaign: Campaign = {
-      id: `campaign-${Date.now()}`,
-      name: formName.trim(),
-      description: formDescription.trim(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    try {
+      await createCampaign({
+        name: formName.trim(),
+        description: formDescription.trim(),
+      })
+      closeDialogs()
+    } catch (error) {
+      console.error("Failed to create campaign:", error)
     }
-
-    addCampaign(newCampaign)
-    closeDialogs()
   }
 
-  const handleUpdateCampaign = () => {
+  const handleUpdateCampaign = async () => {
     if (!validateForm() || !editingCampaign) return
 
-    updateCampaign(editingCampaign.id, {
-      name: formName.trim(),
-      description: formDescription.trim(),
-    })
-    closeDialogs()
+    try {
+      await updateCampaign(editingCampaign.id, {
+        name: formName.trim(),
+        description: formDescription.trim(),
+      })
+      closeDialogs()
+    } catch (error) {
+      console.error("Failed to update campaign:", error)
+    }
   }
 
-  const handleDeleteCampaign = () => {
+  const handleDeleteCampaign = async () => {
     if (!deleteConfirmCampaign) return
-    deleteCampaign(deleteConfirmCampaign.id)
-    setDeleteConfirmCampaign(null)
+    
+    try {
+      await deleteCampaign(deleteConfirmCampaign.id)
+      setDeleteConfirmCampaign(null)
+    } catch (error) {
+      console.error("Failed to delete campaign:", error)
+    }
   }
 
   const handleSetActive = (campaignId: string) => {

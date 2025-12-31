@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useDMAssistantStore, getSimulatedResponse } from "@/lib/dm-assistant-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useCampaignStore } from "@/lib/campaign-store"
+import { useActiveCampaignId, useActiveCampaign } from "@/lib/hooks/use-campaign-data"
 import { ChatMessages } from "./chat-messages"
 import { QuickPrompts } from "./quick-prompts"
 import { ChatHistory } from "./chat-history"
@@ -31,8 +32,8 @@ export function DMAssistant() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const { activeCampaignId, getActiveCampaign } = useCampaignsStore()
-  const activeCampaign = getActiveCampaign()
+  const activeCampaignId = useActiveCampaignId()
+  const activeCampaign = useActiveCampaign()
 
   const {
     activeConversationId,

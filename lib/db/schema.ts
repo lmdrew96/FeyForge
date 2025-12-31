@@ -6,6 +6,7 @@ import {
   integer,
   boolean,
   jsonb,
+  real,
 } from "drizzle-orm/pg-core"
 import type { AdapterAccountType } from "next-auth/adapters"
 
@@ -100,13 +101,127 @@ export const characters = pgTable("characters", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   campaignId: text("campaign_id").references(() => campaigns.id, { onDelete: "set null" }),
+
+  // Basic Info
   name: text("name").notNull(),
+  playerName: text("player_name"),
   race: text("race").notNull(),
-  characterClass: text("character_class").notNull(),
-  level: integer("level").default(1),
-  data: jsonb("data"), // Full character data as JSON
-  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
-  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow(),
+  subrace: text("subrace"),
+  class: text("class").notNull(),
+  subclass: text("subclass"),
+  level: integer("level").notNull().default(1),
+  experiencePoints: integer("experience_points").notNull().default(0),
+  background: text("background"),
+  alignment: text("alignment"),
+
+  // Physical characteristics
+  age: text("age"),
+  height: text("height"),
+  weight: text("weight"),
+  eyes: text("eyes"),
+  skin: text("skin"),
+  hair: text("hair"),
+  size: text("size"),
+
+  // Ability Scores (stored as JSONB for simplicity)
+  baseAbilities: jsonb("base_abilities").notNull().$type<{
+    strength: number;
+    dexterity: number;
+    constitution: number;
+    intelligence: number;
+    wisdom: number;
+    charisma: number;
+  }>(),
+  racialBonuses: jsonb("racial_bonuses").$type<Partial<{
+    strength: number;
+    dexterity: number;
+    constitution: number;
+    intelligence: number;
+    wisdom: number;
+    charisma: number;
+  }>>(),
+
+  // Combat stats (JSONB for nested objects)
+  hitPoints: jsonb("hit_points").notNull().$type<{
+    current: number;
+    max: number;
+    temp: number;
+  }>(),
+  hitDice: jsonb("hit_dice").notNull().$type<Array<{
+    diceSize: number;
+    total: number;
+    used: number;
+  }>>(),
+  deathSaves: jsonb("death_saves").notNull().$type<{
+    successes: number;
+    failures: number;
+  }>(),
+  speed: integer("speed").notNull().default(30),
+  inspiration: boolean("inspiration").notNull().default(false),
+
+  // Proficiencies (arrays stored as JSONB)
+  savingThrowProficiencies: jsonb("saving_throw_proficiencies").notNull().$type<string[]>().default([]),
+  skillProficiencies: jsonb("skill_proficiencies").notNull().$type<string[]>().default([]),
+  skillExpertise: jsonb("skill_expertise").notNull().$type<string[]>().default([]),
+  armorProficiencies: jsonb("armor_proficiencies").notNull().$type<string[]>().default([]),
+  weaponProficiencies: jsonb("weapon_proficiencies").notNull().$type<string[]>().default([]),
+  toolProficiencies: jsonb("tool_proficiencies").notNull().$type<string[]>().default([]),
+  languages: jsonb("languages").notNull().$type<string[]>().default([]),
+
+  // Currency
+  currency: jsonb("currency").notNull().$type<{
+    cp: number;
+    sp: number;
+    ep: number;
+    gp: number;
+    pp: number;
+  }>().default({ cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }),
+
+  // Spellcasting (nullable, complex structure)
+  spellcasting: jsonb("spellcasting").$type<{
+    ability: string;
+    spellSaveDC: number;
+    spellAttackBonus: number;
+    spellSlots: Record<number, { total: number; used: number }>;
+    cantripsKnown: number;
+    spellsKnown?: number;
+    spellsPrepared?: number;
+  }>(),
+
+  // Personality
+  personalityTraits: text("personality_traits"),
+  ideals: text("ideals"),
+  bonds: text("bonds"),
+  flaws: text("flaws"),
+  backstory: text("backstory"),
+
+  // Image
+  imageUrl: text("image_url"),
+
+  // Metadata
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+})
+
+// Character properties table (normalized for flexibility)
+export const characterProperties = pgTable("character_properties", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  characterId: text("character_id")
+    .notNull()
+    .references(() => characters.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'item', 'spell', 'feature', 'action', 'effect', 'classResource', 'alternateForm', 'companion'
+  name: text("name").notNull(),
+  description: text("description"),
+  source: text("source"),
+  active: boolean("active").notNull().default(true),
+  equipped: boolean("equipped"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  orderIndex: integer("order_index").notNull().default(0),
+  data: jsonb("data").notNull(), // Type-specific data stored as JSON
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 })
 
 export const npcs = pgTable("npcs", {
@@ -116,22 +231,45 @@ export const npcs = pgTable("npcs", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  campaignId: text("campaign_id").references(() => campaigns.id, { onDelete: "cascade" }),
+  campaignId: text("campaign_id")
+    .notNull()
+    .references(() => campaigns.id, { onDelete: "cascade" }),
+
   name: text("name").notNull(),
-  role: text("role"),
+  race: text("race").notNull(),
+  occupation: text("occupation").notNull(),
+  age: text("age").notNull(),
+  gender: text("gender").notNull(),
+  alignment: text("alignment").notNull(),
+  appearance: text("appearance").notNull(),
+  personality: jsonb("personality").notNull().$type<string[]>(),
+  mannerisms: text("mannerisms").notNull(),
+  voiceDescription: text("voice_description").notNull(),
+  motivation: text("motivation").notNull(),
+  secret: text("secret").notNull(),
+  backstory: text("backstory").notNull(),
+  location: text("location").notNull(),
   faction: text("faction"),
-  location: text("location"),
-  importance: text("importance").default("minor"),
-  personality: text("personality"),
-  goals: text("goals"),
-  relationships: text("relationships"),
+  relationship: text("relationship").notNull(), // 'friendly' | 'neutral' | 'hostile'
+  status: text("status").notNull(), // 'alive' | 'dead' | 'unknown'
+  tags: jsonb("tags").notNull().$type<string[]>().default([]),
   notes: text("notes"),
-  imageUrl: text("image_url"),
-  race: text("race"),
-  npcClass: text("npc_class"),
-  statBlock: jsonb("stat_block"),
-  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
-  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow(),
+  stats: jsonb("stats").$type<{
+    cr: string;
+    ac: number;
+    hp: number;
+    abilities: {
+      str: number;
+      dex: number;
+      con: number;
+      int: number;
+      wis: number;
+      cha: number;
+    };
+  }>(),
+
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 })
 
 export const gameSessions = pgTable("game_sessions", {
@@ -144,17 +282,76 @@ export const gameSessions = pgTable("game_sessions", {
   campaignId: text("campaign_id")
     .notNull()
     .references(() => campaigns.id, { onDelete: "cascade" }),
-  sessionNumber: integer("session_number").notNull(),
+
+  number: integer("number").notNull(),
   title: text("title").notNull(),
-  summary: text("summary"),
   date: timestamp("date", { mode: "date" }).notNull(),
-  xpAwarded: integer("xp_awarded").default(0),
-  attendees: jsonb("attendees").$type<string[]>().default([]),
-  loot: jsonb("loot").$type<string[]>().default([]),
-  highlights: jsonb("highlights").$type<string[]>().default([]),
-  dmNotes: text("dm_notes"),
-  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
-  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow(),
+  scheduledDate: timestamp("scheduled_date", { mode: "date" }),
+  duration: integer("duration"), // minutes
+  status: text("status").notNull(), // 'planned' | 'completed' | 'cancelled'
+  summary: text("summary"),
+  plotThreads: jsonb("plot_threads").notNull().$type<string[]>().default([]),
+  highlights: jsonb("highlights").notNull().$type<string[]>().default([]),
+  loot: jsonb("loot").notNull().$type<string[]>().default([]),
+  npcsEncountered: jsonb("npcs_encountered").notNull().$type<string[]>().default([]),
+  locationsVisited: jsonb("locations_visited").notNull().$type<string[]>().default([]),
+  prepNotes: text("prep_notes"),
+  playerRecap: text("player_recap"),
+  objectives: jsonb("objectives").notNull().$type<Array<{
+    id: string;
+    text: string;
+    completed: boolean;
+    priority: 'primary' | 'secondary' | 'optional';
+  }>>().default([]),
+  plannedEncounters: jsonb("planned_encounters").notNull().$type<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    difficulty: 'trivial' | 'easy' | 'medium' | 'hard' | 'deadly';
+    monsterSlugs: string[];
+    status: 'planned' | 'completed' | 'skipped';
+    notes?: string;
+    xpReward?: number;
+  }>>().default([]),
+  plannedNPCs: jsonb("planned_npcs").notNull().$type<string[]>().default([]),
+  xpAwarded: integer("xp_awarded"),
+
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+})
+
+export const sessionNotes = pgTable("session_notes", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  sessionId: text("session_id")
+    .notNull()
+    .references(() => gameSessions.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  type: text("type").notNull(), // 'narrative' | 'combat' | 'roleplay' | 'loot' | 'decision'
+  timestamp: timestamp("timestamp", { mode: "date" }).defaultNow().notNull(),
+})
+
+export const plotThreads = pgTable("plot_threads", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  campaignId: text("campaign_id")
+    .notNull()
+    .references(() => campaigns.id, { onDelete: "cascade" }),
+
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull(), // 'active' | 'resolved' | 'abandoned'
+  importance: text("importance").notNull(), // 'major' | 'minor' | 'side'
+  relatedNPCs: jsonb("related_npcs").$type<string[]>().default([]),
+  relatedLocations: jsonb("related_locations").$type<string[]>().default([]),
+
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at", { mode: "date" }),
 })
 
 export const wikiEntries = pgTable("wiki_entries", {
@@ -221,6 +418,26 @@ export const mapPins = pgTable("map_pins", {
   updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow(),
 })
 
+export const mapLocations = pgTable("map_locations", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  campaignId: text("campaign_id").references(() => campaigns.id, { onDelete: "cascade" }),
+
+  name: text("name").notNull(),
+  type: text("type").notNull(), // 'city' | 'town' | 'village' | 'dungeon' | 'landmark' | 'wilderness' | 'poi'
+  description: text("description").notNull(),
+  notes: text("notes").notNull(),
+  x: real("x").notNull(), // percentage position
+  y: real("y").notNull(), // percentage position
+  visited: boolean("visited").notNull().default(false),
+
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+})
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -231,13 +448,21 @@ export type Campaign = typeof campaigns.$inferSelect
 export type NewCampaign = typeof campaigns.$inferInsert
 export type Character = typeof characters.$inferSelect
 export type NewCharacter = typeof characters.$inferInsert
+export type CharacterPropertyType = typeof characterProperties.$inferSelect
+export type NewCharacterPropertyType = typeof characterProperties.$inferInsert
 export type NPC = typeof npcs.$inferSelect
 export type NewNPC = typeof npcs.$inferInsert
 export type GameSession = typeof gameSessions.$inferSelect
 export type NewGameSession = typeof gameSessions.$inferInsert
+export type SessionNote = typeof sessionNotes.$inferSelect
+export type NewSessionNote = typeof sessionNotes.$inferInsert
+export type PlotThread = typeof plotThreads.$inferSelect
+export type NewPlotThread = typeof plotThreads.$inferInsert
 export type WikiEntry = typeof wikiEntries.$inferSelect
 export type NewWikiEntry = typeof wikiEntries.$inferInsert
 export type WorldMap = typeof worldMaps.$inferSelect
 export type NewWorldMap = typeof worldMaps.$inferInsert
 export type MapPin = typeof mapPins.$inferSelect
 export type NewMapPin = typeof mapPins.$inferInsert
+export type MapLocation = typeof mapLocations.$inferSelect
+export type NewMapLocation = typeof mapLocations.$inferInsert

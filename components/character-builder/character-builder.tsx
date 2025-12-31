@@ -1,8 +1,9 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useCharacterStore } from "@/lib/character-store"
-import { useCharactersStore } from "@/lib/characters-store"
+import { useCharacterStore as useCharacterBuilderStore } from "@/lib/character-store"
+import { useCharacterStore } from "@/lib/feyforge-character-store"
+import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 import { ProgressIndicator } from "./progress-indicator"
 import { StepBasics } from "./step-basics"
 import { StepAbilities } from "./step-abilities"
@@ -27,8 +28,9 @@ const stepTitles = [
 
 export function CharacterBuilder() {
   const router = useRouter()
-  const { currentStep, setStep, character, resetCharacter } = useCharacterStore()
-  const { addCharacter } = useCharactersStore()
+  const { currentStep, setStep, character, resetCharacter } = useCharacterBuilderStore()
+  const addCharacter = useCharacterStore((s) => s.addCharacter)
+  const activeCampaignId = useActiveCampaignId()
 
   const canProceed = () => {
     switch (currentStep) {
@@ -59,54 +61,66 @@ export function CharacterBuilder() {
     }
   }
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     // Generate a unique ID for the new character
     const newId = `char-${Date.now()}`
     
-    // Transform character builder data to full character format
+    // Calculate initial HP based on class hit die (assume d8 for now + CON mod)
+    const conMod = Math.floor((character.abilities.constitution - 10) / 2)
+    const initialHP = 8 + conMod // Level 1 max HP
+    
+    // Transform character builder data to FeyForge Character format
     const newCharacter = {
       id: newId,
+      campaignId: activeCampaignId || undefined,
       name: character.name,
       race: character.race,
-      subrace: character.subrace || "",
-      characterClass: character.characterClass,
+      subrace: character.subrace || undefined,
+      class: character.characterClass, // FeyForge uses 'class' not 'characterClass'
       level: 1,
-      background: character.background || "",
-      alignment: character.alignment || "",
       experiencePoints: 0,
-      abilities: { ...character.abilities },
-      skillProficiencies: [...character.skillProficiencies],
-      savingThrowProficiencies: [],
-      toolProficiencies: [...character.toolProficiencies],
-      languages: [...character.languages],
-      proficiencyBonus: 2,
-      armorClass: 10 + Math.floor((character.abilities.dexterity - 10) / 2),
-      initiative: Math.floor((character.abilities.dexterity - 10) / 2),
-      speed: 30,
+      background: character.background || undefined,
+      alignment: character.alignment || undefined,
+      
+      // FeyForge uses baseAbilities with different property names
+      baseAbilities: {
+        str: character.abilities.strength,
+        dex: character.abilities.dexterity,
+        con: character.abilities.constitution,
+        int: character.abilities.intelligence,
+        wis: character.abilities.wisdom,
+        cha: character.abilities.charisma,
+      },
+      
+      // Combat stats
       hitPoints: {
-        current: 10 + Math.floor((character.abilities.constitution - 10) / 2),
-        max: 10 + Math.floor((character.abilities.constitution - 10) / 2),
+        current: initialHP,
+        max: initialHP,
         temp: 0,
       },
-      hitDice: {
+      hitDice: [{
+        dieType: 8,
         total: 1,
-        current: 1,
-        type: "d8",
-      },
+        used: 0,
+        classSource: character.characterClass,
+      }],
       deathSaves: {
         successes: 0,
         failures: 0,
       },
-      attacks: [],
-      racialTraits: [],
-      classFeatures: [],
-      feats: [],
-      equipment: character.selectedEquipment.map((name) => ({
-        name,
-        quantity: 1,
-        weight: 0,
-        equipped: false,
-      })),
+      speed: 30,
+      inspiration: false,
+      
+      // Proficiencies - cast to appropriate types
+      savingThrowProficiencies: [] as string[],
+      skillProficiencies: [...character.skillProficiencies] as string[],
+      skillExpertise: [] as string[],
+      armorProficiencies: [],
+      weaponProficiencies: [],
+      toolProficiencies: [...character.toolProficiencies],
+      languages: [...character.languages],
+      
+      // Currency
       currency: {
         cp: 0,
         sp: 0,
@@ -114,30 +128,56 @@ export function CharacterBuilder() {
         gp: character.equipmentChoice === "gold" ? character.startingGold : 0,
         pp: 0,
       },
+      
+      // Properties (equipment stored as properties in FeyForge)
+      properties: character.selectedEquipment.map((name, index) => ({
+        id: `item-${newId}-${index}`,
+        type: 'item' as const,
+        name,
+        description: '',
+        active: true,
+        category: 'gear' as const,
+        equipped: false,
+        quantity: 1,
+        weight: 0,
+        modifiers: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+      
+      // Personality
       personalityTraits: character.personalityTraits || "",
       ideals: character.ideals || "",
       bonds: character.bonds || "",
       flaws: character.flaws || "",
       backstory: character.backstory || "",
-      age: character.age || "",
-      height: character.height || "",
-      weight: character.weight || "",
-      eyes: character.eyes || "",
-      skin: character.skin || "",
-      hair: character.hair || "",
-      imageUrl: character.imageUrl || "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      
+      // Physical characteristics
+      age: character.age || undefined,
+      height: character.height || undefined,
+      weight: character.weight || undefined,
+      eyes: character.eyes || undefined,
+      skin: character.skin || undefined,
+      hair: character.hair || undefined,
+      imageUrl: character.imageUrl || undefined,
+      
+      // Metadata
+      createdAt: new Date(),
+      updatedAt: new Date(),
     }
     
-    // Add character to the store
-    addCharacter(newCharacter)
-    
-    // Reset the builder
-    resetCharacter()
-    
-    // Navigate to the new character's sheet
-    router.push(`/characters/${newId}`)
+    try {
+      // Add character to the store (async)
+      await addCharacter(newCharacter as any)
+      
+      // Reset the builder
+      resetCharacter()
+      
+      // Navigate to the new character's sheet
+      router.push(`/characters/${newId}`)
+    } catch (error) {
+      console.error("Failed to create character:", error)
+    }
   }
 
   const renderStep = () => {

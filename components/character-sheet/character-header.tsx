@@ -16,13 +16,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CharacterUpdateInput } from "@/lib/character/types"
 import { Download, Pencil, Save, Trash2, User, X } from "lucide-react"
 
 interface CharacterHeaderProps {
   character: Character
   isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+  onUpdate: (data: CharacterUpdateInput) => void
   onEdit: () => void
   onSave: () => void
   onCancel: () => void
@@ -55,7 +55,7 @@ export function CharacterHeader({
     wizard: { color: "bg-indigo-600 text-white" },
   }
 
-  const classStyle = classData[character.characterClass as keyof typeof classData] || {
+  const classStyle = classData[character.class as keyof typeof classData] || {
     color: "bg-primary text-primary-foreground",
   }
 
@@ -94,7 +94,7 @@ export function CharacterHeader({
           )}
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <Badge className={classStyle.color}>
-              {character.characterClass.charAt(0).toUpperCase() + character.characterClass.slice(1)} {character.level}
+              {character.class.charAt(0).toUpperCase() + character.class.slice(1)} {character.level}
             </Badge>
             <Badge variant="outline" className="border-fey-sage text-foreground">
               {character.subrace || character.race.charAt(0).toUpperCase() + character.race.slice(1)}

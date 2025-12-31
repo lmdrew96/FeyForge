@@ -1,24 +1,29 @@
 "use client"
 
+import { useEffect } from "react"
 import Link from "next/link"
 import { Sparkles, ChevronRight, Crown, Calendar } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useCampaignsStore } from "@/lib/campaigns-store"
-import { useSessionsStore } from "@/lib/sessions-store"
+import { useCampaignStore } from "@/lib/campaign-store"
+import { useSessionStore } from "@/lib/session-store"
 
 export function ActiveCampaigns() {
-  const { campaigns, activeCampaignId, setActiveCampaign } = useCampaignsStore()
-  const { sessions } = useSessionsStore()
+  const { campaigns, activeCampaignId, setActiveCampaign, initialize: initCampaigns, isInitialized: campaignsInitialized } = useCampaignStore()
+  const { sessions, initialize: initSessions, isInitialized: sessionsInitialized } = useSessionStore()
+
+  useEffect(() => {
+    if (!campaignsInitialized) initCampaigns()
+    if (!sessionsInitialized) initSessions()
+  }, [initCampaigns, initSessions, campaignsInitialized, sessionsInitialized])
 
   const getSessionCount = (campaignId: string) => {
     return sessions.filter((s) => s.campaignId === campaignId).length
   }
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (date: Date) => {
     try {
-      const date = new Date(dateString)
       return date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",

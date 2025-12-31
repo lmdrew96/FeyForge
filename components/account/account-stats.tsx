@@ -1,10 +1,11 @@
 "use client"
 
+import { useEffect } from "react"
 import { Users, ScrollText, Sparkles } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useCharactersStore } from "@/lib/characters-store"
-import { useSessionsStore } from "@/lib/sessions-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useCharacterStore } from "@/lib/feyforge-character-store"
+import { useSessionStore } from "@/lib/session-store"
+import { useCampaignStore } from "@/lib/campaign-store"
 
 interface StatItemProps {
   icon: React.ReactNode
@@ -30,9 +31,15 @@ function StatItem({ icon, label, value, accentColor }: StatItemProps) {
 }
 
 export function AccountStats() {
-  const { characters } = useCharactersStore()
-  const { sessions } = useSessionsStore()
-  const { campaigns } = useCampaignsStore()
+  const { characters, initialize: initCharacters, isInitialized: charsInitialized } = useCharacterStore()
+  const { sessions, initialize: initSessions, isInitialized: sessionsInitialized } = useSessionStore()
+  const { campaigns, initialize: initCampaigns, isInitialized: campaignsInitialized } = useCampaignStore()
+
+  useEffect(() => {
+    if (!charsInitialized) initCharacters()
+    if (!sessionsInitialized) initSessions()
+    if (!campaignsInitialized) initCampaigns()
+  }, [initCharacters, initSessions, initCampaigns, charsInitialized, sessionsInitialized, campaignsInitialized])
 
   return (
     <Card className="bg-card/80 backdrop-blur-sm border-border">

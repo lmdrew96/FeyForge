@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useMemo } from "react"
 import { Check, ChevronDown, Crown, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -9,12 +10,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useCampaignStore } from "@/lib/campaign-store"
 import { cn } from "@/lib/utils"
 
 export function CampaignSelector() {
-  const { campaigns, activeCampaignId, setActiveCampaign, getActiveCampaign } = useCampaignsStore()
-  const activeCampaign = getActiveCampaign()
+  const { campaigns, activeCampaignId, setActiveCampaign, initialize, isInitialized } = useCampaignStore()
+  
+  useEffect(() => {
+    if (!isInitialized) initialize()
+  }, [initialize, isInitialized])
+  
+  const activeCampaign = useMemo(() => {
+    return campaigns.find(c => c.id === activeCampaignId)
+  }, [campaigns, activeCampaignId])
 
   return (
     <DropdownMenu>

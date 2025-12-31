@@ -4,10 +4,10 @@ import { ZoomIn, ZoomOut, RotateCcw, Eye, EyeOff, Ruler } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useWorldMapStore } from "@/lib/world-map-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 
 export function MapControls() {
-  const { activeCampaignId } = useCampaignsStore()
+  const activeCampaignId = useActiveCampaignId()
   const {
     zoom,
     setZoom,

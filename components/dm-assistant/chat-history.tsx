@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useDMAssistantStore } from "@/lib/dm-assistant-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 import { cn } from "@/lib/utils"
 
 interface ChatHistoryProps {
@@ -34,7 +34,7 @@ export function ChatHistory({
   open,
   onOpenChange,
 }: ChatHistoryProps) {
-  const { activeCampaignId } = useCampaignsStore()
+  const activeCampaignId = useActiveCampaignId()
   const {
     activeConversationId,
     getConversationsByCampaign,

@@ -16,6 +16,7 @@ import {
   Pencil,
   Trash2,
   Star,
+  MapPin,
 } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
@@ -32,37 +33,36 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { useSessionsStore, type Session } from "@/lib/sessions-store"
-import { useCharactersStore } from "@/lib/characters-store"
+import { useSessionStore, type Session } from "@/lib/session-store"
 import { EditSessionDialog } from "@/components/sessions/edit-session-dialog"
 
 export default function SessionDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const { getSession, deleteSession } = useSessionsStore()
-  const { getCharacter } = useCharactersStore()
+  const { sessions, deleteSession, initialize, isInitialized } = useSessionStore()
   const [session, setSession] = useState<Session | null>(null)
-  const [showDmNotes, setShowDmNotes] = useState(false)
+  const [showPrepNotes, setShowPrepNotes] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
   useEffect(() => {
+    if (!isInitialized) {
+      initialize()
+    }
+  }, [initialize, isInitialized])
+
+  useEffect(() => {
     const id = params.id as string
-    const found = getSession(id)
+    const found = sessions.find(s => s.id === id)
     if (found) {
       setSession(found)
     }
-  }, [params.id, getSession])
+  }, [params.id, sessions])
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (session) {
-      deleteSession(session.id)
+      await deleteSession(session.id)
       router.push("/sessions")
     }
-  }
-
-  const getCharacterName = (characterId: string): string => {
-    const character = getCharacter(characterId)
-    return character?.name || "Unknown Character"
   }
 
   if (!session) {
@@ -89,7 +89,7 @@ export default function SessionDetailPage() {
   const formattedDate = format(new Date(session.date), "MMMM d, yyyy")
 
   return (
-    <AppShell pageTitle={`Session ${session.sessionNumber}: ${session.title}`}>
+    <AppShell pageTitle={`Session ${session.number}: ${session.title}`}>
       <div className="p-3 sm:p-4 lg:p-6 w-full max-w-full">
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Back Button */}
@@ -111,7 +111,13 @@ export default function SessionDetailPage() {
                       variant="outline"
                       className="bg-fey-purple/10 text-fey-purple border-fey-purple/30"
                     >
-                      Session {session.sessionNumber}
+                      Session {session.number}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={`${session.status === 'completed' ? 'bg-fey-forest/10 text-fey-forest border-fey-forest/30' : 'bg-fey-gold/10 text-fey-gold border-fey-gold/30'}`}
+                    >
+                      {session.status}
                     </Badge>
                   </div>
                   <CardTitle className="text-2xl font-display">{session.title}</CardTitle>
@@ -140,7 +146,7 @@ export default function SessionDetailPage() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Session?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will permanently delete Session {session.sessionNumber}: {session.title}.
+                          This will permanently delete Session {session.number}: {session.title}.
                           This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
@@ -160,41 +166,67 @@ export default function SessionDetailPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Summary */}
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                  Summary
-                </h3>
-                <p className="text-foreground leading-relaxed">{session.summary}</p>
-              </div>
+              {session.summary && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    Summary
+                  </h3>
+                  <p className="text-foreground leading-relaxed">{session.summary}</p>
+                </div>
+              )}
 
               {/* Stats Row */}
               <div className="flex flex-wrap gap-4">
-                {session.xpAwarded > 0 && (
+                {(session.xpAwarded ?? 0) > 0 && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-fey-gold/10 border border-fey-gold/20">
                     <Sparkles className="h-4 w-4 text-fey-gold" />
                     <span className="text-fey-gold font-medium">{session.xpAwarded} XP</span>
                   </div>
                 )}
-                {session.attendees.length > 0 && (
+                {session.npcsEncountered.length > 0 && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-fey-cyan/10 border border-fey-cyan/20">
                     <Users className="h-4 w-4 text-fey-cyan" />
                     <span className="text-fey-cyan font-medium">
-                      {session.attendees.length} Attendee{session.attendees.length !== 1 ? "s" : ""}
+                      {session.npcsEncountered.length} NPC{session.npcsEncountered.length !== 1 ? "s" : ""} Encountered
+                    </span>
+                  </div>
+                )}
+                {session.locationsVisited.length > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-fey-forest/10 border border-fey-forest/20">
+                    <MapPin className="h-4 w-4 text-fey-forest" />
+                    <span className="text-fey-forest font-medium">
+                      {session.locationsVisited.length} Location{session.locationsVisited.length !== 1 ? "s" : ""} Visited
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Attendees */}
-              {session.attendees.length > 0 && (
+              {/* NPCs Encountered */}
+              {session.npcsEncountered.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                    Attendees
+                    NPCs Encountered
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {session.attendees.map((characterId) => (
-                      <Badge key={characterId} variant="secondary">
-                        {getCharacterName(characterId)}
+                    {session.npcsEncountered.map((npcId) => (
+                      <Badge key={npcId} variant="secondary">
+                        {npcId}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Locations Visited */}
+              {session.locationsVisited.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    Locations Visited
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {session.locationsVisited.map((location) => (
+                      <Badge key={location} variant="outline" className="bg-fey-forest/10 border-fey-forest/30 text-fey-forest">
+                        {location}
                       </Badge>
                     ))}
                   </div>
@@ -243,24 +275,24 @@ export default function SessionDetailPage() {
                 </div>
               )}
 
-              {/* DM Notes */}
-              {session.dmNotes && (
+              {/* Prep Notes */}
+              {session.prepNotes && (
                 <div>
                   <button
-                    onClick={() => setShowDmNotes(!showDmNotes)}
+                    onClick={() => setShowPrepNotes(!showPrepNotes)}
                     className="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2 hover:text-foreground transition-colors"
                   >
-                    {showDmNotes ? (
+                    {showPrepNotes ? (
                       <EyeOff className="h-4 w-4" />
                     ) : (
                       <Eye className="h-4 w-4" />
                     )}
-                    DM Notes {showDmNotes ? "(Click to hide)" : "(Click to reveal)"}
+                    Prep Notes {showPrepNotes ? "(Click to hide)" : "(Click to reveal)"}
                   </button>
-                  {showDmNotes && (
+                  {showPrepNotes && (
                     <div className="p-4 rounded-lg bg-muted/50 border border-border">
                       <p className="text-foreground leading-relaxed whitespace-pre-wrap">
-                        {session.dmNotes}
+                        {session.prepNotes}
                       </p>
                     </div>
                   )}

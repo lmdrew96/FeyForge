@@ -16,41 +16,39 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useSessionsStore } from "@/lib/sessions-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
-import { useCharactersStore } from "@/lib/characters-store"
+import { useSessionStore, type Session } from "@/lib/session-store"
+import { useCampaignSessions, useCampaignCharacters, useActiveCampaign } from "@/lib/hooks/use-campaign-data"
 import { SessionCard } from "./session-card"
 import { AddSessionDialog } from "./add-session-dialog"
 
 export function SessionList() {
-  const { sessions, deleteSession } = useSessionsStore()
-  const { activeCampaignId, getActiveCampaign } = useCampaignsStore()
-  const { characters } = useCharactersStore()
+  const { deleteSession } = useSessionStore()
+  const campaignSessions = useCampaignSessions()
+  const characters = useCampaignCharacters()
+  const activeCampaign = useActiveCampaign()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null)
   const [deleteConfirmSession, setDeleteConfirmSession] = useState<string | null>(null)
 
-  // Get sessions for current campaign, sorted by session number (newest first)
-  const campaignSessions = useMemo(() => {
-    return sessions
-      .filter((session) => session.campaignId === activeCampaignId)
-      .sort((a, b) => b.sessionNumber - a.sessionNumber)
-  }, [sessions, activeCampaignId])
+  // Sort sessions by number (newest first)
+  const sortedSessions = useMemo(() => {
+    return [...campaignSessions].sort((a, b) => b.number - a.number)
+  }, [campaignSessions])
 
   // Filter sessions based on search
   const filteredSessions = useMemo(() => {
-    if (!searchQuery) return campaignSessions
+    if (!searchQuery) return sortedSessions
 
     const query = searchQuery.toLowerCase()
-    return campaignSessions.filter(
+    return sortedSessions.filter(
       (session) =>
         session.title.toLowerCase().includes(query) ||
-        session.summary.toLowerCase().includes(query) ||
+        (session.summary?.toLowerCase().includes(query) ?? false) ||
         session.highlights.some((h) => h.toLowerCase().includes(query)) ||
-        session.dmNotes.toLowerCase().includes(query)
+        (session.prepNotes?.toLowerCase().includes(query) ?? false)
     )
-  }, [campaignSessions, searchQuery])
+  }, [sortedSessions, searchQuery])
 
   // Get character details for attendees
   const getCharacterName = (characterId: string) => {
@@ -62,8 +60,8 @@ export function SessionList() {
     setExpandedSessionId(expandedSessionId === sessionId ? null : sessionId)
   }
 
-  const handleDeleteSession = (sessionId: string) => {
-    deleteSession(sessionId)
+  const handleDeleteSession = async (sessionId: string) => {
+    await deleteSession(sessionId)
     setDeleteConfirmSession(null)
     if (expandedSessionId === sessionId) {
       setExpandedSessionId(null)
@@ -71,13 +69,11 @@ export function SessionList() {
   }
 
   const handleExportSessions = () => {
-    const activeCampaign = getActiveCampaign()
     const exportData = {
       campaign: activeCampaign?.name || "Unknown Campaign",
       exportedAt: new Date().toISOString(),
-      sessions: campaignSessions.map((session) => ({
+      sessions: sortedSessions.map((session) => ({
         ...session,
-        attendeeNames: session.attendees.map(getCharacterName),
       })),
     }
 
@@ -115,7 +111,7 @@ export function SessionList() {
 
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Export Button */}
-          {campaignSessions.length > 0 && (
+          {sortedSessions.length > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -133,19 +129,19 @@ export function SessionList() {
       </div>
 
       {/* Results Count */}
-      {campaignSessions.length > 0 && (
+      {sortedSessions.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-foreground/70">
             <ScrollText className="h-4 w-4 flex-shrink-0" />
             <span>
-              {filteredSessions.length} of {campaignSessions.length} session
-              {campaignSessions.length !== 1 ? "s" : ""}
+              {filteredSessions.length} of {sortedSessions.length} session
+              {sortedSessions.length !== 1 ? "s" : ""}
               {hasActiveFilters && " (filtered)"}
             </span>
           </div>
 
           {/* Mobile Export Button */}
-          {campaignSessions.length > 0 && (
+          {sortedSessions.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -167,13 +163,12 @@ export function SessionList() {
                 session={session}
                 isExpanded={expandedSessionId === session.id}
                 onToggleExpand={() => handleToggleExpand(session.id)}
-                getCharacterName={getCharacterName}
                 onDelete={() => setDeleteConfirmSession(session.id)}
               />
             </div>
           ))}
         </div>
-      ) : campaignSessions.length === 0 ? (
+      ) : sortedSessions.length === 0 ? (
         // No sessions at all - Empty state
         <Card className="bg-card/50 backdrop-blur-sm border-dashed border-2 border-border/50">
           <CardContent className="flex flex-col items-center justify-center py-12 sm:py-16 px-4 text-center">

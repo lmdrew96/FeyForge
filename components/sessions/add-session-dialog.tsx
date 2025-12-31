@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -17,9 +16,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useSessionsStore, type Session } from "@/lib/sessions-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
-import { useCharactersStore } from "@/lib/characters-store"
+import { useSessionStore } from "@/lib/session-store"
+import { useCampaignSessions, useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 
 interface AddSessionDialogProps {
   trigger?: React.ReactNode
@@ -28,45 +26,37 @@ interface AddSessionDialogProps {
 export function AddSessionDialog({ trigger }: AddSessionDialogProps) {
   const [open, setOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { sessions, addSession } = useSessionsStore()
-  const { activeCampaignId } = useCampaignsStore()
-  const { characters } = useCharactersStore()
+  const { addSession } = useSessionStore()
+  const sessions = useCampaignSessions()
+  const activeCampaignId = useActiveCampaignId()
 
   // Form state
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
   const [summary, setSummary] = useState("")
   const [xpAwarded, setXpAwarded] = useState("")
-  const [selectedAttendees, setSelectedAttendees] = useState<string[]>([])
   const [lootInput, setLootInput] = useState("")
   const [loot, setLoot] = useState<string[]>([])
   const [highlightsInput, setHighlightsInput] = useState("")
   const [highlights, setHighlights] = useState<string[]>([])
-  const [dmNotes, setDmNotes] = useState("")
-
-  // Get all characters for attendee selection
-  const allCharacters = useMemo(() => {
-    return characters
-  }, [characters])
+  const [prepNotes, setPrepNotes] = useState("")
 
   // Calculate next session number
   const nextSessionNumber = useMemo(() => {
-    const campaignSessions = sessions.filter((s) => s.campaignId === activeCampaignId)
-    if (campaignSessions.length === 0) return 1
-    return Math.max(...campaignSessions.map((s) => s.sessionNumber)) + 1
-  }, [sessions, activeCampaignId])
+    if (sessions.length === 0) return 1
+    return Math.max(...sessions.map((s) => s.number)) + 1
+  }, [sessions])
 
   const resetForm = () => {
     setTitle("")
     setDate(new Date().toISOString().split("T")[0])
     setSummary("")
     setXpAwarded("")
-    setSelectedAttendees([])
     setLootInput("")
     setLoot([])
     setHighlightsInput("")
     setHighlights([])
-    setDmNotes("")
+    setPrepNotes("")
   }
 
   const handleAddLoot = () => {
@@ -91,44 +81,40 @@ export function AddSessionDialog({ trigger }: AddSessionDialogProps) {
     setHighlights(highlights.filter((_, i) => i !== index))
   }
 
-  const handleToggleAttendee = (characterId: string) => {
-    setSelectedAttendees((prev) =>
-      prev.includes(characterId)
-        ? prev.filter((id) => id !== characterId)
-        : [...prev, characterId]
-    )
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!title.trim() || !activeCampaignId) return
 
     setIsSubmitting(true)
 
-    const newSession: Session = {
-      id: `session-${Date.now()}`,
-      campaignId: activeCampaignId,
-      sessionNumber: nextSessionNumber,
-      title: title.trim(),
-      date: new Date(date).toISOString(),
-      summary: summary.trim(),
-      attendees: selectedAttendees,
-      xpAwarded: parseInt(xpAwarded) || 0,
-      loot,
-      highlights,
-      dmNotes: dmNotes.trim(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
+    try {
+      await addSession({
+        campaignId: activeCampaignId,
+        number: nextSessionNumber,
+        title: title.trim(),
+        date: new Date(date),
+        status: "completed",
+        summary: summary.trim() || undefined,
+        xpAwarded: parseInt(xpAwarded) || undefined,
+        loot,
+        highlights,
+        prepNotes: prepNotes.trim() || undefined,
+        plotThreads: [],
+        npcsEncountered: [],
+        locationsVisited: [],
+        objectives: [],
+        plannedEncounters: [],
+        plannedNPCs: [],
+      })
 
-    addSession(newSession)
-
-    setTimeout(() => {
-      setIsSubmitting(false)
       resetForm()
       setOpen(false)
-    }, 300)
+    } catch (error) {
+      console.error("Failed to add session:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const isFormValid = title.trim() && activeCampaignId
@@ -210,27 +196,6 @@ export function AddSessionDialog({ trigger }: AddSessionDialogProps) {
                 className="bg-background min-h-[80px] resize-none"
               />
             </div>
-
-            {/* Attendees */}
-            {allCharacters.length > 0 && (
-              <div className="space-y-2">
-                <Label>Attendees (PCs present)</Label>
-                <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-background border border-input">
-                  {allCharacters.map((character) => (
-                    <label
-                      key={character.id}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={selectedAttendees.includes(character.id)}
-                        onCheckedChange={() => handleToggleAttendee(character.id)}
-                      />
-                      <span className="text-sm">{character.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Loot */}
             <div className="space-y-2">
@@ -328,16 +293,16 @@ export function AddSessionDialog({ trigger }: AddSessionDialogProps) {
               )}
             </div>
 
-            {/* DM Notes */}
+            {/* Prep Notes (DM only) */}
             <div className="space-y-2">
-              <Label htmlFor="session-dm-notes">
-                DM Notes <Badge variant="secondary" className="ml-2 text-[10px]">Private</Badge>
+              <Label htmlFor="session-prep-notes">
+                Prep Notes <Badge variant="secondary" className="ml-2 text-[10px]">Private</Badge>
               </Label>
               <Textarea
-                id="session-dm-notes"
+                id="session-prep-notes"
                 placeholder="Private notes for future reference..."
-                value={dmNotes}
-                onChange={(e) => setDmNotes(e.target.value)}
+                value={prepNotes}
+                onChange={(e) => setPrepNotes(e.target.value)}
                 className="bg-background min-h-[80px] resize-none"
               />
             </div>

@@ -1,13 +1,14 @@
 "use client"
 
 import type React from "react"
+import { useEffect } from "react"
 
 import { Users, Calendar, UserCircle, TrendingUp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { useCharactersStore } from "@/lib/characters-store"
-import { useSessionsStore } from "@/lib/sessions-store"
-import { useNPCsStore } from "@/lib/npcs-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useCampaignCharacters, useCampaignSessions, useCampaignNPCs } from "@/lib/hooks/use-campaign-data"
+import { useCharacterStore } from "@/lib/feyforge-character-store"
+import { useSessionStore } from "@/lib/session-store"
+import { useNPCStore } from "@/lib/npc-store"
 
 interface StatCardProps {
   icon: React.ReactNode
@@ -37,14 +38,19 @@ function StatCard({ icon, label, value, accentColor }: StatCardProps) {
 }
 
 export function QuickStats() {
-  const { characters } = useCharactersStore()
-  const { sessions } = useSessionsStore()
-  const { npcs } = useNPCsStore()
-  const { activeCampaignId } = useCampaignsStore()
+  const { initialize: initChars, isInitialized: charsInit } = useCharacterStore()
+  const { initialize: initSessions, isInitialized: sessionsInit } = useSessionStore()
+  const { initialize: initNPCs, isInitialized: npcsInit } = useNPCStore()
+  
+  const characters = useCampaignCharacters()
+  const sessions = useCampaignSessions()
+  const npcs = useCampaignNPCs()
 
-  // Filter by active campaign
-  const campaignSessions = sessions.filter((s) => s.campaignId === activeCampaignId)
-  const campaignNPCs = npcs.filter((n) => n.campaignId === activeCampaignId)
+  useEffect(() => {
+    if (!charsInit) initChars()
+    if (!sessionsInit) initSessions()
+    if (!npcsInit) initNPCs()
+  }, [initChars, initSessions, initNPCs, charsInit, sessionsInit, npcsInit])
 
   // Calculate total party level
   const totalPartyLevel = characters.reduce((sum, char) => sum + char.level, 0)
@@ -60,13 +66,13 @@ export function QuickStats() {
       <StatCard
         icon={<Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-fey-purple" />}
         label="Sessions"
-        value={campaignSessions.length}
+        value={sessions.length}
         accentColor="bg-fey-purple/10"
       />
       <StatCard
         icon={<UserCircle className="h-4 w-4 sm:h-5 sm:w-5 text-fey-gold" />}
         label="NPCs"
-        value={campaignNPCs.length}
+        value={npcs.length}
         accentColor="bg-fey-gold/10"
       />
       <StatCard

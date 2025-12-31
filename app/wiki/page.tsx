@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useWikiStore, type WikiEntryType, type WikiEntry } from "@/lib/wiki-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 import Link from "next/link"
 
 const entryTypeConfig: Record<
@@ -290,7 +290,7 @@ function CreateEntryDialog({
 }
 
 export default function WikiPage() {
-  const { activeCampaignId } = useCampaignsStore()
+  const activeCampaignId = useActiveCampaignId()
   const { getEntriesByCampaign, getEntriesByType, searchEntries } = useWikiStore()
   
   const [searchQuery, setSearchQuery] = useState("")

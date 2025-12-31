@@ -4,14 +4,16 @@ import type React from "react"
 
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CalculatedStats, CharacterUpdateInput } from "@/lib/character/types"
+import { ABILITIES, type Ability, ABILITY_ABBREVIATIONS } from "@/lib/character/constants"
 import { skills } from "@/lib/character-data"
 import { Brain, Dumbbell, Eye, Heart, MessageSquare, Sparkles } from "lucide-react"
 
 interface SkillsPanelProps {
   character: Character
+  calculatedStats: CalculatedStats | null
   isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+  onUpdate: (data: CharacterUpdateInput) => void
 }
 
 const abilityIcons: Record<string, React.ReactNode> = {
@@ -23,7 +25,7 @@ const abilityIcons: Record<string, React.ReactNode> = {
   CHA: <MessageSquare className="h-3 w-3" />,
 }
 
-const abilityToKey: Record<string, keyof Character["abilities"]> = {
+const abilityToKey: Record<string, Ability> = {
   STR: "strength",
   DEX: "dexterity",
   CON: "constitution",
@@ -32,21 +34,24 @@ const abilityToKey: Record<string, keyof Character["abilities"]> = {
   CHA: "charisma",
 }
 
-export function SkillsPanel({ character, isEditing, onUpdate }: SkillsPanelProps) {
+export function SkillsPanel({ character, calculatedStats, isEditing, onUpdate }: SkillsPanelProps) {
   const getModifier = (score: number) => Math.floor((score - 10) / 2)
   const formatModifier = (mod: number) => (mod >= 0 ? `+${mod}` : `${mod}`)
 
+  const proficiencyBonus = calculatedStats?.proficiencyBonus ?? Math.floor((character.level - 1) / 4) + 2
+
   const toggleSkillProficiency = (skillName: string) => {
-    const current = character.skillProficiencies
+    const current = character.skillProficiencies as string[]
     const updated = current.includes(skillName) ? current.filter((s) => s !== skillName) : [...current, skillName]
-    onUpdate({ skillProficiencies: updated })
+    onUpdate({ skillProficiencies: updated as any })
   }
 
   const getSkillModifier = (skillName: string, abilityAbbr: string) => {
     const abilityKey = abilityToKey[abilityAbbr]
-    const abilityMod = getModifier(character.abilities[abilityKey])
-    const isProficient = character.skillProficiencies.includes(skillName)
-    return abilityMod + (isProficient ? character.proficiencyBonus : 0)
+    // Use calculated stats if available, otherwise compute from base
+    const abilityMod = calculatedStats?.abilityModifiers[abilityKey] ?? getModifier(character.baseAbilities[abilityKey])
+    const isProficient = (character.skillProficiencies as string[]).includes(skillName)
+    return abilityMod + (isProficient ? proficiencyBonus : 0)
   }
 
   // Group skills by ability for better scanning
@@ -78,7 +83,7 @@ export function SkillsPanel({ character, isEditing, onUpdate }: SkillsPanelProps
               </div>
               <div className="space-y-1">
                 {abilitySkills.map((skill) => {
-                  const isProficient = character.skillProficiencies.includes(skill.name)
+                  const isProficient = (character.skillProficiencies as string[]).includes(skill.name)
                   const modifier = getSkillModifier(skill.name, skill.ability)
 
                   return (
@@ -128,11 +133,12 @@ export function SkillsPanel({ character, isEditing, onUpdate }: SkillsPanelProps
         <div className="grid grid-cols-2 gap-2">
           {abilityOrder.map((ability) => {
             const abilityKey = abilityToKey[ability]
+            const saveProficiencies = character.savingThrowProficiencies as string[]
             const isProficient =
-              character.savingThrowProficiencies.includes(ability.charAt(0) + ability.slice(1).toLowerCase()) ||
-              character.savingThrowProficiencies.includes(abilityKey.charAt(0).toUpperCase() + abilityKey.slice(1))
-            const modifier =
-              getModifier(character.abilities[abilityKey]) + (isProficient ? character.proficiencyBonus : 0)
+              saveProficiencies.includes(abilityKey) ||
+              saveProficiencies.includes(ability.toLowerCase())
+            const abilityMod = calculatedStats?.abilityModifiers[abilityKey] ?? getModifier(character.baseAbilities[abilityKey])
+            const modifier = abilityMod + (isProficient ? proficiencyBonus : 0)
 
             return (
               <div

@@ -5,47 +5,81 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CharacterUpdateInput, ItemProperty, CalculatedStats } from "@/lib/character/types"
 import { Backpack, Coins, Plus, Trash2, Weight } from "lucide-react"
 import { useState } from "react"
 
-interface InventoryPanelProps {
-  character: Character
-  isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+// Simple equipment item for UI compatibility
+// TODO: Migrate to use ItemProperty from character.properties
+interface SimpleEquipmentItem {
+  name: string
+  quantity: number
+  weight: number
+  equipped?: boolean
+  attuned?: boolean
 }
 
-export function InventoryPanel({ character, isEditing, onUpdate }: InventoryPanelProps) {
+interface InventoryPanelProps {
+  character: Character
+  calculatedStats?: CalculatedStats | null
+  isEditing: boolean
+  onUpdate: (data: CharacterUpdateInput) => void
+}
+
+// Helper to extract equipment from properties or use fallback
+function getEquipment(character: Character): SimpleEquipmentItem[] {
+  const itemProperties = character.properties?.filter(
+    (p): p is ItemProperty => p.type === 'item'
+  ) ?? []
+  
+  if (itemProperties.length > 0) {
+    return itemProperties.map(item => ({
+      name: item.name,
+      quantity: item.quantity ?? 1,
+      weight: item.weight ?? 0,
+      equipped: item.equipped ?? false,
+      attuned: item.attunement?.attuned ?? false
+    }))
+  }
+  
+  // Fallback to legacy equipment array if it exists
+  return (character as any).equipment ?? []
+}
+
+export function InventoryPanel({ character, calculatedStats, isEditing, onUpdate }: InventoryPanelProps) {
+  const equipment = getEquipment(character)
   const [newItem, setNewItem] = useState({ name: "", quantity: 1, weight: 0 })
 
-  const totalWeight = character.equipment.reduce((sum, item) => sum + item.weight * item.quantity, 0)
-  const carryCapacity = character.abilities.strength * 15
+  const totalWeight = equipment.reduce((sum, item) => sum + item.weight * item.quantity, 0)
+  const carryCapacity = calculatedStats?.carryingCapacity ?? (character.baseAbilities.strength * 15)
 
   const addItem = () => {
     if (newItem.name.trim()) {
+      const currentEquipment = (character as any).equipment ?? []
       onUpdate({
-        equipment: [...character.equipment, { ...newItem, name: newItem.name.trim(), equipped: false }],
-      })
+        equipment: [...currentEquipment, { ...newItem, name: newItem.name.trim(), equipped: false }],
+      } as any)
       setNewItem({ name: "", quantity: 1, weight: 0 })
     }
   }
 
   const removeItem = (index: number) => {
+    const currentEquipment = (character as any).equipment ?? []
     onUpdate({
-      equipment: character.equipment.filter((_, i) => i !== index),
-    })
+      equipment: currentEquipment.filter((_: any, i: number) => i !== index),
+    } as any)
   }
 
   const toggleEquipped = (index: number) => {
-    const updated = [...character.equipment]
+    const updated = [...equipment]
     updated[index] = { ...updated[index], equipped: !updated[index].equipped }
-    onUpdate({ equipment: updated })
+    onUpdate({ equipment: updated } as any)
   }
 
   const toggleAttuned = (index: number) => {
-    const updated = [...character.equipment]
+    const updated = [...equipment]
     updated[index] = { ...updated[index], attuned: !updated[index].attuned }
-    onUpdate({ equipment: updated })
+    onUpdate({ equipment: updated } as any)
   }
 
   const updateCurrency = (type: keyof Character["currency"], value: number) => {
@@ -62,7 +96,7 @@ export function InventoryPanel({ character, isEditing, onUpdate }: InventoryPane
     { key: "cp", label: "CP", color: "bg-orange-400 text-orange-900" },
   ] as const
 
-  const attunedCount = character.equipment.filter((e) => e.attuned).length
+  const attunedCount = equipment.filter((e) => e.attuned).length
 
   return (
     <Card className="p-4 bg-card/80 backdrop-blur-sm border-fey-sage/30 overflow-hidden">
@@ -112,7 +146,7 @@ export function InventoryPanel({ character, isEditing, onUpdate }: InventoryPane
 
       {/* Equipment List */}
       <div className="space-y-1">
-        {character.equipment.map((item, index) => (
+        {equipment.map((item, index) => (
           <div
             key={index}
             className={`flex items-center gap-2 p-2 rounded-lg transition-colors min-w-0 ${
@@ -169,7 +203,7 @@ export function InventoryPanel({ character, isEditing, onUpdate }: InventoryPane
           </div>
         ))}
 
-        {character.equipment.length === 0 && (
+        {equipment.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">No items in inventory</p>
         )}
 
