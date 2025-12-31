@@ -2,13 +2,13 @@
 
 import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CharacterUpdateInput } from "@/lib/character/types"
 import { BookOpen, Heart, Link2, MessageCircle, Skull } from "lucide-react"
 
 interface PersonalityPanelProps {
   character: Character
   isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+  onUpdate: (data: CharacterUpdateInput) => void
 }
 
 export function PersonalityPanel({ character, isEditing, onUpdate }: PersonalityPanelProps) {

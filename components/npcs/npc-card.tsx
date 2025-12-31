@@ -2,11 +2,11 @@
 
 import type React from "react"
 import Link from "next/link"
-import { UserCircle, MapPin, Shield, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
+import { UserCircle, MapPin, Shield, ChevronDown, ChevronUp, ExternalLink, Heart, Skull, CircleHelp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import type { NPC } from "@/lib/npcs-store"
+import type { NPC } from "@/lib/npc-store"
 
 interface NPCCardProps {
   npc: NPC
@@ -15,33 +15,34 @@ interface NPCCardProps {
 }
 
 export function NPCCard({ npc, isExpanded, onToggleExpand }: NPCCardProps) {
-  // Get importance color
-  const getImportanceColor = () => {
-    switch (npc.importance) {
-      case "key":
-        return "bg-fey-gold/20 border-fey-gold/50 text-fey-gold"
-      case "major":
-        return "bg-fey-purple/20 border-fey-purple/50 text-fey-purple"
-      case "minor":
-        return "bg-muted border-border text-muted-foreground"
+  // Get relationship color and icon
+  const getRelationshipStyle = () => {
+    switch (npc.relationship) {
+      case "friendly":
+        return { color: "bg-fey-forest/20 border-fey-forest/50 text-fey-forest", icon: Heart }
+      case "hostile":
+        return { color: "bg-red-500/20 border-red-500/50 text-red-500", icon: Skull }
+      case "neutral":
+      default:
+        return { color: "bg-muted border-border text-muted-foreground", icon: CircleHelp }
+    }
+  }
+
+  // Get status badge color
+  const getStatusColor = () => {
+    switch (npc.status) {
+      case "alive":
+        return "bg-fey-forest/20 border-fey-forest/50 text-fey-forest"
+      case "dead":
+        return "bg-red-500/20 border-red-500/50 text-red-500"
+      case "unknown":
       default:
         return "bg-muted border-border text-muted-foreground"
     }
   }
 
-  // Get importance label
-  const getImportanceLabel = () => {
-    switch (npc.importance) {
-      case "key":
-        return "Key"
-      case "major":
-        return "Major"
-      case "minor":
-        return "Minor"
-      default:
-        return npc.importance
-    }
-  }
+  const relationshipStyle = getRelationshipStyle()
+  const RelationshipIcon = relationshipStyle.icon
 
   return (
     <Card
@@ -52,24 +53,23 @@ export function NPCCard({ npc, isExpanded, onToggleExpand }: NPCCardProps) {
       <CardContent className="p-0">
         {/* Portrait Section */}
         <div className="relative aspect-[4/3] bg-gradient-to-br from-fey-forest/20 to-fey-purple/20 overflow-hidden">
-          {npc.imageUrl ? (
-            <img
-              src={npc.imageUrl}
-              alt={npc.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-muted/50 flex items-center justify-center">
-                <UserCircle className="w-8 h-8 sm:w-10 sm:h-10 text-fey-cyan" />
-              </div>
+          {/* NPC images are not yet supported - show placeholder */}
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-muted/50 flex items-center justify-center">
+              <UserCircle className="w-8 h-8 sm:w-10 sm:h-10 text-fey-cyan" />
             </div>
-          )}
+          </div>
 
-          {/* Importance Badge */}
-          <Badge className={`absolute top-2 right-2 border text-xs ${getImportanceColor()}`}>
-            {getImportanceLabel()}
-          </Badge>
+          {/* Relationship & Status Badges */}
+          <div className="absolute top-2 right-2 flex gap-1">
+            <Badge className={`border text-xs ${relationshipStyle.color}`}>
+              <RelationshipIcon className="w-3 h-3 mr-1" />
+              {npc.relationship}
+            </Badge>
+            <Badge className={`border text-xs ${getStatusColor()}`}>
+              {npc.status}
+            </Badge>
+          </div>
         </div>
 
         {/* Info Section */}
@@ -79,10 +79,10 @@ export function NPCCard({ npc, isExpanded, onToggleExpand }: NPCCardProps) {
             {npc.name}
           </h3>
 
-          {/* Role */}
+          {/* Occupation */}
           <div className="flex items-center gap-1.5 text-sm text-foreground/80">
             <Shield className="w-3.5 h-3.5 text-fey-cyan flex-shrink-0" />
-            <span className="truncate">{npc.role}</span>
+            <span className="truncate">{npc.occupation}</span>
           </div>
 
           {/* Faction & Location Tags */}
@@ -95,15 +95,13 @@ export function NPCCard({ npc, isExpanded, onToggleExpand }: NPCCardProps) {
                 {npc.faction}
               </Badge>
             )}
-            {npc.location && (
-              <Badge
-                variant="outline"
-                className="text-xs shrink-0 bg-fey-forest/10 border-fey-forest/30 text-fey-forest truncate max-w-[120px]"
-              >
-                <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
-                {npc.location}
-              </Badge>
-            )}
+            <Badge
+              variant="outline"
+              className="text-xs shrink-0 bg-fey-forest/10 border-fey-forest/30 text-fey-forest truncate max-w-[120px]"
+            >
+              <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
+              {npc.location}
+            </Badge>
           </div>
 
           {/* Expand/Collapse Button */}
@@ -130,47 +128,65 @@ export function NPCCard({ npc, isExpanded, onToggleExpand }: NPCCardProps) {
         {/* Expanded Detail Section */}
         {isExpanded && (
           <div className="border-t border-border/50 p-3 sm:p-4 space-y-4 bg-muted/20">
-            {/* Race & Class */}
-            {(npc.race || npc.class) && (
-              <div className="space-y-1">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Details
-                </h4>
-                <div className="flex flex-wrap gap-2 text-sm text-foreground">
-                  {npc.race && <span>{npc.race}</span>}
-                  {npc.race && npc.class && <span className="text-muted-foreground">·</span>}
-                  {npc.class && <span>{npc.class}</span>}
-                </div>
+            {/* Race, Age & Alignment */}
+            <div className="space-y-1">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Details
+              </h4>
+              <div className="flex flex-wrap gap-2 text-sm text-foreground">
+                <span>{npc.race}</span>
+                <span className="text-muted-foreground">·</span>
+                <span>{npc.age}</span>
+                <span className="text-muted-foreground">·</span>
+                <span>{npc.gender}</span>
+                <span className="text-muted-foreground">·</span>
+                <span>{npc.alignment}</span>
               </div>
-            )}
+            </div>
+
+            {/* Appearance */}
+            <div className="space-y-1">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Appearance
+              </h4>
+              <p className="text-sm text-foreground leading-relaxed">{npc.appearance}</p>
+            </div>
 
             {/* Personality */}
             <div className="space-y-1">
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Personality
               </h4>
-              <p className="text-sm text-foreground leading-relaxed">
-                {npc.personality || "No personality notes yet."}
-              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {npc.personality.map((trait, index) => (
+                  <Badge key={index} variant="secondary" className="text-xs">
+                    {trait}
+                  </Badge>
+                ))}
+              </div>
             </div>
 
-            {/* Goals/Motivations */}
-            {npc.goals && (
-              <div className="space-y-1">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Goals & Motivations
-                </h4>
-                <p className="text-sm text-foreground leading-relaxed">{npc.goals}</p>
-              </div>
-            )}
+            {/* Motivation */}
+            <div className="space-y-1">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Motivation
+              </h4>
+              <p className="text-sm text-foreground leading-relaxed">{npc.motivation}</p>
+            </div>
 
-            {/* Relationships */}
-            {npc.relationships && (
+            {/* Tags */}
+            {npc.tags.length > 0 && (
               <div className="space-y-1">
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Relationships
+                  Tags
                 </h4>
-                <p className="text-sm text-foreground leading-relaxed">{npc.relationships}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {npc.tags.map((tag) => (
+                    <Badge key={tag} variant="outline" className="text-xs bg-fey-cyan/10 border-fey-cyan/30 text-fey-cyan">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
 

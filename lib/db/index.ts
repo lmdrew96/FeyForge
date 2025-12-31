@@ -9,7 +9,7 @@ function createDb(): NeonHttpDatabase<typeof schema> | null {
   if (!url) {
     console.warn(
       "DATABASE_URL is not set. Database features will not work. " +
-      "Please set DATABASE_URL in your .env.local file."
+      "Please set DATABASE_URL in your .env file."
     )
     return null
   }

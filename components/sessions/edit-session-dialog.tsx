@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { Pencil, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -16,8 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useSessionsStore, type Session } from "@/lib/sessions-store"
-import { useCharactersStore } from "@/lib/characters-store"
+import { useSessionStore, type Session } from "@/lib/session-store"
 
 interface EditSessionDialogProps {
   session: Session
@@ -27,37 +25,29 @@ interface EditSessionDialogProps {
 
 export function EditSessionDialog({ session, open, onOpenChange }: EditSessionDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { updateSession } = useSessionsStore()
-  const { characters } = useCharactersStore()
+  const { updateSession } = useSessionStore()
 
   // Form state
   const [title, setTitle] = useState(session.title)
   const [date, setDate] = useState(new Date(session.date).toISOString().split("T")[0])
-  const [summary, setSummary] = useState(session.summary)
-  const [xpAwarded, setXpAwarded] = useState(session.xpAwarded.toString())
-  const [selectedAttendees, setSelectedAttendees] = useState<string[]>(session.attendees)
+  const [summary, setSummary] = useState(session.summary || "")
+  const [xpAwarded, setXpAwarded] = useState((session.xpAwarded || 0).toString())
   const [lootInput, setLootInput] = useState("")
-  const [loot, setLoot] = useState<string[]>(session.loot)
+  const [loot, setLoot] = useState<string[]>(session.loot || [])
   const [highlightsInput, setHighlightsInput] = useState("")
-  const [highlights, setHighlights] = useState<string[]>(session.highlights)
-  const [dmNotes, setDmNotes] = useState(session.dmNotes)
+  const [highlights, setHighlights] = useState<string[]>(session.highlights || [])
+  const [prepNotes, setPrepNotes] = useState(session.prepNotes || "")
 
   // Reset form when session changes
   useEffect(() => {
     setTitle(session.title)
     setDate(new Date(session.date).toISOString().split("T")[0])
-    setSummary(session.summary)
-    setXpAwarded(session.xpAwarded.toString())
-    setSelectedAttendees(session.attendees)
-    setLoot(session.loot)
-    setHighlights(session.highlights)
-    setDmNotes(session.dmNotes)
+    setSummary(session.summary || "")
+    setXpAwarded((session.xpAwarded || 0).toString())
+    setLoot(session.loot || [])
+    setHighlights(session.highlights || [])
+    setPrepNotes(session.prepNotes || "")
   }, [session])
-
-  // Get all characters for attendee selection
-  const allCharacters = useMemo(() => {
-    return characters
-  }, [characters])
 
   const handleAddLoot = () => {
     if (lootInput.trim()) {
@@ -81,36 +71,30 @@ export function EditSessionDialog({ session, open, onOpenChange }: EditSessionDi
     setHighlights(highlights.filter((_, i) => i !== index))
   }
 
-  const handleToggleAttendee = (characterId: string) => {
-    setSelectedAttendees((prev) =>
-      prev.includes(characterId)
-        ? prev.filter((id) => id !== characterId)
-        : [...prev, characterId]
-    )
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!title.trim()) return
 
     setIsSubmitting(true)
 
-    updateSession(session.id, {
-      title: title.trim(),
-      date: new Date(date).toISOString(),
-      summary: summary.trim(),
-      attendees: selectedAttendees,
-      xpAwarded: parseInt(xpAwarded) || 0,
-      loot,
-      highlights,
-      dmNotes: dmNotes.trim(),
-    })
+    try {
+      await updateSession(session.id, {
+        title: title.trim(),
+        date: new Date(date),
+        summary: summary.trim() || undefined,
+        xpAwarded: parseInt(xpAwarded) || undefined,
+        loot,
+        highlights,
+        prepNotes: prepNotes.trim() || undefined,
+      })
 
-    setTimeout(() => {
-      setIsSubmitting(false)
       onOpenChange(false)
-    }, 300)
+    } catch (error) {
+      console.error("Failed to update session:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const isFormValid = title.trim()
@@ -130,7 +114,7 @@ export function EditSessionDialog({ session, open, onOpenChange }: EditSessionDi
             {/* Session Number Badge */}
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="bg-fey-purple/10 text-fey-purple border-fey-purple/30">
-                Session {session.sessionNumber}
+                Session {session.number}
               </Badge>
             </div>
 
@@ -183,27 +167,6 @@ export function EditSessionDialog({ session, open, onOpenChange }: EditSessionDi
                 className="bg-background min-h-[80px] resize-none"
               />
             </div>
-
-            {/* Attendees */}
-            {allCharacters.length > 0 && (
-              <div className="space-y-2">
-                <Label>Attendees (PCs present)</Label>
-                <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-background border border-input">
-                  {allCharacters.map((character) => (
-                    <label
-                      key={character.id}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={selectedAttendees.includes(character.id)}
-                        onCheckedChange={() => handleToggleAttendee(character.id)}
-                      />
-                      <span className="text-sm">{character.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Loot */}
             <div className="space-y-2">
@@ -301,16 +264,16 @@ export function EditSessionDialog({ session, open, onOpenChange }: EditSessionDi
               )}
             </div>
 
-            {/* DM Notes */}
+            {/* Prep Notes (DM only) */}
             <div className="space-y-2">
-              <Label htmlFor="edit-session-dm-notes">
-                DM Notes <Badge variant="secondary" className="ml-2 text-[10px]">Private</Badge>
+              <Label htmlFor="edit-session-prep-notes">
+                Prep Notes <Badge variant="secondary" className="ml-2 text-[10px]">Private</Badge>
               </Label>
               <Textarea
-                id="edit-session-dm-notes"
+                id="edit-session-prep-notes"
                 placeholder="Private notes for future reference..."
-                value={dmNotes}
-                onChange={(e) => setDmNotes(e.target.value)}
+                value={prepNotes}
+                onChange={(e) => setPrepNotes(e.target.value)}
                 className="bg-background min-h-[80px] resize-none"
               />
             </div>

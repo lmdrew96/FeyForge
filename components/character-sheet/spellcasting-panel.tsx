@@ -6,14 +6,27 @@ import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CharacterUpdateInput, SpellSlot, KnownSpell } from "@/lib/character/types"
 import { ChevronDown, Plus, Sparkles, Trash2, Wand2 } from "lucide-react"
 import { useState } from "react"
 
 interface SpellcastingPanelProps {
   character: Character
   isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+  onUpdate: (data: CharacterUpdateInput) => void
+}
+
+// Helper to normalize spell slots to array format
+function normalizeSpellSlots(spellSlots: SpellSlot[] | Record<number, { total: number; used: number }>): SpellSlot[] {
+  if (Array.isArray(spellSlots)) {
+    return spellSlots
+  }
+  // Convert Record to array
+  return Object.entries(spellSlots).map(([level, slot]) => ({
+    level: Number(level),
+    total: slot.total,
+    used: slot.used,
+  }))
 }
 
 export function SpellcastingPanel({ character, isEditing, onUpdate }: SpellcastingPanelProps) {
@@ -23,37 +36,54 @@ export function SpellcastingPanel({ character, isEditing, onUpdate }: Spellcasti
   const spellcasting = character.spellcasting
   if (!spellcasting) return null
 
+  // Normalize spell data
+  const spellSlots = normalizeSpellSlots(spellcasting.spellSlots)
+  const spells: KnownSpell[] = spellcasting.spells ?? []
+  const saveDC = spellcasting.saveDC ?? spellcasting.spellSaveDC ?? 0
+  const attackBonus = spellcasting.attackBonus ?? spellcasting.spellAttackBonus ?? 0
+
+  // Create a normalized base object for updates
+  const baseSpellcasting = {
+    ability: spellcasting.ability,
+    saveDC,
+    attackBonus,
+    cantripsKnown: spellcasting.cantripsKnown,
+    spellsKnown: spellcasting.spellsKnown,
+    spellsPrepared: spellcasting.spellsPrepared,
+  }
+
   const toggleLevel = (level: number) => {
     setExpandedLevels((prev) => (prev.includes(level) ? prev.filter((l) => l !== level) : [...prev, level]))
   }
 
   const expendSpellSlot = (slotLevel: number) => {
-    const updated = spellcasting.spellSlots.map((slot) =>
+    const updated = spellSlots.map((slot) =>
       slot.level === slotLevel && slot.used < slot.total ? { ...slot, used: slot.used + 1 } : slot,
     )
-    onUpdate({ spellcasting: { ...spellcasting, spellSlots: updated } })
+    onUpdate({ spellcasting: { ...baseSpellcasting, spellSlots: updated, spells } })
   }
 
   const restoreSpellSlot = (slotLevel: number) => {
-    const updated = spellcasting.spellSlots.map((slot) =>
+    const updated = spellSlots.map((slot) =>
       slot.level === slotLevel && slot.used > 0 ? { ...slot, used: slot.used - 1 } : slot,
     )
-    onUpdate({ spellcasting: { ...spellcasting, spellSlots: updated } })
+    onUpdate({ spellcasting: { ...baseSpellcasting, spellSlots: updated, spells } })
   }
 
   const togglePrepared = (spellName: string) => {
-    const updated = spellcasting.spells.map((spell) =>
+    const updated = spells.map((spell) =>
       spell.name === spellName ? { ...spell, prepared: !spell.prepared } : spell,
     )
-    onUpdate({ spellcasting: { ...spellcasting, spells: updated } })
+    onUpdate({ spellcasting: { ...baseSpellcasting, spellSlots, spells: updated } })
   }
 
   const addSpell = () => {
     if (newSpell.name.trim()) {
       onUpdate({
         spellcasting: {
-          ...spellcasting,
-          spells: [...spellcasting.spells, { name: newSpell.name.trim(), level: newSpell.level, prepared: false }],
+          ...baseSpellcasting,
+          spellSlots,
+          spells: [...spells, { name: newSpell.name.trim(), level: newSpell.level, prepared: false }],
         },
       })
       setNewSpell({ name: "", level: 0 })
@@ -63,24 +93,25 @@ export function SpellcastingPanel({ character, isEditing, onUpdate }: Spellcasti
   const removeSpell = (spellName: string) => {
     onUpdate({
       spellcasting: {
-        ...spellcasting,
-        spells: spellcasting.spells.filter((s) => s.name !== spellName),
+        ...baseSpellcasting,
+        spellSlots,
+        spells: spells.filter((s) => s.name !== spellName),
       },
     })
   }
 
   // Group spells by level
-  const spellsByLevel = spellcasting.spells.reduce(
+  const spellsByLevel = spells.reduce(
     (acc, spell) => {
       if (!acc[spell.level]) acc[spell.level] = []
       acc[spell.level].push(spell)
       return acc
     },
-    {} as Record<number, typeof spellcasting.spells>,
+    {} as Record<number, KnownSpell[]>,
   )
 
   const spellLevels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(
-    (level) => spellsByLevel[level]?.length || level <= Math.max(...spellcasting.spellSlots.map((s) => s.level), 0),
+    (level) => spellsByLevel[level]?.length || level <= Math.max(...spellSlots.map((s) => s.level), 0),
   )
 
   return (
@@ -98,11 +129,11 @@ export function SpellcastingPanel({ character, isEditing, onUpdate }: Spellcasti
         </div>
         <div className="text-center min-w-0">
           <p className="text-xs text-muted-foreground truncate">Save DC</p>
-          <p className="font-semibold text-fey-cyan text-sm sm:text-base">{spellcasting.saveDC}</p>
+          <p className="font-semibold text-fey-cyan text-sm sm:text-base">{saveDC}</p>
         </div>
         <div className="text-center min-w-0">
           <p className="text-xs text-muted-foreground truncate">Attack</p>
-          <p className="font-semibold text-fey-cyan text-sm sm:text-base">+{spellcasting.attackBonus}</p>
+          <p className="font-semibold text-fey-cyan text-sm sm:text-base">+{attackBonus}</p>
         </div>
       </div>
 
@@ -110,7 +141,7 @@ export function SpellcastingPanel({ character, isEditing, onUpdate }: Spellcasti
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-muted-foreground mb-2">Spell Slots</h3>
         <div className="flex flex-wrap gap-2">
-          {spellcasting.spellSlots.map((slot) => (
+          {spellSlots.map((slot) => (
             <div
               key={slot.level}
               className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg bg-background/50"

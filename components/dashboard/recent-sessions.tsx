@@ -1,19 +1,29 @@
 "use client"
 
+import { useEffect, useMemo } from "react"
 import Link from "next/link"
 import { Calendar, ChevronRight, Scroll, Sparkles } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useSessionsStore } from "@/lib/sessions-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useSessionStore } from "@/lib/session-store"
+import { useCampaignSessions } from "@/lib/hooks/use-campaign-data"
 import { formatDistanceToNow } from "date-fns"
 
 export function RecentSessions() {
-  const { activeCampaignId } = useCampaignsStore()
-  const { getRecentSessions } = useSessionsStore()
+  const { initialize, isInitialized } = useSessionStore()
+  const sessions = useCampaignSessions()
 
-  const recentSessions = activeCampaignId ? getRecentSessions(activeCampaignId, 5) : []
+  useEffect(() => {
+    if (!isInitialized) initialize()
+  }, [initialize, isInitialized])
+
+  // Get recent sessions sorted by date descending, limited to 5
+  const recentSessions = useMemo(() => {
+    return [...sessions]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5)
+  }, [sessions])
 
   return (
     <Card className="bg-card/80 backdrop-blur-sm border-border h-full min-w-0">
@@ -46,19 +56,19 @@ export function RecentSessions() {
                           variant="outline"
                           className="shrink-0 text-[10px] sm:text-xs bg-fey-purple/10 text-fey-purple border-fey-purple/30"
                         >
-                          #{session.sessionNumber}
+                          #{session.number}
                         </Badge>
                         <h4 className="font-medium text-foreground truncate text-xs sm:text-sm">{session.title}</h4>
                       </div>
                       <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2 mb-2">
-                        {session.summary}
+                        {session.summary || "No summary yet"}
                       </p>
                       <div className="flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
                         <Calendar className="h-3 w-3 flex-shrink-0" />
                         <span className="truncate">
                           {formatDistanceToNow(new Date(session.date), { addSuffix: true })}
                         </span>
-                        {session.xpAwarded > 0 && (
+                        {(session.xpAwarded ?? 0) > 0 && (
                           <>
                             <span className="mx-1">·</span>
                             <span className="text-fey-gold whitespace-nowrap">{session.xpAwarded} XP</span>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Search, Users, Filter, X, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -17,55 +17,57 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useNPCsStore } from "@/lib/npcs-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useNPCStore } from "@/lib/npc-store"
+import { useCampaignNPCs, useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 import { NPCCard } from "./npc-card"
 import { AddNPCDialog } from "./add-npc-dialog"
 
 export function NPCList() {
-  const { npcs, deleteNPC } = useNPCsStore()
-  const { activeCampaignId } = useCampaignsStore()
+  const { deleteNPC, initialize, isInitialized } = useNPCStore()
+  const npcs = useCampaignNPCs()
+  const activeCampaignId = useActiveCampaignId()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [factionFilter, setFactionFilter] = useState<string>("all")
   const [locationFilter, setLocationFilter] = useState<string>("all")
-  const [importanceFilter, setImportanceFilter] = useState<string>("all")
+  const [relationshipFilter, setRelationshipFilter] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
   const [expandedNPCId, setExpandedNPCId] = useState<string | null>(null)
   const [deleteConfirmNPC, setDeleteConfirmNPC] = useState<string | null>(null)
 
-  // Get NPCs for current campaign
-  const campaignNPCs = useMemo(() => {
-    return npcs.filter((npc) => npc.campaignId === activeCampaignId)
-  }, [npcs, activeCampaignId])
+  useEffect(() => {
+    if (!isInitialized) {
+      initialize()
+    }
+  }, [initialize, isInitialized])
 
   // Get unique factions and locations for filters
   const uniqueFactions = useMemo(() => {
     const factions = new Set<string>()
-    campaignNPCs.forEach((npc) => {
+    npcs.forEach((npc) => {
       if (npc.faction) factions.add(npc.faction)
     })
     return Array.from(factions).sort()
-  }, [campaignNPCs])
+  }, [npcs])
 
   const uniqueLocations = useMemo(() => {
     const locations = new Set<string>()
-    campaignNPCs.forEach((npc) => {
+    npcs.forEach((npc) => {
       if (npc.location) locations.add(npc.location)
     })
     return Array.from(locations).sort()
-  }, [campaignNPCs])
+  }, [npcs])
 
   // Filter NPCs based on search and filters
   const filteredNPCs = useMemo(() => {
-    return campaignNPCs.filter((npc) => {
+    return npcs.filter((npc) => {
       // Search filter
       const matchesSearch =
         searchQuery === "" ||
         npc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        npc.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        npc.occupation.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (npc.faction && npc.faction.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (npc.location && npc.location.toLowerCase().includes(searchQuery.toLowerCase()))
+        npc.location.toLowerCase().includes(searchQuery.toLowerCase())
 
       // Faction filter
       const matchesFaction = factionFilter === "all" || npc.faction === factionFilter
@@ -73,32 +75,32 @@ export function NPCList() {
       // Location filter
       const matchesLocation = locationFilter === "all" || npc.location === locationFilter
 
-      // Importance filter
-      const matchesImportance = importanceFilter === "all" || npc.importance === importanceFilter
+      // Relationship filter
+      const matchesRelationship = relationshipFilter === "all" || npc.relationship === relationshipFilter
 
-      return matchesSearch && matchesFaction && matchesLocation && matchesImportance
+      return matchesSearch && matchesFaction && matchesLocation && matchesRelationship
     })
-  }, [campaignNPCs, searchQuery, factionFilter, locationFilter, importanceFilter])
+  }, [npcs, searchQuery, factionFilter, locationFilter, relationshipFilter])
 
   const hasActiveFilters =
     searchQuery !== "" ||
     factionFilter !== "all" ||
     locationFilter !== "all" ||
-    importanceFilter !== "all"
+    relationshipFilter !== "all"
 
   const clearFilters = () => {
     setSearchQuery("")
     setFactionFilter("all")
     setLocationFilter("all")
-    setImportanceFilter("all")
+    setRelationshipFilter("all")
   }
 
   const handleToggleExpand = (npcId: string) => {
     setExpandedNPCId(expandedNPCId === npcId ? null : npcId)
   }
 
-  const handleDeleteNPC = (npcId: string) => {
-    deleteNPC(npcId)
+  const handleDeleteNPC = async (npcId: string) => {
+    await deleteNPC(npcId)
     setDeleteConfirmNPC(null)
     if (expandedNPCId === npcId) {
       setExpandedNPCId(null)
@@ -137,16 +139,16 @@ export function NPCList() {
 
           {/* Desktop Filters */}
           <div className="hidden sm:flex items-center gap-2">
-            {/* Importance Filter */}
-            <Select value={importanceFilter} onValueChange={setImportanceFilter}>
-              <SelectTrigger className="w-[120px] bg-card/50">
-                <SelectValue placeholder="Importance" />
+            {/* Relationship Filter */}
+            <Select value={relationshipFilter} onValueChange={setRelationshipFilter}>
+              <SelectTrigger className="w-[140px] bg-card/50">
+                <SelectValue placeholder="Relationship" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Levels</SelectItem>
-                <SelectItem value="key">Key</SelectItem>
-                <SelectItem value="major">Major</SelectItem>
-                <SelectItem value="minor">Minor</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="friendly">Friendly</SelectItem>
+                <SelectItem value="neutral">Neutral</SelectItem>
+                <SelectItem value="hostile">Hostile</SelectItem>
               </SelectContent>
             </Select>
 
@@ -216,16 +218,16 @@ export function NPCList() {
               )}
             </div>
 
-            {/* Importance Filter */}
-            <Select value={importanceFilter} onValueChange={setImportanceFilter}>
+            {/* Relationship Filter */}
+            <Select value={relationshipFilter} onValueChange={setRelationshipFilter}>
               <SelectTrigger className="w-full bg-background">
-                <SelectValue placeholder="Importance" />
+                <SelectValue placeholder="Relationship" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Levels</SelectItem>
-                <SelectItem value="key">Key</SelectItem>
-                <SelectItem value="major">Major</SelectItem>
-                <SelectItem value="minor">Minor</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="friendly">Friendly</SelectItem>
+                <SelectItem value="neutral">Neutral</SelectItem>
+                <SelectItem value="hostile">Hostile</SelectItem>
               </SelectContent>
             </Select>
 
@@ -267,11 +269,11 @@ export function NPCList() {
       )}
 
       {/* Results Count */}
-      {campaignNPCs.length > 0 && (
+      {npcs.length > 0 && (
         <div className="flex items-center gap-2 text-sm text-foreground/70">
           <Users className="h-4 w-4 flex-shrink-0" />
           <span>
-            {filteredNPCs.length} of {campaignNPCs.length} NPC{campaignNPCs.length !== 1 ? "s" : ""}
+            {filteredNPCs.length} of {npcs.length} NPC{npcs.length !== 1 ? "s" : ""}
             {hasActiveFilters && " (filtered)"}
           </span>
         </div>
@@ -300,7 +302,7 @@ export function NPCList() {
             </div>
           ))}
         </div>
-      ) : campaignNPCs.length === 0 ? (
+      ) : npcs.length === 0 ? (
         // No NPCs at all - Empty state
         <Card className="bg-card/50 backdrop-blur-sm border-dashed border-2 border-border/50">
           <CardContent className="flex flex-col items-center justify-center py-12 sm:py-16 px-4 text-center">

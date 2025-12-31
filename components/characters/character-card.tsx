@@ -3,13 +3,13 @@
 import type React from "react"
 
 import Link from "next/link"
-import { Eye, Heart, User } from "lucide-react"
+import { Eye, Heart, User, Trash2, Shield } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CalculatedStats } from "@/lib/character/types"
 import { classes } from "@/lib/character-data"
-import { Axe, Music, Sparkles, Leaf, Shield, Hand, Cross, Target, Sword, Flame, BookOpen } from "lucide-react"
+import { Axe, Music, Sparkles, Leaf, Hand, Cross, Target, Sword, Flame, BookOpen } from "lucide-react"
 
 // Map icon names to components
 const classIcons: Record<string, React.ElementType> = {
@@ -29,9 +29,11 @@ const classIcons: Record<string, React.ElementType> = {
 
 interface CharacterCardProps {
   character: Character
+  calculatedStats?: CalculatedStats | null
+  onDelete?: () => void
 }
 
-export function CharacterCard({ character }: CharacterCardProps) {
+export function CharacterCard({ character, calculatedStats, onDelete }: CharacterCardProps) {
   const hpPercent = character.hitPoints.max > 0 ? (character.hitPoints.current / character.hitPoints.max) * 100 : 0
 
   // Get HP bar color based on percentage
@@ -42,11 +44,11 @@ export function CharacterCard({ character }: CharacterCardProps) {
   }
 
   // Get class info for icon
-  const classInfo = classes.find((c) => c.value === character.characterClass)
+  const classInfo = classes.find((c) => c.value === character.class)
   const IconComponent = classInfo?.icon ? classIcons[classInfo.icon] : User
 
   // Format class display
-  const classDisplay = classInfo?.label || character.characterClass
+  const classDisplay = classInfo?.label || character.class
   const levelDisplay = `${classDisplay} ${character.level}`
 
   // Format race display
@@ -55,6 +57,24 @@ export function CharacterCard({ character }: CharacterCardProps) {
   return (
     <Card className="group relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-fey-cyan/10 hover:border-fey-cyan/30 bg-card/80 backdrop-blur-sm">
       <CardContent className="p-0">
+        {/* Delete Button */}
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (confirm(`Delete ${character.name}?`)) {
+                onDelete()
+              }
+            }}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
+
         {/* Portrait Section */}
         <div className="relative aspect-[4/3] bg-gradient-to-br from-fey-forest/20 to-fey-purple/20 overflow-hidden">
           {character.imageUrl ? (
@@ -75,6 +95,14 @@ export function CharacterCard({ character }: CharacterCardProps) {
           <Badge className="absolute top-2 right-2 bg-fey-purple/90 text-white border-0 text-xs">
             Lv {character.level}
           </Badge>
+
+          {/* AC Badge */}
+          {calculatedStats && (
+            <Badge className="absolute bottom-2 right-2 bg-fey-forest/90 text-white border-0 text-xs">
+              <Shield className="w-3 h-3 mr-1" />
+              AC {calculatedStats.armorClass}
+            </Badge>
+          )}
         </div>
 
         {/* Info Section */}

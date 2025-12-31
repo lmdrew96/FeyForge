@@ -3,43 +3,73 @@
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CharacterUpdateInput, ActionProperty } from "@/lib/character/types"
 import { Plus, Swords, Trash2 } from "lucide-react"
 import { useState } from "react"
+
+// Simple attack structure for UI compatibility
+// TODO: Migrate to use ActionProperty from character.properties
+interface SimpleAttack {
+  name: string
+  attackBonus: number
+  damage: string
+  damageType: string
+}
 
 interface CombatPanelProps {
   character: Character
   isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+  onUpdate: (data: CharacterUpdateInput) => void
+}
+
+// Helper to extract attacks from properties or use fallback
+function getAttacks(character: Character): SimpleAttack[] {
+  const actionProperties = character.properties?.filter(
+    (p): p is ActionProperty => p.type === 'action' && p.attack !== undefined
+  ) ?? []
+  
+  if (actionProperties.length > 0) {
+    return actionProperties.map(action => ({
+      name: action.name,
+      attackBonus: action.attack?.bonus ?? 0,
+      damage: action.damage?.map(d => `${d.diceCount}d${d.diceSize}${d.bonus ? `+${d.bonus}` : ''}`).join(' + ') ?? '',
+      damageType: action.damage?.[0]?.damageType ?? 'slashing'
+    }))
+  }
+  
+  // Fallback to legacy attacks array if it exists on character
+  return (character as any).attacks ?? []
 }
 
 export function CombatPanel({ character, isEditing, onUpdate }: CombatPanelProps) {
-  const [newAttack, setNewAttack] = useState({
+  const attacks = getAttacks(character)
+  const [newAttack, setNewAttack] = useState<SimpleAttack>({
     name: "",
     attackBonus: 0,
     damage: "",
     damageType: "",
   })
 
+  // TODO: When adding attacks, should create ActionProperty in properties array
   const addAttack = () => {
     if (newAttack.name && newAttack.damage) {
       onUpdate({
-        attacks: [...character.attacks, newAttack],
-      })
+        attacks: [...attacks, newAttack],
+      } as CharacterUpdateInput)
       setNewAttack({ name: "", attackBonus: 0, damage: "", damageType: "" })
     }
   }
 
   const removeAttack = (index: number) => {
     onUpdate({
-      attacks: character.attacks.filter((_, i) => i !== index),
-    })
+      attacks: attacks.filter((_, i) => i !== index),
+    } as CharacterUpdateInput)
   }
 
-  const updateAttack = (index: number, field: keyof (typeof character.attacks)[0], value: string | number) => {
-    const updated = [...character.attacks]
-    updated[index] = { ...updated[index], [field]: value }
-    onUpdate({ attacks: updated })
+  const updateAttack = (index: number, field: keyof SimpleAttack, value: string | number) => {
+    const currentAttacks = [...attacks]
+    currentAttacks[index] = { ...currentAttacks[index], [field]: value }
+    onUpdate({ attacks: currentAttacks } as CharacterUpdateInput)
   }
 
   return (
@@ -60,7 +90,7 @@ export function CombatPanel({ character, isEditing, onUpdate }: CombatPanelProps
         </div>
 
         {/* Attacks List */}
-        {character.attacks.map((attack, index) => (
+        {attacks.map((attack, index) => (
           <div
             key={index}
             className="flex flex-col sm:grid sm:grid-cols-12 gap-2 items-start sm:items-center p-3 sm:p-2 rounded-lg bg-background/50 hover:bg-fey-forest/10 transition-colors"
@@ -185,7 +215,7 @@ export function CombatPanel({ character, isEditing, onUpdate }: CombatPanelProps
           </div>
         )}
 
-        {character.attacks.length === 0 && !isEditing && (
+        {attacks.length === 0 && !isEditing && (
           <p className="text-sm text-muted-foreground text-center py-4">No attacks configured</p>
         )}
       </div>

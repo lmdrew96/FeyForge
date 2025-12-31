@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from "react"
 import { useWorldMapStore } from "@/lib/world-map-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 import { LocationPinMarker } from "@/components/world-map/location-pin"
 import { LocationInfoPopover } from "@/components/world-map/location-info-popover"
 import { Card } from "@/components/ui/card"
@@ -14,7 +14,7 @@ export function WorldMap() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [showMeasureLine, setShowMeasureLine] = useState(false)
   
-  const { activeCampaignId } = useCampaignsStore()
+  const activeCampaignId = useActiveCampaignId()
   const {
     zoom,
     panX,

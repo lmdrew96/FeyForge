@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useWorldMapStore, type LocationPin } from "@/lib/world-map-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 
 interface AddPinDialogProps {
   trigger?: React.ReactNode
@@ -44,7 +44,7 @@ export function AddPinDialog({ trigger, defaultPosition }: AddPinDialogProps) {
   const [open, setOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { addPin } = useWorldMapStore()
-  const { activeCampaignId } = useCampaignsStore()
+  const activeCampaignId = useActiveCampaignId()
   
   // Form state
   const [name, setName] = useState("")

@@ -1,8 +1,8 @@
 import { defineConfig } from "drizzle-kit"
 import { config } from "dotenv"
 
-// Load .env.local for local development
-config({ path: ".env.local" })
+// Load .env for production
+config({ path: ".env" })
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL environment variable is not set")

@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { useCharactersStore } from "@/lib/characters-store"
-import { useCampaignsStore } from "@/lib/campaigns-store"
+import { useCampaignCharacters } from "@/lib/hooks/use-campaign-data"
+import { useCharacterStore } from "@/lib/feyforge-character-store"
 import { CharacterCard } from "./character-card"
 import { classes } from "@/lib/character-data"
 
 export function CharacterList() {
-  const { characters } = useCharactersStore()
-  const { activeCampaignId } = useCampaignsStore()
+  const characters = useCampaignCharacters()
+  const { getCalculatedStats, deleteCharacter } = useCharacterStore()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [classFilter, setClassFilter] = useState<string>("all")
@@ -29,10 +29,10 @@ export function CharacterList() {
         searchQuery === "" ||
         character.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         character.race.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        character.characterClass.toLowerCase().includes(searchQuery.toLowerCase())
+        character.class.toLowerCase().includes(searchQuery.toLowerCase())
 
       // Class filter
-      const matchesClass = classFilter === "all" || character.characterClass === classFilter
+      const matchesClass = classFilter === "all" || character.class === classFilter
 
       return matchesSearch && matchesClass
     })
@@ -150,9 +150,17 @@ export function CharacterList() {
       {/* Character Grid or Empty State */}
       {filteredCharacters.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-          {filteredCharacters.map((character) => (
-            <CharacterCard key={character.id} character={character} />
-          ))}
+          {filteredCharacters.map((character) => {
+            const calculatedStats = getCalculatedStats(character.id)
+            return (
+              <CharacterCard 
+                key={character.id} 
+                character={character} 
+                calculatedStats={calculatedStats}
+                onDelete={() => deleteCharacter(character.id)}
+              />
+            )
+          })}
         </div>
       ) : characters.length === 0 ? (
         // No characters at all - Empty state

@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+build
+dist
+*.config.js
+Migration
+package-lock.json
+pnpm-lock.yaml

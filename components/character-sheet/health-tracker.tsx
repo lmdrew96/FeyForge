@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import type { Character } from "@/lib/characters-store"
+import type { Character, CharacterUpdateInput } from "@/lib/character/types"
 import { Heart, Minus, Plus, Shield, Skull } from "lucide-react"
 import { useState } from "react"
 
 interface HealthTrackerProps {
   character: Character
   isEditing: boolean
-  onUpdate: (data: Partial<Character>) => void
+  onUpdate: (data: CharacterUpdateInput) => void
 }
 
 export function HealthTracker({ character, isEditing, onUpdate }: HealthTrackerProps) {
@@ -42,11 +42,30 @@ export function HealthTracker({ character, isEditing, onUpdate }: HealthTrackerP
     })
   }
 
+  // Calculate total hit dice remaining across all classes
+  const hitDiceStats = character.hitDice.reduce(
+    (acc, hd) => ({
+      current: acc.current + (hd.total - hd.used),
+      total: acc.total + hd.total,
+    }),
+    { current: 0, total: 0 }
+  )
+
+  // Get the primary hit die type (first entry or d8 default)
+  const primaryHitDie = character.hitDice[0]
+  const hitDieType = primaryHitDie ? `d${primaryHitDie.diceSize}` : "d8"
+
   const useHitDie = () => {
-    if (character.hitDice.current > 0) {
-      onUpdate({
-        hitDice: { ...character.hitDice, current: character.hitDice.current - 1 },
-      })
+    if (hitDiceStats.current > 0 && character.hitDice.length > 0) {
+      // Find first hit die pool with remaining dice
+      const updatedHitDice = [...character.hitDice]
+      for (let i = 0; i < updatedHitDice.length; i++) {
+        if (updatedHitDice[i].used < updatedHitDice[i].total) {
+          updatedHitDice[i] = { ...updatedHitDice[i], used: updatedHitDice[i].used + 1 }
+          break
+        }
+      }
+      onUpdate({ hitDice: updatedHitDice })
     }
   }
 
@@ -145,7 +164,7 @@ export function HealthTracker({ character, isEditing, onUpdate }: HealthTrackerP
         <div>
           <span className="text-sm text-muted-foreground">Hit Dice</span>
           <p className="font-semibold">
-            {character.hitDice.current}/{character.hitDice.total} {character.hitDice.type}
+            {hitDiceStats.current}/{hitDiceStats.total} {hitDieType}
           </p>
         </div>
         {!isEditing && (
@@ -153,7 +172,7 @@ export function HealthTracker({ character, isEditing, onUpdate }: HealthTrackerP
             size="sm"
             variant="outline"
             onClick={useHitDie}
-            disabled={character.hitDice.current <= 0}
+            disabled={hitDiceStats.current <= 0}
             className="border-fey-sage/30"
           >
             Use Hit Die
