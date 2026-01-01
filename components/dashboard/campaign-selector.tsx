@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 export function CampaignSelector() {
   const {
@@ -61,6 +62,12 @@ export function CampaignSelector() {
       setNewCampaignDescription("")
     } catch (error) {
       console.error("Failed to create campaign:", error)
+      const message = error instanceof Error ? error.message : "Failed to create campaign"
+      if (message.includes("Not authenticated")) {
+        toast.error("Please log in to create a campaign")
+      } else {
+        toast.error(message)
+      }
     }
   }
 

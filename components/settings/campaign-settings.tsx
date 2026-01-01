@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useCampaignStore, type Campaign } from "@/lib/campaign-store"
+import { toast } from "sonner"
 
 export function CampaignSettings() {
   const {
@@ -101,6 +102,12 @@ export function CampaignSettings() {
       closeDialogs()
     } catch (error) {
       console.error("Failed to create campaign:", error)
+      const message = error instanceof Error ? error.message : "Failed to create campaign"
+      if (message.includes("Not authenticated")) {
+        toast.error("Please log in to create a campaign")
+      } else {
+        toast.error(message)
+      }
     }
   }
 
@@ -115,6 +122,12 @@ export function CampaignSettings() {
       closeDialogs()
     } catch (error) {
       console.error("Failed to update campaign:", error)
+      const message = error instanceof Error ? error.message : "Failed to update campaign"
+      if (message.includes("Not authenticated")) {
+        toast.error("Please log in to update campaigns")
+      } else {
+        toast.error(message)
+      }
     }
   }
 
@@ -126,6 +139,12 @@ export function CampaignSettings() {
       setDeleteConfirmCampaign(null)
     } catch (error) {
       console.error("Failed to delete campaign:", error)
+      const message = error instanceof Error ? error.message : "Failed to delete campaign"
+      if (message.includes("Not authenticated")) {
+        toast.error("Please log in to delete campaigns")
+      } else {
+        toast.error(message)
+      }
     }
   }
 

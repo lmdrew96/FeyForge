@@ -24,6 +24,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useNPCStore } from "@/lib/npc-store"
 import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
+import { toast } from "sonner"
 
 interface AddNPCDialogProps {
   trigger?: React.ReactNode
@@ -114,6 +115,12 @@ export function AddNPCDialog({ trigger }: AddNPCDialogProps) {
       setOpen(false)
     } catch (error) {
       console.error("Failed to add NPC:", error)
+      const message = error instanceof Error ? error.message : "Failed to add NPC"
+      if (message.includes("Not authenticated")) {
+        toast.error("Please log in to add NPCs")
+      } else {
+        toast.error(message)
+      }
     } finally {
       setIsSubmitting(false)
     }

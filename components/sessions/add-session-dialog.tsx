@@ -18,6 +18,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSessionStore } from "@/lib/session-store"
 import { useCampaignSessions, useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
+import { toast } from "sonner"
 
 interface AddSessionDialogProps {
   trigger?: React.ReactNode
@@ -112,6 +113,12 @@ export function AddSessionDialog({ trigger }: AddSessionDialogProps) {
       setOpen(false)
     } catch (error) {
       console.error("Failed to add session:", error)
+      const message = error instanceof Error ? error.message : "Failed to add session"
+      if (message.includes("Not authenticated")) {
+        toast.error("Please log in to add a session")
+      } else {
+        toast.error(message)
+      }
     } finally {
       setIsSubmitting(false)
     }

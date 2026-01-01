@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSessionStore, type Session } from "@/lib/session-store"
+import { toast } from "sonner"
 
 interface EditSessionDialogProps {
   session: Session
@@ -92,6 +93,12 @@ export function EditSessionDialog({ session, open, onOpenChange }: EditSessionDi
       onOpenChange(false)
     } catch (error) {
       console.error("Failed to update session:", error)
+      const message = error instanceof Error ? error.message : "Failed to update session"
+      if (message.includes("Not authenticated")) {
+        toast.error("Please log in to update sessions")
+      } else {
+        toast.error(message)
+      }
     } finally {
       setIsSubmitting(false)
     }

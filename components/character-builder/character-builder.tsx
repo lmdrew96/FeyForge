@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { useCharacterStore as useCharacterBuilderStore } from "@/lib/character-store"
 import { useCharacterStore } from "@/lib/feyforge-character-store"
 import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
@@ -187,6 +188,12 @@ export function CharacterBuilder() {
       router.push(`/characters/${newId}`)
     } catch (error) {
       console.error("Failed to create character:", error)
+      const message = error instanceof Error ? error.message : "Failed to create character"
+      if (message.includes("Not authenticated")) {
+        toast.error("Please log in to create a character")
+      } else {
+        toast.error(message)
+      }
     }
   }
 

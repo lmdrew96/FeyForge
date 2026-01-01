@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Cinzel, Cinzel_Decorative } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SessionProvider } from "@/components/auth/session-provider"
 import "./globals.css"
@@ -53,6 +54,7 @@ export default function RootLayout({
           >
             {children}
           </ThemeProvider>
+          <Toaster richColors position="top-center" />
         </SessionProvider>
         <Analytics />
       </body>
