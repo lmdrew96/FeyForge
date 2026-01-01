@@ -19,9 +19,16 @@ async function requireAuth() {
   return session.user.id
 }
 
+// Returns null if not authenticated (for read operations)
+async function getAuthUserId(): Promise<string | null> {
+  const session = await auth()
+  return session?.user?.id ?? null
+}
+
 // Character CRUD
 export async function fetchUserCharacters(): Promise<Character[]> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return []
 
   return db
     .select()
@@ -31,7 +38,8 @@ export async function fetchUserCharacters(): Promise<Character[]> {
 }
 
 export async function getCharactersByCampaign(campaignId: string): Promise<Character[]> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return []
 
   return db
     .select()
@@ -41,7 +49,8 @@ export async function getCharactersByCampaign(campaignId: string): Promise<Chara
 }
 
 export async function getCharacter(id: string): Promise<Character | undefined> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return undefined
 
   const [character] = await db
     .select()

@@ -21,9 +21,16 @@ async function requireAuth() {
   return session.user.id
 }
 
+// Returns null if not authenticated (for read operations)
+async function getAuthUserId(): Promise<string | null> {
+  const session = await auth()
+  return session?.user?.id ?? null
+}
+
 // Game Sessions CRUD
 export async function fetchUserSessions(): Promise<GameSession[]> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return []
 
   return db
     .select()
@@ -33,7 +40,8 @@ export async function fetchUserSessions(): Promise<GameSession[]> {
 }
 
 export async function getSessionsByCampaign(campaignId: string): Promise<GameSession[]> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return []
 
   return db
     .select()
@@ -43,7 +51,8 @@ export async function getSessionsByCampaign(campaignId: string): Promise<GameSes
 }
 
 export async function getSession(id: string): Promise<GameSession | undefined> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return undefined
 
   const [session] = await db
     .select()

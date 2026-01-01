@@ -17,8 +17,15 @@ async function requireAuth() {
   return session.user.id
 }
 
+// Returns null if not authenticated (for read operations)
+async function getAuthUserId(): Promise<string | null> {
+  const session = await auth()
+  return session?.user?.id ?? null
+}
+
 export async function fetchUserNPCs(): Promise<NPC[]> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return []
 
   return db
     .select()
@@ -28,7 +35,8 @@ export async function fetchUserNPCs(): Promise<NPC[]> {
 }
 
 export async function getNPCsByCampaign(campaignId: string): Promise<NPC[]> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return []
 
   return db
     .select()
@@ -38,7 +46,8 @@ export async function getNPCsByCampaign(campaignId: string): Promise<NPC[]> {
 }
 
 export async function getNPC(id: string): Promise<NPC | undefined> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return undefined
 
   const [npc] = await db
     .select()
@@ -50,7 +59,8 @@ export async function getNPC(id: string): Promise<NPC | undefined> {
 }
 
 export async function searchNPCs(query: string, campaignId?: string): Promise<NPC[]> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return []
 
   const baseCondition = eq(npcs.userId, userId)
   const searchCondition = or(

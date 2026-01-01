@@ -17,8 +17,15 @@ async function requireAuth() {
   return session.user.id
 }
 
+// Returns null if not authenticated (for read operations)
+async function getAuthUserId(): Promise<string | null> {
+  const session = await auth()
+  return session?.user?.id ?? null
+}
+
 export async function fetchUserCampaigns(): Promise<Campaign[]> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return []
 
   return db
     .select()
@@ -28,7 +35,8 @@ export async function fetchUserCampaigns(): Promise<Campaign[]> {
 }
 
 export async function getCampaign(id: string): Promise<Campaign | undefined> {
-  const userId = await requireAuth()
+  const userId = await getAuthUserId()
+  if (!userId) return undefined
 
   const [campaign] = await db
     .select()
