@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type FormEvent } from "react"
 import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport } from "ai"
 import { Bot, ChevronDown, ChevronUp, Send, Sparkles } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -16,15 +17,36 @@ import { cn } from "@/lib/utils"
 
 const suggestedPrompts = ["Plot hook", "NPC name", "Tavern", "Encounter"]
 
+// Helper function to extract text content from message parts
+function getMessageContent(message: {
+  parts?: Array<{ type: string; text?: string }>
+}): string {
+  if (!message.parts) return ""
+  return message.parts
+    .filter((part) => part.type === "text" && part.text)
+    .map((part) => part.text)
+    .join("")
+}
+
 export function AIAssistantWidget() {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [input, setInput] = useState("")
 
-  const { messages, input, setInput, handleSubmit, isLoading, error } = useChat(
-    {
+  const { messages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({
       api: "/api/dm-assistant",
-      id: "dashboard-widget",
-    }
-  )
+    }),
+    id: "dashboard-widget",
+  })
+
+  const isLoading = status === "streaming" || status === "submitted"
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || isLoading) return
+    sendMessage({ text: input })
+    setInput("")
+  }
 
   const handleSuggestedPrompt = (prompt: string) => {
     setInput(prompt)
@@ -65,7 +87,7 @@ export function AIAssistantWidget() {
                           : "bg-muted text-foreground mr-4"
                       )}
                     >
-                      {message.content}
+                      {getMessageContent(message)}
                     </div>
                   ))}
                   {isLoading && (

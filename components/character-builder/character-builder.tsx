@@ -15,12 +15,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { AppShell } from "@/components/app-shell"
 import { ArrowLeft, ArrowRight, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type {
-  Character,
-  ItemProperty,
-  Skill,
-  Ability,
-} from "@/lib/character/types"
+import type { Character, ItemProperty } from "@/lib/character/types"
+import type { Skill, Ability, Alignment } from "@/lib/character/constants"
 
 const TOTAL_STEPS = 5
 
@@ -90,7 +86,7 @@ export function CharacterBuilder() {
       level: 1,
       experiencePoints: 0,
       background: character.background || undefined,
-      alignment: character.alignment || undefined,
+      alignment: (character.alignment as Alignment) || undefined,
 
       // Base ability scores using full property names
       baseAbilities: {
@@ -110,10 +106,9 @@ export function CharacterBuilder() {
       },
       hitDice: [
         {
-          dieType: 8,
+          diceSize: 8,
           total: 1,
           used: 0,
-          classSource: character.characterClass,
         },
       ],
       deathSaves: {
