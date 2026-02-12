@@ -116,7 +116,6 @@ export function AddSessionDialog({ trigger }: AddSessionDialogProps) {
       resetForm()
       setOpen(false)
     } catch (error) {
-      console.error("Failed to add session:", error)
       const message = getErrorMessage(error, "Failed to add session")
       if (isAuthError(message)) {
         toast.error("Please log in to add a session")

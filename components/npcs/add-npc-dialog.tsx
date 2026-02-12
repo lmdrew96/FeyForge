@@ -122,7 +122,6 @@ export function AddNPCDialog({ trigger }: AddNPCDialogProps) {
       resetForm()
       setOpen(false)
     } catch (error) {
-      console.error("Failed to add NPC:", error)
       const message = getErrorMessage(error, "Failed to add NPC")
       if (isAuthError(message)) {
         toast.error("Please log in to add NPCs")

@@ -109,7 +109,6 @@ export function CampaignSettings() {
       })
       closeDialogs()
     } catch (error) {
-      console.error("Failed to create campaign:", error)
       const message = getErrorMessage(error, "Failed to create campaign")
       if (isAuthError(message)) {
         toast.error("Please log in to create a campaign")
@@ -129,7 +128,6 @@ export function CampaignSettings() {
       })
       closeDialogs()
     } catch (error) {
-      console.error("Failed to update campaign:", error)
       const message = getErrorMessage(error, "Failed to update campaign")
       if (isAuthError(message)) {
         toast.error("Please log in to update campaigns")
@@ -146,7 +144,6 @@ export function CampaignSettings() {
       await deleteCampaign(deleteConfirmCampaign.id)
       setDeleteConfirmCampaign(null)
     } catch (error) {
-      console.error("Failed to delete campaign:", error)
       const message = getErrorMessage(error, "Failed to delete campaign")
       if (isAuthError(message)) {
         toast.error("Please log in to delete campaigns")

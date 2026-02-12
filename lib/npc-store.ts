@@ -122,17 +122,19 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
   },
 
   deleteNPC: async (id) => {
-    set({ isLoading: true, error: null })
+    const previousNpcs = get().npcs
+    // Optimistically remove
+    set((state) => ({
+      npcs: state.npcs.filter((npc) => npc.id !== id),
+      error: null,
+    }))
     try {
       await deleteNPCAction(id)
-      set((state) => ({
-        npcs: state.npcs.filter((npc) => npc.id !== id),
-        isLoading: false,
-      }))
     } catch (error) {
+      // Rollback on failure
       set({
+        npcs: previousNpcs,
         error: getErrorMessage(error, "Failed to delete NPC"),
-        isLoading: false,
       })
       throw error
     }
@@ -161,7 +163,6 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
     try {
       return await searchNPCsAction(query, campaignId)
     } catch (error) {
-      console.error("Search failed:", error)
       const message = getErrorMessage(error, "Search failed")
       if (isAuthError(message)) {
         toast.error("Please log in to search NPCs")

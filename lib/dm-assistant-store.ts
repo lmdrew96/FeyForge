@@ -127,7 +127,7 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
         }))
         const message = getErrorMessage(error, "Failed to save conversation")
         if (!isAuthError(message)) {
-          console.error("[FeyForge] Failed to persist conversation:", error)
+          toast.error(message)
         }
         return conversation
       }
@@ -239,7 +239,7 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
       } catch (error) {
         const message = getErrorMessage(error, "Failed to sync conversation")
         if (!isAuthError(message)) {
-          console.error("[FeyForge] Failed to sync conversation:", message)
+          toast.error(message)
         }
       }
     },

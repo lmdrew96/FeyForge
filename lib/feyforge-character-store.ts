@@ -323,7 +323,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         imageUrl: character.imageUrl,
       })
     } catch (error) {
-      console.error("Failed to save character:", error)
       const message = getErrorMessage(error, "Failed to save character")
       if (isAuthError(message)) {
         toast.error("Please log in to save characters")
@@ -360,7 +359,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         updates as Parameters<typeof updateCharacterAction>[1]
       )
     } catch (error) {
-      console.error("Failed to update character:", error)
       const message = getErrorMessage(error, "Failed to update character")
       if (isAuthError(message)) {
         toast.error("Please log in to update characters")
@@ -388,7 +386,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     try {
       await deleteCharacterAction(id)
     } catch (error) {
-      console.error("Failed to delete character:", error)
       const message = getErrorMessage(error, "Failed to delete character")
       if (isAuthError(message)) {
         toast.error("Please log in to delete characters")
@@ -451,7 +448,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
           (get().getCharacter(characterId)?.properties?.length || 0) - 1,
       })
     } catch (error) {
-      console.error("Failed to add property:", error)
       const message = getErrorMessage(error, "Failed to add property")
       if (isAuthError(message)) {
         toast.error("Please log in to add items")
@@ -491,7 +487,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         data: updates as Record<string, unknown>,
       })
     } catch (error) {
-      console.error("Failed to update property:", error)
       const message = getErrorMessage(error, "Failed to update property")
       if (isAuthError(message)) {
         toast.error("Please log in to update items")
@@ -526,7 +521,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     try {
       await deletePropertyAction(propertyId)
     } catch (error) {
-      console.error("Failed to remove property:", error)
       const message = getErrorMessage(error, "Failed to remove property")
       if (isAuthError(message)) {
         toast.error("Please log in to remove items")
@@ -574,7 +568,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     try {
       await updatePropertyAction(propertyId, { active: !property.active })
     } catch (error) {
-      console.error("Failed to toggle property:", error)
       const message = getErrorMessage(error, "Failed to toggle property")
       if (isAuthError(message)) {
         toast.error("Please log in to modify items")
@@ -1109,7 +1102,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         inspiration: char.inspiration,
       })
     } catch (error) {
-      console.error("Failed to persist character:", error)
       const message = getErrorMessage(error, "Failed to save changes")
       if (isAuthError(message)) {
         toast.error("Please log in to save changes")

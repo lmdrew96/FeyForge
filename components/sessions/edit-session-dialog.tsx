@@ -103,7 +103,6 @@ export function EditSessionDialog({
 
       onOpenChange(false)
     } catch (error) {
-      console.error("Failed to update session:", error)
       const message = getErrorMessage(error, "Failed to update session")
       if (isAuthError(message)) {
         toast.error("Please log in to update sessions")

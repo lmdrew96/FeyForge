@@ -169,18 +169,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   deleteSession: async (id) => {
-    set({ isLoading: true, error: null })
+    const previousSessions = get().sessions
+    const previousCurrentId = get().currentSessionId
+    // Optimistically remove
+    set((state) => ({
+      sessions: state.sessions.filter((s) => s.id !== id),
+      currentSessionId: state.currentSessionId === id ? null : state.currentSessionId,
+      error: null,
+    }))
     try {
       await deleteSessionAction(id)
-      set((state) => ({
-        sessions: state.sessions.filter((s) => s.id !== id),
-        currentSessionId: state.currentSessionId === id ? null : state.currentSessionId,
-        isLoading: false,
-      }))
     } catch (error) {
+      // Rollback on failure
       set({
+        sessions: previousSessions,
+        currentSessionId: previousCurrentId,
         error: getErrorMessage(error, "Failed to delete session"),
-        isLoading: false,
       })
       throw error
     }
@@ -203,7 +207,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // Note: We might need to refresh the session to see the new note
       // For now, the server action handles persistence
     } catch (error) {
-      console.error("Failed to add note:", error)
       const message = getErrorMessage(error, "Failed to add note")
       if (isAuthError(message)) {
         toast.error("Please log in to add notes")
@@ -249,17 +252,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   deletePlotThread: async (id) => {
-    set({ isLoading: true, error: null })
+    const previousThreads = get().plotThreads
+    // Optimistically remove
+    set((state) => ({
+      plotThreads: state.plotThreads.filter((t) => t.id !== id),
+      error: null,
+    }))
     try {
       await deletePlotThreadAction(id)
-      set((state) => ({
-        plotThreads: state.plotThreads.filter((t) => t.id !== id),
-        isLoading: false,
-      }))
     } catch (error) {
+      // Rollback on failure
       set({
+        plotThreads: previousThreads,
         error: getErrorMessage(error, "Failed to delete plot thread"),
-        isLoading: false,
       })
       throw error
     }

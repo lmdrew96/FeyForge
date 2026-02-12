@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState, useCallback, useEffect } from "react"
+import Image from "next/image"
 import { useWorldMapStore } from "@/lib/world-map-store"
 import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
 import { LocationPinMarker } from "@/components/world-map/location-pin"
@@ -173,11 +174,13 @@ export function WorldMap() {
       >
         {/* Background - Placeholder or Custom Map */}
         {currentMap?.imageUrl ? (
-          <img
+          <Image
             src={currentMap.imageUrl}
             alt={currentMap.name || "World Map"}
-            className="w-full h-full object-contain pointer-events-none select-none"
+            fill
+            className="object-contain pointer-events-none select-none"
             draggable={false}
+            unoptimized
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">

@@ -58,7 +58,6 @@ export function NPCGenerator() {
       })
     } catch (err) {
       setError("Failed to generate NPC. Please try again.")
-      console.error(err)
     } finally {
       setIsGenerating(false)
     }

@@ -98,22 +98,26 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   },
 
   deleteCampaign: async (id) => {
-    set({ isLoading: true, error: null })
+    const previousCampaigns = get().campaigns
+    const previousActiveId = get().activeCampaignId
+    // Optimistically remove
+    set((state) => {
+      const remaining = state.campaigns.filter((c) => c.id !== id)
+      return {
+        campaigns: remaining,
+        activeCampaignId:
+          state.activeCampaignId === id ? remaining[0]?.id ?? null : state.activeCampaignId,
+        error: null,
+      }
+    })
     try {
       await deleteCampaignAction(id)
-      set((state) => {
-        const remaining = state.campaigns.filter((c) => c.id !== id)
-        return {
-          campaigns: remaining,
-          activeCampaignId:
-            state.activeCampaignId === id ? remaining[0]?.id ?? null : state.activeCampaignId,
-          isLoading: false,
-        }
-      })
     } catch (error) {
+      // Rollback on failure
       set({
+        campaigns: previousCampaigns,
+        activeCampaignId: previousActiveId,
         error: getErrorMessage(error, "Failed to delete campaign"),
-        isLoading: false,
       })
       throw error
     }

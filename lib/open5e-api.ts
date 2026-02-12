@@ -253,6 +253,43 @@ async function setCache<T>(endpoint: string, data: T): Promise<void> {
   }
 }
 
+// Fetch with retry and timeout for transient failures
+const MAX_RETRIES = 3
+const REQUEST_TIMEOUT = 10_000
+
+async function fetchWithRetry(url: string): Promise<Response> {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+
+    try {
+      const response = await fetch(url, { signal: controller.signal })
+      clearTimeout(timeoutId)
+
+      // Don't retry client errors (4xx)
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
+        return response
+      }
+
+      // Retry on 5xx server errors
+      if (attempt === MAX_RETRIES) {
+        return response
+      }
+    } catch (error) {
+      clearTimeout(timeoutId)
+      if (attempt === MAX_RETRIES) {
+        throw error
+      }
+    }
+
+    // Exponential backoff: 1s, 2s, 4s
+    await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)))
+  }
+
+  // Unreachable, but satisfies TypeScript
+  throw new Error("Retry attempts exhausted")
+}
+
 // Generic fetch with caching
 async function fetchWithCache<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(`${API_BASE}${endpoint}`)
@@ -266,7 +303,7 @@ async function fetchWithCache<T>(endpoint: string, params?: Record<string, strin
   const cached = await getCached<T>(cacheKey)
   if (cached) return cached
 
-  const response = await fetch(url.toString())
+  const response = await fetchWithRetry(url.toString())
   if (!response.ok) {
     throw new Error(`Open5e API error: ${response.status}`)
   }
