@@ -1,4 +1,7 @@
 import { consumeStream, convertToModelMessages, streamText, type UIMessage } from "ai"
+import { NextResponse } from "next/server"
+import { auth } from "@/auth"
+import { rateLimit } from "@/lib/rate-limit"
 
 export const maxDuration = 60
 
@@ -22,24 +25,39 @@ You have access to the D&D 5e SRD content. When discussing mechanics, spells, mo
 Format your responses with markdown for readability. Use headers, bullet points, and bold text where appropriate.`
 
 export async function POST(req: Request) {
-  const { messages, context }: { messages: UIMessage[]; context?: string } = await req.json()
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-  const systemPrompt = context ? `${DM_SYSTEM_PROMPT}\n\nCurrent Campaign Context:\n${context}` : DM_SYSTEM_PROMPT
+    const { success } = rateLimit(session.user.id)
+    if (!success) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } })
+    }
 
-  const prompt = await convertToModelMessages(messages)
+    const { messages, context }: { messages: UIMessage[]; context?: string } = await req.json()
 
-  const result = streamText({
-    model: "anthropic/claude-sonnet-4-5-20250929",
-    system: systemPrompt,
-    prompt,
-    abortSignal: req.signal,
-  })
+    const systemPrompt = context ? `${DM_SYSTEM_PROMPT}\n\nCurrent Campaign Context:\n${context}` : DM_SYSTEM_PROMPT
 
-  return result.toUIMessageStreamResponse({
-    onFinish: async ({ isAborted }) => {
-      // Stream was aborted - no action needed
-      void isAborted
-    },
-    consumeSseStream: consumeStream,
-  })
+    const prompt = await convertToModelMessages(messages)
+
+    const result = streamText({
+      model: "anthropic/claude-sonnet-4-5-20250929",
+      system: systemPrompt,
+      prompt,
+      abortSignal: req.signal,
+    })
+
+    return result.toUIMessageStreamResponse({
+      onFinish: async ({ isAborted }) => {
+        // Stream was aborted - no action needed
+        void isAborted
+      },
+      consumeSseStream: consumeStream,
+    })
+  } catch (error) {
+    console.error("[FeyForge] DM assistant error:", error)
+    return NextResponse.json({ error: "Failed to start DM assistant" }, { status: 500 })
+  }
 }
