@@ -3,6 +3,7 @@ import { db, isDatabaseConfigured } from "@/lib/db"
 import { users, verificationTokens } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import crypto from "crypto"
+import { sendMagicLinkEmail } from "@/lib/email"
 
 // Generate a secure token
 function generateToken() {
@@ -54,14 +55,7 @@ export async function POST(req: Request) {
         expires,
       })
 
-      // TODO: Send email with magic link
-      // In production, integrate with an email service like Resend, SendGrid, etc.
-      // The magic link URL would be: `${process.env.NEXTAUTH_URL}/api/auth/callback/email?token=${token}&email=${email}`
-
-      // For now, log the token for development purposes
-      if (process.env.NODE_ENV === "development") {
-        console.log(`[FeyForge Dev] Magic link token for ${email}: ${token}`)
-      }
+      await sendMagicLinkEmail(email.toLowerCase(), token)
     }
 
     // Always return success to prevent email enumeration attacks

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Save, FolderOpen, Trash2, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -70,7 +70,11 @@ export function SaveEncounterDialog() {
 
 export function LoadEncounterDialog() {
   const [open, setOpen] = useState(false)
-  const { savedEncounters, loadEncounter, deleteEncounter } = useCombatStore()
+  const { savedEncounters, loadEncounter, deleteEncounter, initialize } = useCombatStore()
+
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
   const handleLoad = (id: string) => {
     loadEncounter(id)

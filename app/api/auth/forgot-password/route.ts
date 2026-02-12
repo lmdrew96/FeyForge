@@ -3,6 +3,7 @@ import { db, isDatabaseConfigured } from "@/lib/db"
 import { users, verificationTokens } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import crypto from "crypto"
+import { sendPasswordResetEmail } from "@/lib/email"
 
 // Generate a secure token
 function generateToken() {
@@ -54,16 +55,7 @@ export async function POST(req: Request) {
         expires,
       })
 
-      // TODO: Send email with password reset link
-      // In production, integrate with an email service like Resend, SendGrid, etc.
-      // The reset link URL would be: `${process.env.NEXTAUTH_URL}/reset-password?token=${token}&email=${email}`
-
-      // For now, log the token for development purposes
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          `[FeyForge Dev] Password reset token for ${email}: ${token}`
-        )
-      }
+      await sendPasswordResetEmail(email.toLowerCase(), token)
     }
 
     // Always return success to prevent email enumeration attacks

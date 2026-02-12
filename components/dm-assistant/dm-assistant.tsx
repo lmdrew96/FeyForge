@@ -56,7 +56,13 @@ export function DMAssistant() {
     clearMessages,
     setActiveConversation,
     setLoading,
+    initialize,
+    syncConversation,
   } = useDMAssistantStore()
+
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
   const activeConversation = getActiveConversation()
   const messages = activeConversation?.messages || []
@@ -80,7 +86,7 @@ export function DMAssistant() {
 
     // Create new conversation if none exists
     if (!conversationId) {
-      const newConversation = createConversation(activeCampaignId)
+      const newConversation = await createConversation(activeCampaignId)
       conversationId = newConversation.id
     }
 
@@ -173,6 +179,9 @@ export function DMAssistant() {
       })
     } finally {
       setLoading(false)
+      if (conversationId) {
+        syncConversation(conversationId)
+      }
     }
   }, [
     input,
@@ -183,6 +192,7 @@ export function DMAssistant() {
     createConversation,
     addMessage,
     setLoading,
+    syncConversation,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

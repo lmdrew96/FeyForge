@@ -438,6 +438,54 @@ export const mapLocations = pgTable("map_locations", {
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 })
 
+export const savedEncounters = pgTable("saved_encounters", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  campaignId: text("campaign_id").references(() => campaigns.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  combatants: jsonb("combatants").notNull().$type<Array<{
+    id: string;
+    name: string;
+    type: "pc" | "npc" | "monster";
+    initiative: number;
+    initiativeBonus: number;
+    armorClass: number;
+    hitPoints: { current: number; max: number; temp: number };
+    conditions: string[];
+    deathSaves?: { successes: number; failures: number };
+    notes: string;
+    isActive: boolean;
+    characterId?: string;
+  }>>(),
+  round: integer("round").notNull().default(1),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+})
+
+export const dmConversations = pgTable("dm_conversations", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  campaignId: text("campaign_id")
+    .notNull()
+    .references(() => campaigns.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  messages: jsonb("messages").notNull().$type<Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    timestamp: string;
+  }>>().default([]),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+})
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -466,3 +514,7 @@ export type MapPin = typeof mapPins.$inferSelect
 export type NewMapPin = typeof mapPins.$inferInsert
 export type MapLocation = typeof mapLocations.$inferSelect
 export type NewMapLocation = typeof mapLocations.$inferInsert
+export type SavedEncounter = typeof savedEncounters.$inferSelect
+export type NewSavedEncounter = typeof savedEncounters.$inferInsert
+export type DMConversation = typeof dmConversations.$inferSelect
+export type NewDMConversation = typeof dmConversations.$inferInsert

@@ -2,6 +2,12 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { toast } from "sonner"
+import {
+  fetchSavedEncounters,
+  createSavedEncounter,
+  deleteSavedEncounter,
+} from "@/lib/actions/encounters"
 
 export type CombatantType = "pc" | "npc" | "monster"
 
@@ -59,6 +65,10 @@ interface CombatStore {
   activeCombatantIndex: number
   isInCombat: boolean
   savedEncounters: SavedEncounter[]
+  isInitialized: boolean
+
+  // Initialization
+  initialize: () => Promise<void>
 
   // Combatant management
   addCombatant: (combatant: Omit<Combatant, "id" | "isActive">) => void
@@ -92,10 +102,10 @@ interface CombatStore {
   startCombat: () => void
   endCombat: () => void
 
-  // Save/Load
-  saveEncounter: (name: string) => void
+  // Save/Load (DB-backed)
+  saveEncounter: (name: string) => Promise<void>
   loadEncounter: (id: string) => void
-  deleteEncounter: (id: string) => void
+  deleteEncounter: (id: string) => Promise<void>
   clearCombat: () => void
 }
 
@@ -107,6 +117,30 @@ export const useCombatStore = create<CombatStore>()(
       activeCombatantIndex: 0,
       isInCombat: false,
       savedEncounters: [],
+      isInitialized: false,
+
+      initialize: async () => {
+        if (get().isInitialized) return
+        try {
+          const encounters = await fetchSavedEncounters()
+          set({
+            savedEncounters: encounters.map((e) => ({
+              id: e.id,
+              name: e.name,
+              combatants: e.combatants as Combatant[],
+              round: e.round,
+              createdAt: e.createdAt.toISOString(),
+            })),
+            isInitialized: true,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to load encounters"
+          if (!message.includes("Not authenticated")) {
+            toast.error(message)
+          }
+          set({ isInitialized: true })
+        }
+      },
 
       addCombatant: (combatant) =>
         set((state) => ({
@@ -274,19 +308,31 @@ export const useCombatStore = create<CombatStore>()(
           combatants: get().combatants.map((c) => ({ ...c, isActive: false })),
         }),
 
-      saveEncounter: (name) =>
-        set((state) => ({
-          savedEncounters: [
-            ...state.savedEncounters,
-            {
-              id: crypto.randomUUID(),
-              name,
-              combatants: state.combatants,
-              round: state.currentRound,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        })),
+      saveEncounter: async (name) => {
+        const state = get()
+        try {
+          const encounter = await createSavedEncounter({
+            name,
+            combatants: state.combatants,
+            round: state.currentRound,
+          })
+          set((s) => ({
+            savedEncounters: [
+              ...s.savedEncounters,
+              {
+                id: encounter.id,
+                name: encounter.name,
+                combatants: encounter.combatants as Combatant[],
+                round: encounter.round,
+                createdAt: encounter.createdAt.toISOString(),
+              },
+            ],
+          }))
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to save encounter"
+          toast.error(message)
+        }
+      },
 
       loadEncounter: (id) =>
         set((state) => {
@@ -300,10 +346,17 @@ export const useCombatStore = create<CombatStore>()(
           }
         }),
 
-      deleteEncounter: (id) =>
-        set((state) => ({
-          savedEncounters: state.savedEncounters.filter((e) => e.id !== id),
-        })),
+      deleteEncounter: async (id) => {
+        try {
+          await deleteSavedEncounter(id)
+          set((state) => ({
+            savedEncounters: state.savedEncounters.filter((e) => e.id !== id),
+          }))
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to delete encounter"
+          toast.error(message)
+        }
+      },
 
       clearCombat: () =>
         set({
@@ -315,6 +368,12 @@ export const useCombatStore = create<CombatStore>()(
     }),
     {
       name: "feyforge-combat",
+      partialize: (state) => ({
+        combatants: state.combatants,
+        currentRound: state.currentRound,
+        activeCombatantIndex: state.activeCombatantIndex,
+        isInCombat: state.isInCombat,
+      }),
     },
   ),
 )
