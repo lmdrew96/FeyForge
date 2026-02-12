@@ -118,6 +118,7 @@ export function HealthTracker({ character, isEditing, onUpdate }: HealthTrackerP
         <Progress
           value={healthPercentage}
           className="h-3"
+          aria-label={`Hit points: ${character.hitPoints.current} of ${character.hitPoints.max} (${Math.round(healthPercentage)}%${healthPercentage <= 25 ? " - critical" : healthPercentage <= 50 ? " - injured" : ""})`}
           style={
             {
               "--progress-background":
@@ -200,6 +201,7 @@ export function HealthTracker({ character, isEditing, onUpdate }: HealthTrackerP
                       : "border-fey-sage/50 hover:border-fey-forest"
                   }`}
                   aria-label={`Death save success ${i + 1}`}
+                  aria-pressed={character.deathSaves.successes > i}
                 />
               ))}
             </div>
@@ -217,6 +219,7 @@ export function HealthTracker({ character, isEditing, onUpdate }: HealthTrackerP
                       : "border-fey-sage/50 hover:border-destructive"
                   }`}
                   aria-label={`Death save failure ${i + 1}`}
+                  aria-pressed={character.deathSaves.failures > i}
                 />
               ))}
             </div>

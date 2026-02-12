@@ -252,7 +252,7 @@ export function SignupForm() {
       <CardContent className="space-y-6">
         {/* General Error Message */}
         {errors.general && (
-          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+          <div role="alert" className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
             {errors.general}
           </div>
         )}
@@ -273,10 +273,11 @@ export function SignupForm() {
               onChange={(e) => handleInputChange("displayName", e.target.value)}
               disabled={isLoading}
               aria-invalid={!!errors.displayName}
+              aria-describedby={errors.displayName ? "displayName-error" : undefined}
               className={errors.displayName ? "border-destructive" : ""}
             />
             {errors.displayName && (
-              <p className="text-sm text-destructive">{errors.displayName}</p>
+              <p id="displayName-error" className="text-sm text-destructive">{errors.displayName}</p>
             )}
           </div>
 
@@ -294,10 +295,11 @@ export function SignupForm() {
               onChange={(e) => handleInputChange("email", e.target.value)}
               disabled={isLoading}
               aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? "signup-email-error" : undefined}
               className={errors.email ? "border-destructive" : ""}
             />
             {errors.email && (
-              <p className="text-sm text-destructive">{errors.email}</p>
+              <p id="signup-email-error" className="text-sm text-destructive">{errors.email}</p>
             )}
           </div>
 
@@ -316,6 +318,7 @@ export function SignupForm() {
                 onChange={(e) => handleInputChange("password", e.target.value)}
                 disabled={isLoading}
                 aria-invalid={!!errors.password}
+                aria-describedby={errors.password ? "signup-password-error" : undefined}
                 className={`pr-10 ${errors.password ? "border-destructive" : ""}`}
               />
               <button
@@ -333,7 +336,7 @@ export function SignupForm() {
               </button>
             </div>
             {errors.password && (
-              <p className="text-sm text-destructive">{errors.password}</p>
+              <p id="signup-password-error" className="text-sm text-destructive">{errors.password}</p>
             )}
             
             {/* Password Strength Indicator */}
@@ -396,6 +399,7 @@ export function SignupForm() {
                 onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                 disabled={isLoading}
                 aria-invalid={!!errors.confirmPassword}
+                aria-describedby={errors.confirmPassword ? "confirmPassword-error" : undefined}
                 className={`pr-10 ${errors.confirmPassword ? "border-destructive" : ""}`}
               />
               <button
@@ -413,7 +417,7 @@ export function SignupForm() {
               </button>
             </div>
             {errors.confirmPassword && (
-              <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+              <p id="confirmPassword-error" className="text-sm text-destructive">{errors.confirmPassword}</p>
             )}
             {/* Password match indicator */}
             {formData.confirmPassword.length > 0 && formData.password === formData.confirmPassword && (

@@ -2,6 +2,7 @@ import { generateText } from "ai"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { rateLimit } from "@/lib/rate-limit"
+import { AI_MODEL } from "@/lib/ai"
 
 export const maxDuration = 60
 
@@ -99,7 +100,7 @@ For ability scores, use point buy values (8-15 range, total cost 27 points).
 Point costs: 8=0, 9=1, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9`
 
     const { text } = await generateText({
-      model: "anthropic/claude-sonnet-4-5-20250929",
+      model: AI_MODEL,
       prompt,
     })
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { create } from "zustand"
+import { getErrorMessage } from "@/lib/errors"
 import {
   fetchUserLocations,
   getLocationsByCampaign,
@@ -54,7 +55,7 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to load locations",
+        error: getErrorMessage(error, "Failed to load locations"),
         isLoading: false,
       })
     }
@@ -71,7 +72,7 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to load locations",
+        error: getErrorMessage(error, "Failed to load locations"),
         isLoading: false,
       })
     }
@@ -88,7 +89,7 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
       return newLocation
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to create location",
+        error: getErrorMessage(error, "Failed to create location"),
         isLoading: false,
       })
       throw error
@@ -105,7 +106,7 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to update location",
+        error: getErrorMessage(error, "Failed to update location"),
         isLoading: false,
       })
       throw error
@@ -122,7 +123,7 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to delete location",
+        error: getErrorMessage(error, "Failed to delete location"),
         isLoading: false,
       })
       throw error
@@ -139,7 +140,7 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to toggle visited",
+        error: getErrorMessage(error, "Failed to toggle visited"),
         isLoading: false,
       })
       throw error

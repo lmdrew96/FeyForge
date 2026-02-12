@@ -1,6 +1,7 @@
 "use client"
 
 import { create } from "zustand"
+import { getErrorMessage } from "@/lib/errors"
 import {
   fetchUserCampaigns,
   createCampaign as createCampaignAction,
@@ -54,7 +55,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to load campaigns",
+        error: getErrorMessage(error, "Failed to load campaigns"),
         isLoading: false,
       })
     }
@@ -72,7 +73,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       return newCampaign.id
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to create campaign",
+        error: getErrorMessage(error, "Failed to create campaign"),
         isLoading: false,
       })
       throw error
@@ -89,7 +90,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to update campaign",
+        error: getErrorMessage(error, "Failed to update campaign"),
         isLoading: false,
       })
       throw error
@@ -111,7 +112,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to delete campaign",
+        error: getErrorMessage(error, "Failed to delete campaign"),
         isLoading: false,
       })
       throw error

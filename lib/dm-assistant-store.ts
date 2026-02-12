@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { toast } from "sonner"
+import { getErrorMessage, isAuthError } from "@/lib/errors"
 import {
   fetchDMConversations,
   createDMConversation,
@@ -85,8 +86,8 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
           isInitialized: true,
         })
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to load conversations"
-        if (!message.includes("Not authenticated")) {
+        const message = getErrorMessage(error, "Failed to load conversations")
+        if (!isAuthError(message)) {
           toast.error(message)
         }
         set({ isInitialized: true })
@@ -124,8 +125,8 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
           conversations: [conversation, ...state.conversations],
           activeConversationId: conversation.id,
         }))
-        const message = error instanceof Error ? error.message : "Failed to save conversation"
-        if (!message.includes("Not authenticated")) {
+        const message = getErrorMessage(error, "Failed to save conversation")
+        if (!isAuthError(message)) {
           console.error("[FeyForge] Failed to persist conversation:", error)
         }
         return conversation
@@ -143,8 +144,8 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
       try {
         await deleteDMConversation(id)
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to delete conversation"
-        if (!message.includes("Not authenticated")) {
+        const message = getErrorMessage(error, "Failed to delete conversation")
+        if (!isAuthError(message)) {
           toast.error(message)
         }
       }
@@ -236,8 +237,8 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
           messages: conversation.messages,
         })
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to sync conversation"
-        if (!message.includes("Not authenticated")) {
+        const message = getErrorMessage(error, "Failed to sync conversation")
+        if (!isAuthError(message)) {
           console.error("[FeyForge] Failed to sync conversation:", message)
         }
       }

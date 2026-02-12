@@ -2,6 +2,7 @@ import { generateText } from "ai"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { rateLimit } from "@/lib/rate-limit"
+import { AI_MODEL } from "@/lib/ai"
 
 export const maxDuration = 60
 
@@ -37,7 +38,7 @@ The backstory should:
 Write in a narrative style suitable for a player character.`
 
     const { text } = await generateText({
-      model: "anthropic/claude-sonnet-4-5-20250929",
+      model: AI_MODEL,
       prompt,
     })
 

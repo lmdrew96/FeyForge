@@ -2,6 +2,7 @@ import { generateText } from "ai"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { rateLimit } from "@/lib/rate-limit"
+import { AI_MODEL } from "@/lib/ai"
 
 export const maxDuration = 60
 
@@ -97,7 +98,7 @@ Respond with a JSON object (no markdown, just valid JSON):
 Make each option distinct and avoid generic fantasy tropes. Names should be appropriate for the race.`
 
     const { text } = await generateText({
-      model: "anthropic/claude-sonnet-4-5-20250929",
+      model: AI_MODEL,
       prompt,
     })
 

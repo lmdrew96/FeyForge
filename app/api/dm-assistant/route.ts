@@ -2,6 +2,7 @@ import { consumeStream, convertToModelMessages, streamText, type UIMessage } fro
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { rateLimit } from "@/lib/rate-limit"
+import { AI_MODEL } from "@/lib/ai"
 
 export const maxDuration = 60
 
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
     const prompt = await convertToModelMessages(messages)
 
     const result = streamText({
-      model: "anthropic/claude-sonnet-4-5-20250929",
+      model: AI_MODEL,
       system: systemPrompt,
       prompt,
       abortSignal: req.signal,

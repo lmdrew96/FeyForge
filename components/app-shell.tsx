@@ -77,6 +77,14 @@ interface AppShellProps {
 export function AppShell({ children, pageTitle, headerActions, showSidebar = true }: AppShellProps) {
   return (
     <div className="min-h-screen w-full max-w-full bg-background relative overflow-x-hidden">
+      {/* Skip to content link for keyboard navigation */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-fey-cyan focus:text-white focus:rounded-md focus:text-sm focus:font-medium focus:outline-none focus:ring-2 focus:ring-fey-cyan focus:ring-offset-2"
+      >
+        Skip to content
+      </a>
+
       {/* Particles in fixed layer behind everything */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <FloatingParticles />
@@ -150,7 +158,7 @@ export function AppShell({ children, pageTitle, headerActions, showSidebar = tru
             </div>
           </header>
 
-          <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
+          <main id="main-content" className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
         </div>
       </div>
     </div>

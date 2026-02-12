@@ -53,9 +53,9 @@ export default tseslint.config(
       "prefer-const": "warn",
       "no-var": "error",
 
-      // Disable overly strict rules
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-non-null-assertion": "off",
+      // Type safety
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-non-null-assertion": "warn",
       "react/react-in-jsx-scope": "off",
     },
   }

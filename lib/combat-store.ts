@@ -3,6 +3,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { toast } from "sonner"
+import { getErrorMessage, isAuthError } from "@/lib/errors"
 import {
   fetchSavedEncounters,
   createSavedEncounter,
@@ -134,8 +135,8 @@ export const useCombatStore = create<CombatStore>()(
             isInitialized: true,
           })
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to load encounters"
-          if (!message.includes("Not authenticated")) {
+          const message = getErrorMessage(error, "Failed to load encounters")
+          if (!isAuthError(message)) {
             toast.error(message)
           }
           set({ isInitialized: true })
@@ -329,7 +330,7 @@ export const useCombatStore = create<CombatStore>()(
             ],
           }))
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to save encounter"
+          const message = getErrorMessage(error, "Failed to save encounter")
           toast.error(message)
         }
       },
@@ -353,7 +354,7 @@ export const useCombatStore = create<CombatStore>()(
             savedEncounters: state.savedEncounters.filter((e) => e.id !== id),
           }))
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to delete encounter"
+          const message = getErrorMessage(error, "Failed to delete encounter")
           toast.error(message)
         }
       },

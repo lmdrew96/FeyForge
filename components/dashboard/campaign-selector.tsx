@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { getErrorMessage, isAuthError } from "@/lib/errors"
 
 export function CampaignSelector() {
   const {
@@ -62,9 +63,8 @@ export function CampaignSelector() {
       setNewCampaignDescription("")
     } catch (error) {
       console.error("Failed to create campaign:", error)
-      const message =
-        error instanceof Error ? error.message : "Failed to create campaign"
-      if (message.includes("Not authenticated")) {
+      const message = getErrorMessage(error, "Failed to create campaign")
+      if (isAuthError(message)) {
         toast.error("Please log in to create a campaign")
       } else {
         toast.error(message)

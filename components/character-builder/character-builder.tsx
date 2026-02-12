@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { getErrorMessage, isAuthError } from "@/lib/errors"
 import { useCharacterStore as useCharacterBuilderStore } from "@/lib/character-store"
 import { useCharacterStore } from "@/lib/feyforge-character-store"
 import { useActiveCampaignId } from "@/lib/hooks/use-campaign-data"
@@ -17,6 +18,7 @@ import { AppShell } from "@/components/app-shell"
 import { ArrowLeft, ArrowRight, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Character, ItemProperty } from "@/lib/character/types"
+import { CLASS_HIT_DICE } from "@/lib/character/constants"
 import type { Skill, Ability, Alignment } from "@/lib/character/constants"
 
 const TOTAL_STEPS = 5
@@ -72,9 +74,10 @@ export function CharacterBuilder() {
     // Generate a unique ID for the new character
     const newId = `char-${Date.now()}`
 
-    // Calculate initial HP based on class hit die (assume d8 for now + CON mod)
+    // Calculate initial HP based on class hit die + CON mod
+    const hitDie = CLASS_HIT_DICE[character.characterClass] || 8
     const conMod = Math.floor((character.abilities.constitution - 10) / 2)
-    const initialHP = 8 + conMod // Level 1 max HP
+    const initialHP = hitDie + conMod // Level 1 max HP
 
     // Transform character builder data to FeyForge Character format
     const newCharacter = {
@@ -107,7 +110,7 @@ export function CharacterBuilder() {
       },
       hitDice: [
         {
-          diceSize: 8,
+          diceSize: hitDie,
           total: 1,
           used: 0,
         },
@@ -188,9 +191,8 @@ export function CharacterBuilder() {
       router.push(`/characters/${newId}`)
     } catch (error) {
       console.error("Failed to create character:", error)
-      const message =
-        error instanceof Error ? error.message : "Failed to create character"
-      if (message.includes("Not authenticated")) {
+      const message = getErrorMessage(error, "Failed to create character")
+      if (isAuthError(message)) {
         toast.error("Please log in to create a character")
       } else {
         toast.error(message)

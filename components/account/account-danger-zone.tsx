@@ -34,6 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { getErrorMessage } from "@/lib/errors"
 
 const CONFIRMATION_TEXT = "DELETE MY ACCOUNT"
 
@@ -87,7 +88,7 @@ export function AccountDangerZone() {
       await signOut({ callbackUrl: "/" })
     } catch (error) {
       setDeleteError(
-        error instanceof Error ? error.message : "Failed to delete account"
+        getErrorMessage(error, "Failed to delete account")
       )
       setIsDeleting(false)
     }

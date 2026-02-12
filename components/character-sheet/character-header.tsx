@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { Character, CharacterUpdateInput } from "@/lib/character/types"
+import { CLASS_COLORS } from "@/lib/character/constants"
 import { Download, Pencil, Save, Trash2, User, X } from "lucide-react"
 
 interface CharacterHeaderProps {
@@ -40,24 +41,7 @@ export function CharacterHeader({
   onDelete,
   onExport,
 }: CharacterHeaderProps) {
-  const classData = {
-    barbarian: { color: "bg-red-600 text-white" },
-    bard: { color: "bg-pink-500 text-white" },
-    cleric: { color: "bg-yellow-500 text-black" },
-    druid: { color: "bg-green-600 text-white" },
-    fighter: { color: "bg-orange-600 text-white" },
-    monk: { color: "bg-blue-500 text-white" },
-    paladin: { color: "bg-yellow-400 text-black" },
-    ranger: { color: "bg-emerald-600 text-white" },
-    rogue: { color: "bg-gray-700 text-white" },
-    sorcerer: { color: "bg-purple-600 text-white" },
-    warlock: { color: "bg-violet-800 text-white" },
-    wizard: { color: "bg-indigo-600 text-white" },
-  }
-
-  const classStyle = classData[character.class as keyof typeof classData] || {
-    color: "bg-primary text-primary-foreground",
-  }
+  const classColor = CLASS_COLORS[character.class] || "bg-primary text-primary-foreground"
 
   return (
     <Card className="p-4 md:p-6 bg-card/80 backdrop-blur-sm border-fey-sage/30">
@@ -93,7 +77,7 @@ export function CharacterHeader({
             <h1 className="md:text-3xl font-display font-bold text-foreground truncate text-lg">{character.name}</h1>
           )}
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            <Badge className={classStyle.color}>
+            <Badge className={classColor}>
               {character.class.charAt(0).toUpperCase() + character.class.slice(1)} {character.level}
             </Badge>
             <Badge variant="outline" className="border-fey-sage text-foreground">

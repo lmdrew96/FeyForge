@@ -2,6 +2,7 @@ import { generateText } from "ai"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { rateLimit } from "@/lib/rate-limit"
+import { AI_MODEL } from "@/lib/ai"
 
 export const maxDuration = 60
 
@@ -40,7 +41,7 @@ Create a recap that:
 This will be shared with players before the next session.`
 
     const { text } = await generateText({
-      model: "anthropic/claude-sonnet-4-5-20250929",
+      model: AI_MODEL,
       prompt,
     })
 

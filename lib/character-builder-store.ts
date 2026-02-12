@@ -7,6 +7,7 @@
  */
 
 import { create } from 'zustand';
+import { getErrorMessage } from "@/lib/errors"
 import type {
   CharacterCreationData,
   Character,
@@ -346,7 +347,7 @@ export const useCharacterBuilderStore = create<CharacterBuilderStore>((set, get)
       set({ isSaving: false });
       return character;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to save character";
+      const errorMessage = getErrorMessage(error, "Failed to save character");
       set({ isSaving: false, saveError: errorMessage });
       throw error;
     }

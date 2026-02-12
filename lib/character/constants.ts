@@ -308,6 +308,24 @@ export const CLASS_HIT_DICE: Record<string, number> = {
 };
 
 /**
+ * Class badge colors for UI display
+ */
+export const CLASS_COLORS: Record<string, string> = {
+  barbarian: "bg-red-600 text-white",
+  bard: "bg-pink-500 text-white",
+  cleric: "bg-yellow-500 text-black",
+  druid: "bg-green-600 text-white",
+  fighter: "bg-orange-600 text-white",
+  monk: "bg-blue-500 text-white",
+  paladin: "bg-yellow-400 text-black",
+  ranger: "bg-emerald-600 text-white",
+  rogue: "bg-gray-700 text-white",
+  sorcerer: "bg-purple-600 text-white",
+  warlock: "bg-violet-800 text-white",
+  wizard: "bg-indigo-600 text-white",
+};
+
+/**
  * Spell schools
  */
 export const SPELL_SCHOOLS = [

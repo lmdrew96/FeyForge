@@ -2,6 +2,7 @@
 
 import { create } from "zustand"
 import { toast } from "sonner"
+import { getErrorMessage, isAuthError } from "@/lib/errors"
 import {
   fetchUserNPCs,
   getNPCsByCampaign,
@@ -62,7 +63,7 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to load NPCs",
+        error: getErrorMessage(error, "Failed to load NPCs"),
         isLoading: false,
       })
     }
@@ -79,7 +80,7 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to load NPCs",
+        error: getErrorMessage(error, "Failed to load NPCs"),
         isLoading: false,
       })
     }
@@ -96,7 +97,7 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
       return newNPC
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to create NPC",
+        error: getErrorMessage(error, "Failed to create NPC"),
         isLoading: false,
       })
       throw error
@@ -113,7 +114,7 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to update NPC",
+        error: getErrorMessage(error, "Failed to update NPC"),
         isLoading: false,
       })
       throw error
@@ -130,7 +131,7 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to delete NPC",
+        error: getErrorMessage(error, "Failed to delete NPC"),
         isLoading: false,
       })
       throw error
@@ -161,8 +162,8 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
       return await searchNPCsAction(query, campaignId)
     } catch (error) {
       console.error("Search failed:", error)
-      const message = error instanceof Error ? error.message : "Search failed"
-      if (message.includes("Not authenticated")) {
+      const message = getErrorMessage(error, "Search failed")
+      if (isAuthError(message)) {
         toast.error("Please log in to search NPCs")
       } else {
         toast.error(message)

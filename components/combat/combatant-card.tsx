@@ -121,7 +121,14 @@ export function CombatantCard({ combatant, index }: CombatantCardProps) {
 
               {/* HP Bar */}
               <div className="mt-1 sm:mt-2 flex items-center gap-2">
-                <div className="flex-1 h-2 sm:h-3 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="flex-1 h-2 sm:h-3 bg-muted rounded-full overflow-hidden"
+                  role="progressbar"
+                  aria-label={`${combatant.name} HP: ${combatant.hitPoints.current} of ${combatant.hitPoints.max}${hpPercent <= 25 ? " - critical" : hpPercent <= 50 ? " - injured" : ""}`}
+                  aria-valuenow={combatant.hitPoints.current}
+                  aria-valuemin={0}
+                  aria-valuemax={combatant.hitPoints.max}
+                >
                   <div
                     className={cn(
                       "h-full transition-all duration-300",
@@ -310,6 +317,8 @@ export function CombatantCard({ combatant, index }: CombatantCardProps) {
                               ? "bg-green-500 border-green-500"
                               : "border-green-500/50",
                           )}
+                          aria-label={`Death save success ${i + 1}`}
+                          aria-pressed={combatant.deathSaves!.successes > i}
                         />
                       ))}
                     </div>
@@ -331,6 +340,8 @@ export function CombatantCard({ combatant, index }: CombatantCardProps) {
                             "w-5 h-5 rounded-full border-2 transition-colors",
                             combatant.deathSaves!.failures > i ? "bg-red-500 border-red-500" : "border-red-500/50",
                           )}
+                          aria-label={`Death save failure ${i + 1}`}
+                          aria-pressed={combatant.deathSaves!.failures > i}
                         />
                       ))}
                     </div>

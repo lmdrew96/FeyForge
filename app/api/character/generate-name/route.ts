@@ -2,6 +2,7 @@ import { generateText } from "ai"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { rateLimit } from "@/lib/rate-limit"
+import { AI_MODEL } from "@/lib/ai"
 
 export const maxDuration = 60
 
@@ -28,7 +29,7 @@ Return ONLY the name, nothing else. The name should be appropriate for the race 
 Examples: "Thorgrim Ironforge", "Lyra Moonwhisper", "Zephyr Stormwind"`
 
     const { text } = await generateText({
-      model: "anthropic/claude-sonnet-4-5-20250929",
+      model: AI_MODEL,
       prompt,
     })
 

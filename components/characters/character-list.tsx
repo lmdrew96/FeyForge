@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useCampaignCharacters } from "@/lib/hooks/use-campaign-data"
 import { useCharacterStore } from "@/lib/feyforge-character-store"
 import { CharacterCard } from "./character-card"
@@ -15,7 +16,7 @@ import { classes } from "@/lib/character-data"
 
 export function CharacterList() {
   const characters = useCampaignCharacters()
-  const { getCalculatedStats, deleteCharacter } = useCharacterStore()
+  const { getCalculatedStats, deleteCharacter, isInitialized } = useCharacterStore()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [classFilter, setClassFilter] = useState<string>("all")
@@ -136,8 +137,32 @@ export function CharacterList() {
         </Card>
       )}
 
+      {/* Loading Skeletons */}
+      {!isInitialized && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="bg-card/50 backdrop-blur-sm">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+                <Skeleton className="h-3 w-full" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* Results Count */}
-      {characters.length > 0 && (
+      {isInitialized && characters.length > 0 && (
         <div className="flex items-center gap-2 text-sm text-foreground/70">
           <Users className="h-4 w-4 flex-shrink-0" />
           <span>
@@ -148,7 +173,7 @@ export function CharacterList() {
       )}
 
       {/* Character Grid or Empty State */}
-      {filteredCharacters.length > 0 ? (
+      {!isInitialized ? null : filteredCharacters.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {filteredCharacters.map((character) => {
             const calculatedStats = getCalculatedStats(character.id)

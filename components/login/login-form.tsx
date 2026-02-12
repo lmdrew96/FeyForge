@@ -192,7 +192,7 @@ export function LoginForm() {
       <CardContent className="space-y-6">
         {/* General Error Message */}
         {errors.general && (
-          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+          <div role="alert" className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
             {errors.general}
           </div>
         )}
@@ -213,10 +213,11 @@ export function LoginForm() {
                 onChange={(e) => handleInputChange("email", e.target.value)}
                 disabled={isLoading}
                 aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "email-error" : undefined}
                 className={errors.email ? "border-destructive" : ""}
               />
               {errors.email && (
-                <p className="text-sm text-destructive">{errors.email}</p>
+                <p id="email-error" className="text-sm text-destructive">{errors.email}</p>
               )}
             </div>
 
@@ -236,6 +237,7 @@ export function LoginForm() {
                   }
                   disabled={isLoading}
                   aria-invalid={!!errors.password}
+                  aria-describedby={errors.password ? "password-error" : undefined}
                   className={`pr-10 ${errors.password ? "border-destructive" : ""}`}
                 />
                 <button
@@ -253,7 +255,7 @@ export function LoginForm() {
                 </button>
               </div>
               {errors.password && (
-                <p className="text-sm text-destructive">{errors.password}</p>
+                <p id="password-error" className="text-sm text-destructive">{errors.password}</p>
               )}
             </div>
 
@@ -325,12 +327,13 @@ export function LoginForm() {
                     }
                     disabled={isMagicLinkLoading}
                     aria-invalid={!!errors.magicLinkEmail}
+                    aria-describedby={errors.magicLinkEmail ? "magic-email-error" : undefined}
                     className={
                       errors.magicLinkEmail ? "border-destructive" : ""
                     }
                   />
                   {errors.magicLinkEmail && (
-                    <p className="text-sm text-destructive">
+                    <p id="magic-email-error" className="text-sm text-destructive">
                       {errors.magicLinkEmail}
                     </p>
                   )}

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { auth } from "@/auth"
 import { rateLimit } from "@/lib/rate-limit"
+import { AI_MODEL } from "@/lib/ai"
 
 const npcSchema = z.object({
   name: z.string().describe("A fitting fantasy name for the NPC"),
@@ -43,7 +44,7 @@ ${race ? `The NPC's race is: ${race}` : ""}`
     const userPrompt = prompt || "Generate an interesting NPC for a fantasy tavern."
 
     const { object } = await generateObject({
-      model: "anthropic/claude-sonnet-4-5-20250929",
+      model: AI_MODEL,
       schema: npcSchema,
       system: systemPrompt,
       prompt: userPrompt,

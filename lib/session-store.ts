@@ -2,6 +2,7 @@
 
 import { create } from "zustand"
 import { toast } from "sonner"
+import { getErrorMessage, isAuthError } from "@/lib/errors"
 import {
   fetchUserSessions,
   getSessionsByCampaign,
@@ -105,7 +106,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to load sessions",
+        error: getErrorMessage(error, "Failed to load sessions"),
         isLoading: false,
       })
     }
@@ -126,7 +127,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       })
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to load sessions",
+        error: getErrorMessage(error, "Failed to load sessions"),
         isLoading: false,
       })
     }
@@ -143,7 +144,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return newSession.id
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to create session",
+        error: getErrorMessage(error, "Failed to create session"),
         isLoading: false,
       })
       throw error
@@ -160,7 +161,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to update session",
+        error: getErrorMessage(error, "Failed to update session"),
         isLoading: false,
       })
       throw error
@@ -178,7 +179,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to delete session",
+        error: getErrorMessage(error, "Failed to delete session"),
         isLoading: false,
       })
       throw error
@@ -203,8 +204,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // For now, the server action handles persistence
     } catch (error) {
       console.error("Failed to add note:", error)
-      const message = error instanceof Error ? error.message : "Failed to add note"
-      if (message.includes("Not authenticated")) {
+      const message = getErrorMessage(error, "Failed to add note")
+      if (isAuthError(message)) {
         toast.error("Please log in to add notes")
       } else {
         toast.error(message)
@@ -223,7 +224,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to create plot thread",
+        error: getErrorMessage(error, "Failed to create plot thread"),
         isLoading: false,
       })
       throw error
@@ -240,7 +241,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to update plot thread",
+        error: getErrorMessage(error, "Failed to update plot thread"),
         isLoading: false,
       })
       throw error
@@ -257,7 +258,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }))
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Failed to delete plot thread",
+        error: getErrorMessage(error, "Failed to delete plot thread"),
         isLoading: false,
       })
       throw error
