@@ -160,7 +160,7 @@ export default function HomePage() {
 
             {/* Title */}
             <h1 className="font-[family-name:var(--font-cinzel-decorative)] text-3xl md:text-5xl font-bold bg-gradient-to-r from-fey-gold via-fey-cyan to-fey-purple bg-clip-text text-transparent mb-4 leading-tight">
-              The Forge Awakens
+              The Forge Slumbers
             </h1>
 
             {/* Decorative divider */}
