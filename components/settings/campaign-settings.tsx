@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useQuery, useMutation } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { Plus, Pencil, Trash2, Check, Crown, X } from "lucide-react"
 import {
   Card,
@@ -32,38 +35,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useCampaignStore, type Campaign } from "@/lib/campaign-store"
+import type { Campaign } from "@/lib/campaign-store"
+import { useCampaignStore } from "@/lib/campaign-store"
 import { toast } from "sonner"
-import { getErrorMessage, isAuthError } from "@/lib/errors"
 
 export function CampaignSettings() {
-  const {
-    campaigns,
-    activeCampaignId,
-    isInitialized,
-    initialize,
-    createCampaign,
-    updateCampaign,
-    deleteCampaign,
-    setActiveCampaign,
-  } = useCampaignStore()
-
-  // Initialize store on mount
-  useEffect(() => {
-    if (!isInitialized) {
-      initialize()
-    }
-  }, [initialize, isInitialized])
+  const campaigns = useQuery(api.campaigns.list)
+  const createCampaign = useMutation(api.campaigns.create)
+  const updateCampaign = useMutation(api.campaigns.update)
+  const deleteCampaign = useMutation(api.campaigns.remove)
+  const { activeCampaignId, setActiveCampaign } = useCampaignStore()
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null)
-  const [deleteConfirmCampaign, setDeleteConfirmCampaign] =
-    useState<Campaign | null>(null)
-
-  // Form state for add/edit
+  const [deleteConfirmCampaign, setDeleteConfirmCampaign] = useState<Campaign | null>(null)
   const [formName, setFormName] = useState("")
   const [formDescription, setFormDescription] = useState("")
   const [formErrors, setFormErrors] = useState<{ name?: string }>({})
+  const [isSaving, setIsSaving] = useState(false)
+
+  const campaignList = campaigns ?? []
 
   const resetForm = () => {
     setFormName("")
@@ -91,75 +82,61 @@ export function CampaignSettings() {
 
   const validateForm = (): boolean => {
     const errors: { name?: string } = {}
-    if (!formName.trim()) {
-      errors.name = "Campaign name is required"
-    }
+    if (!formName.trim()) errors.name = "Campaign name is required"
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
 
   const handleAddCampaign = async () => {
     if (!validateForm()) return
-
+    setIsSaving(true)
     try {
       await createCampaign({
         name: formName.trim(),
-        description: formDescription.trim(),
+        description: formDescription.trim() || undefined,
         isActive: false,
       })
       closeDialogs()
-    } catch (error) {
-      const message = getErrorMessage(error, "Failed to create campaign")
-      if (isAuthError(message)) {
-        toast.error("Please log in to create a campaign")
-      } else {
-        toast.error(message)
-      }
+    } catch {
+      toast.error("Failed to create campaign")
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const handleUpdateCampaign = async () => {
     if (!validateForm() || !editingCampaign) return
-
+    setIsSaving(true)
     try {
-      await updateCampaign(editingCampaign.id, {
+      await updateCampaign({
+        id: editingCampaign._id as Id<"campaigns">,
         name: formName.trim(),
-        description: formDescription.trim(),
+        description: formDescription.trim() || undefined,
       })
       closeDialogs()
-    } catch (error) {
-      const message = getErrorMessage(error, "Failed to update campaign")
-      if (isAuthError(message)) {
-        toast.error("Please log in to update campaigns")
-      } else {
-        toast.error(message)
-      }
+    } catch {
+      toast.error("Failed to update campaign")
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const handleDeleteCampaign = async () => {
     if (!deleteConfirmCampaign) return
-
     try {
-      await deleteCampaign(deleteConfirmCampaign.id)
-      setDeleteConfirmCampaign(null)
-    } catch (error) {
-      const message = getErrorMessage(error, "Failed to delete campaign")
-      if (isAuthError(message)) {
-        toast.error("Please log in to delete campaigns")
-      } else {
-        toast.error(message)
+      await deleteCampaign({ id: deleteConfirmCampaign._id as Id<"campaigns"> })
+      if (activeCampaignId === deleteConfirmCampaign._id) {
+        const remaining = campaignList.filter((c) => c._id !== deleteConfirmCampaign._id)
+        setActiveCampaign(remaining[0]?._id ?? "")
       }
+      setDeleteConfirmCampaign(null)
+    } catch {
+      toast.error("Failed to delete campaign")
     }
-  }
-
-  const handleSetActive = (campaignId: string) => {
-    setActiveCampaign(campaignId)
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <Card className="bg-card/50 border-border/50">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -179,21 +156,21 @@ export function CampaignSettings() {
           </div>
         </CardHeader>
         <CardContent>
-          {campaigns.length === 0 ? (
+          {campaigns === undefined ? (
+            <div className="text-center py-8 text-muted-foreground">Loading campaigns...</div>
+          ) : campaignList.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Crown className="h-12 w-12 mx-auto mb-4 opacity-30" />
               <p className="font-medium">No campaigns yet</p>
-              <p className="text-sm mt-1">
-                Create your first campaign to get started
-              </p>
+              <p className="text-sm mt-1">Create your first campaign to get started</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {campaigns.map((campaign) => {
-                const isActive = campaign.id === activeCampaignId
+              {campaignList.map((campaign) => {
+                const isActive = campaign._id === activeCampaignId
                 return (
                   <div
-                    key={campaign.id}
+                    key={campaign._id}
                     className={`flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border transition-all ${
                       isActive
                         ? "border-fey-cyan bg-fey-cyan/5"
@@ -202,14 +179,9 @@ export function CampaignSettings() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-medium truncate">
-                          {campaign.name}
-                        </h3>
+                        <h3 className="font-medium truncate">{campaign.name}</h3>
                         {isActive && (
-                          <Badge
-                            variant="outline"
-                            className="text-fey-cyan border-fey-cyan/50"
-                          >
+                          <Badge variant="outline" className="text-fey-cyan border-fey-cyan/50">
                             Active
                           </Badge>
                         )}
@@ -220,10 +192,7 @@ export function CampaignSettings() {
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
-                        Created{" "}
-                        {campaign.createdAt
-                          ? new Date(campaign.createdAt).toLocaleDateString()
-                          : "Unknown"}
+                        Created {new Date(campaign._creationTime).toLocaleDateString()}
                       </p>
                     </div>
 
@@ -232,7 +201,7 @@ export function CampaignSettings() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleSetActive(campaign.id)}
+                          onClick={() => setActiveCampaign(campaign._id)}
                           className="text-fey-cyan border-fey-cyan/50 hover:bg-fey-cyan/10"
                         >
                           <Check className="h-4 w-4 mr-1" />
@@ -303,19 +272,16 @@ export function CampaignSettings() {
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={closeDialogs}>
-              Cancel
+            <Button variant="outline" onClick={closeDialogs}>Cancel</Button>
+            <Button onClick={handleAddCampaign} disabled={isSaving}>
+              {isSaving ? "Creating..." : "Create Campaign"}
             </Button>
-            <Button onClick={handleAddCampaign}>Create Campaign</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit Campaign Dialog */}
-      <Dialog
-        open={!!editingCampaign}
-        onOpenChange={(open) => !open && closeDialogs()}
-      >
+      <Dialog open={!!editingCampaign} onOpenChange={(open) => !open && closeDialogs()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Campaign</DialogTitle>
@@ -349,29 +315,25 @@ export function CampaignSettings() {
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={closeDialogs}>
-              Cancel
+            <Button variant="outline" onClick={closeDialogs}>Cancel</Button>
+            <Button onClick={handleUpdateCampaign} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
             </Button>
-            <Button onClick={handleUpdateCampaign}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation */}
       <AlertDialog
         open={!!deleteConfirmCampaign}
         onOpenChange={(open) => !open && setDeleteConfirmCampaign(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive">
-              Delete Campaign?
-            </AlertDialogTitle>
+            <AlertDialogTitle className="text-destructive">Delete Campaign?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;
-              {deleteConfirmCampaign?.name}&quot;? This action cannot be undone.
-              All associated data will remain but will no longer be linked to
-              this campaign.
+              Are you sure you want to delete &quot;{deleteConfirmCampaign?.name}&quot;? This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

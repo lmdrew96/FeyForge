@@ -1,141 +1,19 @@
 "use client"
 
 import { create } from "zustand"
-import { getErrorMessage } from "@/lib/errors"
-import {
-  fetchUserCampaigns,
-  createCampaign as createCampaignAction,
-  updateCampaign as updateCampaignAction,
-  deleteCampaign as deleteCampaignAction,
-  type Campaign,
-} from "@/lib/actions/campaigns"
+import type { Doc } from "@/convex/_generated/dataModel"
 
-// Re-export Campaign type for convenience
-export type { Campaign }
+// Campaign type is now the Convex document
+export type Campaign = Doc<"campaigns">
 
-interface CampaignState {
-  campaigns: Campaign[]
+interface CampaignUIState {
   activeCampaignId: string | null
-  isLoading: boolean
-  isInitialized: boolean
-  error: string | null
-
-  // Initialize from database
-  initialize: () => Promise<void>
-
-  // Actions (now async, hitting the database)
-  createCampaign: (campaign: Omit<Campaign, "id" | "userId" | "createdAt" | "updatedAt">) => Promise<string>
-  updateCampaign: (id: string, updates: Partial<Campaign>) => Promise<void>
-  deleteCampaign: (id: string) => Promise<void>
   setActiveCampaign: (id: string) => void
-  getActiveCampaign: () => Campaign | undefined
-
-  // Reset store (for logout)
   reset: () => void
 }
 
-export const useCampaignStore = create<CampaignState>((set, get) => ({
-  campaigns: [],
+export const useCampaignStore = create<CampaignUIState>((set) => ({
   activeCampaignId: null,
-  isLoading: false,
-  isInitialized: false,
-  error: null,
-
-  initialize: async () => {
-    if (get().isInitialized) return
-
-    set({ isLoading: true, error: null })
-    try {
-      const campaigns = await fetchUserCampaigns()
-      set({
-        campaigns,
-        isLoading: false,
-        isInitialized: true,
-        activeCampaignId: campaigns[0]?.id || null,
-      })
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to load campaigns"),
-        isLoading: false,
-      })
-    }
-  },
-
-  createCampaign: async (campaignData) => {
-    set({ isLoading: true, error: null })
-    try {
-      const newCampaign = await createCampaignAction(campaignData)
-      set((state) => ({
-        campaigns: [...state.campaigns, newCampaign],
-        activeCampaignId: state.campaigns.length === 0 ? newCampaign.id : state.activeCampaignId,
-        isLoading: false,
-      }))
-      return newCampaign.id
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to create campaign"),
-        isLoading: false,
-      })
-      throw error
-    }
-  },
-
-  updateCampaign: async (id, updates) => {
-    set({ isLoading: true, error: null })
-    try {
-      const updatedCampaign = await updateCampaignAction(id, updates)
-      set((state) => ({
-        campaigns: state.campaigns.map((c) => (c.id === id ? updatedCampaign : c)),
-        isLoading: false,
-      }))
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to update campaign"),
-        isLoading: false,
-      })
-      throw error
-    }
-  },
-
-  deleteCampaign: async (id) => {
-    const previousCampaigns = get().campaigns
-    const previousActiveId = get().activeCampaignId
-    // Optimistically remove
-    set((state) => {
-      const remaining = state.campaigns.filter((c) => c.id !== id)
-      return {
-        campaigns: remaining,
-        activeCampaignId:
-          state.activeCampaignId === id ? remaining[0]?.id ?? null : state.activeCampaignId,
-        error: null,
-      }
-    })
-    try {
-      await deleteCampaignAction(id)
-    } catch (error) {
-      // Rollback on failure
-      set({
-        campaigns: previousCampaigns,
-        activeCampaignId: previousActiveId,
-        error: getErrorMessage(error, "Failed to delete campaign"),
-      })
-      throw error
-    }
-  },
-
   setActiveCampaign: (id) => set({ activeCampaignId: id }),
-
-  getActiveCampaign: () => {
-    const state = get()
-    return state.campaigns.find((c) => c.id === state.activeCampaignId)
-  },
-
-  reset: () =>
-    set({
-      campaigns: [],
-      activeCampaignId: null,
-      isLoading: false,
-      isInitialized: false,
-      error: null,
-    }),
+  reset: () => set({ activeCampaignId: null }),
 }))

@@ -8,7 +8,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
     updatedAt: v.number(),
-  }).index("by_user", ["userId"]),
+  }).index("by_userId", ["userId"]),
 
   characters: defineTable({
     userId: v.string(),
@@ -106,8 +106,8 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     updatedAt: v.number(),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 
   characterProperties: defineTable({
     characterId: v.id("characters"),
@@ -120,7 +120,7 @@ export default defineSchema({
     tags: v.optional(v.array(v.string())),
     orderIndex: v.number(),
     data: v.any(),
-  }).index("by_character", ["characterId"]),
+  }).index("by_characterId", ["characterId"]),
 
   npcs: defineTable({
     userId: v.string(),
@@ -159,8 +159,8 @@ export default defineSchema({
     })),
     updatedAt: v.number(),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 
   gameSessions: defineTable({
     userId: v.string(),
@@ -217,8 +217,8 @@ export default defineSchema({
     xpAwarded: v.optional(v.number()),
     updatedAt: v.number(),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 
   // Renamed from sessionNotes to avoid collision with future partySessionNotes
   gameSessionNotes: defineTable({
@@ -226,7 +226,7 @@ export default defineSchema({
     content: v.string(),
     type: v.string(),
     timestamp: v.number(),
-  }).index("by_session", ["sessionId"]),
+  }).index("by_sessionId", ["sessionId"]),
 
   plotThreads: defineTable({
     userId: v.string(),
@@ -239,8 +239,8 @@ export default defineSchema({
     relatedLocations: v.optional(v.array(v.string())),
     resolvedAt: v.optional(v.number()),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 
   wikiEntries: defineTable({
     userId: v.string(),
@@ -257,8 +257,8 @@ export default defineSchema({
     }))),
     updatedAt: v.number(),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 
   worldMaps: defineTable({
     userId: v.string(),
@@ -269,8 +269,8 @@ export default defineSchema({
     fogMask: v.optional(v.any()),
     updatedAt: v.number(),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 
   mapPins: defineTable({
     userId: v.string(),
@@ -285,8 +285,8 @@ export default defineSchema({
     isRevealed: v.optional(v.boolean()),
     notes: v.optional(v.string()),
   })
-    .index("by_campaign", ["campaignId"])
-    .index("by_map", ["mapId"]),
+    .index("by_campaignId", ["campaignId"])
+    .index("by_mapId", ["mapId"]),
 
   mapLocations: defineTable({
     userId: v.string(),
@@ -299,8 +299,8 @@ export default defineSchema({
     y: v.number(),
     visited: v.boolean(),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 
   savedEncounters: defineTable({
     userId: v.string(),
@@ -333,8 +333,8 @@ export default defineSchema({
     })),
     round: v.number(),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 
   dmConversations: defineTable({
     userId: v.string(),
@@ -348,6 +348,6 @@ export default defineSchema({
     })),
     updatedAt: v.number(),
   })
-    .index("by_user", ["userId"])
-    .index("by_campaign", ["campaignId"]),
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
 })

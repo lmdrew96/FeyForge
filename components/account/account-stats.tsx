@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect } from "react"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { Users, ScrollText, Sparkles } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCharacterStore } from "@/lib/feyforge-character-store"
 import { useSessionStore } from "@/lib/session-store"
-import { useCampaignStore } from "@/lib/campaign-store"
 
 interface StatItemProps {
   icon: React.ReactNode
@@ -17,9 +18,7 @@ interface StatItemProps {
 function StatItem({ icon, label, value, accentColor }: StatItemProps) {
   return (
     <div className="flex items-center gap-3 p-3 sm:p-4 rounded-lg bg-muted/30 border border-border">
-      <div
-        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center shrink-0 ${accentColor}`}
-      >
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center shrink-0 ${accentColor}`}>
         {icon}
       </div>
       <div className="min-w-0 flex-1">
@@ -31,15 +30,14 @@ function StatItem({ icon, label, value, accentColor }: StatItemProps) {
 }
 
 export function AccountStats() {
+  const campaigns = useQuery(api.campaigns.list)
   const { characters, initialize: initCharacters, isInitialized: charsInitialized } = useCharacterStore()
   const { sessions, initialize: initSessions, isInitialized: sessionsInitialized } = useSessionStore()
-  const { campaigns, initialize: initCampaigns, isInitialized: campaignsInitialized } = useCampaignStore()
 
   useEffect(() => {
     if (!charsInitialized) initCharacters()
     if (!sessionsInitialized) initSessions()
-    if (!campaignsInitialized) initCampaigns()
-  }, [initCharacters, initSessions, initCampaigns, charsInitialized, sessionsInitialized, campaignsInitialized])
+  }, [initCharacters, initSessions, charsInitialized, sessionsInitialized])
 
   return (
     <Card className="bg-card/80 backdrop-blur-sm border-border">
@@ -67,7 +65,7 @@ export function AccountStats() {
           <StatItem
             icon={<Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-fey-gold" />}
             label="Campaigns"
-            value={campaigns.length}
+            value={campaigns?.length ?? "—"}
             accentColor="bg-fey-gold/10"
           />
         </div>

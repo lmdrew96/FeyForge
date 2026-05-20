@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
+import { useQuery, useMutation } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { Check, ChevronDown, Crown, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,50 +26,44 @@ import { Textarea } from "@/components/ui/textarea"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { getErrorMessage, isAuthError } from "@/lib/errors"
 
 export function CampaignSelector() {
-  const {
-    campaigns,
-    activeCampaignId,
-    setActiveCampaign,
-    initialize,
-    isInitialized,
-    createCampaign,
-    isLoading,
-  } = useCampaignStore()
+  const campaigns = useQuery(api.campaigns.list)
+  const createCampaign = useMutation(api.campaigns.create)
+  const { activeCampaignId, setActiveCampaign } = useCampaignStore()
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [newCampaignName, setNewCampaignName] = useState("")
   const [newCampaignDescription, setNewCampaignDescription] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
 
+  // Auto-select first campaign when list loads and nothing is active
   useEffect(() => {
-    if (!isInitialized) initialize()
-  }, [initialize, isInitialized])
+    if (campaigns && campaigns.length > 0 && !activeCampaignId) {
+      setActiveCampaign(campaigns[0]._id)
+    }
+  }, [campaigns, activeCampaignId, setActiveCampaign])
 
-  const activeCampaign = useMemo(() => {
-    return campaigns.find((c) => c.id === activeCampaignId)
-  }, [campaigns, activeCampaignId])
+  const campaignList = campaigns ?? []
+  const activeCampaign = campaignList.find((c) => c._id === activeCampaignId)
 
   const handleCreateCampaign = async () => {
     if (!newCampaignName.trim()) return
-
+    setIsSaving(true)
     try {
       const newId = await createCampaign({
         name: newCampaignName.trim(),
-        description: newCampaignDescription.trim() || "",
+        description: newCampaignDescription.trim() || undefined,
         isActive: true,
       })
       setActiveCampaign(newId)
       setIsDialogOpen(false)
       setNewCampaignName("")
       setNewCampaignDescription("")
-    } catch (error) {
-      const message = getErrorMessage(error, "Failed to create campaign")
-      if (isAuthError(message)) {
-        toast.error("Please log in to create a campaign")
-      } else {
-        toast.error(message)
-      }
+    } catch {
+      toast.error("Failed to create campaign")
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -82,24 +78,26 @@ export function CampaignSelector() {
             <div className="flex items-center gap-2 truncate">
               <Crown className="h-4 w-4 text-fey-gold shrink-0" />
               <span className="truncate">
-                {activeCampaign?.name || "Select Campaign"}
+                {campaigns === undefined
+                  ? "Loading..."
+                  : activeCampaign?.name ?? "Select Campaign"}
               </span>
             </div>
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[280px]">
-          {campaigns.map((campaign) => (
+          {campaignList.map((campaign) => (
             <DropdownMenuItem
-              key={campaign.id}
-              onClick={() => setActiveCampaign(campaign.id)}
+              key={campaign._id}
+              onClick={() => setActiveCampaign(campaign._id)}
               className={cn(
                 "cursor-pointer",
-                campaign.id === activeCampaignId && "bg-fey-cyan/10"
+                campaign._id === activeCampaignId && "bg-fey-cyan/10"
               )}
             >
               <div className="flex items-center gap-2 w-full">
-                {campaign.id === activeCampaignId ? (
+                {campaign._id === activeCampaignId ? (
                   <Check className="h-4 w-4 text-fey-cyan shrink-0" />
                 ) : (
                   <div className="h-4 w-4 shrink-0" />
@@ -124,8 +122,7 @@ export function CampaignSelector() {
           <DialogHeader>
             <DialogTitle>Create New Campaign</DialogTitle>
             <DialogDescription>
-              Start a new adventure! Give your campaign a name and optional
-              description.
+              Start a new adventure! Give your campaign a name and optional description.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -139,9 +136,7 @@ export function CampaignSelector() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="campaign-description">
-                Description (optional)
-              </Label>
+              <Label htmlFor="campaign-description">Description (optional)</Label>
               <Textarea
                 id="campaign-description"
                 placeholder="A brief description of your campaign..."
@@ -157,9 +152,9 @@ export function CampaignSelector() {
             </Button>
             <Button
               onClick={handleCreateCampaign}
-              disabled={!newCampaignName.trim() || isLoading}
+              disabled={!newCampaignName.trim() || isSaving}
             >
-              {isLoading ? "Creating..." : "Create Campaign"}
+              {isSaving ? "Creating..." : "Create Campaign"}
             </Button>
           </DialogFooter>
         </DialogContent>
