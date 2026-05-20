@@ -1,3 +1,5 @@
 import { ConvexReactClient } from "convex/react"
 
-export const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
+const convexUrl = (process.env.NEXT_PUBLIC_CONVEX_URL ?? "").replace(/\/$/, "")
+
+export const convex = new ConvexReactClient(convexUrl)
