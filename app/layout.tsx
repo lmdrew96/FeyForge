@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProvider } from "@clerk/nextjs"
+import { ConvexClientProvider } from "@/components/providers/convex-client-provider"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -46,15 +47,17 @@ export default function RootLayout({
         className={`${cinzel.variable} ${cinzelDecorative.variable} font-sans antialiased`}
       >
         <ClerkProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
-          <Toaster richColors position="top-center" />
+          <ConvexClientProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="dark"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+            </ThemeProvider>
+            <Toaster richColors position="top-center" />
+          </ConvexClientProvider>
         </ClerkProvider>
         <Analytics />
       </body>
