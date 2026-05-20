@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db"
 import { campaigns } from "@/lib/db/schema"
-import { auth } from "@/auth"
+import { requireAuth, getAuthUserId } from "@/lib/auth"
 import { eq, and } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
@@ -12,19 +12,7 @@ export type NewCampaign = Omit<
   "id" | "userId" | "createdAt" | "updatedAt"
 >
 
-async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) {
-    throw new Error("Not authenticated")
-  }
-  return session.user.id
-}
 
-// Returns null if not authenticated (for read operations)
-async function getAuthUserId(): Promise<string | null> {
-  const session = await auth()
-  return session?.user?.id ?? null
-}
 
 export async function fetchUserCampaigns(): Promise<Campaign[]> {
   const userId = await getAuthUserId()

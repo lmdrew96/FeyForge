@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db"
 import { characters, characterProperties } from "@/lib/db/schema"
-import { auth } from "@/auth"
+import { requireAuth, getAuthUserId } from "@/lib/auth"
 import { eq, and } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
@@ -17,19 +17,7 @@ export type NewCharacterProperty = Omit<
   "id" | "createdAt" | "updatedAt"
 >
 
-async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) {
-    throw new Error("Not authenticated")
-  }
-  return session.user.id
-}
 
-// Returns null if not authenticated (for read operations)
-async function getAuthUserId(): Promise<string | null> {
-  const session = await auth()
-  return session?.user?.id ?? null
-}
 
 // Character CRUD
 export async function fetchUserCharacters(): Promise<Character[]> {

@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth, clerkClient } from "@clerk/nextjs/server"
 import { db, isDatabaseConfigured } from "@/lib/db"
 import {
-  users,
-  accounts,
-  sessions,
   characters,
   campaigns,
   npcs,
@@ -14,60 +11,33 @@ import {
 } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
-export async function DELETE(req: Request) {
+export async function DELETE() {
   try {
-    const session = await auth()
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     if (!isDatabaseConfigured()) {
-      return NextResponse.json(
-        { error: "Database not configured" },
-        { status: 503 }
-      )
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
     }
 
-    const userId = session.user.id
-
-    // Delete all user data in the correct order (respecting foreign keys)
-    // 1. Delete wiki entries
+    // Delete app data in FK order
     await db.delete(wikiEntries).where(eq(wikiEntries.userId, userId))
-
-    // 2. Delete game sessions
     await db.delete(gameSessions).where(eq(gameSessions.userId, userId))
-
-    // 3. Delete NPCs
     await db.delete(npcs).where(eq(npcs.userId, userId))
-
-    // 4. Delete map locations
     await db.delete(mapLocations).where(eq(mapLocations.userId, userId))
-
-    // 5. Delete characters
     await db.delete(characters).where(eq(characters.userId, userId))
-
-    // 6. Delete campaigns
     await db.delete(campaigns).where(eq(campaigns.userId, userId))
 
-    // 7. Delete sessions (NextAuth)
-    await db.delete(sessions).where(eq(sessions.userId, userId))
+    // Delete the Clerk user (handles auth/identity cleanup)
+    const clerk = await clerkClient()
+    await clerk.users.deleteUser(userId)
 
-    // 8. Delete accounts (OAuth connections)
-    await db.delete(accounts).where(eq(accounts.userId, userId))
-
-    // 9. Finally, delete the user
-    await db.delete(users).where(eq(users.id, userId))
-
-    return NextResponse.json({
-      success: true,
-      message: "Account deleted successfully",
-    })
+    return NextResponse.json({ success: true, message: "Account deleted successfully" })
   } catch (error) {
     console.error("[FeyForge] Account deletion error:", error)
-    return NextResponse.json(
-      { error: "Failed to delete account" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })
   }
 }

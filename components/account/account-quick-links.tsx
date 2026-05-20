@@ -1,14 +1,15 @@
 "use client"
 
 import Link from "next/link"
-import { signOut } from "next-auth/react"
+import { useClerk } from "@clerk/nextjs"
 import { Settings, LogOut, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
 export function AccountQuickLinks() {
+  const { signOut } = useClerk()
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: "/login" })
+    await signOut({ redirectUrl: "/login" })
   }
 
   return (

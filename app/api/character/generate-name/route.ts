@@ -1,6 +1,6 @@
 import { generateText } from "ai"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "@clerk/nextjs/server"
 import { rateLimit } from "@/lib/rate-limit"
 import { AI_MODEL } from "@/lib/ai"
 
@@ -8,12 +8,12 @@ export const maxDuration = 60
 
 export async function POST(req: Request) {
   try {
-    const session = await auth()
-    if (!session?.user?.id) {
+    const { userId } = await auth()
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { success } = rateLimit(session.user.id)
+    const { success } = rateLimit(userId)
     if (!success) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } })
     }

@@ -19,6 +19,7 @@ import {
   User,
   Book,
 } from "lucide-react"
+import { UserButton } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { FloatingParticles } from "@/components/floating-particles"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -154,6 +155,7 @@ export function AppShell({ children, pageTitle, headerActions, showSidebar = tru
               <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 {headerActions}
                 <ThemeToggle />
+                <UserButton />
               </div>
             </div>
           </header>

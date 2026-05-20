@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { signOut } from "next-auth/react"
+import { useClerk } from "@clerk/nextjs"
 import {
   AlertTriangle,
   Trash2,
@@ -52,6 +52,7 @@ const STORAGE_KEYS = [
 ]
 
 export function AccountDangerZone() {
+  const { signOut } = useClerk()
   const [isOpen, setIsOpen] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [confirmText, setConfirmText] = useState("")
@@ -85,7 +86,7 @@ export function AccountDangerZone() {
       setStep(1)
 
       // Sign out and redirect to home page
-      await signOut({ callbackUrl: "/" })
+      await signOut({ redirectUrl: "/" })
     } catch (error) {
       setDeleteError(
         getErrorMessage(error, "Failed to delete account")

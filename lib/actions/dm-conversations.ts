@@ -2,24 +2,13 @@
 
 import { db } from "@/lib/db"
 import { dmConversations } from "@/lib/db/schema"
-import { auth } from "@/auth"
+import { requireAuth, getAuthUserId } from "@/lib/auth"
 import { eq, and } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
 type DMConversationRow = typeof dmConversations.$inferSelect
 
-async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) {
-    throw new Error("Not authenticated")
-  }
-  return session.user.id
-}
 
-async function getAuthUserId(): Promise<string | null> {
-  const session = await auth()
-  return session?.user?.id ?? null
-}
 
 export async function fetchDMConversations(): Promise<DMConversationRow[]> {
   const userId = await getAuthUserId()

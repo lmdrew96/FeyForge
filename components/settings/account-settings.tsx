@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { signOut } from "next-auth/react"
+import { useClerk } from "@clerk/nextjs"
 import {
   UserCircle,
   Mail,
@@ -56,6 +56,7 @@ const defaultProfile: UserProfile = {
 }
 
 export function AccountSettings() {
+  const { signOut } = useClerk()
   const [profile, setProfile] = useState<UserProfile>(defaultProfile)
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<{
@@ -230,7 +231,7 @@ export function AccountSettings() {
       setDeleteConfirmText("")
 
       // Sign out and redirect to home page
-      await signOut({ callbackUrl: "/" })
+      await signOut({ redirectUrl: "/" })
     } catch (error) {
       setSaveStatus({
         type: "error",

@@ -8,7 +8,7 @@ import {
   jsonb,
   real,
 } from "drizzle-orm/pg-core"
-import type { AdapterAccountType } from "next-auth/adapters"
+type AdapterAccountType = "oauth" | "email" | "credentials" | "oidc"
 
 // ============================================================================
 // NextAuth.js Required Tables

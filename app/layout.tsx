@@ -5,7 +5,7 @@ import { Cinzel, Cinzel_Decorative } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/theme-provider"
-import { SessionProvider } from "@/components/auth/session-provider"
+import { ClerkProvider } from "@clerk/nextjs"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -45,7 +45,7 @@ export default function RootLayout({
       <body
         className={`${cinzel.variable} ${cinzelDecorative.variable} font-sans antialiased`}
       >
-        <SessionProvider>
+        <ClerkProvider>
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"
@@ -55,7 +55,7 @@ export default function RootLayout({
             {children}
           </ThemeProvider>
           <Toaster richColors position="top-center" />
-        </SessionProvider>
+        </ClerkProvider>
         <Analytics />
       </body>
     </html>
