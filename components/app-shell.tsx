@@ -26,7 +26,7 @@ import { CampaignSelector } from "@/components/dashboard/campaign-selector"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 const navItems = [
-  { label: "Dashboard", href: "/", icon: Sparkles },
+  { label: "Dashboard", href: "/dashboard", icon: Sparkles },
   { label: "Characters", href: "/characters", icon: Users },
   { label: "Combat Tracker", href: "/combat", icon: Swords },
   { label: "Dice Roller", href: "/dice", icon: Dice6 },

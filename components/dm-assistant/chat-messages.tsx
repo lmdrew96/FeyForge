@@ -1,11 +1,11 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useState } from "react"
 import { Bot, User, Copy, Check, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { cn } from "@/lib/utils"
 import type { Message } from "@/lib/dm-assistant-store"
-import { useState } from "react"
 
 interface ChatMessagesProps {
   messages: Message[]
@@ -56,22 +56,6 @@ function MessageBubble({ message }: MessageBubbleProps) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Simple markdown-like formatting for bold text
-  const formatContent = (content: string) => {
-    // Split by bold markers and process
-    const parts = content.split(/(\*\*[^*]+\*\*)/g)
-    return parts.map((part, index) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return (
-          <strong key={index} className="font-semibold text-foreground">
-            {part.slice(2, -2)}
-          </strong>
-        )
-      }
-      return part
-    })
-  }
-
   return (
     <div
       className={cn(
@@ -82,9 +66,7 @@ function MessageBubble({ message }: MessageBubbleProps) {
       <div
         className={cn(
           "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-          isUser
-            ? "bg-fey-purple/20"
-            : "bg-fey-cyan/20"
+          isUser ? "bg-fey-purple/20" : "bg-fey-cyan/20"
         )}
       >
         {isUser ? (
@@ -102,7 +84,11 @@ function MessageBubble({ message }: MessageBubbleProps) {
             : "bg-muted rounded-tl-none"
         )}
       >
-        <div className="whitespace-pre-wrap">{formatContent(message.content)}</div>
+        {isUser ? (
+          <p className="text-sm text-foreground/90 whitespace-pre-wrap">{message.content}</p>
+        ) : (
+          <MarkdownRenderer content={message.content} />
+        )}
 
         {/* Copy button - only show for assistant messages */}
         {!isUser && (
