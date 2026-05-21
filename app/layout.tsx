@@ -7,6 +7,7 @@ import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProvider } from "@clerk/nextjs"
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider"
+import { DataLoader } from "@/components/providers/data-loader"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -48,6 +49,7 @@ export default function RootLayout({
       >
         <ClerkProvider>
           <ConvexClientProvider>
+            <DataLoader />
             <ThemeProvider
               attribute="class"
               defaultTheme="dark"

@@ -1,12 +1,9 @@
 import { create } from "zustand"
 import { toast } from "sonner"
 import { getErrorMessage, isAuthError } from "@/lib/errors"
-import {
-  fetchDMConversations,
-  createDMConversation,
-  updateDMConversation,
-  deleteDMConversation,
-} from "@/lib/actions/dm-conversations"
+import { convex } from "@/lib/convex"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 export interface Message {
   id: string
@@ -30,7 +27,10 @@ interface DMAssistantStore {
   isLoading: boolean
   isInitialized: boolean
 
-  // Initialization
+  // Set data from DataLoader
+  setConversations: (conversations: Conversation[]) => void
+
+  // Initialization (no-op — DataLoader handles loading)
   initialize: () => Promise<void>
 
   // Conversation management
@@ -70,79 +70,46 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
     isLoading: false,
     isInitialized: false,
 
-    initialize: async () => {
-      if (get().isInitialized) return
-      try {
-        const rows = await fetchDMConversations()
-        set({
-          conversations: rows.map((r) => ({
-            id: r.id,
-            campaignId: r.campaignId,
-            title: r.title,
-            messages: (r.messages ?? []) as Message[],
-            createdAt: r.createdAt.toISOString(),
-            updatedAt: r.updatedAt.toISOString(),
-          })),
-          isInitialized: true,
-        })
-      } catch (error) {
-        const message = getErrorMessage(error, "Failed to load conversations")
-        if (!isAuthError(message)) {
-          toast.error(message)
-        }
-        set({ isInitialized: true })
-      }
-    },
+    setConversations: (conversations) => set({ conversations, isInitialized: true }),
+
+    initialize: async () => { set({ isInitialized: true }) },
 
     createConversation: async (campaignId: string, title?: string) => {
       const displayTitle = title || "New Chat"
+      const conversation: Conversation = {
+        id: generateId(),
+        campaignId,
+        title: displayTitle,
+        messages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      set((state) => ({
+        conversations: [conversation, ...state.conversations],
+        activeConversationId: conversation.id,
+      }))
       try {
-        const row = await createDMConversation({ campaignId, title: displayTitle })
-        const conversation: Conversation = {
-          id: row.id,
-          campaignId: row.campaignId,
-          title: row.title,
-          messages: [],
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
-        }
-        set((state) => ({
-          conversations: [conversation, ...state.conversations],
-          activeConversationId: conversation.id,
-        }))
-        return conversation
-      } catch (error) {
-        // Fallback to local-only conversation if DB fails
-        const conversation: Conversation = {
-          id: generateId(),
-          campaignId,
+        await convex.mutation(api.dmConversations.create, {
+          campaignId: campaignId as Id<"campaigns">,
           title: displayTitle,
-          messages: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-        set((state) => ({
-          conversations: [conversation, ...state.conversations],
-          activeConversationId: conversation.id,
-        }))
+        })
+      } catch (error) {
         const message = getErrorMessage(error, "Failed to save conversation")
         if (!isAuthError(message)) {
           toast.error(message)
         }
-        return conversation
       }
+      return conversation
     },
 
     deleteConversation: async (id: string) => {
       set((state) => ({
         conversations: state.conversations.filter((c) => c.id !== id),
         activeConversationId:
-          state.activeConversationId === id
-            ? null
-            : state.activeConversationId,
+          state.activeConversationId === id ? null : state.activeConversationId,
       }))
       try {
-        await deleteDMConversation(id)
+        await convex.mutation(api.dmConversations.remove, { id: id as Id<"dmConversations"> })
       } catch (error) {
         const message = getErrorMessage(error, "Failed to delete conversation")
         if (!isAuthError(message)) {
@@ -232,7 +199,8 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
       const conversation = get().conversations.find((c) => c.id === conversationId)
       if (!conversation) return
       try {
-        await updateDMConversation(conversationId, {
+        await convex.mutation(api.dmConversations.update, {
+          id: conversationId as Id<"dmConversations">,
           title: conversation.title,
           messages: conversation.messages,
         })

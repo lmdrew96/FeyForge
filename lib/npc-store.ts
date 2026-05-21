@@ -3,16 +3,10 @@
 import { create } from "zustand"
 import { toast } from "sonner"
 import { getErrorMessage, isAuthError } from "@/lib/errors"
-import {
-  fetchUserNPCs,
-  getNPCsByCampaign,
-  createNPC as createNPCAction,
-  updateNPC as updateNPCAction,
-  deleteNPC as deleteNPCAction,
-  searchNPCs as searchNPCsAction,
-  type NPC,
-  type NewNPC,
-} from "@/lib/actions/npcs"
+import { type NPC, type NewNPC } from "@/lib/actions/npcs"
+import { convex } from "@/lib/convex"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 // Re-export NPC type
 export type { NPC }
@@ -23,7 +17,10 @@ interface NPCStore {
   isInitialized: boolean
   error: string | null
 
-  // Initialize from database
+  // Set data from DataLoader
+  setNPCs: (npcs: NPC[]) => void
+
+  // Initialize (no-op — DataLoader handles loading)
   initialize: () => Promise<void>
   initializeByCampaign: (campaignId: string) => Promise<void>
 
@@ -50,92 +47,72 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
   isInitialized: false,
   error: null,
 
-  initialize: async () => {
-    if (get().isInitialized) return
+  setNPCs: (npcs) => set({ npcs, isInitialized: true, isLoading: false }),
 
-    set({ isLoading: true, error: null })
-    try {
-      const npcs = await fetchUserNPCs()
-      set({
-        npcs,
-        isLoading: false,
-        isInitialized: true,
-      })
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to load NPCs"),
-        isLoading: false,
-      })
-    }
-  },
+  initialize: async () => { set({ isInitialized: true }) },
 
-  initializeByCampaign: async (campaignId: string) => {
-    set({ isLoading: true, error: null })
-    try {
-      const npcs = await getNPCsByCampaign(campaignId)
-      set({
-        npcs,
-        isLoading: false,
-        isInitialized: true,
-      })
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to load NPCs"),
-        isLoading: false,
-      })
-    }
-  },
+  initializeByCampaign: async (_campaignId: string) => { set({ isInitialized: true }) },
 
   addNPC: async (npcData) => {
-    set({ isLoading: true, error: null })
+    const tempId = crypto.randomUUID()
+    const tempNPC: NPC = {
+      ...npcData,
+      id: tempId,
+      userId: "",
+      tags: npcData.tags ?? [],
+      faction: npcData.faction ?? null,
+      notes: npcData.notes ?? null,
+      stats: npcData.stats ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    set((state) => ({ npcs: [...state.npcs, tempNPC] }))
     try {
-      const newNPC = await createNPCAction(npcData)
-      set((state) => ({
-        npcs: [...state.npcs, newNPC],
-        isLoading: false,
-      }))
-      return newNPC
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to create NPC"),
-        isLoading: false,
+      await convex.mutation(api.npcs.create, {
+        ...npcData,
+        campaignId: npcData.campaignId as Id<"campaigns">,
+        tags: npcData.tags ?? [],
+        faction: npcData.faction ?? undefined,
+        notes: npcData.notes ?? undefined,
+        stats: npcData.stats ?? undefined,
       })
+      return tempNPC
+    } catch (error) {
+      set((state) => ({ npcs: state.npcs.filter((n) => n.id !== tempId) }))
+      const message = getErrorMessage(error, "Failed to create NPC")
+      toast.error(message)
       throw error
     }
   },
 
   updateNPC: async (id, updates) => {
-    set({ isLoading: true, error: null })
+    set((state) => ({
+      npcs: state.npcs.map((npc) =>
+        npc.id === id ? { ...npc, ...updates, updatedAt: new Date() } : npc
+      ),
+    }))
     try {
-      const updatedNPC = await updateNPCAction(id, updates)
-      set((state) => ({
-        npcs: state.npcs.map((npc) => (npc.id === id ? updatedNPC : npc)),
-        isLoading: false,
-      }))
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to update NPC"),
-        isLoading: false,
+      await convex.mutation(api.npcs.update, {
+        id: id as Id<"npcs">,
+        ...updates,
+        faction: updates.faction ?? undefined,
+        notes: updates.notes ?? undefined,
+        stats: updates.stats ?? undefined,
       })
+    } catch (error) {
+      const message = getErrorMessage(error, "Failed to update NPC")
+      toast.error(message)
       throw error
     }
   },
 
   deleteNPC: async (id) => {
     const previousNpcs = get().npcs
-    // Optimistically remove
-    set((state) => ({
-      npcs: state.npcs.filter((npc) => npc.id !== id),
-      error: null,
-    }))
+    set((state) => ({ npcs: state.npcs.filter((npc) => npc.id !== id), error: null }))
     try {
-      await deleteNPCAction(id)
+      await convex.mutation(api.npcs.remove, { id: id as Id<"npcs"> })
     } catch (error) {
-      // Rollback on failure
-      set({
-        npcs: previousNpcs,
-        error: getErrorMessage(error, "Failed to delete NPC"),
-      })
+      set({ npcs: previousNpcs, error: getErrorMessage(error, "Failed to delete NPC") })
       throw error
     }
   },
@@ -159,18 +136,15 @@ export const useNPCStore = create<NPCStore>((set, get) => ({
     )
   },
 
-  searchNPCs: async (query, campaignId) => {
-    try {
-      return await searchNPCsAction(query, campaignId)
-    } catch (error) {
-      const message = getErrorMessage(error, "Search failed")
-      if (isAuthError(message)) {
-        toast.error("Please log in to search NPCs")
-      } else {
-        toast.error(message)
-      }
-      return []
-    }
+  searchNPCs: async (query, _campaignId) => {
+    const q = query.toLowerCase()
+    return get().npcs.filter(
+      (npc) =>
+        npc.name.toLowerCase().includes(q) ||
+        npc.occupation.toLowerCase().includes(q) ||
+        npc.location.toLowerCase().includes(q) ||
+        npc.tags.some((tag) => tag.toLowerCase().includes(q))
+    )
   },
 
   reset: () =>

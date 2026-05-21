@@ -9,6 +9,12 @@
  */
 
 import type * as campaigns from "../campaigns.js";
+import type * as characters from "../characters.js";
+import type * as dmConversations from "../dmConversations.js";
+import type * as encounters from "../encounters.js";
+import type * as npcs from "../npcs.js";
+import type * as sessions from "../sessions.js";
+import type * as world from "../world.js";
 
 import type {
   ApiFromModules,
@@ -18,6 +24,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   campaigns: typeof campaigns;
+  characters: typeof characters;
+  dmConversations: typeof dmConversations;
+  encounters: typeof encounters;
+  npcs: typeof npcs;
+  sessions: typeof sessions;
+  world: typeof world;
 }>;
 
 /**

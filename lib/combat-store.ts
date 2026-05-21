@@ -3,12 +3,10 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { toast } from "sonner"
-import { getErrorMessage, isAuthError } from "@/lib/errors"
-import {
-  fetchSavedEncounters,
-  createSavedEncounter,
-  deleteSavedEncounter,
-} from "@/lib/actions/encounters"
+import { getErrorMessage } from "@/lib/errors"
+import { convex } from "@/lib/convex"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 export type CombatantType = "pc" | "npc" | "monster"
 
@@ -68,7 +66,10 @@ interface CombatStore {
   savedEncounters: SavedEncounter[]
   isInitialized: boolean
 
-  // Initialization
+  // Set data from DataLoader
+  setSavedEncounters: (encounters: SavedEncounter[]) => void
+
+  // Initialization (no-op — DataLoader handles loading)
   initialize: () => Promise<void>
 
   // Combatant management
@@ -120,28 +121,9 @@ export const useCombatStore = create<CombatStore>()(
       savedEncounters: [],
       isInitialized: false,
 
-      initialize: async () => {
-        if (get().isInitialized) return
-        try {
-          const encounters = await fetchSavedEncounters()
-          set({
-            savedEncounters: encounters.map((e) => ({
-              id: e.id,
-              name: e.name,
-              combatants: e.combatants as Combatant[],
-              round: e.round,
-              createdAt: e.createdAt.toISOString(),
-            })),
-            isInitialized: true,
-          })
-        } catch (error) {
-          const message = getErrorMessage(error, "Failed to load encounters")
-          if (!isAuthError(message)) {
-            toast.error(message)
-          }
-          set({ isInitialized: true })
-        }
-      },
+      setSavedEncounters: (encounters) => set({ savedEncounters: encounters, isInitialized: true }),
+
+      initialize: async () => { set({ isInitialized: true }) },
 
       addCombatant: (combatant) =>
         set((state) => ({
@@ -311,25 +293,23 @@ export const useCombatStore = create<CombatStore>()(
 
       saveEncounter: async (name) => {
         const state = get()
+        const tempId = crypto.randomUUID()
+        const tempEncounter: SavedEncounter = {
+          id: tempId,
+          name,
+          combatants: state.combatants,
+          round: state.currentRound,
+          createdAt: new Date().toISOString(),
+        }
+        set((s) => ({ savedEncounters: [...s.savedEncounters, tempEncounter] }))
         try {
-          const encounter = await createSavedEncounter({
+          await convex.mutation(api.encounters.create, {
             name,
             combatants: state.combatants,
             round: state.currentRound,
           })
-          set((s) => ({
-            savedEncounters: [
-              ...s.savedEncounters,
-              {
-                id: encounter.id,
-                name: encounter.name,
-                combatants: encounter.combatants as Combatant[],
-                round: encounter.round,
-                createdAt: encounter.createdAt.toISOString(),
-              },
-            ],
-          }))
         } catch (error) {
+          set((s) => ({ savedEncounters: s.savedEncounters.filter((e) => e.id !== tempId) }))
           const message = getErrorMessage(error, "Failed to save encounter")
           toast.error(message)
         }
@@ -348,11 +328,9 @@ export const useCombatStore = create<CombatStore>()(
         }),
 
       deleteEncounter: async (id) => {
+        set((state) => ({ savedEncounters: state.savedEncounters.filter((e) => e.id !== id) }))
         try {
-          await deleteSavedEncounter(id)
-          set((state) => ({
-            savedEncounters: state.savedEncounters.filter((e) => e.id !== id),
-          }))
+          await convex.mutation(api.encounters.remove, { id: id as Id<"savedEncounters"> })
         } catch (error) {
           const message = getErrorMessage(error, "Failed to delete encounter")
           toast.error(message)

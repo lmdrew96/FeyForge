@@ -2,16 +2,10 @@
 
 import { create } from "zustand"
 import { getErrorMessage } from "@/lib/errors"
-import {
-  fetchUserLocations,
-  getLocationsByCampaign,
-  createLocation as createLocationAction,
-  updateLocation as updateLocationAction,
-  deleteLocation as deleteLocationAction,
-  toggleLocationVisited as toggleLocationVisitedAction,
-  type MapLocation,
-  type NewMapLocation,
-} from "@/lib/actions/world"
+import { type MapLocation, type NewMapLocation } from "@/lib/actions/world"
+import { convex } from "@/lib/convex"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 // Re-export type
 export type { MapLocation }
@@ -22,7 +16,10 @@ interface WorldStore {
   isInitialized: boolean
   error: string | null
 
-  // Initialize
+  // Set data from DataLoader
+  setLocations: (locations: MapLocation[]) => void
+
+  // Initialize (no-op — DataLoader handles loading)
   initialize: () => Promise<void>
   initializeByCampaign: (campaignId: string) => Promise<void>
 
@@ -42,107 +39,74 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
   isInitialized: false,
   error: null,
 
-  initialize: async () => {
-    if (get().isInitialized) return
+  setLocations: (locations) => set({ locations, isInitialized: true, isLoading: false }),
 
-    set({ isLoading: true, error: null })
-    try {
-      const locations = await fetchUserLocations()
-      set({
-        locations,
-        isLoading: false,
-        isInitialized: true,
-      })
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to load locations"),
-        isLoading: false,
-      })
-    }
-  },
+  initialize: async () => { set({ isInitialized: true }) },
 
-  initializeByCampaign: async (campaignId: string) => {
-    set({ isLoading: true, error: null })
-    try {
-      const locations = await getLocationsByCampaign(campaignId)
-      set({
-        locations,
-        isLoading: false,
-        isInitialized: true,
-      })
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to load locations"),
-        isLoading: false,
-      })
-    }
-  },
+  initializeByCampaign: async (_campaignId: string) => { set({ isInitialized: true }) },
 
   addLocation: async (locationData) => {
-    set({ isLoading: true, error: null })
+    const tempId = crypto.randomUUID()
+    const tempLocation: MapLocation = {
+      ...locationData,
+      id: tempId,
+      userId: "",
+      campaignId: locationData.campaignId ?? null,
+      visited: locationData.visited ?? false,
+      createdAt: new Date(),
+    }
+    set((state) => ({ locations: [...state.locations, tempLocation] }))
     try {
-      const newLocation = await createLocationAction(locationData)
-      set((state) => ({
-        locations: [...state.locations, newLocation],
-        isLoading: false,
-      }))
-      return newLocation
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to create location"),
-        isLoading: false,
+      await convex.mutation(api.world.create, {
+        ...locationData,
+        campaignId: locationData.campaignId ? (locationData.campaignId as Id<"campaigns">) : undefined,
+        visited: locationData.visited ?? false,
       })
+      return tempLocation
+    } catch (error) {
+      set((state) => ({ locations: state.locations.filter((l) => l.id !== tempId) }))
+      set({ error: getErrorMessage(error, "Failed to create location") })
       throw error
     }
   },
 
   updateLocation: async (id, updates) => {
-    set({ isLoading: true, error: null })
+    set((state) => ({
+      locations: state.locations.map((loc) => (loc.id === id ? { ...loc, ...updates } : loc)),
+    }))
     try {
-      const updatedLocation = await updateLocationAction(id, updates)
-      set((state) => ({
-        locations: state.locations.map((loc) => (loc.id === id ? updatedLocation : loc)),
-        isLoading: false,
-      }))
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to update location"),
-        isLoading: false,
+      await convex.mutation(api.world.update, {
+        id: id as Id<"mapLocations">,
+        ...updates,
+        campaignId: updates.campaignId ? (updates.campaignId as Id<"campaigns">) : undefined,
       })
+    } catch (error) {
+      set({ error: getErrorMessage(error, "Failed to update location") })
       throw error
     }
   },
 
   deleteLocation: async (id) => {
-    set({ isLoading: true, error: null })
+    const prev = get().locations
+    set((state) => ({ locations: state.locations.filter((loc) => loc.id !== id) }))
     try {
-      await deleteLocationAction(id)
-      set((state) => ({
-        locations: state.locations.filter((loc) => loc.id !== id),
-        isLoading: false,
-      }))
+      await convex.mutation(api.world.remove, { id: id as Id<"mapLocations"> })
     } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to delete location"),
-        isLoading: false,
-      })
+      set({ locations: prev, error: getErrorMessage(error, "Failed to delete location") })
       throw error
     }
   },
 
   toggleVisited: async (id) => {
-    set({ isLoading: true, error: null })
+    set((state) => ({
+      locations: state.locations.map((loc) =>
+        loc.id === id ? { ...loc, visited: !loc.visited } : loc
+      ),
+    }))
     try {
-      const updatedLocation = await toggleLocationVisitedAction(id)
-      set((state) => ({
-        locations: state.locations.map((loc) => (loc.id === id ? updatedLocation : loc)),
-        isLoading: false,
-      }))
+      await convex.mutation(api.world.toggleVisited, { id: id as Id<"mapLocations"> })
     } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to toggle visited"),
-        isLoading: false,
-      })
+      set({ error: getErrorMessage(error, "Failed to toggle visited") })
       throw error
     }
   },

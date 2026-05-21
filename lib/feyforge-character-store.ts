@@ -19,17 +19,9 @@ import {
   getXPForLevel,
 } from "./character/experience"
 import { XP_THRESHOLDS } from "./character/constants"
-import {
-  fetchUserCharacters,
-  createCharacter as createCharacterAction,
-  updateCharacter as updateCharacterAction,
-  deleteCharacter as deleteCharacterAction,
-  getCharactersByCampaign as getCharactersByCampaignAction,
-  addCharacterProperty as addPropertyAction,
-  updateCharacterProperty as updatePropertyAction,
-  deleteCharacterProperty as deletePropertyAction,
-  type Character as DBCharacter,
-} from "@/lib/actions/characters"
+import { convex } from "@/lib/convex"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 interface CharacterStore {
   // State
@@ -45,7 +37,10 @@ interface CharacterStore {
   // Active form tracking (for wildshape/polymorph - session state)
   activeFormId: Record<string, string | null>
 
-  // Initialize from database
+  // Set data from DataLoader
+  setCharacters: (characters: Character[], calculatedStats: Record<string, CalculatedStats>) => void
+
+  // Initialize (no-op — DataLoader handles loading)
   initialize: () => Promise<void>
 
   // CRUD operations (async - persist to DB)
@@ -146,61 +141,6 @@ interface CharacterStore {
   reset: () => void
 }
 
-// Helper to convert DB character to local character type
-function dbToLocal(dbChar: DBCharacter): Character {
-  return {
-    id: dbChar.id,
-    campaignId: dbChar.campaignId || undefined,
-    name: dbChar.name,
-    race: dbChar.race,
-    subrace: dbChar.subrace || undefined,
-    class: dbChar.class,
-    subclass: dbChar.subclass || undefined,
-    level: dbChar.level,
-    experiencePoints: dbChar.experiencePoints,
-    background: dbChar.background || undefined,
-    alignment: (dbChar.alignment as Character["alignment"]) || undefined,
-    playerName: dbChar.playerName || undefined,
-    age: dbChar.age || undefined,
-    height: dbChar.height || undefined,
-    weight: dbChar.weight || undefined,
-    eyes: dbChar.eyes || undefined,
-    skin: dbChar.skin || undefined,
-    hair: dbChar.hair || undefined,
-    size: (dbChar.size as Character["size"]) || undefined,
-    baseAbilities: dbChar.baseAbilities as Character["baseAbilities"],
-    racialBonuses:
-      (dbChar.racialBonuses as Record<string, number>) || undefined,
-    hitPoints: dbChar.hitPoints as Character["hitPoints"],
-    hitDice: (dbChar.hitDice as Character["hitDice"]) || [],
-    deathSaves: dbChar.deathSaves as Character["deathSaves"],
-    speed: dbChar.speed,
-    inspiration: dbChar.inspiration,
-    savingThrowProficiencies:
-      (dbChar.savingThrowProficiencies as Character["savingThrowProficiencies"]) ||
-      [],
-    skillProficiencies:
-      (dbChar.skillProficiencies as Character["skillProficiencies"]) || [],
-    skillExpertise:
-      (dbChar.skillExpertise as Character["skillExpertise"]) || [],
-    armorProficiencies: (dbChar.armorProficiencies as string[]) || [],
-    weaponProficiencies: (dbChar.weaponProficiencies as string[]) || [],
-    toolProficiencies: (dbChar.toolProficiencies as string[]) || [],
-    languages: (dbChar.languages as string[]) || [],
-    currency: dbChar.currency as Character["currency"],
-    spellcasting:
-      (dbChar.spellcasting as Character["spellcasting"]) || undefined,
-    personalityTraits: dbChar.personalityTraits || undefined,
-    ideals: dbChar.ideals || undefined,
-    bonds: dbChar.bonds || undefined,
-    flaws: dbChar.flaws || undefined,
-    backstory: dbChar.backstory || undefined,
-    imageUrl: dbChar.imageUrl || undefined,
-    properties: [], // Properties loaded separately
-    createdAt: new Date(dbChar.createdAt),
-    updatedAt: new Date(dbChar.updatedAt),
-  }
-}
 
 export const useCharacterStore = create<CharacterStore>((set, get) => ({
   characters: [],
@@ -211,35 +151,19 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   isInitialized: false,
   error: null,
 
-  initialize: async () => {
-    if (get().isInitialized) return
-
-    set({ isLoading: true, error: null })
-    try {
-      const dbCharacters = await fetchUserCharacters()
-      const characters = dbCharacters.map(dbToLocal)
-
-      // Calculate stats for all characters
-      const calculatedStats: Record<string, CalculatedStats> = {}
-      for (const char of characters) {
-        calculatedStats[char.id] = calculateAllStats(char)
-      }
-
-      set({
-        characters,
-        calculatedStats,
-        isLoading: false,
-        isInitialized: true,
-        activeCharacterId: characters[0]?.id || null,
-      })
-    } catch (error) {
-      set({
-        error: getErrorMessage(error, "Failed to load characters"),
-        isLoading: false,
-        isInitialized: true,
-      })
-    }
+  setCharacters: (characters, calculatedStats) => {
+    set((state) => ({
+      characters,
+      calculatedStats,
+      isInitialized: true,
+      isLoading: false,
+      // Only set active character if none is selected yet
+      activeCharacterId:
+        state.activeCharacterId ?? (characters[0]?.id || null),
+    }))
   },
+
+  initialize: async () => { set({ isInitialized: true }) },
 
   addCharacter: async (character) => {
     // Ensure properties array exists
@@ -254,13 +178,13 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     }))
     get().recalculateStats(character.id)
 
-    // Persist to database
+    // Persist to Convex
     try {
-      await createCharacterAction({
-        campaignId: character.campaignId || null,
+      await convex.mutation(api.characters.create, {
+        campaignId: character.campaignId ? (character.campaignId as Id<"campaigns">) : undefined,
         name: character.name,
         race: character.race,
-        class: character.class,
+        characterClass: character.class,
         level: character.level,
         experiencePoints: character.experiencePoints,
         subrace: character.subrace,
@@ -276,15 +200,15 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         hair: character.hair,
         size: character.size,
         baseAbilities: character.baseAbilities,
-        racialBonuses: character.racialBonuses,
+        racialBonuses: character.racialBonuses as { strength?: number; dexterity?: number; constitution?: number; intelligence?: number; wisdom?: number; charisma?: number } | undefined,
         hitPoints: character.hitPoints,
         hitDice: character.hitDice,
         deathSaves: character.deathSaves,
         speed: character.speed,
         inspiration: character.inspiration,
-        savingThrowProficiencies: character.savingThrowProficiencies,
-        skillProficiencies: character.skillProficiencies,
-        skillExpertise: character.skillExpertise,
+        savingThrowProficiencies: character.savingThrowProficiencies as string[],
+        skillProficiencies: character.skillProficiencies as string[],
+        skillExpertise: character.skillExpertise as string[],
         armorProficiencies: character.armorProficiencies,
         weaponProficiencies: character.weaponProficiencies,
         toolProficiencies: character.toolProficiencies,
@@ -293,28 +217,18 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         spellcasting: character.spellcasting
           ? {
               ability: character.spellcasting.ability,
-              spellSaveDC:
-                character.spellcasting.spellSaveDC ??
-                character.spellcasting.saveDC ??
-                0,
-              spellAttackBonus:
-                character.spellcasting.spellAttackBonus ??
-                character.spellcasting.attackBonus ??
-                0,
+              spellSaveDC: character.spellcasting.spellSaveDC ?? character.spellcasting.saveDC ?? 0,
+              spellAttackBonus: character.spellcasting.spellAttackBonus ?? character.spellcasting.attackBonus ?? 0,
               spellSlots: Array.isArray(character.spellcasting.spellSlots)
-                ? character.spellcasting.spellSlots.reduce(
-                    (acc, slot) => {
-                      acc[slot.level] = { total: slot.total, used: slot.used }
-                      return acc
-                    },
-                    {} as Record<number, { total: number; used: number }>
-                  )
-                : character.spellcasting.spellSlots,
-              cantripsKnown: character.spellcasting.cantripsKnown,
+                ? character.spellcasting.spellSlots
+                : Object.entries(character.spellcasting.spellSlots as Record<number, { total: number; used: number }>).map(
+                    ([level, slot]) => ({ level: Number(level), total: slot.total, used: slot.used })
+                  ),
+              cantripsKnown: character.spellcasting.cantripsKnown ?? 0,
               spellsKnown: character.spellcasting.spellsKnown,
               spellsPrepared: character.spellcasting.spellsPrepared,
             }
-          : null,
+          : undefined,
         personalityTraits: character.personalityTraits,
         ideals: character.ideals,
         bonds: character.bonds,
@@ -329,7 +243,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       } else {
         toast.error(message)
       }
-      // Rollback on error
       set((state) => ({
         characters: state.characters.filter((c) => c.id !== character.id),
         error: message,
@@ -352,11 +265,17 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     }))
     get().recalculateStats(id)
 
-    // Persist to database
+    // Persist to Convex
     try {
-      await updateCharacterAction(
-        id,
-        updates as Parameters<typeof updateCharacterAction>[1]
+      const classValue = (updates as Partial<Character> & { class?: string }).class
+      await convex.mutation(
+        api.characters.update,
+        {
+          id: id as Id<"characters">,
+          ...(updates as Record<string, unknown>),
+          ...(classValue !== undefined ? { characterClass: classValue } : {}),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any
       )
     } catch (error) {
       const message = getErrorMessage(error, "Failed to update character")
@@ -382,9 +301,9 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       ),
     }))
 
-    // Persist to database
+    // Persist to Convex
     try {
-      await deleteCharacterAction(id)
+      await convex.mutation(api.characters.remove, { id: id as Id<"characters"> })
     } catch (error) {
       const message = getErrorMessage(error, "Failed to delete character")
       if (isAuthError(message)) {
@@ -392,7 +311,6 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       } else {
         toast.error(message)
       }
-      // Rollback on error
       if (charToDelete) {
         set((state) => ({
           characters: [...state.characters, charToDelete],
@@ -433,19 +351,18 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     }))
     get().recalculateStats(characterId)
 
-    // Persist to database
+    // Persist to Convex
     try {
-      await addPropertyAction({
-        characterId,
+      await convex.mutation(api.characters.addProperty, {
+        characterId: characterId as Id<"characters">,
         type: property.type,
         name: property.name,
         description: property.description,
-        source: "source" in property ? property.source : undefined,
+        source: "source" in property ? (property.source as string | undefined) : undefined,
         active: property.active,
-        equipped: "equipped" in property ? property.equipped : undefined,
-        data: property as unknown as Record<string, unknown>,
-        orderIndex:
-          (get().getCharacter(characterId)?.properties?.length || 0) - 1,
+        equipped: "equipped" in property ? (property.equipped as boolean | undefined) : undefined,
+        data: property,
+        orderIndex: (get().getCharacter(characterId)?.properties?.length || 0) - 1,
       })
     } catch (error) {
       const message = getErrorMessage(error, "Failed to add property")
@@ -480,11 +397,11 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     }))
     get().recalculateStats(characterId)
 
-    // Persist to database
+    // Persist to Convex
     try {
-      await updatePropertyAction(propertyId, {
-        ...updates,
-        data: updates as Record<string, unknown>,
+      await convex.mutation(api.characters.updateProperty, {
+        id: propertyId as Id<"characterProperties">,
+        data: updates,
       })
     } catch (error) {
       const message = getErrorMessage(error, "Failed to update property")
@@ -517,9 +434,9 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     }))
     get().recalculateStats(characterId)
 
-    // Persist to database
+    // Persist to Convex
     try {
-      await deletePropertyAction(propertyId)
+      await convex.mutation(api.characters.removeProperty, { id: propertyId as Id<"characterProperties"> })
     } catch (error) {
       const message = getErrorMessage(error, "Failed to remove property")
       if (isAuthError(message)) {
@@ -564,9 +481,12 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     }))
     get().recalculateStats(characterId)
 
-    // Persist to database
+    // Persist to Convex
     try {
-      await updatePropertyAction(propertyId, { active: !property.active })
+      await convex.mutation(api.characters.updateProperty, {
+        id: propertyId as Id<"characterProperties">,
+        active: !property.active,
+      })
     } catch (error) {
       const message = getErrorMessage(error, "Failed to toggle property")
       if (isAuthError(message)) {
@@ -1069,7 +989,8 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     if (!char) return
 
     try {
-      await updateCharacterAction(characterId, {
+      await convex.mutation(api.characters.update, {
+        id: characterId as Id<"characters">,
         hitPoints: char.hitPoints,
         hitDice: char.hitDice,
         deathSaves: char.deathSaves,
@@ -1079,26 +1000,18 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         spellcasting: char.spellcasting
           ? {
               ability: char.spellcasting.ability,
-              spellSaveDC:
-                char.spellcasting.spellSaveDC ?? char.spellcasting.saveDC ?? 0,
-              spellAttackBonus:
-                char.spellcasting.spellAttackBonus ??
-                char.spellcasting.attackBonus ??
-                0,
+              spellSaveDC: char.spellcasting.spellSaveDC ?? char.spellcasting.saveDC ?? 0,
+              spellAttackBonus: char.spellcasting.spellAttackBonus ?? char.spellcasting.attackBonus ?? 0,
               spellSlots: Array.isArray(char.spellcasting.spellSlots)
-                ? char.spellcasting.spellSlots.reduce(
-                    (acc, slot) => {
-                      acc[slot.level] = { total: slot.total, used: slot.used }
-                      return acc
-                    },
-                    {} as Record<number, { total: number; used: number }>
-                  )
-                : char.spellcasting.spellSlots,
-              cantripsKnown: char.spellcasting.cantripsKnown,
+                ? char.spellcasting.spellSlots
+                : Object.entries(char.spellcasting.spellSlots as Record<number, { total: number; used: number }>).map(
+                    ([level, slot]) => ({ level: Number(level), total: slot.total, used: slot.used })
+                  ),
+              cantripsKnown: char.spellcasting.cantripsKnown ?? 0,
               spellsKnown: char.spellcasting.spellsKnown,
               spellsPrepared: char.spellcasting.spellsPrepared,
             }
-          : null,
+          : undefined,
         inspiration: char.inspiration,
       })
     } catch (error) {
