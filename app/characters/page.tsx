@@ -38,11 +38,12 @@ function CharacterCard({
       style={{
         background: "var(--scene-surface)",
         border: "1px solid var(--scene-border)",
+        cursor: "pointer",
       }}
     >
       {/* Delete button */}
       <button
-        onClick={() => onDelete(character._id)}
+        onClick={(e) => { e.preventDefault(); onDelete(character._id) }}
         className="absolute top-3 right-3 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
         style={{ color: "var(--scene-text-muted)" }}
         title="Delete character"
@@ -193,11 +194,12 @@ export default function CharactersPage() {
         {characters && characters.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {characters.map((char) => (
-              <CharacterCard
-                key={char._id}
-                character={char}
-                onDelete={handleDelete}
-              />
+              <Link key={char._id} href={`/characters/${char._id}`}>
+                <CharacterCard
+                  character={char}
+                  onDelete={handleDelete}
+                />
+              </Link>
             ))}
           </div>
         )}

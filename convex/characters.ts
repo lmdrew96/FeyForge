@@ -62,6 +62,17 @@ const spellcastingValidator = v.optional(v.object({
 
 // ── Characters ────────────────────────────────────────────────────────────────
 
+export const get = query({
+  args: { id: v.id("characters") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+    const character = await ctx.db.get(args.id)
+    if (!character || character.userId !== identity.tokenIdentifier) return null
+    return character
+  },
+})
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
