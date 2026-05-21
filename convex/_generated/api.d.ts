@@ -15,6 +15,8 @@ import type * as dmConversations from "../dmConversations.js";
 import type * as encounters from "../encounters.js";
 import type * as liveSessions from "../liveSessions.js";
 import type * as npcs from "../npcs.js";
+import type * as partyInventory from "../partyInventory.js";
+import type * as sessionNotes from "../sessionNotes.js";
 import type * as sessions from "../sessions.js";
 import type * as world from "../world.js";
 
@@ -32,6 +34,8 @@ declare const fullApi: ApiFromModules<{
   encounters: typeof encounters;
   liveSessions: typeof liveSessions;
   npcs: typeof npcs;
+  partyInventory: typeof partyInventory;
+  sessionNotes: typeof sessionNotes;
   sessions: typeof sessions;
   world: typeof world;
 }>;

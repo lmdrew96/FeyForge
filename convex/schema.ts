@@ -351,6 +351,29 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_campaignId", ["campaignId"]),
 
+  sessionNotes: defineTable({
+    sessionId: v.id("partySessions"),
+    campaignId: v.id("campaigns"),
+    userId: v.string(),
+    isDM: v.boolean(),
+    content: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_sessionId", ["sessionId"])
+    .index("by_sessionId_and_userId", ["sessionId", "userId"]),
+
+  partyInventory: defineTable({
+    sessionId: v.id("partySessions"),
+    campaignId: v.id("campaigns"),
+    addedByUserId: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    quantity: v.number(),
+    assignedToCharacterId: v.optional(v.id("characters")),
+    addedAt: v.number(),
+  })
+    .index("by_sessionId", ["sessionId"]),
+
   partyMembers: defineTable({
     sessionId: v.id("partySessions"),
     campaignId: v.id("campaigns"),
