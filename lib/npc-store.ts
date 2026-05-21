@@ -3,7 +3,7 @@
 import { create } from "zustand"
 import { toast } from "sonner"
 import { getErrorMessage, isAuthError } from "@/lib/errors"
-import { type NPC, type NewNPC } from "@/lib/actions/npcs"
+import { type NPC, type NewNPC } from "@/lib/types"
 import { convex } from "@/lib/convex"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"

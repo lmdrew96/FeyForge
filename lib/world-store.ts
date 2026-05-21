@@ -2,7 +2,7 @@
 
 import { create } from "zustand"
 import { getErrorMessage } from "@/lib/errors"
-import { type MapLocation, type NewMapLocation } from "@/lib/actions/world"
+import { type MapLocation, type NewMapLocation } from "@/lib/types"
 import { convex } from "@/lib/convex"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"

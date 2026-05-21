@@ -8,7 +8,7 @@ import {
   type PlotThread,
   type NewGameSession,
   type NewPlotThread,
-} from "@/lib/actions/sessions"
+} from "@/lib/types"
 import { convex } from "@/lib/convex"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
