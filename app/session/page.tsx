@@ -6,10 +6,642 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { SCENES } from "@/lib/scenes"
-import { Sparkles, Play, Square, Radio, Users, Clock } from "lucide-react"
+import { CLASS_COLORS } from "@/lib/character/constants"
+import { cn } from "@/lib/utils"
+import {
+  Sparkles, Play, Square, Radio, Users, Clock, Heart, X, ChevronUp, ChevronDown, Shield,
+} from "lucide-react"
 import { toast } from "sonner"
 
-// ── DM Conductor View ───────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const CONDITIONS = [
+  "Blinded", "Charmed", "Deafened", "Frightened", "Grappled",
+  "Incapacitated", "Invisible", "Paralyzed", "Petrified",
+  "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious",
+]
+
+const CONDITION_COLORS: Record<string, string> = {
+  Blinded: "#6b7280",
+  Charmed: "#ec4899",
+  Deafened: "#6b7280",
+  Frightened: "#f59e0b",
+  Grappled: "#8b5cf6",
+  Incapacitated: "#ef4444",
+  Invisible: "#a1a1aa",
+  Paralyzed: "#ef4444",
+  Petrified: "#78716c",
+  Poisoned: "#22c55e",
+  Prone: "#94a3b8",
+  Restrained: "#8b5cf6",
+  Stunned: "#ef4444",
+  Unconscious: "#1f2937",
+}
+
+// ── Broadcast Modal ───────────────────────────────────────────────────────────
+
+type BroadcastDoc = {
+  _id: Id<"sessionBroadcasts">
+  type: "npc" | "location" | "scene" | "custom"
+  title: string
+  body?: string
+  imageUrl?: string
+  revealedAt?: number
+}
+
+function BroadcastModal({ broadcast, onClose }: { broadcast: BroadcastDoc; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="relative rounded-2xl max-w-lg w-full p-6 shadow-2xl"
+        style={{
+          background: "var(--scene-surface)",
+          border: "1px solid color-mix(in srgb, var(--scene-accent) 40%, var(--scene-border))",
+          boxShadow: "0 0 40px var(--scene-accent-glow)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 rounded transition-opacity hover:opacity-80"
+          style={{ color: "var(--scene-text-muted)" }}
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="flex items-center gap-2 mb-4">
+          <span
+            className="text-xs px-2.5 py-1 rounded-full capitalize font-medium"
+            style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+          >
+            {broadcast.type}
+          </span>
+        </div>
+
+        <h2
+          className="text-2xl font-bold mb-3"
+          style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+        >
+          {broadcast.title}
+        </h2>
+
+        {broadcast.body && (
+          <p className="text-sm leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>
+            {broadcast.body}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Party Rail ────────────────────────────────────────────────────────────────
+
+type PartyMember = {
+  _id: Id<"partyMembers">
+  userId: string
+  conditions: string[]
+  character: {
+    _id: Id<"characters">
+    name: string
+    characterClass: string
+    level: number
+    hitPoints: { current: number; max: number; temp: number }
+  } | null
+}
+
+function HpBar({ current, max }: { current: number; max: number }) {
+  const pct = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0
+  const color = pct > 0.5 ? "var(--scene-accent)" : pct > 0.25 ? "#f59e0b" : "#ef4444"
+
+  return (
+    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--scene-border)" }}>
+      <div
+        className="h-full rounded-full transition-all duration-500"
+        style={{ width: `${pct * 100}%`, background: color }}
+      />
+    </div>
+  )
+}
+
+function PartyRail({ sessionId }: { sessionId: Id<"partySessions"> }) {
+  const members = useQuery(api.liveSessions.getPartyMembers, { sessionId })
+
+  if (!members || members.length === 0) {
+    return (
+      <section>
+        <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+          The Party
+        </h2>
+        <div
+          className="rounded-lg p-4 text-center text-sm"
+          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
+        >
+          No players have joined yet.
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section>
+      <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+        The Party — {members.length} {members.length === 1 ? "adventurer" : "adventurers"}
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {(members as PartyMember[]).map((m) => {
+          const char = m.character
+          if (!char) return null
+          const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
+          const visibleConditions = m.conditions.slice(0, 3)
+          const extraCount = m.conditions.length - 3
+
+          return (
+            <div
+              key={m._id}
+              className="rounded-lg p-3"
+              style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+            >
+              <div className="flex items-start gap-2 mb-2">
+                <div
+                  className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0"
+                  style={{
+                    background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))",
+                    border: "1px solid color-mix(in srgb, var(--scene-accent) 25%, transparent)",
+                  }}
+                >
+                  <Shield className="h-4 w-4" style={{ color: "var(--scene-accent)" }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="text-sm font-semibold truncate"
+                    style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+                  >
+                    {char.name}
+                  </p>
+                  <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", classColor)}>
+                    {char.characterClass}
+                  </span>
+                </div>
+                <span className="text-xs flex-shrink-0" style={{ color: "var(--scene-text-muted)" }}>
+                  {char.hitPoints.current}/{char.hitPoints.max}
+                </span>
+              </div>
+
+              <HpBar current={char.hitPoints.current} max={char.hitPoints.max} />
+
+              {m.conditions.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {visibleConditions.map((c) => (
+                    <span
+                      key={c}
+                      className="text-xs px-1.5 py-0.5 rounded"
+                      style={{ background: `${CONDITION_COLORS[c] ?? "#6b7280"}22`, color: CONDITION_COLORS[c] ?? "#6b7280", border: `1px solid ${CONDITION_COLORS[c] ?? "#6b7280"}44` }}
+                    >
+                      {c}
+                    </span>
+                  ))}
+                  {extraCount > 0 && (
+                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ color: "var(--scene-text-muted)" }}>
+                      +{extraCount}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// ── My Character Panel ────────────────────────────────────────────────────────
+
+function MyCharacterPanel({
+  sessionId,
+  member,
+}: {
+  sessionId: Id<"partySessions">
+  member: {
+    characterId: Id<"characters">
+    conditions: string[]
+    character: {
+      _id: Id<"characters">
+      name: string
+      characterClass: string
+      level: number
+      hitPoints: { current: number; max: number; temp: number }
+    } | null
+  }
+}) {
+  const doUpdateHp = useMutation(api.characters.updateHp)
+  const doToggleCondition = useMutation(api.liveSessions.toggleCondition)
+  const [showConditions, setShowConditions] = useState(false)
+
+  const char = member.character
+  if (!char) return null
+
+  const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
+
+  const handleHpDelta = (delta: number) => {
+    doUpdateHp({ id: char._id, delta }).catch(() => toast.error("Failed to update HP."))
+  }
+
+  const handleToggleCondition = (condition: string) => {
+    doToggleCondition({ sessionId, condition }).catch(() => toast.error("Failed to update condition."))
+  }
+
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <div
+          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{
+            background: "color-mix(in srgb, var(--scene-accent) 15%, var(--scene-surface))",
+            border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)",
+          }}
+        >
+          <Shield className="h-5 w-5" style={{ color: "var(--scene-accent)" }} />
+        </div>
+        <div>
+          <h3
+            className="font-bold"
+            style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+          >
+            {char.name}
+          </h3>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", classColor)}>
+              {char.characterClass}
+            </span>
+            <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>Lv {char.level}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* HP */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-1.5">
+            <Heart className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
+            <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+              Hit Points
+            </span>
+          </div>
+          <span className="text-sm font-bold tabular-nums" style={{ color: "var(--scene-text-primary)" }}>
+            {char.hitPoints.current}
+            <span style={{ color: "var(--scene-text-muted)" }}>/{char.hitPoints.max}</span>
+          </span>
+        </div>
+        <HpBar current={char.hitPoints.current} max={char.hitPoints.max} />
+        <div className="flex gap-1.5 mt-2">
+          {([-5, -1] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => handleHpDelta(d)}
+              disabled={char.hitPoints.current === 0}
+              className="flex-1 py-1 rounded text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-30"
+              style={{ background: "#ef444422", color: "#ef4444", border: "1px solid #ef444444" }}
+            >
+              {d}
+            </button>
+          ))}
+          <div
+            className="flex-1 py-1 rounded text-center text-sm font-bold tabular-nums"
+            style={{ background: "var(--scene-border)", color: "var(--scene-text-primary)" }}
+          >
+            {char.hitPoints.current}
+          </div>
+          {([1, 5] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => handleHpDelta(d)}
+              disabled={char.hitPoints.current >= char.hitPoints.max}
+              className="flex-1 py-1 rounded text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-30"
+              style={{ background: "color-mix(in srgb, var(--scene-accent) 20%, transparent)", color: "var(--scene-accent)", border: "1px solid color-mix(in srgb, var(--scene-accent) 40%, transparent)" }}
+            >
+              +{d}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Conditions */}
+      <button
+        onClick={() => setShowConditions((v) => !v)}
+        className="flex items-center gap-1.5 text-xs w-full transition-opacity hover:opacity-80"
+        style={{ color: "var(--scene-text-muted)" }}
+      >
+        <span className="uppercase tracking-widest flex-1 text-left">
+          Conditions
+          {member.conditions.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-xs" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
+              {member.conditions.length}
+            </span>
+          )}
+        </span>
+        {showConditions ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      </button>
+
+      {showConditions && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {CONDITIONS.map((c) => {
+            const active = member.conditions.includes(c)
+            return (
+              <button
+                key={c}
+                onClick={() => handleToggleCondition(c)}
+                className="text-xs px-2 py-1 rounded transition-all"
+                style={{
+                  background: active ? `${CONDITION_COLORS[c] ?? "#6b7280"}22` : "var(--scene-border)",
+                  color: active ? (CONDITION_COLORS[c] ?? "#6b7280") : "var(--scene-text-muted)",
+                  border: active ? `1px solid ${CONDITION_COLORS[c] ?? "#6b7280"}66` : "1px solid transparent",
+                }}
+              >
+                {c}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Join View ─────────────────────────────────────────────────────────────────
+
+function JoinView({ sessionId }: { sessionId: Id<"partySessions"> }) {
+  const characters = useQuery(api.characters.list)
+  const doJoin = useMutation(api.liveSessions.joinSession)
+  const [joining, setJoining] = useState<Id<"characters"> | null>(null)
+
+  const handleJoin = async (characterId: Id<"characters">) => {
+    setJoining(characterId)
+    try {
+      await doJoin({ sessionId, characterId })
+    } catch {
+      toast.error("Failed to join session.")
+      setJoining(null)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--scene-accent)" }} />
+          <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-accent)" }}>
+            Session Live
+          </span>
+        </div>
+        <h1
+          className="text-2xl font-bold mb-1"
+          style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+        >
+          Choose Your Character
+        </h1>
+        <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+          Pick who you're playing this session to join the party.
+        </p>
+      </div>
+
+      {characters === undefined && (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-20 rounded-xl animate-pulse" style={{ background: "var(--scene-surface)" }} />
+          ))}
+        </div>
+      )}
+
+      {characters && characters.length === 0 && (
+        <div
+          className="rounded-xl p-8 text-center"
+          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        >
+          <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+            You don't have any characters yet. Create one first.
+          </p>
+        </div>
+      )}
+
+      {characters && characters.length > 0 && (
+        <div className="space-y-3">
+          {characters.map((char) => {
+            const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
+            const isJoining = joining === char._id
+            return (
+              <button
+                key={char._id}
+                onClick={() => handleJoin(char._id)}
+                disabled={joining !== null}
+                className="w-full rounded-xl p-4 flex items-center gap-4 text-left transition-all hover:scale-[1.01] disabled:opacity-60"
+                style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+              >
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{
+                    background: "color-mix(in srgb, var(--scene-accent) 15%, var(--scene-surface))",
+                    border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)",
+                  }}
+                >
+                  <Shield className="h-5 w-5" style={{ color: "var(--scene-accent)" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="font-bold truncate"
+                    style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+                  >
+                    {char.name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", classColor)}>
+                      {char.characterClass}
+                    </span>
+                    <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                      Lv {char.level} · {char.hitPoints.current}/{char.hitPoints.max} HP
+                    </span>
+                  </div>
+                </div>
+                <span
+                  className="text-sm font-medium flex-shrink-0 px-4 py-1.5 rounded-md"
+                  style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                >
+                  {isJoining ? "Joining…" : "Play"}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Player Receiver View ──────────────────────────────────────────────────────
+
+type MyMember = {
+  _id: Id<"partyMembers">
+  characterId: Id<"characters">
+  conditions: string[]
+  character: {
+    _id: Id<"characters">
+    name: string
+    characterClass: string
+    level: number
+    hitPoints: { current: number; max: number; temp: number }
+  } | null
+}
+
+function ReceiverView({
+  sessionId,
+  campaignId,
+  myMember,
+}: {
+  sessionId: Id<"partySessions">
+  campaignId: Id<"campaigns">
+  myMember: MyMember
+}) {
+  const activeSession = useQuery(api.liveSessions.getActiveSession, { campaignId })
+  const broadcasts = useQuery(api.liveSessions.listBroadcasts, { sessionId })
+  const [selectedBroadcast, setSelectedBroadcast] = useState<BroadcastDoc | null>(null)
+
+  const activeScene = activeSession?.activeScene ?? ""
+  const currentScene = SCENES.find((s) => s.id === activeScene)
+
+  useEffect(() => {
+    document.body.setAttribute("data-scene", activeScene)
+    return () => document.body.setAttribute("data-scene", "")
+  }, [activeScene])
+
+  return (
+    <div className="space-y-6">
+      {/* Live indicator */}
+      <div className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--scene-accent)" }} />
+        <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-accent)" }}>
+          Session Live
+        </span>
+      </div>
+
+      {/* My Character */}
+      <MyCharacterPanel sessionId={sessionId} member={myMember} />
+
+      {/* Scene Display */}
+      <div
+        className="rounded-xl p-6 text-center"
+        style={{
+          background: "color-mix(in srgb, var(--scene-accent) 6%, var(--scene-surface))",
+          border: "1px solid color-mix(in srgb, var(--scene-accent) 20%, var(--scene-border))",
+        }}
+      >
+        {activeScene ? (
+          <>
+            <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-accent)" }}>
+              Current Scene
+            </div>
+            <h2
+              className="text-3xl font-bold mb-1"
+              style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+            >
+              {currentScene?.label ?? activeScene}
+            </h2>
+            <p className="text-sm italic" style={{ color: "var(--scene-text-muted)" }}>
+              {currentScene?.desc}
+            </p>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <Clock className="h-6 w-6" style={{ color: "var(--scene-text-muted)", opacity: 0.4 }} />
+            <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+              The DM is preparing the scene…
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Broadcasts */}
+      {broadcasts && broadcasts.length > 0 && (
+        <section>
+          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+            From the DM
+          </h2>
+          <div className="space-y-3">
+            {broadcasts.map((b, i) => (
+              <button
+                key={b._id}
+                onClick={() => setSelectedBroadcast(b as BroadcastDoc)}
+                className="w-full rounded-xl p-4 text-left transition-all hover:scale-[1.005] active:scale-[0.998]"
+                style={{
+                  background: i === 0
+                    ? "color-mix(in srgb, var(--scene-accent) 8%, var(--scene-surface))"
+                    : "var(--scene-surface)",
+                  border: `1px solid ${i === 0 ? "color-mix(in srgb, var(--scene-accent) 35%, transparent)" : "var(--scene-border)"}`,
+                  boxShadow: i === 0 ? "0 0 16px var(--scene-accent-glow)" : "none",
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full capitalize"
+                    style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+                  >
+                    {b.type}
+                  </span>
+                  {i === 0 && (
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full animate-pulse"
+                      style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                    >
+                      New
+                    </span>
+                  )}
+                </div>
+                <p className="font-semibold text-sm" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+                  {b.title}
+                </p>
+                {b.body && (
+                  <p className="text-xs mt-1 truncate" style={{ color: "var(--scene-text-muted)" }}>
+                    {b.body}
+                  </p>
+                )}
+                <p className="text-xs mt-2" style={{ color: "var(--scene-accent)", opacity: 0.7 }}>
+                  Tap to reveal →
+                </p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Party Rail */}
+      <PartyRail sessionId={sessionId} />
+
+      {/* Broadcast Modal */}
+      {selectedBroadcast && (
+        <BroadcastModal
+          broadcast={selectedBroadcast}
+          onClose={() => setSelectedBroadcast(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── DM Conductor View ─────────────────────────────────────────────────────────
 
 function ConductorView({
   sessionId,
@@ -30,6 +662,8 @@ function ConductorView({
   const [broadcastBody, setBroadcastBody] = useState("")
   const [broadcastType, setBroadcastType] = useState<"npc" | "location" | "custom">("custom")
   const [sending, setSending] = useState(false)
+
+  const currentScene = SCENES.find((s) => s.id === activeScene)
 
   const handleSetScene = (scene: string) => {
     doActivateScene({ sessionId, scene }).catch(() => toast.error("Failed to activate scene."))
@@ -66,18 +700,13 @@ function ConductorView({
     }
   }
 
-  const currentScene = SCENES.find((s) => s.id === activeScene)
-
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span
-              className="w-2 h-2 rounded-full animate-pulse"
-              style={{ background: "var(--scene-accent)" }}
-            />
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--scene-accent)" }} />
             <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-accent)" }}>
               Session Live
             </span>
@@ -106,10 +735,7 @@ function ConductorView({
 
       {/* Scene Grid */}
       <section>
-        <h2
-          className="text-xs uppercase tracking-widest mb-3"
-          style={{ color: "var(--scene-text-muted)" }}
-        >
+        <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
           Active Scene
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -143,10 +769,7 @@ function ConductorView({
 
       {/* Broadcast Panel */}
       <section>
-        <h2
-          className="text-xs uppercase tracking-widest mb-3"
-          style={{ color: "var(--scene-text-muted)" }}
-        >
+        <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
           Broadcast to Players
         </h2>
         <div
@@ -171,12 +794,9 @@ function ConductorView({
           <input
             value={broadcastTitle}
             onChange={(e) => setBroadcastTitle(e.target.value)}
-            placeholder="Title (e.g. Mara the innkeeper appears…)"
+            placeholder="Title (e.g. Mara the Innkeeper appears…)"
             className="w-full px-3 py-2 rounded-md text-sm bg-transparent outline-none"
-            style={{
-              border: "1px solid var(--scene-border)",
-              color: "var(--scene-text-primary)",
-            }}
+            style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
           />
           <textarea
             value={broadcastBody}
@@ -184,10 +804,7 @@ function ConductorView({
             placeholder="Optional description or flavor text…"
             rows={2}
             className="w-full px-3 py-2 rounded-md text-sm bg-transparent outline-none resize-none"
-            style={{
-              border: "1px solid var(--scene-border)",
-              color: "var(--scene-text-primary)",
-            }}
+            style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
           />
           <button
             onClick={handleBroadcast}
@@ -204,10 +821,7 @@ function ConductorView({
       {/* Broadcast History */}
       {broadcasts && broadcasts.length > 0 && (
         <section>
-          <h2
-            className="text-xs uppercase tracking-widest mb-3"
-            style={{ color: "var(--scene-text-muted)" }}
-          >
+          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
             Sent This Session
           </h2>
           <div className="space-y-2">
@@ -238,11 +852,14 @@ function ConductorView({
           </div>
         </section>
       )}
+
+      {/* Party Rail */}
+      <PartyRail sessionId={sessionId} />
     </div>
   )
 }
 
-// ── DM No-Session View ───────────────────────────────────────────────────────
+// ── DM Ready View ─────────────────────────────────────────────────────────────
 
 function DMReadyView({ campaignId }: { campaignId: Id<"campaigns"> }) {
   const startSession = useMutation(api.liveSessions.startSession)
@@ -292,138 +909,14 @@ function DMReadyView({ campaignId }: { campaignId: Id<"campaigns"> }) {
   )
 }
 
-// ── Player Receiver View ─────────────────────────────────────────────────────
-
-function ReceiverView({
-  sessionId,
-  campaignId,
-}: {
-  sessionId: Id<"partySessions">
-  campaignId: Id<"campaigns">
-}) {
-  const activeSession = useQuery(api.liveSessions.getActiveSession, { campaignId })
-  const broadcasts = useQuery(api.liveSessions.listBroadcasts, { sessionId })
-
-  const activeScene = activeSession?.activeScene ?? ""
-  const currentScene = SCENES.find((s) => s.id === activeScene)
-
-  // Apply scene to body reactively
-  useEffect(() => {
-    document.body.setAttribute("data-scene", activeScene)
-    return () => document.body.setAttribute("data-scene", "")
-  }, [activeScene])
-
-  return (
-    <div className="space-y-6">
-      {/* Scene Display */}
-      <div
-        className="rounded-xl p-6 text-center"
-        style={{
-          background: "color-mix(in srgb, var(--scene-accent) 6%, var(--scene-surface))",
-          border: "1px solid color-mix(in srgb, var(--scene-accent) 20%, var(--scene-border))",
-        }}
-      >
-        {activeScene ? (
-          <>
-            <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-accent)" }}>
-              Current Scene
-            </div>
-            <h2
-              className="text-3xl font-bold mb-1"
-              style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
-            >
-              {currentScene?.label ?? activeScene}
-            </h2>
-            <p className="text-sm italic" style={{ color: "var(--scene-text-muted)" }}>
-              {currentScene?.desc}
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Clock className="h-4 w-4" style={{ color: "var(--scene-text-muted)" }} />
-              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
-                Awaiting Scene
-              </span>
-            </div>
-            <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
-              The DM is preparing the scene…
-            </p>
-          </>
-        )}
-      </div>
-
-      {/* Broadcasts */}
-      {broadcasts && broadcasts.length > 0 && (
-        <section>
-          <h2
-            className="text-xs uppercase tracking-widest mb-3"
-            style={{ color: "var(--scene-text-muted)" }}
-          >
-            From the DM
-          </h2>
-          <div className="space-y-3">
-            {broadcasts.map((b, i) => (
-              <div
-                key={b._id}
-                className="rounded-xl p-4 transition-all"
-                style={{
-                  background: i === 0
-                    ? "color-mix(in srgb, var(--scene-accent) 8%, var(--scene-surface))"
-                    : "var(--scene-surface)",
-                  border: `1px solid ${i === 0
-                    ? "color-mix(in srgb, var(--scene-accent) 30%, transparent)"
-                    : "var(--scene-border)"}`,
-                  boxShadow: i === 0 ? "0 0 16px var(--scene-accent-glow)" : "none",
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full capitalize"
-                    style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
-                  >
-                    {b.type}
-                  </span>
-                  {i === 0 && (
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full animate-pulse"
-                      style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
-                    >
-                      New
-                    </span>
-                  )}
-                </div>
-                <p
-                  className="font-semibold text-sm"
-                  style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
-                >
-                  {b.title}
-                </p>
-                {b.body && (
-                  <p className="text-xs mt-1 italic" style={{ color: "var(--scene-text-muted)" }}>
-                    {b.body}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
-  )
-}
-
-// ── No Active Session (Player) ───────────────────────────────────────────────
+// ── Player Waiting ─────────────────────────────────────────────────────────────
 
 function PlayerWaiting() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
       <div
         className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
-        style={{
-          background: "var(--scene-surface)",
-          border: "1px solid var(--scene-border)",
-        }}
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
       >
         <Users className="h-8 w-8" style={{ color: "var(--scene-text-muted)", opacity: 0.4 }} />
       </div>
@@ -440,19 +933,25 @@ function PlayerWaiting() {
   )
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SessionPage() {
   const myCampaign = useQuery(api.liveSessions.getMyDefaultCampaign)
+
   const activeSessionForDM = useQuery(
     api.liveSessions.getActiveSession,
     myCampaign ? { campaignId: myCampaign._id } : "skip"
   )
   const anyActiveSession = useQuery(api.liveSessions.getAnyActiveSession)
 
-  const isDM = myCampaign !== null && myCampaign !== undefined
+  // Player: check if they've joined the active session
+  const myPartyMember = useQuery(
+    api.liveSessions.getMyPartyMember,
+    myCampaign === null && anyActiveSession ? { sessionId: anyActiveSession._id } : "skip"
+  )
 
-  // Loading state
+  const isDM = !!myCampaign
+
   if (myCampaign === undefined) {
     return (
       <AppShell>
@@ -467,7 +966,6 @@ export default function SessionPage() {
     <AppShell>
       <div className="p-4 sm:p-6 max-w-3xl mx-auto">
         {isDM ? (
-          // DM path
           activeSessionForDM === undefined ? (
             <div className="animate-pulse rounded-xl h-48" style={{ background: "var(--scene-surface)" }} />
           ) : activeSessionForDM ? (
@@ -479,13 +977,20 @@ export default function SessionPage() {
           ) : (
             <DMReadyView campaignId={myCampaign._id} />
           )
-        ) : (
-          // Player path
-          anyActiveSession ? (
-            <ReceiverView sessionId={anyActiveSession._id} campaignId={anyActiveSession.campaignId} />
+        ) : anyActiveSession ? (
+          myPartyMember === undefined ? (
+            <div className="animate-pulse rounded-xl h-48" style={{ background: "var(--scene-surface)" }} />
+          ) : myPartyMember ? (
+            <ReceiverView
+              sessionId={anyActiveSession._id}
+              campaignId={anyActiveSession.campaignId}
+              myMember={myPartyMember as MyMember}
+            />
           ) : (
-            <PlayerWaiting />
+            <JoinView sessionId={anyActiveSession._id} />
           )
+        ) : (
+          <PlayerWaiting />
         )}
       </div>
     </AppShell>

@@ -205,6 +205,24 @@ export const update = mutation({
   },
 })
 
+export const updateHp = mutation({
+  args: {
+    id: v.id("characters"),
+    delta: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const character = await ctx.db.get(args.id)
+    if (!character || character.userId !== identity.tokenIdentifier) throw new Error("Character not found")
+    const newCurrent = Math.max(0, Math.min(character.hitPoints.max, character.hitPoints.current + args.delta))
+    await ctx.db.patch(args.id, {
+      hitPoints: { ...character.hitPoints, current: newCurrent },
+      updatedAt: Date.now(),
+    })
+  },
+})
+
 export const remove = mutation({
   args: { id: v.id("characters") },
   handler: async (ctx, args) => {

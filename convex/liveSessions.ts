@@ -157,6 +157,103 @@ export const activateScene = mutation({
   },
 })
 
+export const getMyPartyMember = query({
+  args: { sessionId: v.id("partySessions") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const member = await ctx.db
+      .query("partyMembers")
+      .withIndex("by_sessionId_and_userId", (q) =>
+        q.eq("sessionId", args.sessionId).eq("userId", identity.tokenIdentifier)
+      )
+      .first()
+
+    if (!member) return null
+    const character = await ctx.db.get(member.characterId)
+    return { ...member, character }
+  },
+})
+
+export const getPartyMembers = query({
+  args: { sessionId: v.id("partySessions") },
+  handler: async (ctx, args) => {
+    const members = await ctx.db
+      .query("partyMembers")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .take(20)
+
+    return await Promise.all(
+      members.map(async (member) => {
+        const character = await ctx.db.get(member.characterId)
+        return { ...member, character }
+      })
+    )
+  },
+})
+
+export const joinSession = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    characterId: v.id("characters"),
+  },
+  handler: async (ctx, args): Promise<Id<"partyMembers">> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const session = await ctx.db.get(args.sessionId)
+    if (!session || !session.isActive) throw new Error("Session not active")
+
+    const existing = await ctx.db
+      .query("partyMembers")
+      .withIndex("by_sessionId_and_userId", (q) =>
+        q.eq("sessionId", args.sessionId).eq("userId", identity.tokenIdentifier)
+      )
+      .first()
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { characterId: args.characterId })
+      return existing._id
+    }
+
+    return await ctx.db.insert("partyMembers", {
+      sessionId: args.sessionId,
+      campaignId: session.campaignId,
+      userId: identity.tokenIdentifier,
+      characterId: args.characterId,
+      joinedAt: Date.now(),
+      conditions: [],
+    })
+  },
+})
+
+export const toggleCondition = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    condition: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const member = await ctx.db
+      .query("partyMembers")
+      .withIndex("by_sessionId_and_userId", (q) =>
+        q.eq("sessionId", args.sessionId).eq("userId", identity.tokenIdentifier)
+      )
+      .first()
+
+    if (!member) throw new Error("Not in this session")
+
+    const conditions = member.conditions.includes(args.condition)
+      ? member.conditions.filter((c) => c !== args.condition)
+      : [...member.conditions, args.condition]
+
+    await ctx.db.patch(member._id, { conditions })
+  },
+})
+
 export const broadcastReveal = mutation({
   args: {
     sessionId: v.id("partySessions"),
