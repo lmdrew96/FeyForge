@@ -1,41 +1,67 @@
-"use client"
-
 import { AppShell } from "@/components/app-shell"
-import { CampaignSelector } from "@/components/dashboard/campaign-selector"
-import { QuickStats } from "@/components/dashboard/quick-stats"
-import { RecentSessions } from "@/components/dashboard/recent-sessions"
-import { QuickActions } from "@/components/dashboard/quick-actions"
-import { AIAssistantWidget } from "@/components/dashboard/ai-assistant-widget"
+import Link from "next/link"
+import { Sparkles, UserSquare2, Swords } from "lucide-react"
 
 export default function DashboardPage() {
   return (
-    <AppShell pageTitle="Dashboard">
-      {/* Dashboard Content */}
-      <div className="p-3 sm:p-4 lg:p-6 w-full max-w-full overflow-x-hidden">
-        <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 w-full">
-          {/* Mobile Campaign Selector */}
-          <div className="lg:hidden">
-            <CampaignSelector />
-          </div>
+    <AppShell>
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1
+            className="text-3xl font-bold mb-2"
+            style={{ fontFamily: "var(--font-display)", color: "var(--scene-accent)" }}
+          >
+            Welcome to FeyForge
+          </h1>
+          <p style={{ color: "var(--scene-text-muted)" }}>
+            Your campaign awaits. The DM sets the scene — the table comes alive.
+          </p>
+        </div>
 
-          {/* Quick Stats */}
-          <section className="w-full">
-            <QuickStats />
-          </section>
-
-          {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 w-full">
-            {/* Recent Sessions - 2/3 width on desktop */}
-            <div className="lg:col-span-2 w-full min-w-0">
-              <RecentSessions />
-            </div>
-
-            {/* Quick Actions + AI Widget - 1/3 width on desktop */}
-            <div className="space-y-4 sm:space-y-6 w-full min-w-0">
-              <QuickActions />
-              <AIAssistantWidget />
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            {
+              href: "/session",
+              icon: Sparkles,
+              label: "Live Session",
+              desc: "Join or start a session",
+            },
+            {
+              href: "/characters",
+              icon: UserSquare2,
+              label: "Characters",
+              desc: "Your roster",
+            },
+            {
+              href: "/dm",
+              icon: Swords,
+              label: "DM Tools",
+              desc: "Conductor's panel",
+            },
+          ].map(({ href, icon: Icon, label, desc }) => (
+            <Link
+              key={href}
+              href={href}
+              className="rounded-lg p-5 flex flex-col gap-3 hover:opacity-90 transition-opacity"
+              style={{
+                background: "var(--scene-surface)",
+                border: "1px solid var(--scene-border)",
+              }}
+            >
+              <Icon className="w-6 h-6" style={{ color: "var(--scene-accent)" }} />
+              <div>
+                <div
+                  className="font-semibold"
+                  style={{ color: "var(--scene-text-primary)" }}
+                >
+                  {label}
+                </div>
+                <div className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                  {desc}
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </AppShell>

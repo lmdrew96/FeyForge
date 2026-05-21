@@ -5,7 +5,6 @@ import { api } from "@/convex/_generated/api"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { useNPCStore } from "@/lib/npc-store"
 import { useSessionStore } from "@/lib/session-store"
-import { useCharacterStore } from "@/lib/feyforge-character-store"
 import { useWorldStore } from "@/lib/world-store"
 
 export function useActiveCampaignId() {
@@ -35,12 +34,6 @@ export function useCampaignPlotThreads() {
   const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
   const allPlotThreads = useSessionStore((s) => s.plotThreads)
   return allPlotThreads.filter((thread) => thread.campaignId === activeCampaignId)
-}
-
-export function useCampaignCharacters() {
-  const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
-  const allCharacters = useCharacterStore((s) => s.characters)
-  return allCharacters.filter((char) => char.campaignId === activeCampaignId)
 }
 
 export function useCampaignLocations() {

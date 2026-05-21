@@ -1,17 +1,10 @@
 import Link from "next/link"
 import { ArrowLeft, ScrollText } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FloatingParticles } from "@/components/floating-particles"
-
 export default function TermsPage() {
   return (
-    <div className="min-h-screen w-full bg-background relative overflow-hidden">
-      {/* Particles Background */}
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <FloatingParticles />
-      </div>
-
-      <div className="relative z-10 max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen w-full bg-background">
+      <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
         {/* Back Link */}
         <Link
           href="/"

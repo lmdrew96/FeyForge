@@ -1,21 +1,16 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
-import { Cinzel, Cinzel_Decorative } from "next/font/google"
+import { Geist, Geist_Mono, Cinzel, Cinzel_Decorative } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
-import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProvider } from "@clerk/nextjs"
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider"
 import { DataLoader } from "@/components/providers/data-loader"
 import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
-const cinzel = Cinzel({
-  subsets: ["latin"],
-  variable: "--font-cinzel",
-})
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
+const cinzel = Cinzel({ subsets: ["latin"], variable: "--font-cinzel" })
 const cinzelDecorative = Cinzel_Decorative({
   subsets: ["latin"],
   weight: ["400", "700", "900"],
@@ -23,41 +18,27 @@ const cinzelDecorative = Cinzel_Decorative({
 })
 
 export const metadata: Metadata = {
-  title: "FeyForge - D&D Campaign Manager",
-  description: "Forge your heroes in the enchanted realm of FeyForge",
-  generator: "v0.app",
+  title: "FeyForge",
+  description: "A live D&D companion where the DM conducts the session.",
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F5F5DC" },
-    { media: "(prefers-color-scheme: dark)", color: "#0D1F0D" },
-  ],
   width: "device-width",
   initialScale: 1,
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${cinzel.variable} ${cinzelDecorative.variable} font-sans antialiased`}
+        className={`${geist.variable} ${geistMono.variable} ${cinzel.variable} ${cinzelDecorative.variable} antialiased`}
+        /* data-scene is set here — Phase 3 will drive this from Convex */
+        data-scene=""
       >
         <ClerkProvider>
           <ConvexClientProvider>
             <DataLoader />
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="dark"
-              enableSystem
-              disableTransitionOnChange
-            >
-              {children}
-            </ThemeProvider>
+            {children}
             <Toaster richColors position="top-center" />
           </ConvexClientProvider>
         </ClerkProvider>

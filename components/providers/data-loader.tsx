@@ -9,14 +9,11 @@ import { useNPCStore } from "@/lib/npc-store"
 import { useSessionStore } from "@/lib/session-store"
 import { useCombatStore } from "@/lib/combat-store"
 import { useDMAssistantStore } from "@/lib/dm-assistant-store"
-import { useCharacterStore } from "@/lib/feyforge-character-store"
 import { useWorldStore } from "@/lib/world-store"
-import { calculateAllStats } from "@/lib/character/calculations"
 import type { NPC } from "@/lib/npc-store"
 import type { MapLocation } from "@/lib/world-store"
 import type { SavedEncounter, Combatant } from "@/lib/combat-store"
 import type { Conversation, Message } from "@/lib/dm-assistant-store"
-import type { Character, CharacterProperty } from "@/lib/character/types"
 
 // ── Transform helpers ─────────────────────────────────────────────────────────
 
@@ -115,72 +112,6 @@ function toConversation(doc: Doc<"dmConversations">): Conversation {
   }
 }
 
-function toCharacter(
-  doc: Doc<"characters">,
-  properties: Doc<"characterProperties">[]
-): Character {
-  const charProperties = properties
-    .filter((p) => p.characterId === doc._id)
-    .map((p) => p.data as unknown as CharacterProperty)
-
-  return {
-    id: doc._id as unknown as string,
-    campaignId: doc.campaignId ? (doc.campaignId as unknown as string) : undefined,
-    name: doc.name,
-    race: doc.race,
-    subrace: doc.subrace,
-    class: doc.characterClass,
-    subclass: doc.subclass,
-    level: doc.level,
-    experiencePoints: doc.experiencePoints,
-    background: doc.background,
-    alignment: doc.alignment as Character["alignment"],
-    playerName: doc.playerName,
-    age: doc.age,
-    height: doc.height,
-    weight: doc.weight,
-    eyes: doc.eyes,
-    skin: doc.skin,
-    hair: doc.hair,
-    size: doc.size as Character["size"],
-    baseAbilities: doc.baseAbilities as Character["baseAbilities"],
-    racialBonuses: doc.racialBonuses as Record<string, number> | undefined,
-    hitPoints: doc.hitPoints as Character["hitPoints"],
-    hitDice: doc.hitDice as Character["hitDice"],
-    deathSaves: doc.deathSaves as Character["deathSaves"],
-    speed: doc.speed,
-    inspiration: doc.inspiration,
-    savingThrowProficiencies: doc.savingThrowProficiencies as Character["savingThrowProficiencies"],
-    skillProficiencies: doc.skillProficiencies as Character["skillProficiencies"],
-    skillExpertise: doc.skillExpertise as Character["skillExpertise"],
-    armorProficiencies: doc.armorProficiencies as string[],
-    weaponProficiencies: doc.weaponProficiencies as string[],
-    toolProficiencies: doc.toolProficiencies as string[],
-    languages: doc.languages as string[],
-    currency: doc.currency as Character["currency"],
-    spellcasting: doc.spellcasting
-      ? {
-          ability: doc.spellcasting.ability as Character["spellcasting"] extends { ability: infer A } ? A : never,
-          spellSaveDC: doc.spellcasting.spellSaveDC,
-          spellAttackBonus: doc.spellcasting.spellAttackBonus,
-          spellSlots: doc.spellcasting.spellSlots,
-          cantripsKnown: doc.spellcasting.cantripsKnown,
-          spellsKnown: doc.spellcasting.spellsKnown,
-          spellsPrepared: doc.spellcasting.spellsPrepared,
-        }
-      : undefined,
-    personalityTraits: doc.personalityTraits,
-    ideals: doc.ideals,
-    bonds: doc.bonds,
-    flaws: doc.flaws,
-    backstory: doc.backstory,
-    imageUrl: doc.imageUrl,
-    properties: charProperties,
-    createdAt: new Date(doc._creationTime),
-    updatedAt: new Date(doc.updatedAt),
-  }
-}
-
 function toLocation(doc: Doc<"mapLocations">): MapLocation {
   return {
     id: doc._id as unknown as string,
@@ -208,8 +139,6 @@ export function DataLoader() {
   const convexPlotThreads = useQuery(api.sessions.listPlotThreads, skip)
   const convexEncounters = useQuery(api.encounters.list, skip)
   const convexConversations = useQuery(api.dmConversations.list, skip)
-  const convexCharacters = useQuery(api.characters.list, skip)
-  const convexProperties = useQuery(api.characters.listAllProperties, skip)
   const convexLocations = useQuery(api.world.list, skip)
 
   const setNPCs = useNPCStore((s) => s.setNPCs)
@@ -217,7 +146,6 @@ export function DataLoader() {
   const setPlotThreads = useSessionStore((s) => s.setPlotThreads)
   const setSavedEncounters = useCombatStore((s) => s.setSavedEncounters)
   const setConversations = useDMAssistantStore((s) => s.setConversations)
-  const setCharacters = useCharacterStore((s) => s.setCharacters)
   const setLocations = useWorldStore((s) => s.setLocations)
 
   useEffect(() => {
@@ -239,17 +167,6 @@ export function DataLoader() {
   useEffect(() => {
     if (convexConversations !== undefined) setConversations(convexConversations.map(toConversation))
   }, [convexConversations, setConversations])
-
-  useEffect(() => {
-    if (convexCharacters !== undefined && convexProperties !== undefined) {
-      const characters = convexCharacters.map((char) => toCharacter(char, convexProperties))
-      const calculatedStats: Record<string, ReturnType<typeof calculateAllStats>> = {}
-      for (const char of characters) {
-        calculatedStats[char.id] = calculateAllStats(char)
-      }
-      setCharacters(characters, calculatedStats)
-    }
-  }, [convexCharacters, convexProperties, setCharacters])
 
   useEffect(() => {
     if (convexLocations !== undefined) setLocations(convexLocations.map(toLocation))

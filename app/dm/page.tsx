@@ -1,0 +1,54 @@
+import { AppShell } from "@/components/app-shell"
+import Link from "next/link"
+import { Users, Map, Bot, ScrollText, Globe } from "lucide-react"
+
+const tools = [
+  { href: "/dm/npcs", icon: Users, label: "NPCs", desc: "Manage your NPC roster" },
+  { href: "/dm/scenes", icon: Map, label: "Scenes", desc: "Preview and switch scenes" },
+  { href: "/dm/assistant", icon: Bot, label: "AI Assistant", desc: "Claude-powered DM help" },
+  { href: "/dm/wiki", icon: ScrollText, label: "Campaign Wiki", desc: "World lore and notes" },
+  { href: "/dm/world-map", icon: Globe, label: "World Map", desc: "Locations and regions" },
+]
+
+export default function DMPage() {
+  return (
+    <AppShell>
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1
+            className="text-2xl font-bold mb-2"
+            style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+          >
+            DM Tools
+          </h1>
+          <p style={{ color: "var(--scene-text-muted)" }}>
+            The conductor&apos;s panel.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {tools.map(({ href, icon: Icon, label, desc }) => (
+            <Link
+              key={href}
+              href={href}
+              className="rounded-lg p-5 flex items-start gap-4 hover:opacity-90 transition-opacity"
+              style={{
+                background: "var(--scene-surface)",
+                border: "1px solid var(--scene-border)",
+              }}
+            >
+              <Icon className="w-5 h-5 mt-0.5 shrink-0" style={{ color: "var(--scene-accent)" }} />
+              <div>
+                <div className="font-medium" style={{ color: "var(--scene-text-primary)" }}>
+                  {label}
+                </div>
+                <div className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                  {desc}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </AppShell>
+  )
+}

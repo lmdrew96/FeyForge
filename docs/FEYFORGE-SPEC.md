@@ -1,287 +1,426 @@
-# FeyForge — Overhaul Spec
-**Version:** 1.0  
+# FeyForge — Product Spec v2.0
 **Date:** 2026-05-20  
 **Status:** Active  
-**Deployed:** feyforge.adhdesigns.dev
+**Deployed:** feyforge.adhdesigns.dev  
+**Authors:** Nae + Ashley (brainstorm), Nae (spec)
 
 ---
 
-## Vision
+## The Idea in One Sentence
 
-FeyForge is a D&D 5e campaign companion for the whole table — not just the DM, not just one player. The goal is to be the layer that sits *on top of* a session and makes the table feel connected: shared party state, live inventory, collaborative notes.
-
-D&D Beyond owns character sheets. Fighting them head-on is a losing battle. FeyForge wins by doing what D&D Beyond doesn't: **the table layer** — shared, real-time, collaborative.
+FeyForge is a live D&D companion where the DM conducts the session — broadcasting scenes, NPCs, and narrative moments to players in real time — and the whole table's UI shifts to reflect the world they're in.
 
 ---
 
-## Target Users
+## What This Is Not
 
-- **DMs** who want a single place to run their session: NPC notes, encounter tracker, loot distribution, world wiki
-- **Players** who want to see the party at a glance: everyone's HP, conditions, shared inventory, session notes
-- **Whole tables** that play together online or in-person and want a shared digital surface without paying for a full VTT
-
----
-
-## What Already Exists
-
-The FeyForge codebase has a solid foundation. These features are scaffolded and partially or fully implemented:
-
-| Feature | Route | Status |
-|---|---|---|
-| Character sheets | `/characters`, `/create-character` | Built |
-| Combat tracker | `/combat` | Built |
-| DM Assistant (Claude AI) | `/dm-assistant` | Built — markdown broken |
-| Session tracker | `/sessions` | Built |
-| Codex (Open5e API) | `/codex` | Built |
-| NPC Generator | `/npcs` | Built |
-| Dice Roller | `/dice` | Built |
-| World Map | `/world-map` | Built |
-| Campaign Wiki | `/wiki` | Built |
-| Auth (Google + credentials) | `/login`, `/signup` | Built |
-| Dashboard | `/dashboard` | Built — broken nav |
-
-**Stack:** Next.js 16 App Router · TypeScript · Convex · Clerk · Zustand · Tailwind v4 · shadcn/ui · Anthropic Claude API (AI SDK) · Vercel
+- Not a character sheet replacement (D&D Beyond owns that, we don't fight it)
+- Not a VTT (no battle grid, no token movement)
+- Not a static campaign manager (the current FeyForge — that's dead)
 
 ---
 
-## Phased Roadmap
+## What This Is
 
-### Phase 1 — Quick Wins (< 1 hour)
-The existing app has user-facing bugs that undermine first impressions. Fix these before anything else.
+A **live session layer** for the whole table. The DM is the narrator and conductor. Players are active participants in a shared, responsive space. The app itself is alive — it looks, feels, and breathes the current scene.
 
-1. **Fix Dashboard nav link** — `app-shell.tsx:29`, `"/"` → `"/dashboard"`
-2. **Update Claude model ID** — `lib/ai.ts` → `claude-haiku-4-5-20251001`
-3. **Remove `images.unoptimized: true`** — `next.config.mjs`
-
----
-
-### Phase 2 — Polish (1–2 days)
-4. **DM Assistant markdown rendering** — add `react-markdown` + `rehype-sanitize`, build as shared `<MarkdownRenderer />` component (sessions, NPCs, characters also return markdown)
-5. **Auth middleware** — add Clerk `middleware.ts` at root; redirect unauthenticated users on protected routes to `/login`
-6. **Character store consolidation** — merge three overlapping Zustand stores (`character-store.ts`, `feyforge-character-store.ts`, `character-builder-store.ts`) into one canonical store; wizard state scoped to `/create-character` only
+The core loop:
+1. **DM sets the scene** → the UI transforms for every player
+2. **DM reveals NPCs, locations, lore** → players receive it as a narrative event
+3. **Everyone plays together** in an interface that responds to the story
 
 ---
 
-### Phase 3 — The Party Layer (the differentiator)
-This is what makes FeyForge worth shipping publicly. See full spec below.
+## Core Philosophy: The UI Is the World
+
+The current FeyForge is static dark green forever. It has no relationship to the story being told.
+
+In the new FeyForge, **CSS variables are a narrative tool.** When the DM selects or switches a scene, the entire interface transforms — colors, shadows, glows, textures — for every connected player simultaneously. The dungeon *feels* like a dungeon. The tavern *feels* like a tavern. The transition between them is a story beat.
+
+This is the whimsy. This is the variety. This is the differentiator.
 
 ---
 
-### Phase 4 — Infrastructure (later)
-- Vitest unit tests for `lib/character/` math
-- FeyForge MCP server (read access to campaign/character/session data)
-- CI/CD pipeline (GitHub Actions)
+## What's Kept From the Current Codebase
+
+**Keep everything:**
+- Neon Postgres DB + Drizzle ORM schema (well-designed, don't touch)
+- All server actions
+- All API routes
+- NextAuth v5 (auth is solid)
+- `lib/` utilities (character math, AI client)
+- Deployment config, env vars
+
+**Delete everything:**
+- `components/` — all of it
+- All `page.tsx` and `layout.tsx` files
+- `app/globals.css`
+- The three tangled character Zustand stores
+
+This is a frontend gut, not a rebuild. The backend is done.
 
 ---
 
-## The Party Layer — Full Spec
+## Tech Stack (unchanged)
+
+Next.js 16 App Router · TypeScript · Neon Postgres + Drizzle ORM · NextAuth v5 · Zustand · Tailwind v4 · shadcn/ui · Anthropic Claude API · Vercel
+
+---
+
+## The Scene System
 
 ### Overview
 
-The Party Layer is a set of collaborative, real-time surfaces that connect everyone at the table. It lives at `/party` and is accessible to both DMs and players in a campaign.
+Scenes are the heartbeat of FeyForge. Each scene is a named environment with a color palette that drives the entire UI through CSS custom properties.
 
-The core concept: **the DM is the source of truth, players are subscribers.** The DM manages encounters and distributes loot; players see their character's state and the party's state together.
+When the DM activates a scene, every connected player's interface transforms in real time.
 
----
+### CSS Variable Architecture
 
-### Data Model
+Each scene defines a token set:
 
-The existing schema is already multi-user aware (campaigns, characters, sessions are all user-scoped). The Party Layer needs a few additions:
-
-#### `party_sessions` table
-A live session that all party members join. Distinct from the session log (`sessions` table which is historical).
-
-```ts
-partySession: {
-  id: uuid
-  campaignId: uuid (FK → campaigns)
-  dmUserId: text
-  status: 'active' | 'ended'
-  startedAt: timestamp
-  endedAt: timestamp | null
-}
+```css
+/* Example: Dungeon scene */
+--scene-bg: #0f0e13;
+--scene-surface: #1a1825;
+--scene-border: #2d2a3e;
+--scene-accent: #4a90d9;        /* cold blue */
+--scene-accent-glow: rgba(74, 144, 217, 0.3);
+--scene-text-primary: #e8e6f0;
+--scene-text-muted: #6b6882;
+--scene-highlight: #7b5ea7;     /* deep purple */
+--scene-shadow: rgba(0, 0, 0, 0.6);
+--scene-particle: #4a90d9;
 ```
 
-#### `party_members` table
-Links a user + their character to a live party session.
+Every UI element — sidebar, cards, nav, modals, badges, glows — uses these variables. No hardcoded colors anywhere in the component layer.
 
+### Prebuilt Scenes (v1)
+
+| Scene | Vibe | Primary | Accent | Mood |
+|---|---|---|---|---|
+| **Dungeon** | Cold, oppressive, ancient | Deep slate | Ice blue | Dread |
+| **Tavern** | Warm, chaotic, alive | Amber/oak | Firelight orange | Cozy |
+| **Forest** | Dappled, breathing, alive | Warm sage | Gold-green | Wonder |
+| **Underdark** | Void, alien, bioluminescent | Near-black | Cyan/violet | Alien |
+| **Castle** | Imposing, regal, cold stone | Stone grey | Royal gold | Grandeur |
+| **Coastal** | Open, salt-air, vast | Seafoam | Bright cerulean | Freedom |
+| **Infernal** | Scorched, suffocating, red | Char black | Deep crimson | Danger |
+| **Celestial** | Radiant, impossibly bright | Pearl white | Warm gold | Awe |
+| **Shadowfell** | Ashen, grief-heavy, still | Ash grey | Muted violet | Melancholy |
+| **Feywild** | Saturated, shifting, alive | Deep jewel tones | Iridescent | Euphoria |
+
+### Custom Scene Builder
+
+DMs can create named custom scenes by defining:
+- Scene name
+- 4 core palette values (background, surface, accent, highlight)
+- The UI previews the scene live as they adjust
+- Saved to their campaign, shareable with other DMs
+
+Custom scenes stored in `campaign_scenes` table:
 ```ts
-partyMember: {
+campaignScene: {
   id: uuid
-  partySessionId: uuid (FK → party_sessions)
-  userId: text
-  characterId: uuid (FK → characters)
-  joinedAt: timestamp
-}
-```
-
-#### `party_inventory` table
-Shared loot pool for the party. Items can be unassigned (in the "party pool") or assigned to a character.
-
-```ts
-partyInventoryItem: {
-  id: uuid
-  partySessionId: uuid (FK → party_sessions)
+  campaignId: uuid
   name: text
-  description: text | null
-  quantity: integer
-  assignedToCharacterId: uuid | null  -- null = party pool
-  addedByUserId: text                 -- DM who added it
-  addedAt: timestamp
+  palette: jsonb  // the full CSS variable map
+  isPrebuilt: boolean
+  createdBy: text (userId)
 }
 ```
 
-#### `session_notes` (extend existing or new table)
-Shared notes visible to DM and all players. Both sides can write.
+### Scene Transitions
 
+Scene switches are not instant — they animate. A 600ms crossfade via CSS transitions on all CSS variables, creating a felt shift rather than a hard cut. The transition is itself a story beat.
+
+---
+
+## Character Creation — Branched Flow
+
+Character creation offers three entry points. The DM or player chooses their intent first.
+
+### The Three Paths
+
+**1. Guided Creation**
+For new players or anyone who wants handholding. Step-by-step wizard with contextual explanations. Each choice comes with flavor text and what-it-means explanations. Longer, warmer, more narrative. "A Fighter is someone who has trained their body into a weapon — maybe you're a soldier, a gladiator, or someone who learned to fight to survive."
+
+**2. Quick Roll**
+For chaos goblins who just want to play. Hit one button, get a randomly generated character with stats rolled using standard method (4d6 drop lowest), random race/class combo weighted toward playable builds, auto-assigned name from a curated list. Minimal decisions. Out in under 60 seconds. Can customize after.
+
+**3. Normal Creation**
+The full builder for experienced players who know what they want. No hand-holding, all options available, stat entry (standard array, point buy, or manual roll), full spell selection, equipment choices. Compact, efficient, assumes D&D knowledge.
+
+### Entry Screen
+
+The character creation landing is not a form. It's a **choice card UI** — three visually distinct cards, each with an evocative description and a clear label. Whimsy here: the cards could subtly animate, the Guided card warmer/softer, the Quick Roll card chaotic/energetic, the Normal card clean/precise.
+
+---
+
+## Live Session — The DM Broadcast Layer
+
+### Overview
+
+This is the core of what makes FeyForge new. The DM has a **conductor's interface** — a set of tools for controlling what players see and feel. Players have a **receiver interface** — they experience what the DM reveals, when the DM reveals it.
+
+### DM Interface — Session Control Panel
+
+**Scene Controls**
+- Scene selector (grid of prebuilt + custom scenes, visual swatches)
+- "Activate Scene" → pushes to all connected players instantly
+- Transition preview before activating
+
+**Audio Panel** *(local only — DM's device)*
+- Ambience tracks (Forest Rain, Tavern Murmur, Dungeon Drips, Combat Drums, etc.)
+- SFX buttons (Door Creak, Thunder, Sword Clash, Crowd Gasp, etc.)
+- Master volume + per-category sliders
+- DM controls their own audio; players manage theirs independently
+
+**NPC Broadcast**
+- DM selects an NPC from their campaign roster
+- Chooses what to reveal: name, portrait, description, quote — individually toggleable
+- Hits "Reveal to Party" → NPC card appears on every player's screen
+
+**Location Broadcast**
+- Similar to NPC: DM selects a location, toggles what to reveal, pushes to players
+
+**Lore Broadcast**
+- Push arbitrary text/images as "story drops" — journal entries, letters, prophecies, maps
+
+### Player Interface — The Receiver
+
+**Persistent Party Rail**
+- Always-visible sidebar or bottom rail showing all party members: avatar, HP bar, conditions
+- Glanceable — designed for quick eyes-up checks
+
+**Notification System**
+- When the DM pushes something new, a card appears with:
+  - Flashing badge (animated pulse)
+  - Edge glow in the current scene's accent color
+  - Content type label (NPC / Location / Lore)
+- Tapping/clicking opens a full modal with the revealed content
+- Modal inherits the scene palette
+- Notifications stack if multiple arrive in quick succession
+
+**My Character**
+- Quick-access panel: HP, spell slots, conditions, hit dice
+- Edit HP inline (self-reported damage/healing)
+
+**Party Inventory**
+- Shared loot pool visible to all players
+- DM assigns items from pool to characters
+
+**Session Notes**
+- Shared notepad, both DM and players can write
+- DM notes visually distinct from player notes
+
+---
+
+## Real-Time Architecture
+
+### Approach
+
+**v1: Polling (5-second interval)**
+Simple, reliable, no added infrastructure. For tabletop pacing (turns take minutes) this is completely adequate. Players won't notice a 5-second lag on an NPC reveal.
+
+**v2: Server-Sent Events (SSE)**
+Upgrade to true push once the data model is proven. Next.js Route Handlers support SSE natively — no new services needed.
+
+**Explicitly out of scope:** WebSockets, Pusher, Ably, Partykit, or any third-party real-time service. Keep the stack lean.
+
+### Data Flow
+
+```
+DM action (reveal NPC, switch scene, assign loot)
+  → POST /api/session/[action]
+  → Server action updates DB
+  → Next poll cycle picks it up for all connected players
+  → Player UI updates
+```
+
+### New DB Tables Needed
+
+**`party_sessions`** — a live session all members join
 ```ts
-sessionNote: {
-  id: uuid
-  partySessionId: uuid
-  authorUserId: text
-  authorRole: 'dm' | 'player'
-  content: text
-  createdAt: timestamp
+{
+  id, campaignId, dmUserId,
+  activeSenreId: uuid | null,  // current scene
+  status: 'active' | 'ended',
+  startedAt, endedAt
 }
+```
+
+**`party_members`** — links user + character to a live session
+```ts
+{ id, partySessionId, userId, characterId, joinedAt }
+```
+
+**`session_broadcasts`** — the DM's reveal queue
+```ts
+{
+  id, partySessionId,
+  type: 'npc' | 'location' | 'lore' | 'scene',
+  payload: jsonb,        // the revealed content
+  revealedAt: timestamp,
+  seenBy: text[]         // userIds who have opened it
+}
+```
+
+**`party_inventory`** — shared loot pool
+```ts
+{
+  id, partySessionId, name, description,
+  quantity, assignedToCharacterId: uuid | null,
+  addedByUserId, addedAt
+}
+```
+
+**`campaign_scenes`** — custom scene definitions
+```ts
+{ id, campaignId, name, palette: jsonb, isPrebuilt, createdBy }
 ```
 
 ---
 
-### Real-Time Strategy
+## Information Architecture
 
-Use **Convex** for all data — it replaces Neon Postgres + Drizzle ORM entirely. Convex's built-in reactivity means all party state (HP, conditions, inventory, notes) is live for all connected clients with no additional SSE or polling infrastructure needed.
+### Routes
 
-Pattern:
-- **DM actions** (HP changes, loot drop, condition update) → Convex mutation → all subscribed clients update automatically via Convex's real-time subscriptions
-- **Players** use `useQuery` hooks on mount → Convex pushes updates as they happen
+```
+/                        Landing (public, not "Forge Slumbers")
+/login
+/signup
+/forgot-password
 
-All tables in the Data Model section below are Convex documents. The Party Layer data model maps directly — `party_sessions`, `party_members`, `party_inventory`, `session_notes` are Convex tables.
+/dashboard               Campaign home — recent sessions, party status, quick actions
+/characters              Character roster
+/characters/[id]         Character sheet
+/characters/new          Branched creation flow (Guided / Quick Roll / Normal)
 
----
+/session                 Live session — DM conductor view OR player receiver view
+                         (same route, different UI based on role)
+/session/join/[code]     Player join flow
 
-### `/party` Route — DM View
+/dm                      DM-only tools hub
+/dm/npcs                 NPC roster + generator
+/dm/scenes               Scene manager (prebuilt + custom)
+/dm/assistant            DM Assistant (Claude AI)
+/dm/wiki                 Campaign wiki
+/dm/world-map            World map
 
-The DM sees the full party dashboard:
+/codex                   Open5e reference (spells, monsters, items)
+/dice                    Dice roller
+/settings
+/account
+```
 
-**Party Status Panel**
-- Each player's character: name, class, HP (current/max), conditions, concentration spells
-- Dead/unconscious characters highlighted
-- Click a character → HP adjustment modal (DM can update any player's HP during combat)
+### Role-Based UI
 
-**Shared Inventory**
-- Party loot pool: list of unassigned items
-- "Assign to player" action per item — opens a dropdown of party members
-- "Add loot" button — quick-add item by name, description, quantity
-- DM Assistant integration: "Generate loot for CR 5 encounter" → auto-populates items into the pool
-
-**Session Notes**
-- Shared notepad visible to all
-- DM notes render with a distinct visual treatment vs. player notes
-- No rich text for v1 — plain text only, markdown rendering via `<MarkdownRenderer />`
-
-**Party Controls**
-- "End Session" → marks party session as ended, prompts DM to add session summary to the session log
-- "Invite Players" → generates a join link (campaign join code or direct link)
-
----
-
-### `/party` Route — Player View
-
-Players see a focused, read-heavy view:
-
-**My Character Panel**
-- Own HP, conditions, spell slots, hit dice — pulled live from their character sheet
-- Quick HP self-report: "I took X damage" → updates their character, DM sees it in the party panel
-  - *(Note: DM can override — DM is source of truth)*
-
-**Party Panel**
-- All other party members: name, class, HP bar (visual), conditions
-- No editing other players' characters — read-only
-
-**My Inventory**
-- Items assigned to their character
-- Party pool: items not yet assigned, visible to all players
-
-**Session Notes**
-- Same shared notepad as DM view
-- Players can add notes (labeled with their name)
+The app detects whether the current user is the **DM** (campaign creator) or a **Player** for the active campaign. The nav, available actions, and session view differ accordingly. This is not a permissions system — it's a UI branching based on campaign role.
 
 ---
 
-### Join Flow
+## Design Direction
 
-1. DM creates a campaign → gets a campaign code
-2. DM starts a party session from `/party` → session goes live
-3. Players navigate to `/party/join/[campaignCode]` → linked to their character in that campaign
-4. All connected members see the shared state
+### Philosophy
 
-For v1: players must already have an account and a character in the campaign. Self-service character creation from the join flow is a v2 feature.
+The UI is the world. Every design decision should serve that principle. The app should feel *alive* — responsive to the story, not a static tool that sits next to it.
 
----
+### Anti-Patterns (current FeyForge)
+- Same value/opacity everywhere — no contrast hierarchy
+- "Fantasy" theming as decoration only (small caps + forest green)
+- Eye goes nowhere because nothing has priority
+- Glassmorphism without purpose — just vibes, no function
 
-### Inventory Management — Detailed Flow
+### Target Aesthetic
 
-This is the most complex collaborative feature. The flow:
+**Base state (no active scene):** Dark, atmospheric, restrained. Establishes that something is *about to happen*. The neutral state is expectant, not dead.
 
-1. **DM adds loot** (manually or via DM Assistant generation) → item appears in party pool
-2. **Anyone can see** the party pool in real time
-3. **DM assigns** an item to a player → item moves from pool to that player's inventory
-4. **Player receives** notification (visual indicator, not a push notification for v1)
-5. **Player can "drop"** an item back to the pool (with DM confirmation for v1)
+**Active scene:** Fully transformed. Rich, committed, immersive. Not "tinted dark mode" — actually different.
 
-Item schema is intentionally minimal for v1 — name, description, quantity. No weight, no attunement, no spell requirements. Those are v2 additions once the core flow is validated.
+**Whimsy:** In the transitions, the interactions, the character creation cards, the notification pulses. Not in persistent decoration.
 
----
+**Typography:** Needs a display font with personality (not a system font) paired with a highly legible body font. The current small-caps all-caps SMALL CAPS thing is doing a lot of work and not earning it.
 
-### Acceptance Criteria — Party Layer v1
-
-- [ ] DM can start a party session from a campaign
-- [ ] Players can join a live party session via campaign code
-- [ ] All party members' HP and conditions are visible in real time (or near-real-time with polling)
-- [ ] DM can add items to the party pool
-- [ ] DM can assign items from the pool to a specific character
-- [ ] Both DM and players can add session notes, visible to all
-- [ ] DM can end the session; summary prompted for the session log
-- [ ] Party session state persists on refresh (no lost state on browser reload)
+**Contrast hierarchy:** Every screen should have one thing that's clearly the most important. Cards, panels, and content areas should have distinct visual weight.
 
 ---
 
-## Design Notes
+## Phased Build Plan
 
-FeyForge has an existing fey-themed aesthetic: glassmorphism, fey-cyan/gold/purple palette, floating particles, runic animations. The Party Layer should feel continuous with this — not a new design system bolted on.
+### Phase 1 — Frontend Gut + Design System
+- Delete all components, pages, CSS
+- Build scene token system (CSS vars) with the 10 prebuilt scenes
+- Build base layout (shell, nav, routing) that uses scene tokens throughout
+- No active session yet — static scene for dev purposes
 
-Specific considerations:
-- **HP bars** should use the existing color system — green → yellow → red as health drops
-- **Conditions** (Poisoned, Blinded, etc.) should use icon + label, not just text
-- **Inventory items** benefit from subtle hover states and a drag-to-assign interaction for DM (v2)
-- **Session notes** should feel like a shared parchment surface — consistent with the wiki aesthetic
+### Phase 2 — Character Creation
+- Build the three-path entry screen
+- Build Guided flow
+- Build Quick Roll (random gen)
+- Build Normal builder (port logic from old builder, new UI)
+
+### Phase 3 — Live Session Core
+- DM conductor view: scene switcher, NPC broadcast, location broadcast
+- Player receiver view: notification cards with pulse/glow, modal reveal
+- Polling-based real-time (5s interval)
+- Party rail (HP, conditions glanceable)
+
+### Phase 4 — Supporting Features
+- Shared inventory
+- Session notes (collaborative)
+- Audio panel (local, DM only)
+- Scene builder (custom palette UI)
+
+### Phase 5 — Polish + Ship
+- SSE upgrade (replace polling)
+- DM Assistant (markdown rendering fixed, wired to campaign context)
+- Codex, Dice Roller (quick ports, new UI)
+- Auth middleware
+- Performance pass (image optimization, etc.)
 
 ---
 
-## Out of Scope for v1
+## Out of Scope (v1)
 
-- Real-time dice rolling visible to the party (dice rolls stay local for now)
-- Initiative tracker in the party view (combat tracker at `/combat` handles this separately)
-- Character creation from the party join flow
-- Push notifications for loot assignments
-- Mobile-native PWA (web responsive is fine)
-- Per-item weight, attunement, or spell-requirement tracking
-- Multi-campaign switching within a party session
+- Battle grid / token movement (not a VTT)
+- Audio sync across clients (DM controls locally only)
+- Player-to-DM action queue
+- Mobile native app (responsive web only)
+- Per-item weight, attunement tracking
+- Multi-campaign active sessions simultaneously
+- Real-time dice rolls visible across the table
 
 ---
 
-## Patch References
+## Open Questions (to resolve with Ashley)
 
-All tracked in ChaosPatch under project `feyforge`:
+- What does the **landing page** look like? (currently "The Forge Slumbers" — this needs a real landing)
+- Any specific SFX/ambience tracks in mind, or use a library (Howler.js + royalty-free)?
+- Does the **world map** survive into the new UX or get cut for v1?
+- Are there any **specific scenes** beyond the 10 listed that feel essential?
+- What does the **player join flow** feel like? (Campaign code? QR code? Link?)
 
-| Patch | Priority |
-|---|---|
-| Fix Dashboard nav link | High |
-| DM Assistant markdown rendering | High |
-| Update Claude model ID | High |
-| Build the Party Layer | High |
-| Add auth middleware | Medium |
-| Consolidate character stores | Medium |
-| Remove images.unoptimized | Medium |
-| Add Vitest for lib/character/ | Low |
-| FeyForge MCP server | Low |
+---
+
+## Patch References (ChaosPatch: `feyforge`)
+
+| Patch | Priority | Phase |
+|---|---|---|
+| Frontend gut — delete components, pages, CSS | High | 1 |
+| Build scene token system (CSS vars, 10 prebuilt palettes) | High | 1 |
+| Build base layout shell with scene token integration | High | 1 |
+| Branched character creation (Guided / Quick Roll / Normal) | High | 2 |
+| DM conductor view — scene switcher + broadcast UI | High | 3 |
+| Player receiver view — notification cards + modal reveal | High | 3 |
+| Polling-based real-time (session_broadcasts table) | High | 3 |
+| Party rail (HP + conditions, always visible) | High | 3 |
+| Shared inventory | Medium | 4 |
+| Session notes (collaborative) | Medium | 4 |
+| Audio panel (local, DM only) | Medium | 4 |
+| Custom scene builder | Medium | 4 |
+| SSE upgrade (replace polling) | Medium | 5 |
+| DM Assistant — markdown fix + campaign context | Medium | 5 |
+| Add auth middleware | Medium | 5 |
+| FeyForge MCP server | Low | Post-launch |
+| Vitest for lib/character/ math | Low | Post-launch |

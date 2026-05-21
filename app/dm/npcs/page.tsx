@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/app-shell"
 
-export default function AccountPage() {
+export default function NPCsPage() {
   return (
     <AppShell>
       <div className="p-6 max-w-4xl mx-auto">
@@ -8,13 +8,15 @@ export default function AccountPage() {
           className="text-2xl font-bold mb-8"
           style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
         >
-          Account
+          NPCs
         </h1>
         <div
           className="rounded-lg p-8 text-center"
           style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
         >
-          <p style={{ color: "var(--scene-text-muted)" }}>Account settings coming soon.</p>
+          <p style={{ color: "var(--scene-text-muted)" }}>
+            NPC roster and broadcast panel coming in Phase 3.
+          </p>
         </div>
       </div>
     </AppShell>

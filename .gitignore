@@ -27,3 +27,11 @@ yarn-error.log*
 next-env.d.ts
 .DS_Store
 components/.DS_Store
+
+# IDE
+.idea/
+
+# Claude Code / agent tooling
+.claude/
+.agents/
+skills-lock.json

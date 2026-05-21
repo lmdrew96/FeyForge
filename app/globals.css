@@ -3,176 +3,337 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* FeyForge - Fey Wild Nature Magic Theme */
+/* ============================================================
+   FEYFORGE SCENE TOKEN SYSTEM
+   The UI is the world. Every color comes from scene tokens.
+   DM switches the scene → data-scene on <body> changes →
+   every CSS variable updates → 600ms crossfade across the UI.
+   ============================================================ */
+
+/* --- Base scene tokens: neutral dark (no active scene) --- */
 :root {
-  /* Core Colors */
-  --background: #f5f5dc; /* Cream/Parchment */
-  --foreground: #2d5016; /* Elven Green */
-
-  --card: #fafafa; /* Warm White */
-  --card-foreground: #2d5016;
-
-  --popover: #fafafa;
-  --popover-foreground: #2d5016;
-
-  --primary: #4a7c59; /* Forest Green */
-  --primary-foreground: #fafafa;
-
-  --secondary: #8ba888; /* Sage Green */
-  --secondary-foreground: #2d5016;
-
-  --muted: #e8e4d4;
-  --muted-foreground: #4a7c59;
-
-  --accent: #00ced1; /* Magical Cyan */
-  --accent-foreground: #0d1f0d;
-
-  --destructive: #dc2626;
-  --destructive-foreground: #fafafa;
-
-  --border: #8ba888;
-  --input: #e8e4d4;
-  --ring: #00ced1;
-
-  /* Use darker gold (#b8860b DarkGoldenrod) for light mode - WCAG AA compliant */
-  --fey-gold: #b8860b;
-  --fey-silver: #6b7280; /* Darker silver for light mode */
-  --fey-cyan: #0891b2; /* Darker cyan for light mode */
-  --fey-purple: #7c3aed; /* Darker purple for light mode */
-  --fey-indigo: #4b0082;
-  --fey-elven: #2d5016;
-  --fey-forest: #4a7c59;
-  --fey-sage: #8ba888;
+  --scene-bg:           #111118;
+  --scene-surface:      #1a1a26;
+  --scene-border:       #2a2a3e;
+  --scene-accent:       #7b68c8;
+  --scene-accent-glow:  rgba(123, 104, 200, 0.25);
+  --scene-text-primary: #e8e6f0;
+  --scene-text-muted:   #6b6882;
+  --scene-highlight:    #9b8ec4;
+  --scene-shadow:       rgba(0, 0, 0, 0.5);
+  --scene-particle:     #7b68c8;
 
   --radius: 0.75rem;
-
-  --sidebar: #f5f5dc;
-  --sidebar-foreground: #2d5016;
-  --sidebar-primary: #4a7c59;
-  --sidebar-primary-foreground: #fafafa;
-  --sidebar-accent: #8ba888;
-  --sidebar-accent-foreground: #2d5016;
-  --sidebar-border: #8ba888;
-  --sidebar-ring: #00ced1;
 }
 
-.dark {
-  --background: #0d1f0d; /* Midnight Green */
-  --foreground: #e8e8e8; /* Muted White */
+/* --- Dungeon: cold, oppressive, ancient --- */
+[data-scene="dungeon"] {
+  --scene-bg:           #0f0e13;
+  --scene-surface:      #1a1825;
+  --scene-border:       #2d2a3e;
+  --scene-accent:       #4a90d9;
+  --scene-accent-glow:  rgba(74, 144, 217, 0.3);
+  --scene-text-primary: #e8e6f0;
+  --scene-text-muted:   #6b6882;
+  --scene-highlight:    #7b5ea7;
+  --scene-shadow:       rgba(0, 0, 0, 0.6);
+  --scene-particle:     #4a90d9;
+}
 
-  --card: #1a2f1a; /* Deep Forest */
-  --card-foreground: #e8e8e8;
+/* --- Tavern: warm, chaotic, alive --- */
+[data-scene="tavern"] {
+  --scene-bg:           #1a1008;
+  --scene-surface:      #2a1c0f;
+  --scene-border:       #3d2a18;
+  --scene-accent:       #e8a045;
+  --scene-accent-glow:  rgba(232, 160, 69, 0.3);
+  --scene-text-primary: #f5e6c8;
+  --scene-text-muted:   #8a7055;
+  --scene-highlight:    #c4622d;
+  --scene-shadow:       rgba(0, 0, 0, 0.4);
+  --scene-particle:     #e8a045;
+}
 
-  --popover: #1a2f1a;
-  --popover-foreground: #e8e8e8;
+/* --- Forest: dappled, breathing, alive --- */
+[data-scene="forest"] {
+  --scene-bg:           #0d1a0e;
+  --scene-surface:      #152415;
+  --scene-border:       #253a25;
+  --scene-accent:       #7ab648;
+  --scene-accent-glow:  rgba(122, 182, 72, 0.25);
+  --scene-text-primary: #e8f0e0;
+  --scene-text-muted:   #6b7d5a;
+  --scene-highlight:    #c8a830;
+  --scene-shadow:       rgba(0, 0, 0, 0.45);
+  --scene-particle:     #7ab648;
+}
 
-  --primary: #4a7c59;
-  --primary-foreground: #e8e8e8;
+/* --- Underdark: void, alien, bioluminescent --- */
+[data-scene="underdark"] {
+  --scene-bg:           #050508;
+  --scene-surface:      #0d0d14;
+  --scene-border:       #1a1a28;
+  --scene-accent:       #00e5ff;
+  --scene-accent-glow:  rgba(0, 229, 255, 0.2);
+  --scene-text-primary: #d0d8f0;
+  --scene-text-muted:   #4a4a6a;
+  --scene-highlight:    #8b00ff;
+  --scene-shadow:       rgba(0, 0, 0, 0.8);
+  --scene-particle:     #00e5ff;
+}
 
-  --secondary: #3d5a3d; /* Moonlit Green */
-  --secondary-foreground: #e8e8e8;
+/* --- Castle: imposing, regal, cold stone --- */
+[data-scene="castle"] {
+  --scene-bg:           #12120f;
+  --scene-surface:      #1e1e1a;
+  --scene-border:       #303028;
+  --scene-accent:       #c8a830;
+  --scene-accent-glow:  rgba(200, 168, 48, 0.25);
+  --scene-text-primary: #e8e4d8;
+  --scene-text-muted:   #6e6a58;
+  --scene-highlight:    #8a7a40;
+  --scene-shadow:       rgba(0, 0, 0, 0.55);
+  --scene-particle:     #c8a830;
+}
 
-  --muted: #2a2a2a;
-  --muted-foreground: #c0c0c0;
+/* --- Coastal: open, salt-air, vast --- */
+[data-scene="coastal"] {
+  --scene-bg:           #080f18;
+  --scene-surface:      #0f1e2e;
+  --scene-border:       #1e3448;
+  --scene-accent:       #2ab8e0;
+  --scene-accent-glow:  rgba(42, 184, 224, 0.3);
+  --scene-text-primary: #ddeef8;
+  --scene-text-muted:   #5a8090;
+  --scene-highlight:    #8dd4c8;
+  --scene-shadow:       rgba(0, 0, 0, 0.45);
+  --scene-particle:     #2ab8e0;
+}
 
-  --accent: #00e5e8; /* Brighter Cyan for dark mode */
-  --accent-foreground: #0d1f0d;
+/* --- Infernal: scorched, suffocating, red --- */
+[data-scene="infernal"] {
+  --scene-bg:           #0a0503;
+  --scene-surface:      #180a06;
+  --scene-border:       #2e120a;
+  --scene-accent:       #c42020;
+  --scene-accent-glow:  rgba(196, 32, 32, 0.3);
+  --scene-text-primary: #f0d8d0;
+  --scene-text-muted:   #7a4838;
+  --scene-highlight:    #ff4500;
+  --scene-shadow:       rgba(0, 0, 0, 0.7);
+  --scene-particle:     #c42020;
+}
 
-  --destructive: #ef4444;
-  --destructive-foreground: #e8e8e8;
+/* --- Celestial: radiant, impossibly bright --- */
+[data-scene="celestial"] {
+  --scene-bg:           #f0ece0;
+  --scene-surface:      #faf8f0;
+  --scene-border:       #ddd8c0;
+  --scene-accent:       #b88a10;
+  --scene-accent-glow:  rgba(184, 138, 16, 0.25);
+  --scene-text-primary: #1a1408;
+  --scene-text-muted:   #6a6050;
+  --scene-highlight:    #d4a820;
+  --scene-shadow:       rgba(184, 138, 16, 0.15);
+  --scene-particle:     #d4a820;
+}
 
-  --border: #3d5a3d;
-  --input: #2a2a2a;
-  --ring: #00e5e8;
+/* --- Shadowfell: ashen, grief-heavy, still --- */
+[data-scene="shadowfell"] {
+  --scene-bg:           #0c0c0e;
+  --scene-surface:      #161618;
+  --scene-border:       #242428;
+  --scene-accent:       #9b88c0;
+  --scene-accent-glow:  rgba(155, 136, 192, 0.2);
+  --scene-text-primary: #c8c4d0;
+  --scene-text-muted:   #585568;
+  --scene-highlight:    #6a5a8a;
+  --scene-shadow:       rgba(0, 0, 0, 0.7);
+  --scene-particle:     #9b88c0;
+}
 
-  /* Keep bright colors for dark mode where they have good contrast */
-  --fey-gold: #ffd700;
-  --fey-silver: #c0c0c0;
-  --fey-cyan: #00e5e8;
-  --fey-purple: #a78bdb;
-  --fey-indigo: #6a4fc4;
-  --fey-elven: #4a7c59;
-  --fey-forest: #3d5a3d;
-  --fey-sage: #8ba888;
+/* --- Feywild: saturated, shifting, alive --- */
+[data-scene="feywild"] {
+  --scene-bg:           #0e0820;
+  --scene-surface:      #1a1038;
+  --scene-border:       #2e1e58;
+  --scene-accent:       #c848e0;
+  --scene-accent-glow:  rgba(200, 72, 224, 0.35);
+  --scene-text-primary: #f0e0ff;
+  --scene-text-muted:   #8058a0;
+  --scene-highlight:    #40c8d8;
+  --scene-shadow:       rgba(0, 0, 0, 0.5);
+  --scene-particle:     #c848e0;
+}
 
-  --sidebar: #1a2f1a;
-  --sidebar-foreground: #e8e8e8;
-  --sidebar-primary: #00e5e8;
-  --sidebar-primary-foreground: #0d1f0d;
-  --sidebar-accent: #3d5a3d;
-  --sidebar-accent-foreground: #e8e8e8;
-  --sidebar-border: #3d5a3d;
-  --sidebar-ring: #00e5e8;
+/* ============================================================
+   SHADCN / TAILWIND TOKEN BRIDGE
+   Scene tokens are the source of truth. Shadcn tokens alias
+   them so every shadcn component inherits the active scene.
+   ============================================================ */
+:root {
+  --background:              var(--scene-bg);
+  --foreground:              var(--scene-text-primary);
+
+  --card:                    var(--scene-surface);
+  --card-foreground:         var(--scene-text-primary);
+
+  --popover:                 var(--scene-surface);
+  --popover-foreground:      var(--scene-text-primary);
+
+  --primary:                 var(--scene-accent);
+  --primary-foreground:      var(--scene-bg);
+
+  --secondary:               var(--scene-surface);
+  --secondary-foreground:    var(--scene-text-muted);
+
+  --muted:                   var(--scene-surface);
+  --muted-foreground:        var(--scene-text-muted);
+
+  --accent:                  var(--scene-highlight);
+  --accent-foreground:       var(--scene-text-primary);
+
+  --destructive:             #ef4444;
+  --destructive-foreground:  #fafafa;
+
+  --border:                  var(--scene-border);
+  --input:                   var(--scene-surface);
+  --ring:                    var(--scene-accent);
+
+  --sidebar:                 var(--scene-surface);
+  --sidebar-foreground:      var(--scene-text-primary);
+  --sidebar-primary:         var(--scene-accent);
+  --sidebar-primary-foreground: var(--scene-bg);
+  --sidebar-accent:          var(--scene-highlight);
+  --sidebar-accent-foreground: var(--scene-text-primary);
+  --sidebar-border:          var(--scene-border);
+  --sidebar-ring:            var(--scene-accent);
 }
 
 @theme inline {
-  --font-sans: "Cinzel", "Geist", "Geist Fallback", serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback";
+  --font-sans:    "Geist", "Geist Fallback", sans-serif;
+  --font-mono:    "Geist Mono", "Geist Mono Fallback", monospace;
   --font-display: "Cinzel Decorative", "Cinzel", serif;
+  --font-cinzel:  "Cinzel", serif;
 
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
+  --color-background:         var(--background);
+  --color-foreground:         var(--foreground);
+  --color-card:               var(--card);
+  --color-card-foreground:    var(--card-foreground);
+  --color-popover:            var(--popover);
   --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
+  --color-primary:            var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
+  --color-secondary:          var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
+  --color-muted:              var(--muted);
+  --color-muted-foreground:   var(--muted-foreground);
+  --color-accent:             var(--accent);
+  --color-accent-foreground:  var(--accent-foreground);
+  --color-destructive:        var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+  --color-border:             var(--border);
+  --color-input:              var(--input);
+  --color-ring:               var(--ring);
 
-  /* FeyForge Custom Colors */
-  --color-fey-gold: var(--fey-gold);
-  --color-fey-silver: var(--fey-silver);
-  --color-fey-cyan: var(--fey-cyan);
-  --color-fey-purple: var(--fey-purple);
-  --color-fey-indigo: var(--fey-indigo);
-  --color-fey-elven: var(--fey-elven);
-  --color-fey-forest: var(--fey-forest);
-  --color-fey-sage: var(--fey-sage);
+  --color-scene-bg:           var(--scene-bg);
+  --color-scene-surface:      var(--scene-surface);
+  --color-scene-border:       var(--scene-border);
+  --color-scene-accent:       var(--scene-accent);
+  --color-scene-highlight:    var(--scene-highlight);
+  --color-scene-text-primary: var(--scene-text-primary);
+  --color-scene-text-muted:   var(--scene-text-muted);
+  --color-scene-particle:     var(--scene-particle);
+
+  --color-sidebar:            var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary:    var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:     var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border:     var(--sidebar-border);
+  --color-sidebar-ring:       var(--sidebar-ring);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ============================================================
+   BASE LAYER
+   ============================================================ */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  /* Prevent horizontal scrolling globally */
-  html,
-  body {
+
+  html, body {
     @apply overflow-x-hidden max-w-full;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+
+  /* Scene crossfade — 600ms transition on color-bearing properties */
+  *,
+  *::before,
+  *::after {
+    transition:
+      background-color 600ms ease,
+      color 600ms ease,
+      border-color 600ms ease,
+      box-shadow 600ms ease,
+      fill 600ms ease,
+      stroke 600ms ease;
+  }
+
+  /* Override for interactions — don't slow down hover/focus */
+  a, button, [role="button"] {
+    transition:
+      background-color 600ms ease,
+      color 600ms ease,
+      border-color 600ms ease,
+      box-shadow 600ms ease,
+      opacity 150ms ease,
+      transform 150ms ease;
   }
 }
 
-/* Floating Particles Animation */
+/* ============================================================
+   SCENE UTILITY CLASSES
+   ============================================================ */
+.scene-glow {
+  box-shadow: 0 0 12px var(--scene-accent-glow), 0 0 4px var(--scene-accent-glow);
+}
+
+.scene-border-glow {
+  border-color: var(--scene-accent);
+  box-shadow: 0 0 8px var(--scene-accent-glow);
+}
+
+.scene-surface {
+  background-color: var(--scene-surface);
+  border: 1px solid var(--scene-border);
+}
+
+.text-scene-accent {
+  color: var(--scene-accent);
+}
+
+.text-scene-muted {
+  color: var(--scene-text-muted);
+}
+
+/* ============================================================
+   PARTICLE ANIMATIONS
+   Used by floating particles in scene backgrounds.
+   Color is driven by --scene-particle.
+   ============================================================ */
 @keyframes float-particle {
-  0%,
-  100% {
+  0%, 100% {
     transform: translateY(0) translateX(0) scale(1);
     opacity: 0.3;
   }
@@ -191,8 +352,7 @@
 }
 
 @keyframes float-particle-slow {
-  0%,
-  100% {
+  0%, 100% {
     transform: translateY(0) translateX(0) rotate(0deg);
     opacity: 0.2;
   }
@@ -207,20 +367,29 @@
 }
 
 @keyframes pulse-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+  0%, 100% {
+    box-shadow: 0 0 5px var(--scene-accent-glow), 0 0 10px var(--scene-accent-glow);
     opacity: 0.4;
   }
   50% {
-    box-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+    box-shadow: 0 0 10px var(--scene-accent-glow), 0 0 20px var(--scene-accent-glow);
     opacity: 0.7;
+  }
+}
+
+@keyframes notification-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--scene-accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
   }
 }
 
 .particle {
   position: absolute;
   border-radius: 50%;
+  background-color: var(--scene-particle);
   pointer-events: none;
   animation: float-particle 8s ease-in-out infinite;
 }
@@ -231,4 +400,8 @@
 
 .particle-glow {
   animation: pulse-glow 4s ease-in-out infinite;
+}
+
+.notification-pulse {
+  animation: notification-pulse 2s ease-in-out infinite;
 }
