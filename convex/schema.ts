@@ -350,4 +350,34 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_campaignId", ["campaignId"]),
+
+  partySessions: defineTable({
+    campaignId: v.id("campaigns"),
+    dmUserId: v.string(),
+    activeScene: v.string(),
+    isActive: v.boolean(),
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+  })
+    .index("by_campaignId_and_isActive", ["campaignId", "isActive"])
+    .index("by_dmUserId", ["dmUserId"])
+    .index("by_isActive", ["isActive"]),
+
+  sessionBroadcasts: defineTable({
+    sessionId: v.id("partySessions"),
+    campaignId: v.id("campaigns"),
+    type: v.union(
+      v.literal("npc"),
+      v.literal("location"),
+      v.literal("scene"),
+      v.literal("custom")
+    ),
+    title: v.string(),
+    body: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    isRevealed: v.boolean(),
+    revealedAt: v.optional(v.number()),
+  })
+    .index("by_sessionId", ["sessionId"])
+    .index("by_campaignId", ["campaignId"]),
 })

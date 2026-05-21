@@ -13,6 +13,7 @@ import type * as campaigns from "../campaigns.js";
 import type * as characters from "../characters.js";
 import type * as dmConversations from "../dmConversations.js";
 import type * as encounters from "../encounters.js";
+import type * as liveSessions from "../liveSessions.js";
 import type * as npcs from "../npcs.js";
 import type * as sessions from "../sessions.js";
 import type * as world from "../world.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   characters: typeof characters;
   dmConversations: typeof dmConversations;
   encounters: typeof encounters;
+  liveSessions: typeof liveSessions;
   npcs: typeof npcs;
   sessions: typeof sessions;
   world: typeof world;
