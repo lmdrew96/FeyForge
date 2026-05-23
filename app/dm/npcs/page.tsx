@@ -15,7 +15,7 @@ export default function NPCsPage() {
           style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
         >
           <p style={{ color: "var(--scene-text-muted)" }}>
-            NPC roster and broadcast panel coming in Phase 3.
+            NPC roster coming soon. To reveal an NPC to your players, use the broadcast panel during a live session.
           </p>
         </div>
       </div>

@@ -12,8 +12,10 @@ import {
   type QuickRollResult,
 } from "@/lib/character/character-data"
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
+import { NormalBuilder } from "./normal-builder"
+import { GuidedFlow } from "./guided-flow"
 
-type CreationMode = "choose" | "quick-roll-preview"
+type CreationMode = "choose" | "quick-roll-preview" | "guided" | "normal"
 
 const CHOICE_CARDS = [
   {
@@ -32,7 +34,7 @@ const CHOICE_CARDS = [
     subtitle: "Step by step",
     description: "New to D&D? We'll walk you through every choice with lore, tips, and flavor text.",
     accent: "var(--scene-highlight)",
-    available: false,
+    available: true,
   },
   {
     id: "normal",
@@ -41,7 +43,7 @@ const CHOICE_CARDS = [
     subtitle: "Full control",
     description: "Experienced player? Take the wheel. Every option, every stat, your way.",
     accent: "var(--scene-text-primary)",
-    available: false,
+    available: true,
   },
 ]
 
@@ -259,11 +261,10 @@ export default function NewCharacterPage() {
     setRolled(quickRollCharacter())
   }
 
-  const handleConfirm = async () => {
-    if (!rolled) return
+  const saveCharacter = async (result: QuickRollResult) => {
     setSaving(true)
     try {
-      const { race, subrace, characterClass, background, baseAbilities, racialBonuses, skillProficiencies, name } = rolled
+      const { race, subrace, characterClass, background, baseAbilities, racialBonuses, skillProficiencies, name } = result
       const hitDie = CLASS_HIT_DICE[characterClass.id] ?? 8
       const conTotal = baseAbilities.constitution + (racialBonuses.constitution ?? 0)
       const conMod = Math.floor((conTotal - 10) / 2)
@@ -295,10 +296,15 @@ export default function NewCharacterPage() {
       })
       toast.success(`${name} is ready to adventure!`)
       router.push("/characters")
-    } catch (err) {
+    } catch {
       toast.error("Failed to save character. Please try again.")
       setSaving(false)
     }
+  }
+
+  const handleConfirm = () => {
+    if (!rolled) return
+    saveCharacter(rolled)
   }
 
   return (
@@ -307,7 +313,7 @@ export default function NewCharacterPage() {
         {/* Back */}
         <button
           onClick={() => {
-            if (mode === "quick-roll-preview") {
+            if (mode === "quick-roll-preview" || mode === "normal" || mode === "guided") {
               setMode("choose")
             } else {
               router.push("/characters")
@@ -317,7 +323,7 @@ export default function NewCharacterPage() {
           style={{ color: "var(--scene-text-muted)" }}
         >
           <ArrowLeft className="h-4 w-4" />
-          {mode === "quick-roll-preview" ? "Back to choices" : "Back to characters"}
+          {mode === "choose" ? "Back to characters" : "Back to choices"}
         </button>
 
         {mode === "choose" && (
@@ -346,6 +352,8 @@ export default function NewCharacterPage() {
                         return
                       }
                       if (card.id === "quick-roll") handleQuickRoll()
+                      if (card.id === "guided") setMode("guided")
+                      if (card.id === "normal") setMode("normal")
                     }}
                     className="relative text-left rounded-xl p-6 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] group"
                     style={{
@@ -412,6 +420,40 @@ export default function NewCharacterPage() {
               onConfirm={handleConfirm}
               saving={saving}
             />
+          </>
+        )}
+
+        {mode === "guided" && (
+          <>
+            <div className="mb-8">
+              <h1
+                className="text-2xl font-bold mb-1"
+                style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+              >
+                Let&apos;s build your hero
+              </h1>
+              <p style={{ color: "var(--scene-text-muted)" }}>
+                One step at a time. We&apos;ll explain everything as we go.
+              </p>
+            </div>
+            <GuidedFlow onComplete={saveCharacter} saving={saving} />
+          </>
+        )}
+
+        {mode === "normal" && (
+          <>
+            <div className="mb-8">
+              <h1
+                className="text-2xl font-bold mb-1"
+                style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+              >
+                Build Your Character
+              </h1>
+              <p style={{ color: "var(--scene-text-muted)" }}>
+                Every choice is yours. Descriptions and stats are shown as you go.
+              </p>
+            </div>
+            <NormalBuilder onComplete={saveCharacter} saving={saving} />
           </>
         )}
       </div>
