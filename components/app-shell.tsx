@@ -17,6 +17,7 @@ import {
   ChevronRight,
   UserSquare2,
   Globe,
+  Network,
 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
     icon: Swords,
     children: [
       { label: "NPCs", href: "/dm/npcs", icon: Users },
+      { label: "Story Web", href: "/dm/campaign-web", icon: Network },
       { label: "Scenes", href: "/dm/scenes", icon: Map },
       { label: "Assistant", href: "/dm/assistant", icon: Bot },
       { label: "Wiki", href: "/dm/wiki", icon: ScrollText },

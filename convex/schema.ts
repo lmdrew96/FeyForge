@@ -415,6 +415,29 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_campaignId", ["campaignId"]),
 
+  campaignWebNodes: defineTable({
+    campaignId: v.id("campaigns"),
+    entityType: v.union(
+      v.literal("npc"),
+      v.literal("location"),
+      v.literal("wiki"),
+      v.literal("faction"),
+      v.literal("plot_hook")
+    ),
+    entityId: v.optional(v.string()),
+    label: v.string(),
+    x: v.number(),
+    y: v.number(),
+    color: v.optional(v.string()),
+  }).index("by_campaignId", ["campaignId"]),
+
+  campaignWebEdges: defineTable({
+    campaignId: v.id("campaigns"),
+    fromNodeId: v.id("campaignWebNodes"),
+    toNodeId: v.id("campaignWebNodes"),
+    label: v.string(),
+  }).index("by_campaignId", ["campaignId"]),
+
   sessionBroadcasts: defineTable({
     sessionId: v.id("partySessions"),
     campaignId: v.id("campaigns"),

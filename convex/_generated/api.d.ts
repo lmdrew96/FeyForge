@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as campaignScenes from "../campaignScenes.js";
+import type * as campaignWeb from "../campaignWeb.js";
 import type * as campaigns from "../campaigns.js";
 import type * as characters from "../characters.js";
 import type * as dmConversations from "../dmConversations.js";
@@ -30,6 +31,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   campaignScenes: typeof campaignScenes;
+  campaignWeb: typeof campaignWeb;
   campaigns: typeof campaigns;
   characters: typeof characters;
   dmConversations: typeof dmConversations;
