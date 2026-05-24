@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { SCENES } from "@/lib/scenes"
+import { SCENES, applySceneToBody } from "@/lib/scenes"
 import { CLASS_COLORS } from "@/lib/character/constants"
 import { cn } from "@/lib/utils"
 import {
@@ -720,12 +720,13 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
   const [selectedBroadcast, setSelectedBroadcast] = useState<BroadcastDoc | null>(null)
 
   const activeScene = activeSession?.activeScene ?? ""
+  const activeScenePalette = activeSession?.activeScenePalette ?? null
   const currentScene = SCENES.find((s) => s.id === activeScene)
 
   useEffect(() => {
-    document.body.setAttribute("data-scene", activeScene)
-    return () => document.body.setAttribute("data-scene", "")
-  }, [activeScene])
+    applySceneToBody(activeScene, activeScenePalette)
+    return () => applySceneToBody("")
+  }, [activeScene, activeScenePalette])
 
   return (
     <div className="space-y-6">

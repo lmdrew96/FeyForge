@@ -390,6 +390,12 @@ export default defineSchema({
     campaignId: v.id("campaigns"),
     dmUserId: v.string(),
     activeScene: v.string(),
+    activeScenePalette: v.optional(v.object({
+      bg: v.string(),
+      surface: v.string(),
+      accent: v.string(),
+      highlight: v.string(),
+    })),
     isActive: v.boolean(),
     startedAt: v.number(),
     endedAt: v.optional(v.number()),
@@ -397,6 +403,17 @@ export default defineSchema({
     .index("by_campaignId_and_isActive", ["campaignId", "isActive"])
     .index("by_dmUserId", ["dmUserId"])
     .index("by_isActive", ["isActive"]),
+
+  campaignScenes: defineTable({
+    campaignId: v.id("campaigns"),
+    name: v.string(),
+    bg: v.string(),
+    surface: v.string(),
+    accent: v.string(),
+    highlight: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+  }).index("by_campaignId", ["campaignId"]),
 
   sessionBroadcasts: defineTable({
     sessionId: v.id("partySessions"),

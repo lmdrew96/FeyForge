@@ -140,10 +140,18 @@ export const endSession = mutation({
   },
 })
 
+const paletteValidator = v.object({
+  bg: v.string(),
+  surface: v.string(),
+  accent: v.string(),
+  highlight: v.string(),
+})
+
 export const activateScene = mutation({
   args: {
     sessionId: v.id("partySessions"),
     scene: v.string(),
+    palette: v.optional(paletteValidator),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
@@ -153,7 +161,11 @@ export const activateScene = mutation({
     if (!session) throw new Error("Session not found")
     if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
 
-    await ctx.db.patch(args.sessionId, { activeScene: args.scene })
+    if (args.palette) {
+      await ctx.db.patch(args.sessionId, { activeScene: args.scene, activeScenePalette: args.palette })
+    } else {
+      await ctx.db.patch(args.sessionId, { activeScene: args.scene })
+    }
   },
 })
 
