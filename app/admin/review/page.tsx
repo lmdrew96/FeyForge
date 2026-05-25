@@ -82,63 +82,63 @@ function TrackReviewCard({
     <div
       className="rounded-xl p-4 space-y-3"
       style={{
-        background: "#16131f",
-        border: `1px solid ${saved ? "#3a2e5a" : "#2a2438"}`,
-        boxShadow: saved ? "0 0 12px rgba(123, 104, 200, 0.12)" : "none",
+        background: "var(--scene-surface)",
+        border: `1px solid ${saved ? "var(--scene-accent)" : "var(--scene-border)"}`,
+        boxShadow: saved ? "0 0 12px var(--scene-accent-glow)" : "none",
       }}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate" style={{ color: "#e8e0f8" }}>{track.name}</p>
+          <p className="text-sm font-medium truncate" style={{ color: "var(--scene-text-primary)" }}>{track.name}</p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span
               className="text-[10px] px-1.5 py-0.5 rounded"
-              style={{ background: "#1e1a2e", color: "#7b68c8" }}
+              style={{ background: "var(--scene-border)", color: "var(--scene-accent)" }}
             >
               {track.type}
             </span>
             {track.intensityTier && (
-              <span
-                className="text-[10px] px-1 py-0.5 rounded border"
-                style={{
-                  borderColor: track.intensityTier === "explore" ? "#2d5a3d" : "#5a2d2d",
-                  color: track.intensityTier === "explore" ? "#4ade80" : "#f87171",
-                }}
-              >
+                <span
+                  className="text-[10px] px-1 py-0.5 rounded border"
+                  style={{
+                    borderColor: track.intensityTier === "explore" ? "var(--scene-accent)" : "var(--color-destructive)",
+                    color: track.intensityTier === "explore" ? "var(--scene-accent)" : "var(--color-destructive)",
+                  }}
+                >
                 {track.intensityTier}
               </span>
             )}
             {track.sceneTag && (
-              <span className="text-[10px]" style={{ color: "#5a5272" }}>{track.sceneTag}</span>
+              <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>{track.sceneTag}</span>
             )}
-            <span className="text-[10px] ml-auto" style={{ color: "#5a5272" }}>{formatDuration(track.duration)}</span>
+            <span className="text-[10px] ml-auto" style={{ color: "var(--scene-text-muted)" }}>{formatDuration(track.duration)}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
             <>
               <button onClick={() => approve({ trackId: track._id, approved: true }).catch(console.error)} className="px-3 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
-              <button onClick={() => approve({ trackId: track._id, approved: false }).catch(console.error)} className="px-3 py-1 rounded bg-gray-600 text-white text-xs">Reject</button>
+               <button onClick={() => approve({ trackId: track._id, approved: false }).catch(console.error)} className="px-3 py-1 rounded bg-gray-600 text-white text-xs">Reject</button>
             </>
           )}
           <button
             onClick={toggle}
             className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
-            style={{ background: "#7b68c8" }}
+            style={{ background: "var(--scene-accent)" }}
           >
-            {playing ? <Pause size={13} style={{ color: "#0d0d14" }} /> : <Play size={13} style={{ color: "#0d0d14" }} />}
+            {playing ? <Pause size={13} style={{ color: "var(--scene-bg)" }} /> : <Play size={13} style={{ color: "var(--scene-bg)" }} />}
           </button>
         </div>
       </div>
 
-      {isAdmin && (
-        <div className="flex items-center gap-3">
-          <div className="text-xs" style={{ color: "#a89ec4" }}>Intensity rank</div>
+      {isAdmin && track.type !== "sfx" && (
+          <div className="flex items-center gap-3">
+          <div className="text-xs" style={{ color: "var(--scene-highlight)" }}>Intensity rank</div>
           <input defaultValue={track.intensityRank ?? ""} onBlur={(e) => {
             const v = e.currentTarget.value === "" ? undefined : Number(e.currentTarget.value)
             adminUpdate({ trackId: track._id, intensityRank: v }).catch(console.error)
-          }} className="w-20 px-2 py-1 rounded border" />
+          }} className="w-20 px-2 py-1 rounded border" style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)", color: "var(--scene-text-primary)" }} />
         </div>
       )}
 
@@ -149,14 +149,14 @@ function TrackReviewCard({
             <div
               key={c._id}
               className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px]"
-              style={{ background: "#0d0d14", border: "1px solid #2a2438" }}
+              style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
             >
               <span style={{ color: REACTION_COLOR[c.reaction] }}>
                 {REACTIONS.find((r) => r.value === c.reaction)?.emoji}
               </span>
-              <span style={{ color: "#a89ec4" }}>{c.reviewerName ?? "Reviewer"}</span>
+              <span style={{ color: "var(--scene-highlight)" }}>{c.reviewerName ?? "Reviewer"}</span>
               {c.comment && (
-                <span style={{ color: "#5a5272" }}>— {c.comment}</span>
+                <span style={{ color: "var(--scene-text-muted)" }}>— {c.comment}</span>
               )}
             </div>
           ))}
@@ -166,16 +166,16 @@ function TrackReviewCard({
       {/* My reaction */}
       <div>
         <p className="text-[10px] mb-1.5" style={{ color: "#5a5272" }}>Your reaction</p>
-        <div className="flex gap-2">
+            <div className="flex gap-2">
           {REACTIONS.map(({ value, emoji, label }) => (
             <button
               key={value}
               onClick={() => handleSave(value)}
               className="flex-1 flex flex-col items-center gap-0.5 py-2 rounded-lg text-xs transition-all"
               style={{
-                background: reaction === value ? "#7b68c820" : "#0d0d14",
-                border: `1px solid ${reaction === value ? "#7b68c8" : "#2a2438"}`,
-                color: reaction === value ? "#e8e0f8" : "#5a5272",
+                background: reaction === value ? "var(--scene-accent)" : "var(--scene-bg)",
+                border: `1px solid ${reaction === value ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                color: reaction === value ? "var(--scene-bg)" : "var(--scene-text-muted)",
               }}
             >
               <span>{emoji}</span>
@@ -193,10 +193,10 @@ function TrackReviewCard({
         placeholder="Add a note… (optional)"
         rows={2}
         className="w-full px-3 py-2 rounded-md text-xs resize-none outline-none"
-        style={{ background: "#0d0d14", border: "1px solid #2a2438", color: "#a89ec4" }}
+        style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
       />
 
-      {saved && <p className="text-[10px]" style={{ color: "#7b68c8" }}>Saved</p>}
+      {saved && <p className="text-[10px]" style={{ color: "var(--scene-accent)" }}>Saved</p>}
     </div>
   )
 }
@@ -210,8 +210,8 @@ export default function AdminReviewPage() {
   if (allTracks === undefined || allComments === undefined) {
     return (
       <AppShell>
-        <div className="min-h-screen flex items-center justify-center" style={{ background: "#0d0d14" }}>
-          <p className="text-sm" style={{ color: "#5a5272" }}>Loading…</p>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--scene-bg)" }}>
+          <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>Loading…</p>
         </div>
       </AppShell>
     )
@@ -235,27 +235,27 @@ export default function AdminReviewPage() {
       <div className="px-6 py-8 max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] mb-1" style={{ color: "#7b68c8" }}>Admin</p>
-          <h1 className="text-2xl font-bold mb-1" style={{ fontFamily: "var(--font-cinzel)", color: "#e8e0f8" }}>
+          <p className="text-xs uppercase tracking-[0.2em] mb-1" style={{ color: "var(--scene-accent)" }}>Admin</p>
+          <h1 className="text-2xl font-bold mb-1" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
             Audio Review
           </h1>
-          <p className="text-sm" style={{ color: "#5a5272" }}>
+          <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
             {filteredTracks.length} track{filteredTracks.length !== 1 ? "s" : ""}
           </p>
         </div>
 
         {/* Filter */}
-        <div className="flex gap-2">
+          <div className="flex gap-2">
           {(["all", "ambience", "music", "sfx"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setTypeFilter(f)}
               className="px-3 py-1.5 rounded-md text-xs capitalize transition-all"
-              style={{
-                background: typeFilter === f ? "#7b68c8" : "#16131f",
-                color: typeFilter === f ? "#0d0d14" : "#5a5272",
-                border: `1px solid ${typeFilter === f ? "#7b68c8" : "#2a2438"}`,
-              }}
+                style={{
+                  background: typeFilter === f ? "var(--scene-accent)" : "var(--scene-surface)",
+                  color: typeFilter === f ? "var(--scene-bg)" : "var(--scene-text-muted)",
+                  border: `1px solid ${typeFilter === f ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                }}
             >
               {f}
             </button>
@@ -267,10 +267,10 @@ export default function AdminReviewPage() {
 
         {/* Tracks */}
         {filteredTracks.length === 0 ? (
-          <div className="py-16 text-center">
-            <Music size={32} className="mx-auto mb-3 opacity-20" style={{ color: "#5a5272" }} />
-            <p className="text-sm" style={{ color: "#5a5272" }}>No tracks yet. Run the seed script to populate.</p>
-          </div>
+            <div className="py-16 text-center">
+              <Music size={32} className="mx-auto mb-3 opacity-20" style={{ color: "var(--scene-text-muted)" }} />
+              <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>No tracks yet. Run the seed script to populate.</p>
+            </div>
         ) : (
           <div className="space-y-3">
             {filteredTracks.map((track) => {

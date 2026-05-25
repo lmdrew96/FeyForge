@@ -1,6 +1,25 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 
+// helper: whether a track is sufficiently complete to show to non-admin users
+function isPubliclyVisible(track: any) {
+  // must be approved and have an r2 URL
+  if (!track.approved) return false
+  if (!track.r2Url) return false
+
+  // SFX do NOT require intensity metadata
+  if (track.type === "sfx") return true
+
+  // For music tracks require intensityTier & intensityRank (explore/combat)
+  if (track.type === "music") {
+    if (!track.intensityTier) return false
+    return typeof track.intensityRank === "number"
+  }
+
+  // default conservative: require r2Url & approved
+  return true
+}
+
 // ── Queries ────────────────────────────────────────────────────────────────
 
 export const listAudioTracks = query({
@@ -13,35 +32,41 @@ export const listAudioTracks = query({
   handler: async (ctx, args) => {
     let q = ctx.db.query("audioTracks")
 
+    // When type+sceneTag are provided, use the index
     if (args.type && args.sceneTag) {
-      return await q
+      let tracks = await q
         .withIndex("by_type_and_sceneTag", (idx) =>
           idx.eq("type", args.type!).eq("sceneTag", args.sceneTag)
         )
         .take(200)
-    }
 
-    if (args.type) {
-      const tracks = await q
-        .withIndex("by_type", (idx) => idx.eq("type", args.type!))
-        .take(200)
-      if (args.intensityTier) {
-        return tracks.filter((t) => t.intensityTier === args.intensityTier)
-      }
+      if (!args.includeUnapproved) tracks = tracks.filter(isPubliclyVisible)
       return tracks
     }
 
-    const tracks = await q.take(200)
-    const filtered = tracks.filter((t) => {
+    if (args.type) {
+      let tracks = await q
+        .withIndex("by_type", (idx) => idx.eq("type", args.type!))
+        .take(200)
+      if (args.intensityTier) {
+        tracks = tracks.filter((t) => t.intensityTier === args.intensityTier)
+      }
+      if (!args.includeUnapproved) tracks = tracks.filter(isPubliclyVisible)
+      return tracks
+    }
+
+    let tracks = await q.take(200)
+    let filtered = tracks.filter((t) => {
       if (args.type && t.type !== args.type) return false
       if (args.intensityTier && t.intensityTier !== args.intensityTier) return false
       if (args.sceneTag && t.sceneTag !== args.sceneTag) return false
       return true
     })
 
-    // If caller did not request unapproved items, only return approved tracks.
+    // By default we only return tracks that are approved and have required metadata.
+    // Admins (includeUnapproved=true) can see everything.
     if (!args.includeUnapproved) {
-      return filtered.filter((t) => t.approved === true)
+      filtered = filtered.filter(isPubliclyVisible)
     }
 
     return filtered
