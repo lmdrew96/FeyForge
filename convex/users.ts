@@ -35,6 +35,11 @@ export const upsertUser = mutation({
   },
 })
 
+// Called by Ko-fi webhook on each subscription payment. Ko-fi does not send
+// cancellation events, so we set premiumExpiresAt 35 days out and let the
+// daily expiry cron flip isPremium:false for lapsed subscribers.
+const PREMIUM_GRACE_MS = 35 * 24 * 60 * 60 * 1000 // 35 days (monthly + 5-day grace)
+
 export const setPremiumByClerkId = mutation({
   args: {
     clerkId: v.string(),
@@ -50,6 +55,7 @@ export const setPremiumByClerkId = mutation({
       await ctx.db.patch(user._id, {
         isPremium: args.isPremium,
         premiumSince: args.isPremium ? (user.premiumSince ?? Date.now()) : undefined,
+        premiumExpiresAt: args.isPremium ? Date.now() + PREMIUM_GRACE_MS : undefined,
       })
     }
   },

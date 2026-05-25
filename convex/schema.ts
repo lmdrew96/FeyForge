@@ -479,21 +479,12 @@ export default defineSchema({
     clerkUserId: v.string(),     // subject / bare user_xxx ID for webhook lookups
     isPremium: v.boolean(),
     premiumSince: v.optional(v.number()),
+    premiumExpiresAt: v.optional(v.number()),
     role: v.optional(v.union(v.literal("admin"), v.literal("user"))),
   })
     .index("by_clerkId", ["clerkId"])
-    .index("by_clerkUserId", ["clerkUserId"]),
-
-  libraryShareTokens: defineTable({
-    token: v.string(),
-    ownerId: v.string(),
-    filterType: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
-    filterSceneTag: v.optional(v.string()),
-    createdAt: v.number(),
-    expiresAt: v.optional(v.number()),
-  })
-    .index("by_token", ["token"])
-    .index("by_ownerId", ["ownerId"]),
+    .index("by_clerkUserId", ["clerkUserId"])
+    .index("by_isPremium", ["isPremium"]),
 
   libraryReviewComments: defineTable({
     userId: v.string(),          // tokenIdentifier (clerkId) of the reviewer
