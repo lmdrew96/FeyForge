@@ -274,7 +274,8 @@ export const broadcastReveal = mutation({
       v.literal("npc"),
       v.literal("location"),
       v.literal("scene"),
-      v.literal("custom")
+      v.literal("custom"),
+      v.literal("web_node")
     ),
     title: v.string(),
     body: v.optional(v.string()),

@@ -24,7 +24,7 @@ import {
   MarkerType,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import { Users, MapPin, ScrollText, Shield, Milestone, Plus, Trash2, X, Check } from "lucide-react"
+import { Users, MapPin, ScrollText, Shield, Milestone, Plus, Trash2, X, Check, Radio } from "lucide-react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,6 +50,8 @@ type WebNodeData = {
   entityType: EntityType
   color?: string
   onDelete: (id: string) => void
+  onReveal: (id: string) => void
+  sessionActive: boolean
 }
 
 function WebNode({ id, data, selected }: { id: string; data: WebNodeData; selected: boolean }) {
@@ -81,6 +83,17 @@ function WebNode({ id, data, selected }: { id: string; data: WebNodeData; select
         {data.label}
       </div>
 
+      {data.sessionActive && (
+        <button
+          title="Reveal to players"
+          className="absolute -top-2 -left-2 w-4 h-4 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ background: "#5a9e6f", color: "#fff" }}
+          onPointerDown={(e) => { e.stopPropagation(); data.onReveal(id) }}
+        >
+          <Radio size={8} />
+        </button>
+      )}
+
       <button
         className="absolute -top-2 -right-2 w-4 h-4 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
         style={{ background: "#e05555", color: "#fff" }}
@@ -100,6 +113,7 @@ const nodeTypes = { webNode: WebNode }
 
 export default function CampaignWebPage() {
   const [campaignId, setCampaignId] = useState<Id<"campaigns"> | null>(null)
+  const [sessionId, setSessionId] = useState<Id<"partySessions"> | null>(null)
   const [pendingConnection, setPendingConnection] = useState<Connection | null>(null)
   const [pendingEdgeLabel, setPendingEdgeLabel] = useState("")
   const [activeTab, setActiveTab] = useState<EntityType>("npc")
@@ -114,6 +128,7 @@ export default function CampaignWebPage() {
   const doAddEdge = useMutation(api.campaignWeb.addEdge)
   const doUpdateEdge = useMutation(api.campaignWeb.updateEdge)
   const doRemoveEdge = useMutation(api.campaignWeb.removeEdge)
+  const doBroadcast = useMutation(api.liveSessions.broadcastReveal)
 
   const webNodes = useQuery(api.campaignWeb.listNodes, campaignId ? { campaignId } : "skip")
   const webEdges = useQuery(api.campaignWeb.listEdges, campaignId ? { campaignId } : "skip")
@@ -122,7 +137,10 @@ export default function CampaignWebPage() {
 
   useEffect(() => {
     setupDMSession()
-      .then(({ campaignId: cid }) => setCampaignId(cid))
+      .then(({ campaignId: cid, sessionId: sid }) => {
+        setCampaignId(cid)
+        setSessionId(sid)
+      })
       .catch(console.error)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -212,14 +230,27 @@ export default function CampaignWebPage() {
     doRemoveNode({ nodeId: id as Id<"campaignWebNodes"> }).catch(console.error)
   }, [doRemoveNode])
 
-  // Patch delete handler into node data
+  const handleRevealNode = useCallback((id: string) => {
+    if (!sessionId || !campaignId) return
+    const node = webNodes?.find((n) => n._id === id)
+    if (!node) return
+    doBroadcast({
+      sessionId,
+      campaignId,
+      type: "web_node",
+      title: node.entityName ?? node.label,
+      body: TYPE_META[node.entityType].label,
+    }).catch(console.error)
+  }, [sessionId, campaignId, webNodes, doBroadcast])
+
+  // Patch handlers into node data
   const nodesWithDelete = useMemo(() =>
     nodes.map((n) => ({
       ...n,
       className: "group",
-      data: { ...n.data, onDelete: handleDeleteNode },
+      data: { ...n.data, onDelete: handleDeleteNode, onReveal: handleRevealNode, sessionActive: !!sessionId },
     })),
-    [nodes, handleDeleteNode]
+    [nodes, handleDeleteNode, handleRevealNode, sessionId]
   )
 
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {

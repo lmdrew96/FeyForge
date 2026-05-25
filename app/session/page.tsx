@@ -22,9 +22,17 @@ type CharacterId = Id<"characters">
 
 type BroadcastDoc = {
   _id: Id<"sessionBroadcasts">
-  type: "npc" | "location" | "scene" | "custom"
+  type: "npc" | "location" | "scene" | "custom" | "web_node"
   title: string
   body?: string
+}
+
+const BROADCAST_TYPE_LABEL: Record<string, string> = {
+  npc: "NPC",
+  location: "Location",
+  scene: "Scene",
+  custom: "Custom",
+  web_node: "Web Node",
 }
 
 type PartyMember = {
@@ -479,8 +487,8 @@ function BroadcastModal({ broadcast, onClose }: { broadcast: BroadcastDoc; onClo
           <X className="h-5 w-5" />
         </button>
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-xs px-2.5 py-1 rounded-full capitalize font-medium" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
-            {broadcast.type}
+          <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
+            {BROADCAST_TYPE_LABEL[broadcast.type] ?? broadcast.type}
           </span>
         </div>
         <h2 className="text-2xl font-bold mb-3" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
@@ -761,7 +769,7 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
                 className="w-full rounded-xl p-4 text-left transition-all hover:scale-[1.005]"
                 style={{ background: i === 0 ? "color-mix(in srgb, var(--scene-accent) 8%, var(--scene-surface))" : "var(--scene-surface)", border: `1px solid ${i === 0 ? "color-mix(in srgb, var(--scene-accent) 35%, transparent)" : "var(--scene-border)"}`, boxShadow: i === 0 ? "0 0 16px var(--scene-accent-glow)" : "none" }}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs px-2 py-0.5 rounded-full capitalize" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>{b.type}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>{BROADCAST_TYPE_LABEL[b.type] ?? b.type}</span>
                   {i === 0 && <span className="text-xs px-2 py-0.5 rounded-full animate-pulse" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>New</span>}
                 </div>
                 <p className="font-semibold text-sm" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>{b.title}</p>
@@ -867,7 +875,7 @@ function ConductorView({ sessionId, campaignId, activeScene }: { sessionId: Sess
           <div className="space-y-2">
             {broadcasts.map((b) => (
               <div key={b._id} className="rounded-lg px-4 py-3 flex items-start gap-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
-                <span className="text-xs px-2 py-0.5 rounded-full capitalize mt-0.5" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>{b.type}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full mt-0.5" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>{BROADCAST_TYPE_LABEL[b.type] ?? b.type}</span>
                 <div className="min-w-0">
                   <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{b.title}</p>
                   {b.body && <p className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>{b.body}</p>}
