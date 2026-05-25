@@ -1,11 +1,13 @@
 import { mutation, query } from "./_generated/server"
+import type { Doc } from "./_generated/dataModel"
 import { v } from "convex/values"
 
 // helper: whether a track is sufficiently complete to show to non-admin users
-function isPubliclyVisible(track: any) {
+function isPubliclyVisible(track: Doc<"audioTracks">) {
   // must be approved and have an r2 URL
   if (!track.approved) return false
   if (!track.r2Url) return false
+  if (!track.sceneTag || track.sceneTag.trim().length === 0) return false
 
   // SFX do NOT require intensity metadata
   if (track.type === "sfx") return true
@@ -176,6 +178,15 @@ export const approveAudioTrack = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
       .unique()
     if (!me || me.role !== "admin") throw new Error("Not authorized")
+
+    const track = await ctx.db.get(args.trackId)
+    if (!track) throw new Error("Track not found")
+
+    if (args.approved) {
+      if (!track.sceneTag || track.sceneTag.trim().length === 0) {
+        throw new Error("Set a scene tag before approving this track")
+      }
+    }
 
     await ctx.db.patch(args.trackId, { approved: args.approved })
   },

@@ -6,6 +6,7 @@ import { useState, useRef, useCallback } from "react"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { Play, Pause, Music, Filter } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
+import { SCENES } from "@/lib/scenes"
 
 type AudioTrack = Doc<"audioTracks">
 type ReviewComment = {
@@ -41,11 +42,13 @@ function TrackReviewCard({
   myComment,
   allComments,
   isAdmin,
+  sceneTagOptions,
 }: {
   track: AudioTrack
   myComment: ReviewComment | undefined
   allComments: ReviewComment[]
   isAdmin: boolean
+  sceneTagOptions: string[]
 }) {
   const addComment = useMutation(api.libraryShare.addReviewComment)
   const [playing, setPlaying] = useState(false)
@@ -55,6 +58,18 @@ function TrackReviewCard({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const approve = useMutation(api.audio.approveAudioTrack)
   const adminUpdate = useMutation(api.audio.adminUpdateAudioTrack)
+  const [isApproving, setIsApproving] = useState(false)
+  const [sceneTagMode, setSceneTagMode] = useState<string>(() => {
+    if (!track.sceneTag) return ""
+    return sceneTagOptions.includes(track.sceneTag) ? track.sceneTag : "__custom__"
+  })
+  const [customSceneTag, setCustomSceneTag] = useState<string>(() => {
+    if (!track.sceneTag || sceneTagOptions.includes(track.sceneTag)) return ""
+    return track.sceneTag
+  })
+
+  const normalizedSceneTag = (sceneTagMode === "__custom__" ? customSceneTag : sceneTagMode).trim().toLowerCase()
+  const canApprove = normalizedSceneTag.length > 0
 
   const toggle = useCallback(() => {
     if (!audioRef.current) {
@@ -74,6 +89,21 @@ function TrackReviewCard({
     setReaction(r)
     await addComment({ trackId: track._id, reaction: r, comment: note || undefined })
     setSaved(true)
+  }
+
+  const handleApprove = async () => {
+    if (!canApprove || isApproving) return
+    setIsApproving(true)
+    try {
+      if (track.sceneTag !== normalizedSceneTag) {
+        await adminUpdate({ trackId: track._id, sceneTag: normalizedSceneTag })
+      }
+      await approve({ trackId: track._id, approved: true })
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsApproving(false)
+    }
   }
 
   const otherComments = allComments.filter((c) => c.userId !== myComment?.userId)
@@ -118,7 +148,7 @@ function TrackReviewCard({
         <div className="flex items-center gap-2">
           {isAdmin && (
             <>
-              <button onClick={() => approve({ trackId: track._id, approved: true }).catch(console.error)} className="px-3 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
+              <button onClick={handleApprove} disabled={!canApprove || isApproving} className="px-3 py-1 rounded bg-green-600 text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed">{isApproving ? "Saving…" : "Approve"}</button>
                <button onClick={() => approve({ trackId: track._id, approved: false }).catch(console.error)} className="px-3 py-1 rounded bg-gray-600 text-white text-xs">Reject</button>
             </>
           )}
@@ -139,6 +169,33 @@ function TrackReviewCard({
             const v = e.currentTarget.value === "" ? undefined : Number(e.currentTarget.value)
             adminUpdate({ trackId: track._id, intensityRank: v }).catch(console.error)
           }} className="w-20 px-2 py-1 rounded border" style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)", color: "var(--scene-text-primary)" }} />
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="space-y-2">
+          <p className="text-xs" style={{ color: "var(--scene-highlight)" }}>Scene tag (required for approval)</p>
+          <select
+            value={sceneTagMode}
+            onChange={(e) => setSceneTagMode(e.currentTarget.value)}
+            className="w-full px-2 py-1 rounded border text-xs"
+            style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)", color: "var(--scene-text-primary)" }}
+          >
+            <option value="">Select a scene tag</option>
+            {sceneTagOptions.map((tag) => (
+              <option key={tag} value={tag}>{tag}</option>
+            ))}
+            <option value="__custom__">Custom…</option>
+          </select>
+          {sceneTagMode === "__custom__" && (
+            <input
+              value={customSceneTag}
+              onChange={(e) => setCustomSceneTag(e.currentTarget.value)}
+              placeholder="Enter custom scene tag"
+              className="w-full px-2 py-1 rounded border text-xs"
+              style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)", color: "var(--scene-text-primary)" }}
+            />
+          )}
         </div>
       )}
 
@@ -229,6 +286,10 @@ export default function AdminReviewPage() {
   }
 
   const myUserId = me?.clerkId
+  const knownSceneTags = Array.from(new Set([
+    ...SCENES.map((scene) => scene.id).filter((id) => id.length > 0),
+    ...allTracks.map((track) => track.sceneTag).filter((tag): tag is string => Boolean(tag && tag.trim().length > 0)),
+  ])).sort((a, b) => a.localeCompare(b))
 
   return (
     <AppShell>
@@ -285,6 +346,7 @@ export default function AdminReviewPage() {
                   myComment={myComment}
                   allComments={trackComments}
                   isAdmin={me?.role === "admin"}
+                  sceneTagOptions={knownSceneTags}
                 />
               )
             })}
