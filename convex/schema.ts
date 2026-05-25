@@ -399,6 +399,13 @@ export default defineSchema({
     isActive: v.boolean(),
     startedAt: v.number(),
     endedAt: v.optional(v.number()),
+    activeAmbienceTrackId: v.optional(v.id("audioTracks")),
+    activeExploreTrackId: v.optional(v.id("audioTracks")),
+    activeCombatTrackId: v.optional(v.id("audioTracks")),
+    intensity: v.optional(v.number()),
+    ambienceVolume: v.optional(v.number()),
+    masterVolume: v.optional(v.number()),
+    audioSyncEnabled: v.optional(v.boolean()),
   })
     .index("by_campaignId_and_isActive", ["campaignId", "isActive"])
     .index("by_dmUserId", ["dmUserId"])
@@ -456,4 +463,60 @@ export default defineSchema({
   })
     .index("by_sessionId", ["sessionId"])
     .index("by_campaignId", ["campaignId"]),
+
+  users: defineTable({
+    clerkId: v.string(),         // tokenIdentifier (full, with issuer prefix)
+    clerkUserId: v.string(),     // subject / bare user_xxx ID for webhook lookups
+    isPremium: v.boolean(),
+    premiumSince: v.optional(v.number()),
+  })
+    .index("by_clerkId", ["clerkId"])
+    .index("by_clerkUserId", ["clerkUserId"]),
+
+  libraryShareTokens: defineTable({
+    token: v.string(),
+    ownerId: v.string(),
+    filterType: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
+    filterSceneTag: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_ownerId", ["ownerId"]),
+
+  libraryReviewComments: defineTable({
+    token: v.string(),
+    trackId: v.id("audioTracks"),
+    reaction: v.union(v.literal("yes"), v.literal("no"), v.literal("maybe")),
+    comment: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_token_and_trackId", ["token", "trackId"]),
+
+  audioTracks: defineTable({
+    name: v.string(),
+    type: v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx")),
+    intensityTier: v.union(v.literal("explore"), v.literal("combat"), v.null()),
+    sceneTag: v.optional(v.string()),
+    r2Key: v.string(),
+    r2Url: v.string(),
+    duration: v.number(),
+    sourceUrl: v.optional(v.string()),
+    uploadedBy: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_type", ["type"])
+    .index("by_type_and_sceneTag", ["type", "sceneTag"])
+    .index("by_uploadedBy", ["uploadedBy"]),
+
+  campaignSceneAudio: defineTable({
+    campaignId: v.id("campaigns"),
+    sceneName: v.string(),
+    ambienceTrackId: v.optional(v.id("audioTracks")),
+    exploreTrackId: v.optional(v.id("audioTracks")),
+    combatTrackId: v.optional(v.id("audioTracks")),
+  })
+    .index("by_campaignId", ["campaignId"])
+    .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"]),
 })

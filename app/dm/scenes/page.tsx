@@ -7,7 +7,8 @@ import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { SCENES, buildSceneVars, applySceneToBody } from "@/lib/scenes"
 import type { CustomPalette } from "@/lib/scenes"
-import { Trash2 } from "lucide-react"
+import { Trash2, X, Check } from "lucide-react"
+import type { Doc } from "@/convex/_generated/dataModel"
 
 const DEFAULT_PALETTE: CustomPalette = {
   bg: "#111118",
@@ -85,6 +86,141 @@ function ScenePreview({ name, palette }: { name: string; palette: CustomPalette 
         <span style={{ color: vars["--scene-accent"] }}>Broadcast received</span>
         <p style={{ color: vars["--scene-text-muted"] }}>The torchlight flickers…</p>
       </div>
+    </div>
+  )
+}
+
+type AudioTrack = Doc<"audioTracks">
+
+function SceneAudioRow({
+  sceneName,
+  campaignId,
+}: {
+  sceneName: string
+  campaignId: Id<"campaigns">
+}) {
+  const binding = useQuery(api.audio.getSceneAudio, { campaignId, sceneName })
+  const setSceneAudio = useMutation(api.audio.setSceneAudio)
+  const allTracks = useQuery(api.audio.listAudioTracks, {})
+  const [picker, setPicker] = useState<"ambience" | "explore" | "combat" | null>(null)
+  const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null)
+
+  const ambienceTrack = allTracks?.find((t) => t._id === binding?.ambienceTrackId)
+  const exploreTrack = allTracks?.find((t) => t._id === binding?.exploreTrackId)
+  const combatTrack = allTracks?.find((t) => t._id === binding?.combatTrackId)
+
+  const handlePreview = (url: string) => {
+    previewAudio?.pause()
+    const a = new Audio(url)
+    a.play()
+    setTimeout(() => a.pause(), 10000)
+    setPreviewAudio(a)
+  }
+
+  const filteredTracks = (slot: "ambience" | "explore" | "combat") =>
+    (allTracks ?? []).filter((t) => {
+      if (slot === "ambience") return t.type === "ambience"
+      if (slot === "explore") return t.type === "music" && t.intensityTier === "explore"
+      return t.type === "music" && t.intensityTier === "combat"
+    })
+
+  const SLOTS: { key: "ambience" | "explore" | "combat"; label: string; track: AudioTrack | undefined }[] = [
+    { key: "ambience", label: "Ambience", track: ambienceTrack },
+    { key: "explore", label: "Explore", track: exploreTrack },
+    { key: "combat", label: "Combat", track: combatTrack },
+  ]
+
+  return (
+    <div
+      className="rounded-lg p-4 space-y-3"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <p className="text-sm font-semibold capitalize" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+        {sceneName}
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {SLOTS.map(({ key, label, track }) => (
+          <div key={key} className="space-y-1">
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--scene-text-muted)" }}>{label}</p>
+            <div
+              className="rounded px-2 py-1.5 text-xs"
+              style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: track ? "var(--scene-text-primary)" : "var(--scene-text-muted)" }}
+            >
+              <p className="truncate">{track?.name ?? "—"}</p>
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setPicker(key)}
+                className="flex-1 py-0.5 rounded text-[10px] transition-opacity hover:opacity-80"
+                style={{ border: "1px solid var(--scene-accent)", color: "var(--scene-accent)" }}
+              >
+                Set
+              </button>
+              {track && (
+                <>
+                  <button
+                    onClick={() => handlePreview(track.r2Url)}
+                    className="px-1.5 py-0.5 rounded text-[10px] transition-opacity hover:opacity-80"
+                    style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
+                  >
+                    ▶
+                  </button>
+                  <button
+                    onClick={() => setSceneAudio({ campaignId, sceneName, slot: key, trackId: undefined })}
+                    className="px-1.5 py-0.5 rounded text-[10px] transition-opacity hover:opacity-80"
+                    style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
+                  >
+                    <X size={10} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {picker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div
+            className="w-full max-w-xs rounded-xl overflow-hidden"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--scene-border)" }}>
+              <p className="text-sm font-medium capitalize" style={{ color: "var(--scene-text-primary)" }}>
+                {picker} track for {sceneName}
+              </p>
+              <button onClick={() => setPicker(null)} style={{ color: "var(--scene-text-muted)" }}><X size={14} /></button>
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              <button
+                onClick={() => { setSceneAudio({ campaignId, sceneName, slot: picker, trackId: undefined }); setPicker(null) }}
+                className="w-full px-4 py-2.5 text-left text-xs border-b transition-opacity hover:opacity-80"
+                style={{ borderColor: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+              >
+                Clear
+              </button>
+              {filteredTracks(picker).map((t) => {
+                const currentId = picker === "ambience" ? binding?.ambienceTrackId :
+                  picker === "explore" ? binding?.exploreTrackId : binding?.combatTrackId
+                return (
+                  <button
+                    key={t._id}
+                    onClick={() => { setSceneAudio({ campaignId, sceneName, slot: picker, trackId: t._id }); setPicker(null) }}
+                    className="w-full px-4 py-2.5 text-left text-xs border-b flex items-center justify-between transition-opacity hover:opacity-80"
+                    style={{ borderColor: "var(--scene-border)" }}
+                  >
+                    <div>
+                      <p style={{ color: "var(--scene-text-primary)" }}>{t.name}</p>
+                      {t.sceneTag && <p style={{ color: "var(--scene-text-muted)" }}>{t.sceneTag}</p>}
+                    </div>
+                    {currentId === t._id && <Check size={12} style={{ color: "var(--scene-accent)" }} />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -204,6 +340,26 @@ export default function ScenesPage() {
             )
           })}
         </div>
+
+        {/* Scene Audio Bindings */}
+        {campaignId && (
+          <div className="mb-10">
+            <h2
+              className="text-lg font-semibold mb-1"
+              style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+            >
+              Scene Audio
+            </h2>
+            <p className="text-sm mb-4" style={{ color: "var(--scene-text-muted)" }}>
+              Bind ambience, explore, and combat tracks to each scene. Activating a scene auto-plays them.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {SCENES.filter((s) => s.id !== "").map((scene) => (
+                <SceneAudioRow key={scene.id} sceneName={scene.id} campaignId={campaignId} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Saved custom scenes */}
         {customScenes && customScenes.length > 0 && (

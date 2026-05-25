@@ -9,17 +9,20 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as audio from "../audio.js";
 import type * as campaignScenes from "../campaignScenes.js";
 import type * as campaignWeb from "../campaignWeb.js";
 import type * as campaigns from "../campaigns.js";
 import type * as characters from "../characters.js";
 import type * as dmConversations from "../dmConversations.js";
 import type * as encounters from "../encounters.js";
+import type * as libraryShare from "../libraryShare.js";
 import type * as liveSessions from "../liveSessions.js";
 import type * as npcs from "../npcs.js";
 import type * as partyInventory from "../partyInventory.js";
 import type * as sessionNotes from "../sessionNotes.js";
 import type * as sessions from "../sessions.js";
+import type * as users from "../users.js";
 import type * as world from "../world.js";
 
 import type {
@@ -30,17 +33,20 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  audio: typeof audio;
   campaignScenes: typeof campaignScenes;
   campaignWeb: typeof campaignWeb;
   campaigns: typeof campaigns;
   characters: typeof characters;
   dmConversations: typeof dmConversations;
   encounters: typeof encounters;
+  libraryShare: typeof libraryShare;
   liveSessions: typeof liveSessions;
   npcs: typeof npcs;
   partyInventory: typeof partyInventory;
   sessionNotes: typeof sessionNotes;
   sessions: typeof sessions;
+  users: typeof users;
   world: typeof world;
 }>;
 

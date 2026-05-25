@@ -161,11 +161,24 @@ export const activateScene = mutation({
     if (!session) throw new Error("Session not found")
     if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
 
-    if (args.palette) {
-      await ctx.db.patch(args.sessionId, { activeScene: args.scene, activeScenePalette: args.palette })
-    } else {
-      await ctx.db.patch(args.sessionId, { activeScene: args.scene })
+    const patch: Record<string, unknown> = { activeScene: args.scene }
+    if (args.palette) patch.activeScenePalette = args.palette
+
+    // Auto-load audio bindings for this scene
+    const sceneAudio = await ctx.db
+      .query("campaignSceneAudio")
+      .withIndex("by_campaignId_and_sceneName", (q) =>
+        q.eq("campaignId", session.campaignId).eq("sceneName", args.scene)
+      )
+      .unique()
+
+    if (sceneAudio) {
+      if (sceneAudio.ambienceTrackId !== undefined) patch.activeAmbienceTrackId = sceneAudio.ambienceTrackId
+      if (sceneAudio.exploreTrackId !== undefined) patch.activeExploreTrackId = sceneAudio.exploreTrackId
+      if (sceneAudio.combatTrackId !== undefined) patch.activeCombatTrackId = sceneAudio.combatTrackId
     }
+
+    await ctx.db.patch(args.sessionId, patch)
   },
 })
 

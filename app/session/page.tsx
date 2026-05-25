@@ -13,6 +13,7 @@ import {
   ChevronUp, ChevronDown, Shield, Trash2, Package, ScrollText,
 } from "lucide-react"
 import { toast } from "sonner"
+import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-panel"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -745,6 +746,8 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
 
       <MyCharacterPanel sessionId={sessionId} member={myMember} />
 
+      <PlayerAudioReceiver sessionId={sessionId} campaignId={campaignId} />
+
       <div className="rounded-xl p-6 text-center" style={{ background: "color-mix(in srgb, var(--scene-accent) 6%, var(--scene-surface))", border: "1px solid color-mix(in srgb, var(--scene-accent) 20%, var(--scene-border))" }}>
         {activeScene ? (
           <>
@@ -849,6 +852,8 @@ function ConductorView({ sessionId, campaignId, activeScene }: { sessionId: Sess
           ))}
         </div>
       </section>
+
+      <DMAudioPanel sessionId={sessionId} />
 
       <section>
         <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>Broadcast to Players</h2>
