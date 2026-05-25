@@ -12,6 +12,7 @@ import {
   formatModifier,
 } from "@/lib/character/constants"
 import { ArrowRight, ArrowLeft, RefreshCw, Shield } from "lucide-react"
+import { GuidedCompanion } from "@/components/character/guided-companion"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -732,6 +733,29 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
     )
   }
 
+  // ── Companion state string ────────────────────────────────────────────────────
+
+  const companionState = useMemo(() => {
+    const lines: string[] = [`Step: ${STEPS[step]} (${step + 1} of ${STEPS.length})`]
+    if (cls) lines.push(`Class: ${cls.name} (primary stat: ${cls.primaryAbility}, hit die: d${cls.hitDie}${cls.spellcasting ? ", spellcaster" : ""})`)
+    if (race) lines.push(`Race: ${subrace ? `${subrace.name} ${race.name}` : race.name}`)
+    if (background) lines.push(`Background: ${background.name}`)
+    const assigned = ABILITY_KEYS.filter(a => assignments[a] !== 0)
+    if (assigned.length > 0) {
+      const scores = assigned.map(a => {
+        const base = assignments[a]
+        const racial = racialBonuses[a] ?? 0
+        const total = base + racial
+        return `${ABILITY_ABBREVIATIONS[a]} ${total} (${formatModifier(getAbilityModifier(total))})`
+      })
+      lines.push(`Abilities so far: ${scores.join(", ")}`)
+    }
+    if (selectedSkills.length > 0) {
+      lines.push(`Skills chosen: ${selectedSkills.map(s => SKILL_DISPLAY_NAMES[s]).join(", ")}`)
+    }
+    return lines.join("\n")
+  }, [step, cls, race, subrace, background, assignments, racialBonuses, selectedSkills])
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const steps = [StepClass, StepRace, StepBackground, StepAbilities, StepSkills, StepName]
@@ -822,6 +846,8 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       )}
 
       <CurrentStep />
+
+      <GuidedCompanion characterState={companionState} />
     </div>
   )
 }
