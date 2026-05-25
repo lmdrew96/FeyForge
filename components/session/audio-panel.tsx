@@ -124,7 +124,7 @@ function SfxBoard({
   }, [playSfx])
 
   const sfxByTag = (tracks ?? []).reduce<Record<string, AudioTrack[]>>((acc, t) => {
-    const key = t.sceneTag ?? "misc"
+    const key = (t.sceneTag ?? [])[0] ?? "misc"
     acc[key] = acc[key] ?? []
     acc[key].push(t)
     return acc

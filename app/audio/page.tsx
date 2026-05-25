@@ -84,7 +84,7 @@ export default function PublicAudioLibraryPage() {
   )
 
   const grouped = filtered.reduce<Record<string, AudioTrack[]>>((acc, t) => {
-    const key = t.sceneTag ?? "general"
+    const key = (t.sceneTag ?? [])[0] ?? "general"
     acc[key] = acc[key] ?? []
     acc[key].push(t)
     return acc

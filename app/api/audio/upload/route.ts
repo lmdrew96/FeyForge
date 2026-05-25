@@ -13,7 +13,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "mp3"
-  const key = `feyforge/audio/${trackType}/${randomUUID()}.${ext}`
+  const key = `feyforge/audio/user/${userId}/${randomUUID()}.${ext}`
 
   const uploadUrl = await getPresignedUploadUrl(key, contentType)
   const r2Url = getR2Url(key)

@@ -502,11 +502,12 @@ export default defineSchema({
     name: v.string(),
     type: v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx")),
     intensityTier: v.union(v.literal("explore"), v.literal("combat"), v.null()),
-    // Optional rank within a tier (0 = lowest intensity, larger = more intense)
     intensityRank: v.optional(v.number()),
-    // Admin approval flag — only approved tracks appear in public DM library/listings
     approved: v.optional(v.boolean()),
-    sceneTag: v.optional(v.string()),
+    // Array of scene tags for multi-scene applicability
+    sceneTag: v.optional(v.array(v.string())),
+    // Curation tier: "free" = all users, "premium" = Ko-fi subscribers, "user" = personal upload
+    tier: v.optional(v.union(v.literal("free"), v.literal("premium"), v.literal("user"))),
     r2Key: v.string(),
     r2Url: v.string(),
     duration: v.number(),
@@ -515,7 +516,6 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_type", ["type"])
-    .index("by_type_and_sceneTag", ["type", "sceneTag"])
     .index("by_uploadedBy", ["uploadedBy"]),
 
   campaignSceneAudio: defineTable({

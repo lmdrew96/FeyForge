@@ -65,22 +65,30 @@ function TrackReviewCard({
     if (track.type !== "music" || !track.intensityTier) return ""
     return track.intensityTier
   })
-  const [sceneTagMode, setSceneTagMode] = useState<string>(() => {
-    if (!track.sceneTag) return ""
-    return sceneTagOptions.includes(track.sceneTag) ? track.sceneTag : "__custom__"
-  })
-  const [customSceneTag, setCustomSceneTag] = useState<string>(() => {
-    if (!track.sceneTag || sceneTagOptions.includes(track.sceneTag)) return ""
-    return track.sceneTag
-  })
+  const [selectedTags, setSelectedTags] = useState<string[]>(() => track.sceneTag ?? [])
+  const [customTag, setCustomTag] = useState("")
+  const [audioTier, setAudioTier] = useState<"free" | "premium" | "user">(() => track.tier ?? "free")
 
-  const normalizedSceneTag = (sceneTagMode === "__custom__" ? customSceneTag : sceneTagMode).trim().toLowerCase()
   const hasValidMusicRank = typeof track.intensityRank === "number"
     && Number.isInteger(track.intensityRank)
     && track.intensityRank >= 1
     && track.intensityRank <= 5
   const hasRequiredMusicMetadata = track.type !== "music" || (intensityTier !== "" && hasValidMusicRank)
-  const canApprove = normalizedSceneTag.length > 0 && hasRequiredMusicMetadata
+  const canApprove = selectedTags.length > 0 && hasRequiredMusicMetadata
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    )
+  }
+
+  const addCustomTag = () => {
+    const t = customTag.trim().toLowerCase()
+    if (t && !selectedTags.includes(t)) {
+      setSelectedTags((prev) => [...prev, t])
+    }
+    setCustomTag("")
+  }
 
   const toggle = useCallback(() => {
     if (!audioRef.current) {
@@ -109,8 +117,13 @@ function TrackReviewCard({
       if (track.type === "music" && intensityTier !== "" && track.intensityTier !== intensityTier) {
         await adminUpdate({ trackId: track._id, intensityTier })
       }
-      if (track.sceneTag !== normalizedSceneTag) {
-        await adminUpdate({ trackId: track._id, sceneTag: normalizedSceneTag })
+      const currentTags = [...(track.sceneTag ?? [])].sort().join(",")
+      const nextTags = [...selectedTags].sort().join(",")
+      if (currentTags !== nextTags) {
+        await adminUpdate({ trackId: track._id, sceneTag: selectedTags })
+      }
+      if (track.tier !== audioTier) {
+        await adminUpdate({ trackId: track._id, tier: audioTier })
       }
       await approve({ trackId: track._id, approved: true })
     } catch (error) {
@@ -153,9 +166,9 @@ function TrackReviewCard({
                 {track.intensityTier}
               </span>
             )}
-            {track.sceneTag && (
-              <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>{track.sceneTag}</span>
-            )}
+            {(track.sceneTag ?? []).map((tag) => (
+              <span key={tag} className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>{tag}</span>
+            ))}
             <span className="text-[10px] ml-auto" style={{ color: "var(--scene-text-muted)" }}>{formatDuration(track.duration)}</span>
           </div>
         </div>
@@ -229,28 +242,67 @@ function TrackReviewCard({
 
       {isAdmin && (
         <div className="space-y-2">
-          <p className="text-xs" style={{ color: "var(--scene-highlight)" }}>Scene tag (required for approval)</p>
-          <select
-            value={sceneTagMode}
-            onChange={(e) => setSceneTagMode(e.currentTarget.value)}
-            className="w-full px-2 py-1 rounded border text-xs"
-            style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)", color: "var(--scene-text-primary)" }}
-          >
-            <option value="">Select a scene tag</option>
+          <p className="text-xs" style={{ color: "var(--scene-highlight)" }}>Scene tags (select one or more — required for approval)</p>
+          <div className="flex flex-wrap gap-1.5">
             {sceneTagOptions.map((tag) => (
-              <option key={tag} value={tag}>{tag}</option>
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className="px-2 py-0.5 rounded text-[11px] border transition-colors"
+                style={{
+                  background: selectedTags.includes(tag) ? "var(--scene-accent)" : "var(--scene-bg)",
+                  borderColor: selectedTags.includes(tag) ? "var(--scene-accent)" : "var(--scene-border)",
+                  color: selectedTags.includes(tag) ? "var(--scene-bg)" : "var(--scene-text-muted)",
+                }}
+              >
+                {tag}
+              </button>
             ))}
-            <option value="__custom__">Custom…</option>
-          </select>
-          {sceneTagMode === "__custom__" && (
+          </div>
+          <div className="flex gap-1.5">
             <input
-              value={customSceneTag}
-              onChange={(e) => setCustomSceneTag(e.currentTarget.value)}
-              placeholder="Enter custom scene tag"
-              className="w-full px-2 py-1 rounded border text-xs"
+              value={customTag}
+              onChange={(e) => setCustomTag(e.currentTarget.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag() } }}
+              placeholder="Add custom tag…"
+              className="flex-1 px-2 py-1 rounded border text-xs"
               style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)", color: "var(--scene-text-primary)" }}
             />
+            <button
+              type="button"
+              onClick={addCustomTag}
+              className="px-2 py-1 rounded border text-xs"
+              style={{ borderColor: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+            >
+              Add
+            </button>
+          </div>
+          {selectedTags.length > 0 && (
+            <p className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>
+              Selected: {selectedTags.join(", ")}
+            </p>
           )}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="flex items-center gap-3">
+          <div className="text-xs" style={{ color: "var(--scene-highlight)" }}>Curation tier</div>
+          <select
+            value={audioTier}
+            onChange={(e) => {
+              const next = e.currentTarget.value as "free" | "premium" | "user"
+              setAudioTier(next)
+              adminUpdate({ trackId: track._id, tier: next }).catch(console.error)
+            }}
+            className="w-28 px-2 py-1 rounded border text-xs"
+            style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)", color: "var(--scene-text-primary)" }}
+          >
+            <option value="free">Free</option>
+            <option value="premium">Premium</option>
+            <option value="user">User upload</option>
+          </select>
         </div>
       )}
 
@@ -343,7 +395,7 @@ export default function AdminReviewPage() {
   const myUserId = me?.clerkId
   const knownSceneTags = Array.from(new Set([
     ...SCENES.map((scene) => scene.id).filter((id) => id.length > 0),
-    ...allTracks.map((track) => track.sceneTag).filter((tag): tag is string => Boolean(tag && tag.trim().length > 0)),
+    ...allTracks.flatMap((track) => track.sceneTag ?? []).filter((tag) => tag.trim().length > 0),
   ])).sort((a, b) => a.localeCompare(b))
 
   return (

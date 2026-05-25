@@ -8,10 +8,11 @@ function isValidIntensityRank(intensityRank: number): boolean {
 
 // helper: whether a track is sufficiently complete to show to non-admin users
 function isPubliclyVisible(track: Doc<"audioTracks">) {
-  // must be approved and have an r2 URL
   if (!track.approved) return false
   if (!track.r2Url) return false
-  if (!track.sceneTag || track.sceneTag.trim().length === 0) return false
+  if (!track.sceneTag || track.sceneTag.length === 0) return false
+  // Personal uploads are never in the shared library
+  if (track.tier === "user") return false
 
   // SFX do NOT require intensity metadata
   if (track.type === "sfx") return true
@@ -23,7 +24,6 @@ function isPubliclyVisible(track: Doc<"audioTracks">) {
     return isValidIntensityRank(track.intensityRank)
   }
 
-  // default conservative: require r2Url & approved
   return true
 }
 
@@ -34,49 +34,47 @@ export const listAudioTracks = query({
     type: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
     sceneTag: v.optional(v.string()),
     intensityTier: v.optional(v.union(v.literal("explore"), v.literal("combat"))),
+    tier: v.optional(v.union(v.literal("free"), v.literal("premium"), v.literal("user"))),
     includeUnapproved: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("audioTracks")
-
-    // When type+sceneTag are provided, use the index
-    if (args.type && args.sceneTag) {
-      let tracks = await q
-        .withIndex("by_type_and_sceneTag", (idx) =>
-          idx.eq("type", args.type!).eq("sceneTag", args.sceneTag)
-        )
-        .take(200)
-
-      if (!args.includeUnapproved) tracks = tracks.filter(isPubliclyVisible)
-      return tracks
-    }
+    let tracks: Doc<"audioTracks">[]
 
     if (args.type) {
-      let tracks = await q
+      tracks = await ctx.db
+        .query("audioTracks")
         .withIndex("by_type", (idx) => idx.eq("type", args.type!))
         .take(200)
-      if (args.intensityTier) {
-        tracks = tracks.filter((t) => t.intensityTier === args.intensityTier)
-      }
-      if (!args.includeUnapproved) tracks = tracks.filter(isPubliclyVisible)
-      return tracks
+    } else {
+      tracks = await ctx.db.query("audioTracks").take(200)
     }
 
-    let tracks = await q.take(200)
-    let filtered = tracks.filter((t) => {
+    tracks = tracks.filter((t) => {
       if (args.type && t.type !== args.type) return false
       if (args.intensityTier && t.intensityTier !== args.intensityTier) return false
-      if (args.sceneTag && t.sceneTag !== args.sceneTag) return false
+      if (args.sceneTag && !(t.sceneTag ?? []).includes(args.sceneTag)) return false
+      if (args.tier && t.tier !== args.tier) return false
       return true
     })
 
-    // By default we only return tracks that are approved and have required metadata.
-    // Admins (includeUnapproved=true) can see everything.
     if (!args.includeUnapproved) {
-      filtered = filtered.filter(isPubliclyVisible)
+      tracks = tracks.filter(isPubliclyVisible)
     }
 
-    return filtered
+    return tracks
+  },
+})
+
+// Returns the current user's own uploaded tracks (tier: "user" personal library)
+export const listMyTracks = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+    return await ctx.db
+      .query("audioTracks")
+      .withIndex("by_uploadedBy", (q) => q.eq("uploadedBy", identity.tokenIdentifier))
+      .take(100)
   },
 })
 
@@ -127,7 +125,7 @@ export const createAudioTrack = mutation({
     type: v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx")),
     intensityTier: v.union(v.literal("explore"), v.literal("combat"), v.null()),
     intensityRank: v.optional(v.number()),
-    sceneTag: v.optional(v.string()),
+    sceneTag: v.optional(v.array(v.string())),
     r2Key: v.string(),
     r2Url: v.string(),
     duration: v.number(),
@@ -141,9 +139,10 @@ export const createAudioTrack = mutation({
       throw new Error("Intensity rank must be an integer from 1 to 5")
     }
 
-    // New uploads require admin approval by default
+    // User uploads always start as personal (tier: "user"); admins promote via adminUpdateAudioTrack
     return await ctx.db.insert("audioTracks", {
       ...args,
+      tier: "user",
       uploadedBy: identity.tokenIdentifier,
       createdAt: Date.now(),
       approved: false,
@@ -158,7 +157,7 @@ export const updateAudioTrack = mutation({
     type: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
     intensityTier: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.null())),
     intensityRank: v.optional(v.number()),
-    sceneTag: v.optional(v.string()),
+    sceneTag: v.optional(v.array(v.string())),
     sourceUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -185,7 +184,6 @@ export const approveAudioTrack = mutation({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
-    // Check admin role in users table
     const me = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
@@ -196,8 +194,8 @@ export const approveAudioTrack = mutation({
     if (!track) throw new Error("Track not found")
 
     if (args.approved) {
-      if (!track.sceneTag || track.sceneTag.trim().length === 0) {
-        throw new Error("Set a scene tag before approving this track")
+      if (!track.sceneTag || track.sceneTag.length === 0) {
+        throw new Error("Set at least one scene tag before approving this track")
       }
       if (track.type === "music") {
         if (!track.intensityTier || typeof track.intensityRank !== "number" || !isValidIntensityRank(track.intensityRank)) {
@@ -217,7 +215,8 @@ export const adminUpdateAudioTrack = mutation({
     type: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
     intensityTier: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.null())),
     intensityRank: v.optional(v.number()),
-    sceneTag: v.optional(v.string()),
+    sceneTag: v.optional(v.array(v.string())),
+    tier: v.optional(v.union(v.literal("free"), v.literal("premium"), v.literal("user"))),
     sourceUrl: v.optional(v.string()),
     approved: v.optional(v.boolean()),
   },
@@ -299,7 +298,6 @@ export const updateSessionAudio = mutation({
     activeExploreTrackId: v.optional(v.id("audioTracks")),
     activeVictoryTrackId: v.optional(v.id("audioTracks")),
     activeCombatTrackId: v.optional(v.id("audioTracks")),
-    // intensity is musicLevel (0-100)
     intensity: v.optional(v.number()),
     musicMode: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.literal("off"), v.literal("blend"))),
     ambienceVolume: v.optional(v.number()),
@@ -315,7 +313,6 @@ export const updateSessionAudio = mutation({
     if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
 
     const { sessionId, ...updates } = args
-    // allow setting activeVictoryTrackId and musicMode as part of session audio updates
     await ctx.db.patch(sessionId, updates)
   },
 })
@@ -326,7 +323,7 @@ export const insertAudioTrackSeed = mutation({
     name: v.string(),
     type: v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx")),
     intensityTier: v.union(v.literal("explore"), v.literal("combat"), v.null()),
-    sceneTag: v.optional(v.string()),
+    sceneTag: v.optional(v.array(v.string())),
     r2Key: v.string(),
     r2Url: v.string(),
     duration: v.number(),
@@ -334,7 +331,6 @@ export const insertAudioTrackSeed = mutation({
   handler: async (ctx, args) => {
     if (args.seedSecret !== process.env.SEED_SECRET) throw new Error("Unauthorized")
     const { seedSecret, ...trackData } = args
-    // Upsert by r2Key so re-runs update the URL without creating duplicates
     const existing = await ctx.db
       .query("audioTracks")
       .filter((q) => q.eq(q.field("r2Key"), trackData.r2Key))
@@ -345,6 +341,7 @@ export const insertAudioTrackSeed = mutation({
     }
     return await ctx.db.insert("audioTracks", {
       ...trackData,
+      tier: "free",
       uploadedBy: "seed",
       createdAt: Date.now(),
       approved: true,
@@ -392,4 +389,3 @@ export const triggerVictoryCue = mutation({
     await ctx.db.patch(args.sessionId, patch)
   },
 })
-

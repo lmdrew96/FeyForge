@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
-import { Play, Pause, Link2, Pencil, Trash2, X, Check, Music, Waves, Zap, Lock, Coffee } from "lucide-react"
+import { Play, Pause, Upload, Pencil, Trash2, X, Music, Waves, Zap, Star } from "lucide-react"
 
 type AudioTrack = Doc<"audioTracks">
 type TrackType = "ambience" | "music" | "sfx"
@@ -52,7 +52,7 @@ function TierBadge({ tier }: { tier: IntensityTier }) {
   )
 }
 
-function AudioPreview({ url }: { url: string }) {
+function AudioPreview({ url, locked }: { url: string; locked?: boolean }) {
   const [playing, setPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -61,6 +61,7 @@ function AudioPreview({ url }: { url: string }) {
   }, [])
 
   const toggle = useCallback(() => {
+    if (locked) return
     if (!audioRef.current) {
       audioRef.current = new Audio(url)
       audioRef.current.onended = () => setPlaying(false)
@@ -72,17 +73,48 @@ function AudioPreview({ url }: { url: string }) {
       audioRef.current.play()
       setPlaying(true)
     }
-  }, [playing, url])
+  }, [locked, playing, url])
 
   return (
     <button
       onClick={toggle}
-      className="p-1.5 rounded transition-opacity hover:opacity-80"
+      disabled={locked}
+      className="p-1.5 rounded transition-opacity hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
       style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
-      title={playing ? "Pause" : "Preview"}
+      title={locked ? "Upgrade to Pro to play premium tracks" : playing ? "Pause" : "Preview"}
     >
       {playing ? <Pause size={12} /> : <Play size={12} />}
     </button>
+  )
+}
+
+type SceneTagPickerProps = {
+  selected: string[]
+  onChange: (tags: string[]) => void
+}
+
+function SceneTagPicker({ selected, onChange }: SceneTagPickerProps) {
+  const toggle = (tag: string) => {
+    onChange(selected.includes(tag) ? selected.filter((t) => t !== tag) : [...selected, tag])
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {SCENE_TAGS.map((tag) => (
+        <button
+          key={tag}
+          type="button"
+          onClick={() => toggle(tag)}
+          className="px-2 py-0.5 rounded text-[11px] border transition-colors"
+          style={{
+            background: selected.includes(tag) ? "var(--scene-accent)" : "var(--scene-bg)",
+            borderColor: selected.includes(tag) ? "var(--scene-accent)" : "var(--scene-border)",
+            color: selected.includes(tag) ? "var(--scene-bg)" : "var(--scene-text-muted)",
+          }}
+        >
+          {tag}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -91,7 +123,7 @@ type EditState = {
   name: string
   type: TrackType
   intensityTier: IntensityTier | null
-  sceneTag: string
+  sceneTags: string[]
   sourceUrl: string
 }
 
@@ -102,7 +134,7 @@ function EditModal({ track, onClose }: { track: AudioTrack; onClose: () => void 
     name: track.name,
     type: track.type as TrackType,
     intensityTier: track.intensityTier as IntensityTier | null,
-    sceneTag: track.sceneTag ?? "",
+    sceneTags: track.sceneTag ?? [],
     sourceUrl: track.sourceUrl ?? "",
   })
   const [saving, setSaving] = useState(false)
@@ -115,7 +147,7 @@ function EditModal({ track, onClose }: { track: AudioTrack; onClose: () => void 
         name: state.name,
         type: state.type,
         intensityTier: state.type === "music" ? state.intensityTier : null,
-        sceneTag: state.sceneTag || undefined,
+        sceneTag: state.sceneTags.length > 0 ? state.sceneTags : undefined,
         sourceUrl: state.sourceUrl || undefined,
       })
       onClose()
@@ -178,18 +210,13 @@ function EditModal({ track, onClose }: { track: AudioTrack; onClose: () => void 
             </label>
           )}
 
-          <label className="block">
-            <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Scene Tag</span>
-            <select
-              value={state.sceneTag}
-              onChange={(e) => setState((s) => ({ ...s, sceneTag: e.target.value }))}
-              className="w-full px-3 py-2 rounded-md text-sm"
-              style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-            >
-              <option value="">None</option>
-              {SCENE_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </label>
+          <div>
+            <span className="text-xs mb-2 block" style={{ color: "var(--scene-text-muted)" }}>Scene Tags</span>
+            <SceneTagPicker
+              selected={state.sceneTags}
+              onChange={(tags) => setState((s) => ({ ...s, sceneTags: tags }))}
+            />
+          </div>
 
           <label className="block">
             <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Source URL</span>
@@ -197,7 +224,6 @@ function EditModal({ track, onClose }: { track: AudioTrack; onClose: () => void 
               value={state.sourceUrl}
               onChange={(e) => setState((s) => ({ ...s, sourceUrl: e.target.value }))}
               className="w-full px-3 py-2 rounded-md text-sm"
-              placeholder="https://pixabay.com/... or https://freesound.org/..."
               style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
             />
           </label>
@@ -225,197 +251,17 @@ function EditModal({ track, onClose }: { track: AudioTrack; onClose: () => void 
   )
 }
 
-type ImportState = {
+type UploadState = {
   name: string
   type: TrackType
   intensityTier: IntensityTier | null
-  sceneTag: string
-  sourceUrl: string
-}
-
-function UrlImportModal({ onClose }: { onClose: () => void }) {
-  const createTrack = useMutation(api.audio.createAudioTrack)
-  const [state, setState] = useState<ImportState>({
-    name: "", type: "ambience", intensityTier: null, sceneTag: "", sourceUrl: "",
-  })
-  const [status, setStatus] = useState<"idle" | "fetching" | "done" | "error">("idle")
-  const [error, setError] = useState("")
-  const [fetched, setFetched] = useState<{ r2Key: string; r2Url: string; duration: number } | null>(null)
-
-  const handleFetch = async () => {
-    if (!state.sourceUrl) return
-    setStatus("fetching")
-    setError("")
-    try {
-      const res = await fetch("/api/audio/import-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceUrl: state.sourceUrl, trackType: state.type }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setFetched({ r2Key: data.r2Key, r2Url: data.r2Url, duration: data.duration })
-      if (!state.name && data.name) setState((s) => ({ ...s, name: data.name }))
-      setStatus("done")
-    } catch (e) {
-      setError((e as Error).message)
-      setStatus("error")
-    }
-  }
-
-  const handleSave = async () => {
-    if (!fetched || !state.name) return
-    await createTrack({
-      name: state.name,
-      type: state.type,
-      intensityTier: state.type === "music" ? state.intensityTier : null,
-      sceneTag: state.sceneTag || undefined,
-      r2Key: fetched.r2Key,
-      r2Url: fetched.r2Url,
-      duration: fetched.duration,
-      sourceUrl: state.sourceUrl || undefined,
-    })
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div
-        className="w-full max-w-md rounded-xl p-6 space-y-4"
-        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>
-            Import from URL
-          </h3>
-          <button onClick={onClose} style={{ color: "var(--scene-text-muted)" }}><X size={16} /></button>
-        </div>
-
-        <div className="space-y-3">
-          <label className="block">
-            <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Pixabay or Freesound URL</span>
-            <div className="flex gap-2">
-              <input
-                value={state.sourceUrl}
-                onChange={(e) => setState((s) => ({ ...s, sourceUrl: e.target.value }))}
-                className="flex-1 px-3 py-2 rounded-md text-sm"
-                placeholder="https://pixabay.com/sound-effects/..."
-                style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-              />
-              <button
-                onClick={handleFetch}
-                disabled={!state.sourceUrl || status === "fetching"}
-                className="px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-                style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
-              >
-                {status === "fetching" ? "…" : "Fetch"}
-              </button>
-            </div>
-            {error && <p className="text-xs mt-1 text-red-400">{error}</p>}
-            {status === "done" && (
-              <p className="text-xs mt-1 flex items-center gap-1" style={{ color: "var(--scene-text-muted)" }}>
-                <Check size={10} className="text-green-400" /> Downloaded — {formatDuration(fetched!.duration)}
-              </p>
-            )}
-          </label>
-
-          <label className="block">
-            <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Track Name</span>
-            <input
-              value={state.name}
-              onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
-              className="w-full px-3 py-2 rounded-md text-sm"
-              style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-            />
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Type</span>
-              <select
-                value={state.type}
-                onChange={(e) => setState((s) => ({ ...s, type: e.target.value as TrackType, intensityTier: null }))}
-                className="w-full px-3 py-2 rounded-md text-sm"
-                style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-              >
-                <option value="ambience">Ambience</option>
-                <option value="music">Music</option>
-                <option value="sfx">SFX</option>
-              </select>
-            </label>
-
-            {state.type === "music" ? (
-              <label className="block">
-                <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Tier</span>
-                <select
-                  value={state.intensityTier ?? ""}
-                  onChange={(e) => setState((s) => ({ ...s, intensityTier: (e.target.value || null) as IntensityTier | null }))}
-                  className="w-full px-3 py-2 rounded-md text-sm"
-                  style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-                >
-                  <option value="">None</option>
-                  <option value="explore">Explore</option>
-                  <option value="combat">Combat</option>
-                </select>
-              </label>
-            ) : (
-              <label className="block">
-                <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Scene Tag</span>
-                <select
-                  value={state.sceneTag}
-                  onChange={(e) => setState((s) => ({ ...s, sceneTag: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-md text-sm"
-                  style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-                >
-                  <option value="">None</option>
-                  {SCENE_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </label>
-            )}
-          </div>
-
-          {state.type === "music" && (
-            <label className="block">
-              <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Scene Tag</span>
-              <select
-                value={state.sceneTag}
-                onChange={(e) => setState((s) => ({ ...s, sceneTag: e.target.value }))}
-                className="w-full px-3 py-2 rounded-md text-sm"
-                style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-              >
-                <option value="">None</option>
-                {SCENE_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </label>
-          )}
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={handleSave}
-            disabled={!fetched || !state.name}
-            className="flex-1 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-            style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
-          >
-            Save to Library
-          </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm transition-opacity hover:opacity-80"
-            style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+  sceneTags: string[]
 }
 
 function DirectUploadModal({ onClose }: { onClose: () => void }) {
   const createTrack = useMutation(api.audio.createAudioTrack)
-  const [state, setState] = useState<ImportState>({
-    name: "", type: "ambience", intensityTier: null, sceneTag: "", sourceUrl: "",
+  const [state, setState] = useState<UploadState>({
+    name: "", type: "ambience", intensityTier: null, sceneTags: [],
   })
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -461,7 +307,7 @@ function DirectUploadModal({ onClose }: { onClose: () => void }) {
         name: state.name,
         type: state.type,
         intensityTier: state.type === "music" ? state.intensityTier : null,
-        sceneTag: state.sceneTag || undefined,
+        sceneTag: state.sceneTags.length > 0 ? state.sceneTags : undefined,
         r2Key: presign.r2Key,
         r2Url: presign.r2Url,
         duration,
@@ -536,9 +382,9 @@ function DirectUploadModal({ onClose }: { onClose: () => void }) {
               </select>
             </label>
 
-            {state.type === "music" ? (
+            {state.type === "music" && (
               <label className="block">
-                <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Tier</span>
+                <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Intensity Tier</span>
                 <select
                   value={state.intensityTier ?? ""}
                   onChange={(e) => setState((s) => ({ ...s, intensityTier: (e.target.value || null) as IntensityTier | null }))}
@@ -550,36 +396,16 @@ function DirectUploadModal({ onClose }: { onClose: () => void }) {
                   <option value="combat">Combat</option>
                 </select>
               </label>
-            ) : (
-              <label className="block">
-                <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Scene Tag</span>
-                <select
-                  value={state.sceneTag}
-                  onChange={(e) => setState((s) => ({ ...s, sceneTag: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-md text-sm"
-                  style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-                >
-                  <option value="">None</option>
-                  {SCENE_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </label>
             )}
           </div>
 
-          {state.type === "music" && (
-            <label className="block">
-              <span className="text-xs mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Scene Tag</span>
-              <select
-                value={state.sceneTag}
-                onChange={(e) => setState((s) => ({ ...s, sceneTag: e.target.value }))}
-                className="w-full px-3 py-2 rounded-md text-sm"
-                style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-              >
-                <option value="">None</option>
-                {SCENE_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </label>
-          )}
+          <div>
+            <span className="text-xs mb-2 block" style={{ color: "var(--scene-text-muted)" }}>Scene Tags</span>
+            <SceneTagPicker
+              selected={state.sceneTags}
+              onChange={(tags) => setState((s) => ({ ...s, sceneTags: tags }))}
+            />
+          </div>
 
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
@@ -637,24 +463,128 @@ function DeleteConfirm({ track, onConfirm, onCancel }: { track: AudioTrack; onCo
   )
 }
 
+type TierFilter = "all" | "free" | "premium" | "mine"
+
+function TrackCard({
+  track,
+  isPremium,
+  onEdit,
+  onDelete,
+  reviewReactions,
+  isOwner,
+}: {
+  track: AudioTrack
+  isPremium: boolean
+  onEdit?: () => void
+  onDelete?: () => void
+  reviewReactions?: { reaction: string; comment?: string }[]
+  isOwner?: boolean
+}) {
+  const isLocked = track.tier === "premium" && !isPremium
+  return (
+    <div
+      className="rounded-lg p-3 space-y-2"
+      style={{
+        background: "var(--scene-surface)",
+        border: "1px solid var(--scene-border)",
+        opacity: isLocked ? 0.65 : 1,
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            {track.tier === "premium" && (
+              <Star size={10} className="shrink-0 text-amber-400 fill-amber-400" />
+            )}
+            <p className="text-sm font-medium leading-tight truncate" style={{ color: "var(--scene-text-primary)" }}>
+              {track.name}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <AudioPreview url={track.r2Url} locked={isLocked} />
+          {isOwner && onEdit && (
+            <button
+              onClick={onEdit}
+              className="p-1.5 rounded transition-opacity hover:opacity-80"
+              style={{ color: "var(--scene-text-muted)" }}
+            >
+              <Pencil size={12} />
+            </button>
+          )}
+          {isOwner && onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded transition-opacity hover:opacity-80 text-red-400"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1">
+        <TypeBadge type={track.type as TrackType} />
+        {track.intensityTier && <TierBadge tier={track.intensityTier as IntensityTier} />}
+        {(track.sceneTag ?? []).map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border"
+            style={{ borderColor: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+          >
+            {tag}
+          </span>
+        ))}
+        <span className="ml-auto text-[10px]" style={{ color: "var(--scene-text-muted)" }}>
+          {formatDuration(track.duration)}
+        </span>
+      </div>
+
+      {isLocked && (
+        <p className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>
+          ⭐ Premium — upgrade on Ko-fi to unlock
+        </p>
+      )}
+
+      {reviewReactions && reviewReactions.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1">
+          {reviewReactions.map((r, i) => (
+            <span
+              key={i}
+              className="text-[10px] px-1.5 py-0.5 rounded"
+              style={{ background: "var(--scene-bg)", color: "var(--scene-text-muted)" }}
+              title={r.comment}
+            >
+              {r.reaction === "yes" ? "✅" : r.reaction === "no" ? "❌" : "🤔"}
+              {r.comment && " · " + r.comment.slice(0, 30)}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AudioLibraryPage() {
   const tracks = useQuery(api.audio.listAudioTracks, {})
+  const myTracks = useQuery(api.audio.listMyTracks, {})
   const me = useQuery(api.users.getMe, {})
   const reviewComments = useQuery(api.libraryShare.listMyReviewComments, {})
   const deleteTrack = useMutation(api.audio.deleteAudioTrack)
 
   const [filterType, setFilterType] = useState<TrackType | "all">("all")
-  const [filterTier, setFilterTier] = useState<IntensityTier | "all">("all")
+  const [filterIntensityTier, setFilterIntensityTier] = useState<IntensityTier | "all">("all")
   const [filterTag, setFilterTag] = useState<string>("all")
+  const [filterTier, setFilterTier] = useState<TierFilter>("all")
 
   const [editTrack, setEditTrack] = useState<AudioTrack | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AudioTrack | null>(null)
-  const [showUrlImport, setShowUrlImport] = useState(false)
+  const [showUpload, setShowUpload] = useState(false)
 
   const isPremium = me?.isPremium ?? false
 
   const reviewsByTrack = (reviewComments ?? []).reduce<Record<string, { reaction: string; comment?: string }[]>>(
-    (acc: Record<string, { reaction: string; comment?: string }[]>, c: { trackId: string; reaction: string; comment?: string }) => {
+    (acc, c) => {
       acc[c.trackId] = acc[c.trackId] ?? []
       acc[c.trackId].push({ reaction: c.reaction, comment: c.comment })
       return acc
@@ -662,10 +592,14 @@ export default function AudioLibraryPage() {
     {}
   )
 
+  const myTokenId = me?.clerkId
+
   const filtered = (tracks ?? []).filter((t) => {
     if (filterType !== "all" && t.type !== filterType) return false
-    if (filterTier !== "all" && t.intensityTier !== filterTier) return false
-    if (filterTag !== "all" && t.sceneTag !== filterTag) return false
+    if (filterIntensityTier !== "all" && t.intensityTier !== filterIntensityTier) return false
+    if (filterTag !== "all" && !(t.sceneTag ?? []).includes(filterTag)) return false
+    if (filterTier === "free" && t.tier !== "free") return false
+    if (filterTier === "premium" && t.tier !== "premium") return false
     return true
   })
 
@@ -681,56 +615,32 @@ export default function AudioLibraryPage() {
     setDeleteTarget(null)
   }
 
-  const allTags = Array.from(new Set((tracks ?? []).map((t) => t.sceneTag).filter(Boolean) as string[]))
+  const allTags = Array.from(new Set((tracks ?? []).flatMap((t) => t.sceneTag ?? [])))
+
+  const showingMine = filterTier === "mine"
 
   return (
     <AppShell>
       <div className="p-6 max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold" style={{ color: "var(--scene-text-primary)" }}>Audio Library</h1>
-              {isPremium && (
-                <span
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
-                  style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
-                >
-                  <Coffee size={9} /> Pro
-                </span>
-              )}
-            </div>
+            <h1 className="text-xl font-bold" style={{ color: "var(--scene-text-primary)" }}>Audio Library</h1>
             <p className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
               {tracks?.length ?? 0} tracks
             </p>
           </div>
-          <div className="flex gap-2">
-            {isPremium ? (
-              <button
-                onClick={() => setShowUrlImport(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
-                style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
-              >
-                <Link2 size={14} /> Import URL
-              </button>
-            ) : (
-              <a
-                href="https://ko-fi.com/adhdesigns"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
-                style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
-                title="URL import requires Pro — support on Ko-fi to unlock"
-              >
-                <Lock size={12} />
-                <Coffee size={13} />
-                Import URL — Unlock with Ko-fi
-              </a>
-            )}
-          </div>
+          <button
+            onClick={() => setShowUpload(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+            style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+          >
+            <Upload size={14} /> Upload
+          </button>
         </div>
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
+          {/* Type filter */}
           <div className="flex gap-1 p-1 rounded-lg" style={{ background: "var(--scene-surface)" }}>
             {(["all", "ambience", "music", "sfx"] as const).map((t) => (
               <button
@@ -747,16 +657,17 @@ export default function AudioLibraryPage() {
             ))}
           </div>
 
+          {/* Intensity tier filter (music only) */}
           {filterType === "music" && (
             <div className="flex gap-1 p-1 rounded-lg" style={{ background: "var(--scene-surface)" }}>
               {(["all", "explore", "combat"] as const).map((t) => (
                 <button
                   key={t}
-                  onClick={() => setFilterTier(t)}
+                  onClick={() => setFilterIntensityTier(t)}
                   className="px-3 py-1 rounded-md text-xs font-medium transition-all"
                   style={{
-                    background: filterTier === t ? "var(--scene-accent)" : "transparent",
-                    color: filterTier === t ? "var(--scene-bg)" : "var(--scene-text-muted)",
+                    background: filterIntensityTier === t ? "var(--scene-accent)" : "transparent",
+                    color: filterIntensityTier === t ? "var(--scene-bg)" : "var(--scene-text-muted)",
                   }}
                 >
                   {t === "all" ? "All Tiers" : TIER_LABELS[t]}
@@ -765,7 +676,30 @@ export default function AudioLibraryPage() {
             </div>
           )}
 
-          {allTags.length > 0 && (
+          {/* Curation tier filter */}
+          <div className="flex gap-1 p-1 rounded-lg" style={{ background: "var(--scene-surface)" }}>
+            {([
+              { value: "all", label: "All" },
+              { value: "free", label: "Free" },
+              { value: "premium", label: "⭐ Premium" },
+              { value: "mine", label: "My Uploads" },
+            ] as const).map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setFilterTier(value)}
+                className="px-3 py-1 rounded-md text-xs font-medium transition-all"
+                style={{
+                  background: filterTier === value ? "var(--scene-accent)" : "transparent",
+                  color: filterTier === value ? "var(--scene-bg)" : "var(--scene-text-muted)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Scene tag filter */}
+          {allTags.length > 0 && filterTier !== "mine" && (
             <select
               value={filterTag}
               onChange={(e) => setFilterTag(e.target.value)}
@@ -778,83 +712,62 @@ export default function AudioLibraryPage() {
           )}
         </div>
 
-        {/* Track grid */}
-        {!tracks ? (
-          <p className="text-sm py-12 text-center" style={{ color: "var(--scene-text-muted)" }}>Loading…</p>
-        ) : filtered.length === 0 ? (
-          <div className="py-16 text-center">
-            <Music size={32} className="mx-auto mb-3 opacity-30" style={{ color: "var(--scene-text-muted)" }} />
-            <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
-              {tracks.length === 0 ? "No tracks yet. Import from Pixabay or Freesound with a Pro subscription." : "No tracks match these filters."}
-            </p>
-          </div>
+        {/* My Uploads section */}
+        {showingMine ? (
+          !myTracks ? (
+            <p className="text-sm py-12 text-center" style={{ color: "var(--scene-text-muted)" }}>Loading…</p>
+          ) : myTracks.length === 0 ? (
+            <div className="py-16 text-center">
+              <Music size={32} className="mx-auto mb-3 opacity-30" style={{ color: "var(--scene-text-muted)" }} />
+              <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                No personal uploads yet. Click Upload to add your own tracks.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {myTracks.map((track) => (
+                <TrackCard
+                  key={track._id}
+                  track={track}
+                  isPremium={isPremium}
+                  isOwner
+                  onEdit={() => setEditTrack(track)}
+                  onDelete={() => setDeleteTarget(track)}
+                  reviewReactions={reviewsByTrack[track._id]}
+                />
+              ))}
+            </div>
+          )
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map((track) => (
-              <div
-                key={track._id}
-                className="rounded-lg p-3 space-y-2"
-                style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium leading-tight flex-1 min-w-0 truncate" style={{ color: "var(--scene-text-primary)" }}>
-                    {track.name}
-                  </p>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <AudioPreview url={track.r2Url} />
-                    <button
-                      onClick={() => setEditTrack(track)}
-                      className="p-1.5 rounded transition-opacity hover:opacity-80"
-                      style={{ color: "var(--scene-text-muted)" }}
-                    >
-                      <Pencil size={12} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(track)}
-                      className="p-1.5 rounded transition-opacity hover:opacity-80 text-red-400"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1">
-                  <TypeBadge type={track.type as TrackType} />
-                  {track.intensityTier && <TierBadge tier={track.intensityTier as IntensityTier} />}
-                  {track.sceneTag && (
-                    <span
-                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border"
-                      style={{ borderColor: "var(--scene-border)", color: "var(--scene-text-muted)" }}
-                    >
-                      {track.sceneTag}
-                    </span>
-                  )}
-                  <span className="ml-auto text-[10px]" style={{ color: "var(--scene-text-muted)" }}>
-                    {formatDuration(track.duration)}
-                  </span>
-                </div>
-                {reviewsByTrack[track._id]?.length > 0 && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {reviewsByTrack[track._id].map((r: { reaction: string; comment?: string }, i: number) => (
-                      <span
-                        key={i}
-                        className="text-[10px] px-1.5 py-0.5 rounded"
-                        style={{ background: "var(--scene-bg)", color: "var(--scene-text-muted)" }}
-                        title={r.comment}
-                      >
-                        {r.reaction === "yes" ? "✅" : r.reaction === "no" ? "❌" : "🤔"}
-                        {r.comment && " · " + r.comment.slice(0, 30)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          /* Shared library */
+          !tracks ? (
+            <p className="text-sm py-12 text-center" style={{ color: "var(--scene-text-muted)" }}>Loading…</p>
+          ) : filtered.length === 0 ? (
+            <div className="py-16 text-center">
+              <Music size={32} className="mx-auto mb-3 opacity-30" style={{ color: "var(--scene-text-muted)" }} />
+              <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                {tracks.length === 0 ? "No tracks in the library yet." : "No tracks match these filters."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filtered.map((track) => (
+                <TrackCard
+                  key={track._id}
+                  track={track}
+                  isPremium={isPremium}
+                  isOwner={track.uploadedBy === myTokenId}
+                  onEdit={() => setEditTrack(track)}
+                  onDelete={() => setDeleteTarget(track)}
+                  reviewReactions={reviewsByTrack[track._id]}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
 
-      {showUrlImport && <UrlImportModal onClose={() => setShowUrlImport(false)} />}
+      {showUpload && <DirectUploadModal onClose={() => setShowUpload(false)} />}
       {editTrack && <EditModal track={editTrack} onClose={() => setEditTrack(null)} />}
       {deleteTarget && (
         <DeleteConfirm
