@@ -9,6 +9,7 @@ import { Wand2, Dice6, BookOpen, ArrowLeft, RefreshCw, Check } from "lucide-reac
 import { toast } from "sonner"
 import {
   quickRollCharacter,
+  generateName,
   type QuickRollResult,
 } from "@/lib/character/character-data"
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
@@ -88,10 +89,11 @@ function QuickRollPreview({
 }: {
   result: QuickRollResult
   onReroll: () => void
-  onConfirm: () => void
+  onConfirm: (editedName: string) => void
   saving: boolean
 }) {
-  const { name, race, subrace, characterClass, background, baseAbilities, racialBonuses } = result
+  const [editedName, setEditedName] = useState(result.name)
+  const { race, subrace, characterClass, background, baseAbilities, racialBonuses } = result
   const raceName = subrace ? `${subrace.name} ${race.name}` : race.name
   const conTotal = baseAbilities.constitution + (racialBonuses.constitution ?? 0)
   const conMod = Math.floor((conTotal - 10) / 2)
@@ -110,13 +112,23 @@ function QuickRollPreview({
           style={{ borderColor: "var(--scene-border)", background: "color-mix(in srgb, var(--scene-accent) 8%, var(--scene-surface))" }}
         >
           <div className="flex items-start justify-between">
-            <div>
-              <h2
-                className="text-2xl font-bold"
-                style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
-              >
-                {name}
-              </h2>
+            <div className="flex-1 min-w-0 mr-4">
+              <div className="flex items-center gap-2">
+                <input
+                  value={editedName}
+                  onChange={e => setEditedName(e.target.value)}
+                  className="text-2xl font-bold bg-transparent outline-none w-full min-w-0"
+                  style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+                />
+                <button
+                  onClick={() => setEditedName(generateName(race.id))}
+                  title="Suggest a different name"
+                  className="shrink-0 transition-opacity hover:opacity-70"
+                  style={{ color: "var(--scene-text-muted)" }}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+              </div>
               <p className="text-sm mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
                 {raceName} · {characterClass.name} · {background.name}
               </p>
@@ -227,7 +239,7 @@ function QuickRollPreview({
             Reroll
           </button>
           <button
-            onClick={onConfirm}
+            onClick={() => onConfirm(editedName.trim() || result.name)}
             disabled={saving}
             className="flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium flex-1 transition-opacity hover:opacity-80 disabled:opacity-50"
             style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
@@ -250,15 +262,18 @@ export default function NewCharacterPage() {
   const createCharacter = useMutation(api.characters.create)
   const [mode, setMode] = useState<CreationMode>("choose")
   const [rolled, setRolled] = useState<QuickRollResult | null>(null)
+  const [rollCount, setRollCount] = useState(0)
   const [saving, setSaving] = useState(false)
 
   const handleQuickRoll = () => {
     setRolled(quickRollCharacter())
+    setRollCount(c => c + 1)
     setMode("quick-roll-preview")
   }
 
   const handleReroll = () => {
     setRolled(quickRollCharacter())
+    setRollCount(c => c + 1)
   }
 
   const saveCharacter = async (result: QuickRollResult) => {
@@ -302,9 +317,9 @@ export default function NewCharacterPage() {
     }
   }
 
-  const handleConfirm = () => {
+  const handleConfirm = (editedName: string) => {
     if (!rolled) return
-    saveCharacter(rolled)
+    saveCharacter({ ...rolled, name: editedName })
   }
 
   return (
@@ -415,6 +430,7 @@ export default function NewCharacterPage() {
               </p>
             </div>
             <QuickRollPreview
+              key={rollCount}
               result={rolled}
               onReroll={handleReroll}
               onConfirm={handleConfirm}
