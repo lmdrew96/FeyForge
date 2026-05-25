@@ -204,6 +204,28 @@ export const updateSessionAudio = mutation({
   },
 })
 
+export const insertAudioTrackSeed = mutation({
+  args: {
+    seedSecret: v.string(),
+    name: v.string(),
+    type: v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx")),
+    intensityTier: v.union(v.literal("explore"), v.literal("combat"), v.null()),
+    sceneTag: v.optional(v.string()),
+    r2Key: v.string(),
+    r2Url: v.string(),
+    duration: v.number(),
+  },
+  handler: async (ctx, args) => {
+    if (args.seedSecret !== process.env.SEED_SECRET) throw new Error("Unauthorized")
+    const { seedSecret, ...trackData } = args
+    return await ctx.db.insert("audioTracks", {
+      ...trackData,
+      uploadedBy: "seed",
+      createdAt: Date.now(),
+    })
+  },
+})
+
 export const updateSessionIntensity = mutation({
   args: {
     sessionId: v.id("partySessions"),

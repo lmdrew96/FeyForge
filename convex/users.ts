@@ -30,6 +30,7 @@ export const upsertUser = mutation({
       clerkId: identity.tokenIdentifier,
       clerkUserId: identity.subject,
       isPremium: false,
+      role: "user",
     })
   },
 })
@@ -51,6 +52,46 @@ export const setPremiumByClerkId = mutation({
         premiumSince: args.isPremium ? (user.premiumSince ?? Date.now()) : undefined,
       })
     }
-    // If user hasn't logged in yet, we can't pre-create their record without tokenIdentifier
+  },
+})
+
+export const setRole = mutation({
+  args: {
+    targetClerkUserId: v.string(),
+    role: v.union(v.literal("admin"), v.literal("user")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+      .unique()
+    if (me?.role !== "admin") throw new Error("Not authorized")
+
+    const target = await ctx.db
+      .query("users")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.targetClerkUserId))
+      .unique()
+    if (!target) throw new Error("User not found")
+
+    await ctx.db.patch(target._id, { role: args.role })
+  },
+})
+
+export const listAllUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+      .unique()
+    if (me?.role !== "admin") return []
+
+    return await ctx.db.query("users").take(100)
   },
 })

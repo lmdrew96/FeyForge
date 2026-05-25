@@ -12,7 +12,8 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
-    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\""
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "seed": "tsx scripts/seed-audio.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.2",
@@ -99,6 +100,7 @@
     "postcss": "^8.5",
     "prettier": "^3.7.4",
     "tailwindcss": "^4.1.9",
+    "tsx": "^4.22.3",
     "tw-animate-css": "1.3.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.51.0"

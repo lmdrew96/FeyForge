@@ -19,8 +19,11 @@ import {
   Globe,
   Network,
   Music,
+  Shield,
 } from "lucide-react"
 import { useState } from "react"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
 
 type NavChild = { label: string; href: string; icon: React.ElementType }
@@ -56,6 +59,8 @@ const navItems: NavItem[] = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [dmOpen, setDmOpen] = useState(pathname.startsWith("/dm"))
+  const me = useQuery(api.users.getMe)
+  const isAdmin = me?.role === "admin"
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href)
@@ -157,6 +162,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             )
           })}
+
+          {isAdmin && (
+            <Link
+              href="/admin/review"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-[var(--scene-bg)]"
+              style={{
+                color: isActive("/admin")
+                  ? "var(--scene-accent)"
+                  : "var(--scene-text-muted)",
+                background: isActive("/admin") ? "var(--scene-bg)" : undefined,
+              }}
+            >
+              <Shield className="w-4 h-4 shrink-0" />
+              Admin
+            </Link>
+          )}
         </nav>
 
         {/* User area */}

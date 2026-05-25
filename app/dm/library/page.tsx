@@ -640,9 +640,8 @@ function DeleteConfirm({ track, onConfirm, onCancel }: { track: AudioTrack; onCo
 export default function AudioLibraryPage() {
   const tracks = useQuery(api.audio.listAudioTracks, {})
   const me = useQuery(api.users.getMe, {})
-  const reviewComments = useQuery(api.libraryShare.listMyTrackComments, {})
+  const reviewComments = useQuery(api.libraryShare.listMyReviewComments, {})
   const deleteTrack = useMutation(api.audio.deleteAudioTrack)
-  const createShareToken = useMutation(api.libraryShare.createShareToken)
 
   const [filterType, setFilterType] = useState<TrackType | "all">("all")
   const [filterTier, setFilterTier] = useState<IntensityTier | "all">("all")
@@ -651,12 +650,11 @@ export default function AudioLibraryPage() {
   const [editTrack, setEditTrack] = useState<AudioTrack | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AudioTrack | null>(null)
   const [showUrlImport, setShowUrlImport] = useState(false)
-  const [shareCopied, setShareCopied] = useState(false)
 
   const isPremium = me?.isPremium ?? false
 
   const reviewsByTrack = (reviewComments ?? []).reduce<Record<string, { reaction: string; comment?: string }[]>>(
-    (acc, c) => {
+    (acc: Record<string, { reaction: string; comment?: string }[]>, c: { trackId: string; reaction: string; comment?: string }) => {
       acc[c.trackId] = acc[c.trackId] ?? []
       acc[c.trackId].push({ reaction: c.reaction, comment: c.comment })
       return acc
@@ -683,17 +681,6 @@ export default function AudioLibraryPage() {
     setDeleteTarget(null)
   }
 
-  const handleShare = async () => {
-    const token = await createShareToken({
-      filterType: filterType !== "all" ? filterType : undefined,
-      filterSceneTag: filterTag !== "all" ? filterTag : undefined,
-    })
-    const url = `${window.location.origin}/library/review/${token}`
-    await navigator.clipboard.writeText(url).catch(() => {})
-    setShareCopied(true)
-    setTimeout(() => setShareCopied(false), 2000)
-  }
-
   const allTags = Array.from(new Set((tracks ?? []).map((t) => t.sceneTag).filter(Boolean) as string[]))
 
   return (
@@ -717,14 +704,6 @@ export default function AudioLibraryPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={handleShare}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
-              style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
-              title="Generate share link for review"
-            >
-              <Link2 size={14} /> {shareCopied ? "Copied!" : "Share"}
-            </button>
             {isPremium ? (
               <button
                 onClick={() => setShowUrlImport(true)}
@@ -856,7 +835,7 @@ export default function AudioLibraryPage() {
                 </div>
                 {reviewsByTrack[track._id]?.length > 0 && (
                   <div className="flex flex-wrap gap-1 pt-1">
-                    {reviewsByTrack[track._id].map((r, i) => (
+                    {reviewsByTrack[track._id].map((r: { reaction: string; comment?: string }, i: number) => (
                       <span
                         key={i}
                         className="text-[10px] px-1.5 py-0.5 rounded"

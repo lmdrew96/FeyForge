@@ -469,6 +469,7 @@ export default defineSchema({
     clerkUserId: v.string(),     // subject / bare user_xxx ID for webhook lookups
     isPremium: v.boolean(),
     premiumSince: v.optional(v.number()),
+    role: v.optional(v.union(v.literal("admin"), v.literal("user"))),
   })
     .index("by_clerkId", ["clerkId"])
     .index("by_clerkUserId", ["clerkUserId"]),
@@ -485,14 +486,16 @@ export default defineSchema({
     .index("by_ownerId", ["ownerId"]),
 
   libraryReviewComments: defineTable({
-    token: v.string(),
+    userId: v.string(),          // tokenIdentifier (clerkId) of the reviewer
+    reviewerName: v.optional(v.string()),
     trackId: v.id("audioTracks"),
     reaction: v.union(v.literal("yes"), v.literal("no"), v.literal("maybe")),
     comment: v.optional(v.string()),
     createdAt: v.number(),
   })
-    .index("by_token", ["token"])
-    .index("by_token_and_trackId", ["token", "trackId"]),
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_trackId", ["userId", "trackId"])
+    .index("by_trackId", ["trackId"]),
 
   audioTracks: defineTable({
     name: v.string(),
