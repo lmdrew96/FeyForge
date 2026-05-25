@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useQuery } from "convex/react"
+import { useQuery, useMutation } from "convex/react"
 import { useUser } from "@clerk/nextjs"
 import { api } from "@/convex/_generated/api"
 import type { Doc } from "@/convex/_generated/dataModel"
@@ -133,6 +133,11 @@ function toLocation(doc: Doc<"mapLocations">): MapLocation {
 export function DataLoader() {
   const { isSignedIn } = useUser()
   const skip = !isSignedIn ? ("skip" as const) : {}
+  const upsertUser = useMutation(api.users.upsertUser)
+
+  useEffect(() => {
+    if (isSignedIn) upsertUser()
+  }, [isSignedIn, upsertUser])
 
   const convexNPCs = useQuery(api.npcs.list, skip)
   const convexSessions = useQuery(api.sessions.listSessions, skip)
