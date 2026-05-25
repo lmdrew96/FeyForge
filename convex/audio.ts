@@ -6,6 +6,10 @@ function isValidIntensityRank(intensityRank: number): boolean {
   return Number.isInteger(intensityRank) && intensityRank >= 1 && intensityRank <= 5
 }
 
+function isValidAmbienceRank(rank: number): boolean {
+  return Number.isInteger(rank) && rank >= 1 && rank <= 3
+}
+
 // helper: whether a track is sufficiently complete to show to non-admin users
 function isPubliclyVisible(track: Doc<"audioTracks">) {
   if (!track.approved) return false
@@ -208,15 +212,23 @@ export const adminUpdateAudioTrack = mutation({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
-    if (args.intensityRank !== undefined && !isValidIntensityRank(args.intensityRank)) {
-      throw new Error("Intensity rank must be an integer from 1 to 5")
-    }
-
     const me = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
       .unique()
     if (!me || me.role !== "admin") throw new Error("Not authorized")
+
+    if (args.intensityRank !== undefined) {
+      const track = await ctx.db.get(args.trackId)
+      const effectiveType = args.type ?? track?.type
+      if (effectiveType === "ambience") {
+        if (!isValidAmbienceRank(args.intensityRank)) {
+          throw new Error("Ambience intensity rank must be an integer from 1 to 3")
+        }
+      } else if (!isValidIntensityRank(args.intensityRank)) {
+        throw new Error("Music intensity rank must be an integer from 1 to 5")
+      }
+    }
 
     const { trackId, ...updates } = args
     await ctx.db.patch(trackId, updates)

@@ -209,13 +209,15 @@ function TrackReviewCard({
         </div>
       )}
 
-      {isAdmin && track.type === "music" && (
-          <div className="flex items-center gap-3">
-          <div className="text-xs" style={{ color: "var(--scene-highlight)" }}>Intensity rank (1-5)</div>
+      {isAdmin && (track.type === "music" || track.type === "ambience") && (
+        <div className="flex items-center gap-3">
+          <div className="text-xs" style={{ color: "var(--scene-highlight)" }}>
+            {track.type === "ambience" ? "Intensity rank (1-3)" : "Intensity rank (1-5)"}
+          </div>
           <input
             type="number"
             min={1}
-            max={5}
+            max={track.type === "ambience" ? 3 : 5}
             step={1}
             inputMode="numeric"
             defaultValue={track.intensityRank ?? ""}
@@ -225,13 +227,12 @@ function TrackReviewCard({
                 adminUpdate({ trackId: track._id, intensityRank: undefined }).catch(console.error)
                 return
               }
-
               const parsed = Number(raw)
-              if (!Number.isInteger(parsed) || parsed < 1 || parsed > 5) {
+              const maxRank = track.type === "ambience" ? 3 : 5
+              if (!Number.isInteger(parsed) || parsed < 1 || parsed > maxRank) {
                 e.currentTarget.value = track.intensityRank?.toString() ?? ""
                 return
               }
-
               adminUpdate({ trackId: track._id, intensityRank: parsed }).catch(console.error)
             }}
             className="w-20 px-2 py-1 rounded border"
