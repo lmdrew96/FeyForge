@@ -2,6 +2,10 @@ import { mutation, query } from "./_generated/server"
 import type { Doc } from "./_generated/dataModel"
 import { v } from "convex/values"
 
+function isValidIntensityRank(intensityRank: number): boolean {
+  return Number.isInteger(intensityRank) && intensityRank >= 1 && intensityRank <= 5
+}
+
 // helper: whether a track is sufficiently complete to show to non-admin users
 function isPubliclyVisible(track: Doc<"audioTracks">) {
   // must be approved and have an r2 URL
@@ -15,7 +19,8 @@ function isPubliclyVisible(track: Doc<"audioTracks">) {
   // For music tracks require intensityTier & intensityRank (explore/combat)
   if (track.type === "music") {
     if (!track.intensityTier) return false
-    return typeof track.intensityRank === "number"
+    if (typeof track.intensityRank !== "number") return false
+    return isValidIntensityRank(track.intensityRank)
   }
 
   // default conservative: require r2Url & approved
@@ -132,6 +137,10 @@ export const createAudioTrack = mutation({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
+    if (args.intensityRank !== undefined && !isValidIntensityRank(args.intensityRank)) {
+      throw new Error("Intensity rank must be an integer from 1 to 5")
+    }
+
     // New uploads require admin approval by default
     return await ctx.db.insert("audioTracks", {
       ...args,
@@ -155,6 +164,10 @@ export const updateAudioTrack = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+
+    if (args.intensityRank !== undefined && !isValidIntensityRank(args.intensityRank)) {
+      throw new Error("Intensity rank must be an integer from 1 to 5")
+    }
 
     const track = await ctx.db.get(args.trackId)
     if (!track) throw new Error("Track not found")
@@ -186,6 +199,11 @@ export const approveAudioTrack = mutation({
       if (!track.sceneTag || track.sceneTag.trim().length === 0) {
         throw new Error("Set a scene tag before approving this track")
       }
+      if (track.type === "music") {
+        if (!track.intensityTier || typeof track.intensityRank !== "number" || !isValidIntensityRank(track.intensityRank)) {
+          throw new Error("Music tracks must have intensity tier and intensity rank (1-5) before approval")
+        }
+      }
     }
 
     await ctx.db.patch(args.trackId, { approved: args.approved })
@@ -206,6 +224,10 @@ export const adminUpdateAudioTrack = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+
+    if (args.intensityRank !== undefined && !isValidIntensityRank(args.intensityRank)) {
+      throw new Error("Intensity rank must be an integer from 1 to 5")
+    }
 
     const me = await ctx.db
       .query("users")
