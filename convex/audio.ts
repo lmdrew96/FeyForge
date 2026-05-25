@@ -218,6 +218,15 @@ export const insertAudioTrackSeed = mutation({
   handler: async (ctx, args) => {
     if (args.seedSecret !== process.env.SEED_SECRET) throw new Error("Unauthorized")
     const { seedSecret, ...trackData } = args
+    // Upsert by r2Key so re-runs update the URL without creating duplicates
+    const existing = await ctx.db
+      .query("audioTracks")
+      .filter((q) => q.eq(q.field("r2Key"), trackData.r2Key))
+      .unique()
+    if (existing) {
+      await ctx.db.patch(existing._id, { r2Url: trackData.r2Url, name: trackData.name })
+      return existing._id
+    }
     return await ctx.db.insert("audioTracks", {
       ...trackData,
       uploadedBy: "seed",

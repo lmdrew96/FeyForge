@@ -20,11 +20,13 @@ import {
   Network,
   Music,
   Shield,
+  Settings,
 } from "lucide-react"
 import { useState } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
 
 type NavChild = { label: string; href: string; icon: React.ElementType }
 type NavItem = {
@@ -54,6 +56,7 @@ const navItems: NavItem[] = [
   },
   { label: "Codex", href: "/codex", icon: BookOpen },
   { label: "Dice", href: "/dice", icon: Dices },
+  { label: "Settings", href: "/settings", icon: Settings },
 ]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -182,17 +185,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* User area */}
         <div
-          className="px-4 py-3 flex items-center gap-3"
+          className="px-4 py-3 space-y-2"
           style={{ borderTop: "1px solid var(--scene-border)" }}
         >
-          <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
-          <Link
-            href="/account"
-            className="text-xs truncate hover:opacity-80 transition-opacity"
-            style={{ color: "var(--scene-text-muted)" }}
-          >
-            Account
-          </Link>
+          <ThemeToggle className="w-full justify-center" />
+          <div className="flex items-center gap-3">
+            <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
+            <Link
+              href="/account"
+              className="text-xs truncate hover:opacity-80 transition-opacity"
+              style={{ color: "var(--scene-text-muted)" }}
+            >
+              Account
+            </Link>
+          </div>
         </div>
       </aside>
 

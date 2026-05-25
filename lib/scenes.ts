@@ -39,7 +39,11 @@ const CUSTOM_VAR_KEYS = [
   "--scene-highlight", "--scene-shadow", "--scene-particle",
 ]
 
-export function applySceneToBody(scene: string, palette?: CustomPalette | null) {
+export function applySceneToBody(
+  scene: string,
+  palette?: CustomPalette | null,
+  sceneTime?: "day" | "night" | null,
+) {
   if (scene === "custom" && palette) {
     document.body.removeAttribute("data-scene")
     const vars = buildSceneVars(palette)
@@ -47,6 +51,12 @@ export function applySceneToBody(scene: string, palette?: CustomPalette | null) 
   } else {
     CUSTOM_VAR_KEYS.forEach(k => document.body.style.removeProperty(k))
     document.body.setAttribute("data-scene", scene)
+  }
+
+  if (sceneTime) {
+    document.body.setAttribute("data-scene-time", sceneTime)
+  } else {
+    document.body.removeAttribute("data-scene-time")
   }
 }
 

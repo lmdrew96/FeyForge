@@ -396,6 +396,7 @@ export default defineSchema({
       accent: v.string(),
       highlight: v.string(),
     })),
+    sceneTime: v.optional(v.union(v.literal("day"), v.literal("night"))),
     isActive: v.boolean(),
     startedAt: v.number(),
     endedAt: v.optional(v.number()),

@@ -233,6 +233,7 @@ export default function ScenesPage() {
 
   const setupDMSession = useMutation(api.liveSessions.setupDMSession)
   const doActivateScene = useMutation(api.liveSessions.activateScene)
+  const doSetSceneTime = useMutation(api.liveSessions.setSceneTime)
   const doCreateScene = useMutation(api.campaignScenes.create)
   const doRemoveScene = useMutation(api.campaignScenes.remove)
 
@@ -257,11 +258,18 @@ export default function ScenesPage() {
 
   const activeScene = (activeSession?.activeScene ?? "") as string
   const activeScenePalette = activeSession?.activeScenePalette ?? null
+  const sceneTime = (activeSession?.sceneTime ?? null) as "day" | "night" | null
 
   useEffect(() => {
-    applySceneToBody(activeScene, activeScenePalette)
+    applySceneToBody(activeScene, activeScenePalette, sceneTime)
     return () => applySceneToBody("")
-  }, [activeScene, activeScenePalette])
+  }, [activeScene, activeScenePalette, sceneTime])
+
+  const handleToggleTime = () => {
+    if (!sessionId) return
+    const next = sceneTime === "day" ? "night" : "day"
+    doSetSceneTime({ sessionId, sceneTime: next }).catch(console.error)
+  }
 
   const handleSetScene = (scene: string, pal?: CustomPalette) => {
     if (!sessionId) return
@@ -287,16 +295,31 @@ export default function ScenesPage() {
   return (
     <AppShell>
       <div className="p-6 max-w-5xl mx-auto">
-        <div className="mb-8">
-          <h1
-            className="text-2xl font-bold mb-2"
-            style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
-          >
-            Scene Manager
-          </h1>
-          <p style={{ color: "var(--scene-text-muted)" }}>
-            Activate a scene to transform the UI for everyone at the table. 600ms crossfade.
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1
+              className="text-2xl font-bold mb-2"
+              style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+            >
+              Scene Manager
+            </h1>
+            <p style={{ color: "var(--scene-text-muted)" }}>
+              Activate a scene to transform the UI for everyone at the table. 600ms crossfade.
+            </p>
+          </div>
+          {activeScene && (
+            <button
+              onClick={handleToggleTime}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-80 shrink-0"
+              style={{
+                background: sceneTime === "day" ? "rgba(255,220,80,0.15)" : "rgba(100,80,180,0.15)",
+                border: `1px solid ${sceneTime === "day" ? "rgba(255,200,40,0.4)" : "rgba(120,100,200,0.4)"}`,
+                color: sceneTime === "day" ? "#e8c020" : "#9b8ec4",
+              }}
+            >
+              {sceneTime === "day" ? "☀ Day" : "☾ Night"}
+            </button>
+          )}
         </div>
 
         {/* Preset scenes */}

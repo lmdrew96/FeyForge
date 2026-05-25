@@ -1,21 +1,53 @@
+"use client"
+
 import { AppShell } from "@/components/app-shell"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
 
 export default function SettingsPage() {
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   return (
     <AppShell>
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-6 max-w-2xl mx-auto space-y-8">
         <h1
-          className="text-2xl font-bold mb-8"
+          className="text-2xl font-bold"
           style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
         >
           Settings
         </h1>
-        <div
-          className="rounded-lg p-8 text-center"
+
+        {/* Appearance */}
+        <section
+          className="rounded-lg p-6 space-y-4"
           style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
         >
-          <p style={{ color: "var(--scene-text-muted)" }}>Settings coming soon.</p>
-        </div>
+          <h2
+            className="text-sm font-semibold uppercase tracking-wider"
+            style={{ color: "var(--scene-text-muted)" }}
+          >
+            Appearance
+          </h2>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
+                Theme
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
+                {mounted ? `Currently: ${resolvedTheme}` : "Detecting system preference…"}
+              </p>
+            </div>
+            <ThemeToggle />
+          </div>
+
+          <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+            Scene palettes override the app theme during live sessions — the world always looks the way the DM intends.
+          </p>
+        </section>
       </div>
     </AppShell>
   )

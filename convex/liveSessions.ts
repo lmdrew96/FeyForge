@@ -182,6 +182,23 @@ export const activateScene = mutation({
   },
 })
 
+export const setSceneTime = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    sceneTime: v.union(v.literal("day"), v.literal("night")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const session = await ctx.db.get(args.sessionId)
+    if (!session) throw new Error("Session not found")
+    if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    await ctx.db.patch(args.sessionId, { sceneTime: args.sceneTime })
+  },
+})
+
 export const getMyPartyMember = query({
   args: { sessionId: v.id("partySessions") },
   handler: async (ctx, args) => {

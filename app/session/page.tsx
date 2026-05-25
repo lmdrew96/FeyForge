@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { SCENES, applySceneToBody } from "@/lib/scenes"
+import { SCENES, applySceneToBody, type CustomPalette } from "@/lib/scenes"
 import { CLASS_COLORS } from "@/lib/character/constants"
 import { cn } from "@/lib/utils"
 import {
@@ -730,12 +730,13 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
 
   const activeScene = activeSession?.activeScene ?? ""
   const activeScenePalette = activeSession?.activeScenePalette ?? null
+  const sceneTime = activeSession?.sceneTime ?? null
   const currentScene = SCENES.find((s) => s.id === activeScene)
 
   useEffect(() => {
-    applySceneToBody(activeScene, activeScenePalette)
+    applySceneToBody(activeScene, activeScenePalette, sceneTime)
     return () => applySceneToBody("")
-  }, [activeScene, activeScenePalette])
+  }, [activeScene, activeScenePalette, sceneTime])
 
   return (
     <div className="space-y-6">
@@ -793,8 +794,9 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
 
 // ── DM Conductor View ─────────────────────────────────────────────────────────
 
-function ConductorView({ sessionId, campaignId, activeScene }: { sessionId: SessionId; campaignId: CampaignId; activeScene: string }) {
+function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette, sceneTime }: { sessionId: SessionId; campaignId: CampaignId; activeScene: string; activeScenePalette?: CustomPalette | null; sceneTime?: "day" | "night" | null }) {
   const doActivateScene = useMutation(api.liveSessions.activateScene)
+  const doSetSceneTime = useMutation(api.liveSessions.setSceneTime)
   const doEndSession = useMutation(api.liveSessions.endSession)
   const doBroadcast = useMutation(api.liveSessions.broadcastReveal)
   const broadcasts = useQuery(api.liveSessions.listBroadcasts, { sessionId })
@@ -805,6 +807,16 @@ function ConductorView({ sessionId, campaignId, activeScene }: { sessionId: Sess
   const [sending, setSending] = useState(false)
 
   const currentScene = SCENES.find((s) => s.id === activeScene)
+
+  useEffect(() => {
+    applySceneToBody(activeScene, activeScenePalette, sceneTime)
+    return () => applySceneToBody("")
+  }, [activeScene, activeScenePalette, sceneTime])
+
+  const handleToggleTime = () => {
+    const next = sceneTime === "day" ? "night" : "day"
+    doSetSceneTime({ sessionId, sceneTime: next }).catch(() => toast.error("Failed to update scene time."))
+  }
 
   const handleSetScene = (scene: string) => {
     doActivateScene({ sessionId, scene }).catch(() => toast.error("Failed to activate scene."))
@@ -841,7 +853,22 @@ function ConductorView({ sessionId, campaignId, activeScene }: { sessionId: Sess
       </div>
 
       <section>
-        <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>Active Scene</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>Active Scene</h2>
+          {activeScene && (
+            <button
+              onClick={handleToggleTime}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-opacity hover:opacity-80"
+              style={{
+                background: sceneTime === "day" ? "rgba(255,220,80,0.15)" : "rgba(100,80,180,0.15)",
+                border: `1px solid ${sceneTime === "day" ? "rgba(255,200,40,0.4)" : "rgba(120,100,200,0.4)"}`,
+                color: sceneTime === "day" ? "#e8c020" : "#9b8ec4",
+              }}
+            >
+              {sceneTime === "day" ? "☀ Day" : "☾ Night"}
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {SCENES.map((scene) => (
             <button key={scene.id} onClick={() => handleSetScene(scene.id)} className="rounded-lg p-3 text-left transition-all hover:opacity-90"
@@ -976,6 +1003,8 @@ export default function SessionPage() {
                   sessionId={activeSessionForDM._id}
                   campaignId={activeSessionForDM.campaignId}
                   activeScene={activeSessionForDM.activeScene}
+                  activeScenePalette={activeSessionForDM.activeScenePalette}
+                  sceneTime={activeSessionForDM.sceneTime}
                 />
               )}
               {tab === "notes" && <NotesView sessionId={activeSessionForDM._id} isDM={true} />}

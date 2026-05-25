@@ -26,6 +26,20 @@
   --radius: 0.75rem;
 }
 
+/* --- Light mode base (no active scene) --- */
+.light {
+  --scene-bg:           #f4f3fa;
+  --scene-surface:      #ffffff;
+  --scene-border:       #e0def0;
+  --scene-accent:       #6b58c8;
+  --scene-accent-glow:  rgba(107, 88, 200, 0.15);
+  --scene-text-primary: #1a1830;
+  --scene-text-muted:   #8a87a0;
+  --scene-highlight:    #7b68c8;
+  --scene-shadow:       rgba(0, 0, 0, 0.08);
+  --scene-particle:     #7b68c8;
+}
+
 /* --- Dungeon: cold, oppressive, ancient --- */
 [data-scene="dungeon"] {
   --scene-bg:           #0f0e13;
@@ -164,6 +178,152 @@
   --scene-highlight:    #40c8d8;
   --scene-shadow:       rgba(0, 0, 0, 0.5);
   --scene-particle:     #c848e0;
+}
+
+/* ============================================================
+   SCENE DAY VARIANTS
+   DM toggles day/night — data-scene-time="day" brightens the
+   active scene palette. Each scene gets a lighter counterpart.
+   ============================================================ */
+
+/* --- Dungeon Day: torchlit warmth, ancient stone in firelight --- */
+[data-scene="dungeon"][data-scene-time="day"] {
+  --scene-bg:           #241508;
+  --scene-surface:      #3a2210;
+  --scene-border:       #5a3820;
+  --scene-accent:       #e8943a;
+  --scene-accent-glow:  rgba(232, 148, 58, 0.3);
+  --scene-text-primary: #f5e0c0;
+  --scene-text-muted:   #a07848;
+  --scene-highlight:    #c86828;
+  --scene-shadow:       rgba(0, 0, 0, 0.4);
+  --scene-particle:     #e8943a;
+}
+
+/* --- Tavern Day: sunlit common room, midday warmth --- */
+[data-scene="tavern"][data-scene-time="day"] {
+  --scene-bg:           #f5e6c8;
+  --scene-surface:      #fffbf0;
+  --scene-border:       #e0c898;
+  --scene-accent:       #b85810;
+  --scene-accent-glow:  rgba(184, 88, 16, 0.2);
+  --scene-text-primary: #1a0a00;
+  --scene-text-muted:   #7a5030;
+  --scene-highlight:    #c87028;
+  --scene-shadow:       rgba(0, 0, 0, 0.08);
+  --scene-particle:     #b85810;
+}
+
+/* --- Forest Day: dappled sunlight, bright green glade --- */
+[data-scene="forest"][data-scene-time="day"] {
+  --scene-bg:           #d8edc8;
+  --scene-surface:      #eef8e4;
+  --scene-border:       #b8d89a;
+  --scene-accent:       #2d8018;
+  --scene-accent-glow:  rgba(45, 128, 24, 0.2);
+  --scene-text-primary: #081408;
+  --scene-text-muted:   #486030;
+  --scene-highlight:    #c89818;
+  --scene-shadow:       rgba(0, 0, 0, 0.06);
+  --scene-particle:     #2d8018;
+}
+
+/* --- Underdark Day: bioluminescent bloom, peak glow --- */
+[data-scene="underdark"][data-scene-time="day"] {
+  --scene-bg:           #080c14;
+  --scene-surface:      #101820;
+  --scene-border:       #1a2a38;
+  --scene-accent:       #40f0ff;
+  --scene-accent-glow:  rgba(64, 240, 255, 0.3);
+  --scene-text-primary: #d8f0ff;
+  --scene-text-muted:   #5080a0;
+  --scene-highlight:    #b040ff;
+  --scene-shadow:       rgba(0, 0, 0, 0.6);
+  --scene-particle:     #40f0ff;
+}
+
+/* --- Castle Day: sunlit courtyard, cold stone and gold --- */
+[data-scene="castle"][data-scene-time="day"] {
+  --scene-bg:           #d0c8b4;
+  --scene-surface:      #e8e0d0;
+  --scene-border:       #b8a888;
+  --scene-accent:       #906820;
+  --scene-accent-glow:  rgba(144, 104, 32, 0.2);
+  --scene-text-primary: #120e08;
+  --scene-text-muted:   #605848;
+  --scene-highlight:    #7a5818;
+  --scene-shadow:       rgba(0, 0, 0, 0.08);
+  --scene-particle:     #906820;
+}
+
+/* --- Coastal Day: bright ocean, full sun, open sky --- */
+[data-scene="coastal"][data-scene-time="day"] {
+  --scene-bg:           #c8e8f8;
+  --scene-surface:      #e8f8ff;
+  --scene-border:       #98d0e8;
+  --scene-accent:       #0868a8;
+  --scene-accent-glow:  rgba(8, 104, 168, 0.2);
+  --scene-text-primary: #040e18;
+  --scene-text-muted:   #385870;
+  --scene-highlight:    #60c0d0;
+  --scene-shadow:       rgba(0, 0, 0, 0.06);
+  --scene-particle:     #0868a8;
+}
+
+/* --- Infernal Day: peak hellfire, scorched and blazing --- */
+[data-scene="infernal"][data-scene-time="day"] {
+  --scene-bg:           #1e0800;
+  --scene-surface:      #301008;
+  --scene-border:       #502010;
+  --scene-accent:       #ff5800;
+  --scene-accent-glow:  rgba(255, 88, 0, 0.35);
+  --scene-text-primary: #ffd0a0;
+  --scene-text-muted:   #a05830;
+  --scene-highlight:    #ff8820;
+  --scene-shadow:       rgba(0, 0, 0, 0.6);
+  --scene-particle:     #ff5800;
+}
+
+/* --- Celestial Day: radiant noon, gold and white light --- */
+[data-scene="celestial"][data-scene-time="day"] {
+  --scene-bg:           #fffce8;
+  --scene-surface:      #ffffff;
+  --scene-border:       #e8e0b0;
+  --scene-accent:       #c09010;
+  --scene-accent-glow:  rgba(192, 144, 16, 0.25);
+  --scene-text-primary: #080600;
+  --scene-text-muted:   #706040;
+  --scene-highlight:    #e0b828;
+  --scene-shadow:       rgba(192, 144, 16, 0.1);
+  --scene-particle:     #e0b828;
+}
+
+/* --- Shadowfell Day: ashen dawn, grief-grey morning light --- */
+[data-scene="shadowfell"][data-scene-time="day"] {
+  --scene-bg:           #1e1c28;
+  --scene-surface:      #2c2a3c;
+  --scene-border:       #3c3a50;
+  --scene-accent:       #b8a8d8;
+  --scene-accent-glow:  rgba(184, 168, 216, 0.2);
+  --scene-text-primary: #e0d8f0;
+  --scene-text-muted:   #807890;
+  --scene-highlight:    #8870a8;
+  --scene-shadow:       rgba(0, 0, 0, 0.5);
+  --scene-particle:     #b8a8d8;
+}
+
+/* --- Feywild Day: pastel magic, saturated daylight wonder --- */
+[data-scene="feywild"][data-scene-time="day"] {
+  --scene-bg:           #f0e4ff;
+  --scene-surface:      #faf4ff;
+  --scene-border:       #e0c8f8;
+  --scene-accent:       #9020c0;
+  --scene-accent-glow:  rgba(144, 32, 192, 0.2);
+  --scene-text-primary: #100018;
+  --scene-text-muted:   #704090;
+  --scene-highlight:    #40b8d0;
+  --scene-shadow:       rgba(0, 0, 0, 0.06);
+  --scene-particle:     #9020c0;
 }
 
 /* ============================================================
