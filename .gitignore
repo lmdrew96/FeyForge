@@ -27,6 +27,7 @@ yarn-error.log*
 next-env.d.ts
 .DS_Store
 components/.DS_Store
+*.mp3
 
 # IDE
 .idea/
