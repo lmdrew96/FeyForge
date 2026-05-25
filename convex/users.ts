@@ -6,10 +6,13 @@ export const getMe = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return null
-    return await ctx.db
+    const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
       .unique()
+    if (!user) return null
+    // Admins get premium access at zero cost
+    return { ...user, isPremium: user.isPremium || user.role === "admin" }
   },
 })
 
