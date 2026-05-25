@@ -8,6 +8,7 @@ export const listAudioTracks = query({
     type: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
     sceneTag: v.optional(v.string()),
     intensityTier: v.optional(v.union(v.literal("explore"), v.literal("combat"))),
+    includeUnapproved: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     let q = ctx.db.query("audioTracks")
@@ -31,14 +32,19 @@ export const listAudioTracks = query({
     }
 
     const tracks = await q.take(200)
-    if (args.type || args.intensityTier) {
-      return tracks.filter((t) => {
-        if (args.type && t.type !== args.type) return false
-        if (args.intensityTier && t.intensityTier !== args.intensityTier) return false
-        return true
-      })
+    const filtered = tracks.filter((t) => {
+      if (args.type && t.type !== args.type) return false
+      if (args.intensityTier && t.intensityTier !== args.intensityTier) return false
+      if (args.sceneTag && t.sceneTag !== args.sceneTag) return false
+      return true
+    })
+
+    // If caller did not request unapproved items, only return approved tracks.
+    if (!args.includeUnapproved) {
+      return filtered.filter((t) => t.approved === true)
     }
-    return tracks
+
+    return filtered
   },
 })
 
@@ -88,6 +94,7 @@ export const createAudioTrack = mutation({
     name: v.string(),
     type: v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx")),
     intensityTier: v.union(v.literal("explore"), v.literal("combat"), v.null()),
+    intensityRank: v.optional(v.number()),
     sceneTag: v.optional(v.string()),
     r2Key: v.string(),
     r2Url: v.string(),
@@ -98,10 +105,12 @@ export const createAudioTrack = mutation({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
+    // New uploads require admin approval by default
     return await ctx.db.insert("audioTracks", {
       ...args,
       uploadedBy: identity.tokenIdentifier,
       createdAt: Date.now(),
+      approved: false,
     })
   },
 })
@@ -112,6 +121,7 @@ export const updateAudioTrack = mutation({
     name: v.optional(v.string()),
     type: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
     intensityTier: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.null())),
+    intensityRank: v.optional(v.number()),
     sceneTag: v.optional(v.string()),
     sourceUrl: v.optional(v.string()),
   },
@@ -122,6 +132,50 @@ export const updateAudioTrack = mutation({
     const track = await ctx.db.get(args.trackId)
     if (!track) throw new Error("Track not found")
     if (track.uploadedBy !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    const { trackId, ...updates } = args
+    await ctx.db.patch(trackId, updates)
+  },
+})
+
+// Admin: approve or update any audio track
+export const approveAudioTrack = mutation({
+  args: { trackId: v.id("audioTracks"), approved: v.boolean() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    // Check admin role in users table
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+      .unique()
+    if (!me || me.role !== "admin") throw new Error("Not authorized")
+
+    await ctx.db.patch(args.trackId, { approved: args.approved })
+  },
+})
+
+export const adminUpdateAudioTrack = mutation({
+  args: {
+    trackId: v.id("audioTracks"),
+    name: v.optional(v.string()),
+    type: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
+    intensityTier: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.null())),
+    intensityRank: v.optional(v.number()),
+    sceneTag: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
+    approved: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+      .unique()
+    if (!me || me.role !== "admin") throw new Error("Not authorized")
 
     const { trackId, ...updates } = args
     await ctx.db.patch(trackId, updates)
@@ -185,8 +239,11 @@ export const updateSessionAudio = mutation({
     sessionId: v.id("partySessions"),
     activeAmbienceTrackId: v.optional(v.id("audioTracks")),
     activeExploreTrackId: v.optional(v.id("audioTracks")),
+    activeVictoryTrackId: v.optional(v.id("audioTracks")),
     activeCombatTrackId: v.optional(v.id("audioTracks")),
+    // intensity is musicLevel (0-100)
     intensity: v.optional(v.number()),
+    musicMode: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.literal("off"), v.literal("blend"))),
     ambienceVolume: v.optional(v.number()),
     masterVolume: v.optional(v.number()),
     audioSyncEnabled: v.optional(v.boolean()),
@@ -200,6 +257,7 @@ export const updateSessionAudio = mutation({
     if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
 
     const { sessionId, ...updates } = args
+    // allow setting activeVictoryTrackId and musicMode as part of session audio updates
     await ctx.db.patch(sessionId, updates)
   },
 })
@@ -231,6 +289,7 @@ export const insertAudioTrackSeed = mutation({
       ...trackData,
       uploadedBy: "seed",
       createdAt: Date.now(),
+      approved: true,
     })
   },
 })
@@ -251,3 +310,28 @@ export const updateSessionIntensity = mutation({
     await ctx.db.patch(args.sessionId, { intensity: args.intensity })
   },
 })
+
+export const triggerVictoryCue = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    trackId: v.optional(v.id("audioTracks")),
+    durationMs: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const session = await ctx.db.get(args.sessionId)
+    if (!session) throw new Error("Session not found")
+    if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    const patch: Record<string, unknown> = {
+      victoryTriggeredAt: Date.now(),
+    }
+    if (args.trackId !== undefined) patch.activeVictoryTrackId = args.trackId
+    if (args.durationMs !== undefined) patch.victoryDurationMs = args.durationMs
+
+    await ctx.db.patch(args.sessionId, patch)
+  },
+})
+

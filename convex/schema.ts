@@ -402,11 +402,20 @@ export default defineSchema({
     endedAt: v.optional(v.number()),
     activeAmbienceTrackId: v.optional(v.id("audioTracks")),
     activeExploreTrackId: v.optional(v.id("audioTracks")),
+    // Optional victory slot for transient cues (e.g. short victory music)
+    activeVictoryTrackId: v.optional(v.id("audioTracks")),
     activeCombatTrackId: v.optional(v.id("audioTracks")),
+    // intensity now represents musicLevel (0-100) — separate from ambience/master volumes
     intensity: v.optional(v.number()),
+    // musicMode indicates which music tier should be active on clients
+    musicMode: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.literal("off"), v.literal("blend"))),
     ambienceVolume: v.optional(v.number()),
     masterVolume: v.optional(v.number()),
     audioSyncEnabled: v.optional(v.boolean()),
+    // Victory cue intent: timestamp clients use to perform a local fade-in/hold/fade-out
+    victoryTriggeredAt: v.optional(v.number()),
+    // Optional duration in milliseconds that clients should hold the victory cue before returning
+    victoryDurationMs: v.optional(v.number()),
   })
     .index("by_campaignId_and_isActive", ["campaignId", "isActive"])
     .index("by_dmUserId", ["dmUserId"])
@@ -502,6 +511,10 @@ export default defineSchema({
     name: v.string(),
     type: v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx")),
     intensityTier: v.union(v.literal("explore"), v.literal("combat"), v.null()),
+    // Optional rank within a tier (0 = lowest intensity, larger = more intense)
+    intensityRank: v.optional(v.number()),
+    // Admin approval flag — only approved tracks appear in public DM library/listings
+    approved: v.optional(v.boolean()),
     sceneTag: v.optional(v.string()),
     r2Key: v.string(),
     r2Url: v.string(),

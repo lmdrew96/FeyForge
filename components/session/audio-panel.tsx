@@ -22,12 +22,13 @@ function TrackPicker({
   onSelect,
   onClose,
 }: {
-  slot: "ambience" | "explore" | "combat"
+  slot: "ambience" | "explore" | "combat" | "victory"
   currentId: TrackId | null
   onSelect: (trackId: TrackId | null) => void
   onClose: () => void
 }) {
   const typeFilter = slot === "ambience" ? "ambience" : "music"
+  // victory should show any music (no intensity filter)
   const tierFilter = slot === "explore" ? "explore" : slot === "combat" ? "combat" : undefined
   const tracks = useQuery(api.audio.listAudioTracks, {
     type: typeFilter,
@@ -217,11 +218,12 @@ function TrackSlot({
 
 // ── DM Audio Panel ────────────────────────────────────────────────────────────
 
-type PickerSlot = "ambience" | "explore" | "combat" | null
+type PickerSlot = "ambience" | "explore" | "combat" | "victory" | null
 
 export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const updateAudio = useMutation(api.audio.updateSessionAudio)
   const updateIntensity = useMutation(api.audio.updateSessionIntensity)
+  const triggerVictoryCue = useMutation(api.audio.triggerVictoryCue)
 
   // Local state mirrors session audio — optimistic
   const [ambienceId, setAmbienceId] = useState<TrackId | null>(null)
@@ -231,6 +233,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const [ambienceVolume, setAmbienceVolume] = useState(70)
   const [masterVolume, setMasterVolume] = useState(80)
   const [syncEnabled, setSyncEnabled] = useState(false)
+  const prevAmbienceRef = useRef<number | null>(null)
   const [collapsed, setCollapsed] = useState(false)
   const [showSfx, setShowSfx] = useState(false)
   const [pickerSlot, setPickerSlot] = useState<PickerSlot>(null)
@@ -257,13 +260,40 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const exploreTrack = useQuery(api.audio.getAudioTrack, exploreId ? { trackId: exploreId } : "skip")
   const combatTrack = useQuery(api.audio.getAudioTrack, combatId ? { trackId: combatId } : "skip")
 
+  // If DM has not overridden with a single track, gather multiple tracks for the active scene and tier
+  const sceneTag = sessionRef?.activeScene ?? undefined
+  const exploreTracksList = useQuery(api.audio.listAudioTracks, sceneTag ? { type: "music", intensityTier: "explore", sceneTag } : { type: "music", intensityTier: "explore" })
+  const combatTracksList = useQuery(api.audio.listAudioTracks, sceneTag ? { type: "music", intensityTier: "combat", sceneTag } : { type: "music", intensityTier: "combat" })
+
+  const sortedExploreUrls = (exploreId && exploreTrack) ? [exploreTrack.r2Url] : (exploreTracksList ?? [])
+    .slice()
+    .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
+    .map((t) => t.r2Url)
+
+  const sortedCombatUrls = (combatId && combatTrack) ? [combatTrack.r2Url] : (combatTracksList ?? [])
+    .slice()
+    .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
+    .map((t) => t.r2Url)
+
+  // Fetch active victory track doc (used only for engine/viz)
+  const activeVictoryTrack = useQuery(
+    api.audio.getAudioTrack,
+    sessionRef?.activeVictoryTrackId ? { trackId: sessionRef.activeVictoryTrackId } : "skip"
+  )
+
   const engineState = {
     ambienceUrl: ambienceTrack?.r2Url ?? null,
-    exploreUrl: exploreTrack?.r2Url ?? null,
-    combatUrl: combatTrack?.r2Url ?? null,
+    // arrays of URLs for multi-track mixing
+    exploreUrls: sortedExploreUrls,
+    combatUrls: sortedCombatUrls,
     intensity,
     ambienceVolume,
     masterVolume,
+    // victory fields for local engine cueing
+    victoryUrl: activeVictoryTrack?.r2Url ?? null,
+    victoryTriggeredAt: sessionRef?.victoryTriggeredAt ?? null,
+    victoryDurationMs: sessionRef?.victoryDurationMs ?? null,
+    musicMode: sessionRef?.musicMode ?? "blend",
   }
   const { playSfx } = useAudioEngine(engineState, true)
 
@@ -312,6 +342,11 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
     }
   }
 
+  const handleVictoryTrackSelect = (trackId: TrackId | null) => {
+    // store active victory track on session
+    updateAudio({ sessionId, activeVictoryTrackId: trackId ?? undefined }).catch(console.error)
+  }
+
   const handleSyncToggle = () => {
     const next = !syncEnabled
     setSyncEnabled(next)
@@ -356,16 +391,80 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                 track={combatTrack ?? null}
                 onOverride={() => setPickerSlot("combat")}
               />
+              <TrackSlot
+                label="Victory"
+                icon={Music}
+                track={activeVictoryTrack ?? null}
+                onOverride={() => setPickerSlot("victory")}
+              />
             </div>
 
             {/* Intensity slider */}
             <div>
+              {/* Music mode strip (Pocket Bard style) */}
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  onClick={() => {
+                    // Music off: set musicMode to off and zero music level
+                    setIntensity(0)
+                    handleIntensityChange(0)
+                    updateAudio({ sessionId, musicMode: "off" }).catch(console.error)
+                  }}
+                  className="px-3 py-1 rounded-md text-xs font-medium"
+                  style={{ background: sessionRef?.musicMode === "off" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "off" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
+                >
+                  Off
+                </button>
+                <button
+                  onClick={() => { setIntensity(70); handleIntensityChange(70); updateAudio({ sessionId, musicMode: "explore" }).catch(console.error) }}
+                  className="px-3 py-1 rounded-md text-xs font-medium"
+                  style={{ background: sessionRef?.musicMode === "explore" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "explore" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
+                >
+                  Explore
+                </button>
+                <button
+                  onClick={() => { setIntensity(100); handleIntensityChange(100); updateAudio({ sessionId, musicMode: "combat" }).catch(console.error) }}
+                  className="px-3 py-1 rounded-md text-xs font-medium"
+                  style={{ background: sessionRef?.musicMode === "combat" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "combat" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
+                >
+                  Combat
+                </button>
+                <button
+                  onClick={() => {
+                    // trigger victory cue
+                    triggerVictoryCue({ sessionId, trackId: sessionRef?.activeVictoryTrackId ?? undefined, durationMs: 10000 }).catch(console.error)
+                  }}
+                  className="px-3 py-1 rounded-md text-xs font-medium"
+                  style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+                >
+                  Victory
+                </button>
+                {/* Ambience toggle */}
+                <button
+                  onClick={() => {
+                    if ((ambienceVolume ?? 0) > 0) {
+                      prevAmbienceRef.current = ambienceVolume
+                      setAmbienceVolume(0)
+                      pushAudioState({ ambienceVolume: 0 })
+                    } else {
+                      const restore = prevAmbienceRef.current ?? 70
+                      setAmbienceVolume(restore)
+                      pushAudioState({ ambienceVolume: restore })
+                      prevAmbienceRef.current = null
+                    }
+                  }}
+                  className="ml-auto px-3 py-1 rounded-md text-xs font-medium"
+                  style={{ background: (ambienceVolume ?? 0) === 0 ? "var(--scene-border)" : "var(--scene-accent)", color: (ambienceVolume ?? 0) === 0 ? "var(--scene-text-muted)" : "var(--scene-bg)" }}
+                >
+                  Ambience {ambienceVolume === 0 ? "Off" : "On"}
+                </button>
+              </div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>Explore</span>
+                <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>Low</span>
                 <span className="text-[10px] font-medium" style={{ color: "var(--scene-accent)" }}>
-                  {intensity === 0 ? "Full Explore" : intensity === 100 ? "Full Combat" : `${intensity}% Combat`}
+                  {intensity === 0 ? "Muted" : `${intensity}% Intensity`}
                 </span>
-                <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>Combat</span>
+                <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>High</span>
               </div>
               <input
                 type="range"
@@ -454,6 +553,19 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                   </p>
                 </div>
               </div>
+                {/* Victory cue button */}
+                <div>
+                  <button
+                    onClick={() => {
+                      // default hold 10s
+                      triggerVictoryCue({ sessionId, trackId: sessionRef?.activeVictoryTrackId ?? undefined, durationMs: 10000 }).catch(console.error)
+                    }}
+                    className="mt-2 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+                    style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                  >
+                    Cue Victory
+                  </button>
+                </div>
               <button
                 onClick={handleSyncToggle}
                 className="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors"
@@ -474,9 +586,15 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
           slot={pickerSlot}
           currentId={
             pickerSlot === "ambience" ? ambienceId :
-            pickerSlot === "explore" ? exploreId : combatId
+            pickerSlot === "explore" ? exploreId :
+            pickerSlot === "combat" ? combatId :
+            // victory
+            sessionRef?.activeVictoryTrackId ?? null
           }
-          onSelect={(id) => handleTrackSelect(pickerSlot, id)}
+          onSelect={(id) => {
+            if (pickerSlot === "victory") handleVictoryTrackSelect(id)
+            else if (pickerSlot) handleTrackSelect(pickerSlot, id)
+          }}
           onClose={() => setPickerSlot(null)}
         />
       )}
@@ -504,14 +622,46 @@ export function PlayerAudioReceiver({ sessionId, campaignId }: { sessionId: Sess
     api.audio.getAudioTrack,
     sessionAudio?.activeCombatTrackId ? { trackId: sessionAudio.activeCombatTrackId } : "skip"
   )
+  const activeVictoryTrack = useQuery(
+    api.audio.getAudioTrack,
+    sessionAudio?.activeVictoryTrackId ? { trackId: sessionAudio.activeVictoryTrackId } : "skip"
+  )
+
+  const sceneTag = sessionAudio?.activeScene ?? undefined
+  const exploreTracksList = useQuery(
+    api.audio.listAudioTracks,
+    sceneTag ? { type: "music", intensityTier: "explore", sceneTag } : { type: "music", intensityTier: "explore" }
+  )
+  const combatTracksList = useQuery(
+    api.audio.listAudioTracks,
+    sceneTag ? { type: "music", intensityTier: "combat", sceneTag } : { type: "music", intensityTier: "combat" }
+  )
+
+  const sortedExploreUrls = (sessionAudio?.activeExploreTrackId && exploreTrack)
+    ? [exploreTrack.r2Url]
+    : (exploreTracksList ?? [])
+      .slice()
+      .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
+      .map((t) => t.r2Url)
+
+  const sortedCombatUrls = (sessionAudio?.activeCombatTrackId && combatTrack)
+    ? [combatTrack.r2Url]
+    : (combatTracksList ?? [])
+      .slice()
+      .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
+      .map((t) => t.r2Url)
 
   const engineState = {
     ambienceUrl: ambienceTrack?.r2Url ?? null,
-    exploreUrl: exploreTrack?.r2Url ?? null,
-    combatUrl: combatTrack?.r2Url ?? null,
+    exploreUrls: sortedExploreUrls,
+    combatUrls: sortedCombatUrls,
     intensity: sessionAudio?.intensity ?? 0,
     ambienceVolume: sessionAudio?.ambienceVolume ?? 70,
     masterVolume: localVolume,
+    victoryUrl: activeVictoryTrack?.r2Url ?? null,
+    victoryTriggeredAt: sessionAudio?.victoryTriggeredAt ?? null,
+    victoryDurationMs: sessionAudio?.victoryDurationMs ?? null,
+    musicMode: sessionAudio?.musicMode ?? "blend",
   }
 
   useAudioEngine(engineState, synced && consentGiven && (sessionAudio?.audioSyncEnabled ?? false))

@@ -40,10 +40,12 @@ function TrackReviewCard({
   track,
   myComment,
   allComments,
+  isAdmin,
 }: {
   track: AudioTrack
   myComment: ReviewComment | undefined
   allComments: ReviewComment[]
+  isAdmin: boolean
 }) {
   const addComment = useMutation(api.libraryShare.addReviewComment)
   const [playing, setPlaying] = useState(false)
@@ -51,6 +53,8 @@ function TrackReviewCard({
   const [note, setNote] = useState(myComment?.comment ?? "")
   const [saved, setSaved] = useState(!!myComment)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const approve = useMutation(api.audio.approveAudioTrack)
+  const adminUpdate = useMutation(api.audio.adminUpdateAudioTrack)
 
   const toggle = useCallback(() => {
     if (!audioRef.current) {
@@ -111,14 +115,32 @@ function TrackReviewCard({
             <span className="text-[10px] ml-auto" style={{ color: "#5a5272" }}>{formatDuration(track.duration)}</span>
           </div>
         </div>
-        <button
-          onClick={toggle}
-          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
-          style={{ background: "#7b68c8" }}
-        >
-          {playing ? <Pause size={13} style={{ color: "#0d0d14" }} /> : <Play size={13} style={{ color: "#0d0d14" }} />}
-        </button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <>
+              <button onClick={() => approve({ trackId: track._id, approved: true }).catch(console.error)} className="px-3 py-1 rounded bg-green-600 text-white text-xs">Approve</button>
+              <button onClick={() => approve({ trackId: track._id, approved: false }).catch(console.error)} className="px-3 py-1 rounded bg-gray-600 text-white text-xs">Reject</button>
+            </>
+          )}
+          <button
+            onClick={toggle}
+            className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ background: "#7b68c8" }}
+          >
+            {playing ? <Pause size={13} style={{ color: "#0d0d14" }} /> : <Play size={13} style={{ color: "#0d0d14" }} />}
+          </button>
+        </div>
       </div>
+
+      {isAdmin && (
+        <div className="flex items-center gap-3">
+          <div className="text-xs" style={{ color: "#a89ec4" }}>Intensity rank</div>
+          <input defaultValue={track.intensityRank ?? ""} onBlur={(e) => {
+            const v = e.currentTarget.value === "" ? undefined : Number(e.currentTarget.value)
+            adminUpdate({ trackId: track._id, intensityRank: v }).catch(console.error)
+          }} className="w-20 px-2 py-1 rounded border" />
+        </div>
+      )}
 
       {/* Other reviewers' reactions */}
       {otherComments.length > 0 && (
@@ -180,7 +202,7 @@ function TrackReviewCard({
 }
 
 export default function AdminReviewPage() {
-  const allTracks = useQuery(api.audio.listAudioTracks, {})
+  const allTracks = useQuery(api.audio.listAudioTracks, { includeUnapproved: true })
   const allComments = useQuery(api.libraryShare.listAllReviewComments, {})
   const me = useQuery(api.users.getMe)
   const [typeFilter, setTypeFilter] = useState<"all" | "ambience" | "music" | "sfx">("all")
@@ -262,6 +284,7 @@ export default function AdminReviewPage() {
                   track={track}
                   myComment={myComment}
                   allComments={trackComments}
+                  isAdmin={me?.role === "admin"}
                 />
               )
             })}
