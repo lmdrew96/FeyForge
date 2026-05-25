@@ -506,8 +506,8 @@ export default defineSchema({
     approved: v.optional(v.boolean()),
     // Array of scene tags for multi-scene applicability
     sceneTag: v.optional(v.array(v.string())),
-    // Curation tier: "free" = all users, "premium" = Ko-fi subscribers, "user" = personal upload
-    tier: v.optional(v.union(v.literal("free"), v.literal("premium"), v.literal("user"))),
+    // Curation tier: "free" = all users, "premium" = Ko-fi subscribers only
+    tier: v.optional(v.union(v.literal("free"), v.literal("premium"))),
     r2Key: v.string(),
     r2Url: v.string(),
     duration: v.number(),

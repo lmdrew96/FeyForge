@@ -11,8 +11,6 @@ function isPubliclyVisible(track: Doc<"audioTracks">) {
   if (!track.approved) return false
   if (!track.r2Url) return false
   if (!track.sceneTag || track.sceneTag.length === 0) return false
-  // Personal uploads are never in the shared library
-  if (track.tier === "user") return false
 
   // SFX do NOT require intensity metadata
   if (track.type === "sfx") return true
@@ -34,7 +32,7 @@ export const listAudioTracks = query({
     type: v.optional(v.union(v.literal("ambience"), v.literal("music"), v.literal("sfx"))),
     sceneTag: v.optional(v.string()),
     intensityTier: v.optional(v.union(v.literal("explore"), v.literal("combat"))),
-    tier: v.optional(v.union(v.literal("free"), v.literal("premium"), v.literal("user"))),
+    tier: v.optional(v.union(v.literal("free"), v.literal("premium"))),
     includeUnapproved: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -65,18 +63,6 @@ export const listAudioTracks = query({
   },
 })
 
-// Returns the current user's own uploaded tracks (tier: "user" personal library)
-export const listMyTracks = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-    return await ctx.db
-      .query("audioTracks")
-      .withIndex("by_uploadedBy", (q) => q.eq("uploadedBy", identity.tokenIdentifier))
-      .take(100)
-  },
-})
 
 export const getAudioTrack = query({
   args: { trackId: v.id("audioTracks") },
@@ -139,10 +125,8 @@ export const createAudioTrack = mutation({
       throw new Error("Intensity rank must be an integer from 1 to 5")
     }
 
-    // User uploads always start as personal (tier: "user"); admins promote via adminUpdateAudioTrack
     return await ctx.db.insert("audioTracks", {
       ...args,
-      tier: "user",
       uploadedBy: identity.tokenIdentifier,
       createdAt: Date.now(),
       approved: false,
@@ -216,7 +200,7 @@ export const adminUpdateAudioTrack = mutation({
     intensityTier: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.null())),
     intensityRank: v.optional(v.number()),
     sceneTag: v.optional(v.array(v.string())),
-    tier: v.optional(v.union(v.literal("free"), v.literal("premium"), v.literal("user"))),
+    tier: v.optional(v.union(v.literal("free"), v.literal("premium"))),
     sourceUrl: v.optional(v.string()),
     approved: v.optional(v.boolean()),
   },

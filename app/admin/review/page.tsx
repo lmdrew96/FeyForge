@@ -67,7 +67,7 @@ function TrackReviewCard({
   })
   const [selectedTags, setSelectedTags] = useState<string[]>(() => track.sceneTag ?? [])
   const [customTag, setCustomTag] = useState("")
-  const [audioTier, setAudioTier] = useState<"free" | "premium" | "user">(() => track.tier ?? "free")
+  const [audioTier, setAudioTier] = useState<"free" | "premium">(() => track.tier ?? "free")
 
   const hasValidMusicRank = typeof track.intensityRank === "number"
     && Number.isInteger(track.intensityRank)
@@ -292,7 +292,7 @@ function TrackReviewCard({
           <select
             value={audioTier}
             onChange={(e) => {
-              const next = e.currentTarget.value as "free" | "premium" | "user"
+              const next = e.currentTarget.value as "free" | "premium"
               setAudioTier(next)
               adminUpdate({ trackId: track._id, tier: next }).catch(console.error)
             }}
@@ -301,7 +301,6 @@ function TrackReviewCard({
           >
             <option value="free">Free</option>
             <option value="premium">Premium</option>
-            <option value="user">User upload</option>
           </select>
         </div>
       )}
