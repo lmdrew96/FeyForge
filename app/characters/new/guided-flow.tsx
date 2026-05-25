@@ -115,6 +115,13 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
 
   const allAssigned = ABILITY_KEYS.every(a => assignments[a] !== 0)
 
+  const derivedHp = useMemo(() => {
+    if (!cls || assignments.constitution === 0) return null
+    const conTotal = assignments.constitution + (racialBonuses.constitution ?? 0)
+    const conMod = Math.floor((conTotal - 10) / 2)
+    return cls.hitDie + conMod
+  }, [cls, assignments.constitution, racialBonuses])
+
   const bgSkills = useMemo(() => new Set<Skill>(background?.skillProficiencies ?? []), [background])
   const classSkillOptions = useMemo(() => cls?.skillChoices.options ?? [], [cls])
   const skillCount = cls?.skillChoices.count ?? 0
@@ -733,6 +740,87 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   return (
     <div className="max-w-2xl mx-auto">
       <Progress />
+
+      {/* Summary strip — hidden on Name step (step 5) which has its own full preview */}
+      {step < 5 && (classId || raceId || backgroundId) && (
+        <div
+          className="mb-6 rounded-xl px-4 py-3 space-y-2.5"
+          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {cls && (
+              <span
+                className="text-xs px-2.5 py-1 rounded-full font-medium"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))",
+                  color: "var(--scene-accent)",
+                  border: "1px solid color-mix(in srgb, var(--scene-accent) 25%, transparent)",
+                }}
+              >
+                {cls.name}
+              </span>
+            )}
+            {race && (
+              <span
+                className="text-xs px-2.5 py-1 rounded-full font-medium"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-highlight) 12%, var(--scene-surface))",
+                  color: "var(--scene-highlight)",
+                  border: "1px solid color-mix(in srgb, var(--scene-highlight) 25%, transparent)",
+                }}
+              >
+                {subrace ? `${subrace.name} ${race.name}` : race.name}
+              </span>
+            )}
+            {background && (
+              <span
+                className="text-xs px-2.5 py-1 rounded-full"
+                style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+              >
+                {background.name}
+              </span>
+            )}
+            {derivedHp !== null && (
+              <span className="ml-auto text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                <span style={{ color: "var(--scene-text-primary)" }}>{derivedHp} HP</span>
+                {" "}· d{cls?.hitDie}
+              </span>
+            )}
+          </div>
+          {ABILITY_KEYS.some(a => assignments[a] !== 0) && (
+            <div
+              className="grid grid-cols-6 gap-1 pt-2.5 border-t"
+              style={{ borderColor: "var(--scene-border)" }}
+            >
+              {ABILITY_KEYS.map(a => {
+                const base = assignments[a]
+                const racial = racialBonuses[a] ?? 0
+                const total = (base || 0) + racial
+                const mod = base ? getAbilityModifier(total) : null
+                return (
+                  <div key={a} className="text-center">
+                    <div className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                      {ABILITY_ABBREVIATIONS[a]}
+                    </div>
+                    <div
+                      className="text-sm font-bold"
+                      style={{ color: base ? "var(--scene-text-primary)" : "var(--scene-border)" }}
+                    >
+                      {base ? total : "—"}
+                    </div>
+                    {mod !== null && (
+                      <div style={{ fontSize: "10px", color: "var(--scene-text-muted)" }}>
+                        {formatModifier(mod)}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <CurrentStep />
     </div>
   )

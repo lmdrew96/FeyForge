@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { RACES, CLASSES, BACKGROUNDS } from "@/lib/character/character-data"
-import type { QuickRollResult } from "@/lib/character/character-data"
+import type { QuickRollResult, ClassData, RaceData, SubraceData, BackgroundData } from "@/lib/character/character-data"
 import {
   ABILITY_ABBREVIATIONS,
   SKILL_DISPLAY_NAMES,
@@ -37,6 +37,128 @@ const ABILITY_HINTS: Record<Ability, string> = {
 
 type AbilityMethod = "standard-array" | "point-buy"
 type Assignments = Record<Ability, number>
+
+// ── Stat Preview ──────────────────────────────────────────────────────────────
+
+interface StatPreviewProps {
+  name: string
+  cls: ClassData | undefined
+  race: RaceData | undefined
+  subrace: SubraceData | undefined
+  background: BackgroundData | undefined
+  assignments: Assignments
+  racialBonuses: Partial<Record<Ability, number>>
+  selectedSkills: Skill[]
+  bgSkills: Set<Skill>
+}
+
+const STAT_PREVIEW_ABILITY_KEYS: Ability[] = [
+  "strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma",
+]
+
+function StatPreview({ name, cls, race, subrace, background, assignments, racialBonuses, selectedSkills, bgSkills }: StatPreviewProps) {
+  const raceName = subrace ? `${subrace.name} ${race?.name}` : race?.name
+  const conTotal = (assignments.constitution || 0) + (racialBonuses.constitution ?? 0)
+  const conMod = Math.floor((conTotal - 10) / 2)
+  const maxHp = cls ? cls.hitDie + conMod : null
+  const anyAbility = STAT_PREVIEW_ABILITY_KEYS.some(a => assignments[a] !== 0)
+  const allSkills = [...new Set([...Array.from(bgSkills), ...selectedSkills])] as Skill[]
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div
+        className="px-4 py-3 border-b"
+        style={{
+          borderColor: "var(--scene-border)",
+          background: "color-mix(in srgb, var(--scene-accent) 6%, var(--scene-surface))",
+        }}
+      >
+        <div
+          className="font-bold text-base leading-tight"
+          style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+        >
+          {name.trim() || <span style={{ color: "var(--scene-border)" }}>Unnamed Hero</span>}
+        </div>
+        <div className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
+          {[raceName, cls?.name, background?.name].filter(Boolean).join(" · ") || (
+            <span style={{ color: "var(--scene-border)" }}>Choose your path…</span>
+          )}
+        </div>
+        {maxHp !== null && (
+          <div className="text-xs mt-1" style={{ color: "var(--scene-accent)" }}>
+            {maxHp} HP · d{cls!.hitDie}
+          </div>
+        )}
+      </div>
+
+      {anyAbility && (
+        <div className="px-4 py-3">
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+            Abilities
+          </div>
+          <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
+            {STAT_PREVIEW_ABILITY_KEYS.map(a => {
+              const base = assignments[a]
+              const racial = racialBonuses[a] ?? 0
+              const total = (base || 0) + racial
+              const mod = base ? getAbilityModifier(total) : null
+              return (
+                <div key={a} className="flex items-baseline justify-between">
+                  <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                    {ABILITY_ABBREVIATIONS[a]}
+                  </span>
+                  <div className="flex items-baseline gap-0.5">
+                    <span
+                      className="text-xs font-bold tabular-nums"
+                      style={{ color: base ? "var(--scene-text-primary)" : "var(--scene-border)" }}
+                    >
+                      {base ? total : "—"}
+                    </span>
+                    {mod !== null && (
+                      <span style={{ fontSize: "10px", color: "var(--scene-text-muted)" }}>
+                        ({formatModifier(mod)})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {allSkills.length > 0 && (
+        <div className="px-4 py-3 border-t" style={{ borderColor: "var(--scene-border)" }}>
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+            Skills
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {allSkills.map(s => (
+              <span
+                key={s}
+                className="text-xs px-1.5 py-0.5 rounded"
+                style={{ background: "var(--scene-border)", color: "var(--scene-text-primary)" }}
+              >
+                {SKILL_DISPLAY_NAMES[s]}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!name.trim() && !cls && !race && !background && !anyAbility && (
+        <div className="px-4 py-6 text-center">
+          <p className="text-xs" style={{ color: "var(--scene-border)" }}>
+            Your character will appear here as you build.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -174,10 +296,17 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
     })
   }
 
+  // ── Shared preview props ──────────────────────────────────────────────────────
+
+  const previewProps: StatPreviewProps = {
+    name, cls, race, subrace, background, assignments, racialBonuses, selectedSkills, bgSkills,
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-3xl mx-auto space-y-10">
+    <div className="lg:grid lg:grid-cols-[1fr,260px] lg:gap-8 lg:items-start">
+    <div className="space-y-10">
 
       {/* ── Name ─────────────────────────────────────────────────────────────── */}
       <section>
@@ -617,6 +746,14 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
         </section>
       )}
 
+      {/* ── Mobile preview ───────────────────────────────────────────────────── */}
+      <div className="lg:hidden">
+        <p className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+          Character Preview
+        </p>
+        <StatPreview {...previewProps} />
+      </div>
+
       {/* ── Submit ───────────────────────────────────────────────────────────── */}
       <div className="pb-8 space-y-3">
         <button
@@ -638,6 +775,15 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
           </p>
         )}
       </div>
+    </div>
+
+    {/* ── Desktop sticky sidebar ────────────────────────────────────────────── */}
+    <div className="hidden lg:block lg:sticky lg:top-6">
+      <p className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+        Character Preview
+      </p>
+      <StatPreview {...previewProps} />
+    </div>
     </div>
   )
 }
