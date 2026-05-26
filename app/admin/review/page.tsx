@@ -19,8 +19,6 @@ type ReviewComment = {
   createdAt: number
 }
 
-type IntensityTier = "explore" | "combat"
-
 const REACTIONS = [
   { value: "yes" as const, emoji: "✅", label: "Yes" },
   { value: "no" as const, emoji: "❌", label: "No" },
@@ -61,20 +59,11 @@ function TrackReviewCard({
   const approve = useMutation(api.audio.approveAudioTrack)
   const adminUpdate = useMutation(api.audio.adminUpdateAudioTrack)
   const [isApproving, setIsApproving] = useState(false)
-  const [intensityTier, setIntensityTier] = useState<"" | IntensityTier>(() => {
-    if (track.type !== "music" || !track.intensityTier) return ""
-    return track.intensityTier
-  })
   const [selectedTags, setSelectedTags] = useState<string[]>(() => track.sceneTag ?? [])
   const [customTag, setCustomTag] = useState("")
   const [audioTier, setAudioTier] = useState<"free" | "premium">(() => track.tier ?? "free")
 
-  const hasValidMusicRank = typeof track.intensityRank === "number"
-    && Number.isInteger(track.intensityRank)
-    && track.intensityRank >= 1
-    && track.intensityRank <= 5
-  const hasRequiredMusicMetadata = track.type !== "music" || (intensityTier !== "" && hasValidMusicRank)
-  const canApprove = selectedTags.length > 0 && hasRequiredMusicMetadata
+  const canApprove = selectedTags.length > 0
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -114,9 +103,6 @@ function TrackReviewCard({
     if (!canApprove || isApproving) return
     setIsApproving(true)
     try {
-      if (track.type === "music" && intensityTier !== "" && track.intensityTier !== intensityTier) {
-        await adminUpdate({ trackId: track._id, intensityTier })
-      }
       const currentTags = [...(track.sceneTag ?? [])].sort().join(",")
       const nextTags = [...selectedTags].sort().join(",")
       if (currentTags !== nextTags) {
@@ -189,35 +175,13 @@ function TrackReviewCard({
         </div>
       </div>
 
-      {isAdmin && track.type === "music" && (
+      {isAdmin && track.type === "ambience" && (
         <div className="flex items-center gap-3">
-          <div className="text-xs" style={{ color: "var(--scene-highlight)" }}>Intensity tier</div>
-          <select
-            value={intensityTier}
-            onChange={(e) => {
-              const next = e.currentTarget.value as "" | IntensityTier
-              setIntensityTier(next)
-              adminUpdate({ trackId: track._id, intensityTier: next === "" ? null : next }).catch(console.error)
-            }}
-            className="w-28 px-2 py-1 rounded border text-xs"
-            style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)", color: "var(--scene-text-primary)" }}
-          >
-            <option value="">Select tier</option>
-            <option value="explore">Explore</option>
-            <option value="combat">Combat</option>
-          </select>
-        </div>
-      )}
-
-      {isAdmin && (track.type === "music" || track.type === "ambience") && (
-        <div className="flex items-center gap-3">
-          <div className="text-xs" style={{ color: "var(--scene-highlight)" }}>
-            {track.type === "ambience" ? "Intensity rank (1-3)" : "Intensity rank (1-5)"}
-          </div>
+          <div className="text-xs" style={{ color: "var(--scene-highlight)" }}>Intensity rank (1-3)</div>
           <input
             type="number"
             min={1}
-            max={track.type === "ambience" ? 3 : 5}
+            max={3}
             step={1}
             inputMode="numeric"
             defaultValue={track.intensityRank ?? ""}
@@ -228,8 +192,7 @@ function TrackReviewCard({
                 return
               }
               const parsed = Number(raw)
-              const maxRank = track.type === "ambience" ? 3 : 5
-              if (!Number.isInteger(parsed) || parsed < 1 || parsed > maxRank) {
+              if (!Number.isInteger(parsed) || parsed < 1 || parsed > 3) {
                 e.currentTarget.value = track.intensityRank?.toString() ?? ""
                 return
               }

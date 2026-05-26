@@ -15,17 +15,6 @@ function isPubliclyVisible(track: Doc<"audioTracks">) {
   if (!track.approved) return false
   if (!track.r2Url) return false
   if (!track.sceneTag || track.sceneTag.length === 0) return false
-
-  // SFX do NOT require intensity metadata
-  if (track.type === "sfx") return true
-
-  // For music tracks require intensityTier & intensityRank (explore/combat)
-  if (track.type === "music") {
-    if (!track.intensityTier) return false
-    if (typeof track.intensityRank !== "number") return false
-    return isValidIntensityRank(track.intensityRank)
-  }
-
   return true
 }
 
@@ -184,11 +173,6 @@ export const approveAudioTrack = mutation({
     if (args.approved) {
       if (!track.sceneTag || track.sceneTag.length === 0) {
         throw new Error("Set at least one scene tag before approving this track")
-      }
-      if (track.type === "music") {
-        if (!track.intensityTier || typeof track.intensityRank !== "number" || !isValidIntensityRank(track.intensityRank)) {
-          throw new Error("Music tracks must have intensity tier and intensity rank (1-5) before approval")
-        }
       }
     }
 
@@ -861,6 +845,129 @@ export const updateSessionMusicIntensity = mutation({
     if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
 
     await ctx.db.patch(args.sessionId, { musicIntensity: args.musicIntensity })
+  },
+})
+
+// ── Music Stems ───────────────────────────────────────────────────────────────
+
+export const listMusicStems = query({
+  args: {
+    campaignId: v.id("campaigns"),
+    sceneName: v.string(),
+    mode: v.optional(v.union(v.literal("explore"), v.literal("combat"), v.literal("victory"))),
+  },
+  handler: async (ctx, args) => {
+    if (args.mode) {
+      return ctx.db
+        .query("musicStems")
+        .withIndex("by_campaignId_sceneName_and_mode", (idx) =>
+          idx.eq("campaignId", args.campaignId).eq("sceneName", args.sceneName).eq("mode", args.mode!)
+        )
+        .take(50)
+    }
+    return ctx.db
+      .query("musicStems")
+      .withIndex("by_campaignId_and_sceneName", (idx) =>
+        idx.eq("campaignId", args.campaignId).eq("sceneName", args.sceneName)
+      )
+      .take(50)
+  },
+})
+
+export const getMusicStem = query({
+  args: { stemId: v.id("musicStems") },
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.stemId)
+  },
+})
+
+export const createMusicStem = mutation({
+  args: {
+    campaignId: v.id("campaigns"),
+    sceneName: v.string(),
+    mode: v.union(v.literal("explore"), v.literal("combat"), v.literal("victory")),
+    name: v.string(),
+    trackId: v.id("audioTracks"),
+    intensityMin: v.number(),
+    intensityMax: v.number(),
+    sortOrder: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    if (args.intensityMin < 1 || args.intensityMin > 5 || args.intensityMax < 1 || args.intensityMax > 5) {
+      throw new Error("intensityMin and intensityMax must be between 1 and 5")
+    }
+    if (args.intensityMin > args.intensityMax) {
+      throw new Error("intensityMin must be <= intensityMax")
+    }
+
+    const track = await ctx.db.get(args.trackId)
+    if (!track) throw new Error("Track not found")
+
+    return ctx.db.insert("musicStems", {
+      userId: identity.tokenIdentifier,
+      campaignId: args.campaignId,
+      sceneName: args.sceneName,
+      mode: args.mode,
+      name: args.name,
+      trackId: args.trackId,
+      intensityMin: args.intensityMin,
+      intensityMax: args.intensityMax,
+      sortOrder: args.sortOrder,
+      createdAt: Date.now(),
+    })
+  },
+})
+
+export const updateMusicStem = mutation({
+  args: {
+    stemId: v.id("musicStems"),
+    name: v.optional(v.string()),
+    trackId: v.optional(v.id("audioTracks")),
+    intensityMin: v.optional(v.number()),
+    intensityMax: v.optional(v.number()),
+    sortOrder: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const stem = await ctx.db.get(args.stemId)
+    if (!stem) throw new Error("Stem not found")
+    if (stem.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    if (args.intensityMin !== undefined || args.intensityMax !== undefined) {
+      const nextMin = args.intensityMin ?? stem.intensityMin
+      const nextMax = args.intensityMax ?? stem.intensityMax
+      if (nextMin < 1 || nextMin > 5 || nextMax < 1 || nextMax > 5) {
+        throw new Error("intensityMin and intensityMax must be between 1 and 5")
+      }
+      if (nextMin > nextMax) throw new Error("intensityMin must be <= intensityMax")
+    }
+
+    if (args.trackId !== undefined) {
+      const track = await ctx.db.get(args.trackId)
+      if (!track) throw new Error("Track not found")
+    }
+
+    const { stemId, ...updates } = args
+    await ctx.db.patch(stemId, updates)
+  },
+})
+
+export const deleteMusicStem = mutation({
+  args: { stemId: v.id("musicStems") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const stem = await ctx.db.get(args.stemId)
+    if (!stem) throw new Error("Stem not found")
+    if (stem.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    await ctx.db.delete(args.stemId)
   },
 })
 

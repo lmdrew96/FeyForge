@@ -591,4 +591,23 @@ export default defineSchema({
   })
     .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"])
     .index("by_campaignId_sceneName_and_mode", ["campaignId", "sceneName", "mode"]),
+
+  musicStems: defineTable({
+    userId: v.string(),
+    campaignId: v.id("campaigns"),
+    sceneName: v.string(),
+    mode: v.union(
+      v.literal("explore"),
+      v.literal("combat"),
+      v.literal("victory"),
+    ),
+    name: v.string(),
+    trackId: v.id("audioTracks"),
+    intensityMin: v.number(),
+    intensityMax: v.number(),
+    sortOrder: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"])
+    .index("by_campaignId_sceneName_and_mode", ["campaignId", "sceneName", "mode"]),
 })
