@@ -24,6 +24,8 @@ const TIER_MULTIPLIERS: Record<LayerTier, number> = {
   off: 0,
 }
 
+const RANK_LABELS: Record<number, string> = { 1: "I", 2: "II", 3: "III", 4: "IV", 5: "V" }
+
 // ── Track picker modal ────────────────────────────────────────────────────────
 
 function TrackPicker({
@@ -369,7 +371,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const [ambienceId, setAmbienceId] = useState<TrackId | null>(null)
   const [exploreId, setExploreId] = useState<TrackId | null>(null)
   const [combatId, setCombatId] = useState<TrackId | null>(null)
-  const [intensity, setIntensity] = useState(0)
+  const [intensity, setIntensity] = useState(3)
   const [ambienceVolume, setAmbienceVolume] = useState(70)
   const [masterVolume, setMasterVolume] = useState(80)
   const [syncEnabled, setSyncEnabled] = useState(false)
@@ -389,7 +391,9 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
       setAmbienceId(sessionRef.activeAmbienceTrackId ?? null)
       setExploreId(sessionRef.activeExploreTrackId ?? null)
       setCombatId(sessionRef.activeCombatTrackId ?? null)
-      setIntensity(sessionRef.intensity ?? 0)
+      const rawInt = sessionRef.intensity ?? 3
+      const normInt = rawInt > 5 ? Math.max(1, Math.min(5, Math.round(rawInt / 20))) : Math.max(1, Math.min(5, rawInt || 3))
+      setIntensity(normInt)
       setAmbienceVolume(sessionRef.ambienceVolume ?? 70)
       setMasterVolume(sessionRef.masterVolume ?? 80)
       setSyncEnabled(sessionRef.audioSyncEnabled ?? false)
@@ -401,6 +405,12 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const ambienceTrack = useQuery(api.audio.getAudioTrack, ambienceId ? { trackId: ambienceId } : "skip")
   const exploreTrack = useQuery(api.audio.getAudioTrack, exploreId ? { trackId: exploreId } : "skip")
   const combatTrack = useQuery(api.audio.getAudioTrack, combatId ? { trackId: combatId } : "skip")
+
+  const activeTrackName = useMemo(() => {
+    if (sessionRef?.musicMode === "explore") return exploreTrack?.name ?? null
+    if (sessionRef?.musicMode === "combat") return combatTrack?.name ?? null
+    return null
+  }, [sessionRef?.musicMode, exploreTrack?.name, combatTrack?.name])
 
   // If DM has not overridden with a single track, gather multiple tracks for the active scene and tier
   const sceneTag = sessionRef?.activeScene ?? undefined
@@ -449,7 +459,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
     // arrays of URLs for multi-track mixing
     exploreUrls: sortedExploreUrls,
     combatUrls: sortedCombatUrls,
-    intensity,
+    intensity: (intensity - 1) * 25,
     ambienceVolume,
     masterVolume,
     // victory fields for local engine cueing
@@ -606,40 +616,25 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
               {/* Music mode strip (Pocket Bard style) */}
               <div className="flex items-center gap-2 mb-3">
                 <button
-                  onClick={() => {
-                    // Music off: set musicMode to off and zero music level
-                    setIntensity(0)
-                    handleIntensityChange(0)
-                    updateAudio({ sessionId, musicMode: "off" }).catch(console.error)
-                  }}
+                  onClick={() => updateAudio({ sessionId, musicMode: "off" }).catch(console.error)}
                   className="px-3 py-1 rounded-md text-xs font-medium"
                   style={{ background: sessionRef?.musicMode === "off" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "off" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
                 >
                   Off
                 </button>
                 <button
-                  onClick={() => { setIntensity(70); handleIntensityChange(70); updateAudio({ sessionId, musicMode: "explore" }).catch(console.error) }}
+                  onClick={() => updateAudio({ sessionId, musicMode: "explore" }).catch(console.error)}
                   className="px-3 py-1 rounded-md text-xs font-medium"
                   style={{ background: sessionRef?.musicMode === "explore" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "explore" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
                 >
                   Explore
                 </button>
                 <button
-                  onClick={() => { setIntensity(100); handleIntensityChange(100); updateAudio({ sessionId, musicMode: "combat" }).catch(console.error) }}
+                  onClick={() => updateAudio({ sessionId, musicMode: "combat" }).catch(console.error)}
                   className="px-3 py-1 rounded-md text-xs font-medium"
                   style={{ background: sessionRef?.musicMode === "combat" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "combat" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
                 >
                   Combat
-                </button>
-                <button
-                  onClick={() => {
-                    // trigger victory cue
-                    triggerVictoryCue({ sessionId, trackId: sessionRef?.activeVictoryTrackId ?? undefined, durationMs: 10000 }).catch(console.error)
-                  }}
-                  className="px-3 py-1 rounded-md text-xs font-medium"
-                  style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
-                >
-                  Victory
                 </button>
                 {/* Ambience toggle */}
                 <button
@@ -661,37 +656,55 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                   Ambience {ambienceVolume === 0 ? "Off" : "On"}
                 </button>
               </div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>Low</span>
-                <span className="text-[10px] font-medium" style={{ color: "var(--scene-accent)" }}>
-                  {intensity === 0 ? "Muted" : `${intensity}% Intensity`}
-                </span>
-                <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>High</span>
-              </div>
-              <div className="relative">
-                <div
-                  className="absolute inset-0 rounded-full pointer-events-none"
-                  style={{
-                    background: `linear-gradient(to right,
-                      var(--scene-surface) 0%,
-                      var(--scene-surface) ${intensity}%,
-                      var(--scene-accent) ${intensity}%,
-                      var(--scene-accent) 100%
-                    )`,
-                    opacity: 0.35,
-                  }}
-                />
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={intensity}
-                  onChange={(e) => handleIntensityChange(Number(e.target.value))}
-                  className="relative w-full h-2 rounded-full appearance-none cursor-pointer"
-                  style={{ accentColor: "var(--scene-accent)" }}
-                />
-              </div>
+              {sessionRef?.musicMode !== "off" && activeTrackName && (
+                <p className="text-xs truncate mb-2" style={{ color: "var(--scene-text-muted)" }}>{activeTrackName}</p>
+              )}
+
+              {sessionRef?.musicMode !== "off" && (
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1 h-2">
+                    <div
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{
+                        background: `linear-gradient(to right,
+                          var(--scene-surface) 0%,
+                          var(--scene-surface) ${(intensity - 1) / 4 * 100}%,
+                          var(--scene-accent) ${(intensity - 1) / 4 * 100}%,
+                          var(--scene-accent) 100%
+                        )`,
+                        opacity: 0.45,
+                      }}
+                    />
+                    <input
+                      type="range"
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={intensity}
+                      onChange={(e) => handleIntensityChange(Number(e.target.value))}
+                      className="relative w-full h-2 rounded-full appearance-none cursor-pointer bg-transparent"
+                      style={{ accentColor: "var(--scene-accent)" }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold w-5 text-right shrink-0" style={{ color: "var(--scene-accent)" }}>
+                    {RANK_LABELS[intensity]}
+                  </span>
+                </div>
+              )}
             </div>
+
+            {/* Victory Cue */}
+            <button
+              onClick={() => triggerVictoryCue({ sessionId, trackId: sessionRef?.activeVictoryTrackId ?? undefined, durationMs: 10000 }).catch(console.error)}
+              className="w-full py-1.5 rounded-md text-sm font-medium transition-colors"
+              style={{
+                background: "color-mix(in srgb, var(--scene-highlight) 20%, transparent)",
+                color: "var(--scene-highlight)",
+                border: "1px solid color-mix(in srgb, var(--scene-highlight) 40%, transparent)",
+              }}
+            >
+              🏆 Cue Victory
+            </button>
 
             {/* Volume sliders */}
             <div className="grid grid-cols-2 gap-4">
@@ -857,12 +870,17 @@ export function PlayerAudioReceiver({ sessionId, campaignId }: { sessionId: Sess
       .filter((layer) => layer.url !== "")
   }, [ambienceLayers, sessionAudio?.activeLayers, sessionAudio?.ambienceVolume])
 
+  const rawPlayerInt = sessionAudio?.intensity ?? 3
+  const normPlayerInt = rawPlayerInt > 5
+    ? Math.max(1, Math.min(5, Math.round(rawPlayerInt / 20)))
+    : Math.max(1, Math.min(5, rawPlayerInt || 3))
+
   const engineState = {
     ambienceUrl: ambienceTrack?.r2Url ?? null,
     activeLayers: resolvedActiveLayers,
     exploreUrls: sortedExploreUrls,
     combatUrls: sortedCombatUrls,
-    intensity: sessionAudio?.intensity ?? 0,
+    intensity: (normPlayerInt - 1) * 25,
     ambienceVolume: sessionAudio?.ambienceVolume ?? 70,
     masterVolume: localVolume,
     victoryUrl: activeVictoryTrack?.r2Url ?? null,
