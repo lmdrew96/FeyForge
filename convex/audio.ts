@@ -850,6 +850,49 @@ export const updateSessionMusicIntensity = mutation({
 
 // ── Music Stems ───────────────────────────────────────────────────────────────
 
+export const listMusicStemsResolved = query({
+  args: {
+    campaignId: v.id("campaigns"),
+    sceneName: v.string(),
+    mode: v.union(v.literal("explore"), v.literal("combat"), v.literal("victory")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const stems = await ctx.db
+      .query("musicStems")
+      .withIndex("by_campaignId_sceneName_and_mode", (idx) =>
+        idx.eq("campaignId", args.campaignId).eq("sceneName", args.sceneName).eq("mode", args.mode)
+      )
+      .take(50)
+
+    const resolved: Array<{
+      _id: string
+      name: string
+      intensityMin: number
+      intensityMax: number
+      sortOrder: number
+      r2Url: string
+    }> = []
+
+    for (const stem of stems) {
+      const track = await ctx.db.get(stem.trackId)
+      if (!track?.r2Url) continue
+      resolved.push({
+        _id: stem._id,
+        name: stem.name,
+        intensityMin: stem.intensityMin,
+        intensityMax: stem.intensityMax,
+        sortOrder: stem.sortOrder,
+        r2Url: track.r2Url,
+      })
+    }
+
+    return resolved.sort((a, b) => a.sortOrder - b.sortOrder)
+  },
+})
+
 export const listMusicStems = query({
   args: {
     campaignId: v.id("campaigns"),

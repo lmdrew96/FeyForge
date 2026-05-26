@@ -3,10 +3,13 @@
 import { useEffect, useRef, useCallback } from "react"
 import { Howl } from "howler"
 
-export type MusicTrackSet = {
-  low: string | null
-  med: string | null
-  high: string | null
+export type MusicStem = {
+  _id: string
+  name: string
+  r2Url: string
+  intensityMin: number
+  intensityMax: number
+  sortOrder: number
 }
 
 export type AudioEngineState = {
@@ -15,52 +18,45 @@ export type AudioEngineState = {
   activeLayers?: Array<{ layerId: string; url: string; volume: number }>
   ambienceVolume: number
   masterVolume: number
-  // Vertical remix music engine
+  // Stem window music engine
   musicMode: "explore" | "combat" | "off"
-  musicIntensity: number  // 1–5
-  exploreTracks: MusicTrackSet
-  combatTracks: MusicTrackSet
-  victoryTracks: MusicTrackSet
+  musicIntensity: number // 1–5
+  exploreStems: MusicStem[]
+  combatStems: MusicStem[]
+  victoryStems: MusicStem[]
   // Victory cue trigger
   victoryCuedAt?: number | null
 }
 
 const FADE_MS = 500
-const MUSIC_CROSSFADE_MS = 2000
-const INTENSITY_FADE_MS = 600
 const LAYER_FADE_MS = 800
+const STEM_FADE_MS = 4000
 const VICTORY_FADE_MS = 300
+const INTENSITY_DEBOUNCE_MS = 150
 
-const INTENSITY_MIX: Record<number, [number, number, number]> = {
-  1: [1, 0, 0],
-  2: [0.5, 0.5, 0],
-  3: [0, 1, 0],
-  4: [0, 0.5, 0.5],
-  5: [0, 0, 1],
+function stemTargetVolume(stem: MusicStem, intensity: number, masterVolume: number): number {
+  if (intensity < stem.intensityMin || intensity > stem.intensityMax) return 0
+  return masterVolume / 100
 }
-
-type MusicSlot = "low" | "med" | "high"
-const MUSIC_SLOTS: MusicSlot[] = ["low", "med", "high"]
-
-type HowlSet = { low: Howl | null; med: Howl | null; high: Howl | null }
-type ActiveMusicMode = "explore" | "combat" | "victory"
 
 export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
   const ambienceRef = useRef<Howl | null>(null)
   const layerRefs = useRef<Map<string, Howl>>(new Map())
-  const musicHowls = useRef<Record<ActiveMusicMode, HowlSet>>({
-    explore: { low: null, med: null, high: null },
-    combat:  { low: null, med: null, high: null },
-    victory: { low: null, med: null, high: null },
-  })
+  const stemHowls = useRef<Map<string, Howl>>(new Map())
 
-  const currentUrls = useRef<{ ambience: string; music: Record<ActiveMusicMode, Partial<Record<MusicSlot, string>>> }>({
-    ambience: "",
-    music: { explore: {}, combat: {}, victory: {} },
-  })
   const currentLayers = useRef<Map<string, { url: string; volume: number }>>(new Map())
+  const currentStems = useRef<MusicStem[]>([])
+  const victoryPrevStems = useRef<MusicStem[]>([])
   const currentVictoryTrigger = useRef<number>(0)
-  const victoryPrevMode = useRef<"explore" | "combat" | "off">("off")
+  const currentModeKey = useRef<string>("")
+
+  // Kept in sync at render time so effects can read current values without
+  // re-running on every slider drag
+  const intensityRef = useRef(state.musicIntensity)
+  const masterVolumeRef = useRef(state.masterVolume)
+  intensityRef.current = state.musicIntensity
+  masterVolumeRef.current = state.masterVolume
+
   const mounted = useRef(false)
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -81,37 +77,6 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     setTimeout(() => howl.unload(), LAYER_FADE_MS + 50)
     layerRefs.current.delete(layerId)
     currentLayers.current.delete(layerId)
-  }, [])
-
-  const fadeOutHowlSet = useCallback((set: HowlSet, fadeMs: number) => {
-    MUSIC_SLOTS.forEach((slot) => {
-      const h = set[slot]
-      if (!h) return
-      try { h.fade(h.volume(), 0, fadeMs); setTimeout(() => h.unload(), fadeMs + 50) } catch { h.unload() }
-      set[slot] = null
-    })
-  }, [])
-
-  const activateHowlSet = useCallback((
-    set: HowlSet,
-    tracks: MusicTrackSet,
-    volumes: [number, number, number],
-    master: number,
-    loop: boolean,
-    fadeMs: number,
-  ) => {
-    MUSIC_SLOTS.forEach((slot, i) => {
-      const url = tracks[slot]
-      if (!url) return
-      const targetVol = volumes[i] * master
-      const h = new Howl({ src: [url], loop, volume: 0, html5: true })
-      h.once("load", () => {
-        if (!mounted.current) { h.unload(); return }
-        try { h.play(); h.fade(0, targetVol, fadeMs) } catch (e) { console.error("Howl play/fade error:", e) }
-      })
-      h.on("loaderror", (_id, err) => console.error("Music load error:", err))
-      set[slot] = h
-    })
   }, [])
 
   // ── Layered ambience sync ─────────────────────────────────────────────────
@@ -161,18 +126,20 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
 
   // ── Legacy single-slot ambience ───────────────────────────────────────────
 
+  const currentAmbienceUrl = useRef("")
+
   useEffect(() => {
     if (!enabled) return
     const hasLayeredAmbience = (state.activeLayers?.length ?? 0) > 0
     if (hasLayeredAmbience) {
-      currentUrls.current.ambience = ""
+      currentAmbienceUrl.current = ""
       destroyHowl(ambienceRef)
       return
     }
 
     const url = state.ambienceUrl ?? ""
-    if (url === currentUrls.current.ambience) return
-    currentUrls.current.ambience = url
+    if (url === currentAmbienceUrl.current) return
+    currentAmbienceUrl.current = url
     destroyHowl(ambienceRef)
     if (url) {
       const targetVol = (state.ambienceVolume / 100) * (state.masterVolume / 100)
@@ -186,62 +153,73 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     }
   }, [state.ambienceUrl, state.activeLayers, enabled, destroyHowl, state.ambienceVolume, state.masterVolume])
 
-  // ── Music sync (mode + intensity + URLs) ─────────────────────────────────
+  // ── Music mode + stems ────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
 
-    const master = state.masterVolume / 100
-    const intensity = Math.max(1, Math.min(5, Math.round(state.musicIntensity)))
-    const mix = INTENSITY_MIX[intensity] ?? INTENSITY_MIX[3]
     const mode = state.musicMode
+    const activeStems =
+      mode === "explore" ? state.exploreStems
+      : mode === "combat" ? state.combatStems
+      : []
 
-    if (mode === "off") {
-      ;(["explore", "combat"] as const).forEach((m) => {
-        const hasActive = MUSIC_SLOTS.some((slot) => musicHowls.current[m][slot] !== null)
-        if (hasActive) {
-          fadeOutHowlSet(musicHowls.current[m], MUSIC_CROSSFADE_MS)
-          currentUrls.current.music[m] = {}
-        }
+    // Deduplicate: only act when mode or active stem set actually changes
+    const newKey = `${mode}:${activeStems.map((s) => s._id).join(",")}`
+    if (newKey === currentModeKey.current) return
+    currentModeKey.current = newKey
+
+    // Fade out and unload all current stem howls
+    for (const howl of stemHowls.current.values()) {
+      howl.fade(howl.volume(), 0, STEM_FADE_MS)
+      const h = howl
+      setTimeout(() => h.unload(), STEM_FADE_MS + 100)
+    }
+    stemHowls.current = new Map()
+    currentStems.current = []
+
+    if (mode === "off" || activeStems.length === 0) return
+
+    currentStems.current = activeStems
+
+    for (const stem of activeStems) {
+      const target = stemTargetVolume(stem, intensityRef.current, masterVolumeRef.current)
+      const howl = new Howl({ src: [stem.r2Url], loop: true, volume: 0, html5: true })
+      howl.once("load", () => {
+        if (!mounted.current) { howl.unload(); return }
+        try {
+          howl.play()
+          if (target > 0) howl.fade(0, target, STEM_FADE_MS)
+        } catch (e) { console.error("Stem play/fade error:", e) }
       })
-      return
+      howl.on("loaderror", (_id, err) => console.error("Stem load error:", err))
+      stemHowls.current.set(stem._id, howl)
     }
+  }, [state.musicMode, state.exploreStems, state.combatStems, enabled])
 
-    // Fade out the inactive mode
-    const inactiveMode = mode === "explore" ? "combat" : "explore"
-    const inactiveHasActive = MUSIC_SLOTS.some((slot) => musicHowls.current[inactiveMode][slot] !== null)
-    if (inactiveHasActive) {
-      fadeOutHowlSet(musicHowls.current[inactiveMode], MUSIC_CROSSFADE_MS)
-      currentUrls.current.music[inactiveMode] = {}
-    }
+  // ── Intensity (debounced) ─────────────────────────────────────────────────
 
-    // Load or update the active mode
-    const activeTracks = mode === "explore" ? state.exploreTracks : state.combatTracks
-    const prevUrls = currentUrls.current.music[mode]
-    const urlsChanged = MUSIC_SLOTS.some((slot) => activeTracks[slot] !== (prevUrls[slot] ?? null))
+  useEffect(() => {
+    if (!enabled) return
 
-    if (urlsChanged) {
-      fadeOutHowlSet(musicHowls.current[mode], MUSIC_CROSSFADE_MS)
-      currentUrls.current.music[mode] = {
-        low: activeTracks.low ?? undefined,
-        med: activeTracks.med ?? undefined,
-        high: activeTracks.high ?? undefined,
+    const timer = setTimeout(() => {
+      const intensity = Math.max(1, Math.min(5, state.musicIntensity))
+      const masterVolume = state.masterVolume
+
+      for (const stem of currentStems.current) {
+        const howl = stemHowls.current.get(stem._id)
+        if (!howl) continue
+
+        const current = howl.volume()
+        const target = stemTargetVolume(stem, intensity, masterVolume)
+        if (Math.abs(current - target) < 0.01) continue
+
+        try { howl.fade(current, target, STEM_FADE_MS) } catch { howl.volume(target) }
       }
-      activateHowlSet(musicHowls.current[mode], activeTracks, mix, master, true, MUSIC_CROSSFADE_MS)
-    } else {
-      // Update volumes only (intensity or master changed)
-      MUSIC_SLOTS.forEach((slot, i) => {
-        const h = musicHowls.current[mode][slot]
-        if (!h) return
-        const targetVol = mix[i] * master
-        try { h.fade(h.volume(), targetVol, INTENSITY_FADE_MS) } catch { h.volume(targetVol) }
-      })
-    }
-  }, [
-    state.musicMode, state.exploreTracks, state.combatTracks,
-    state.musicIntensity, state.masterVolume, enabled,
-    fadeOutHowlSet, activateHowlSet,
-  ])
+    }, INTENSITY_DEBOUNCE_MS)
+
+    return () => clearTimeout(timer)
+  }, [state.musicIntensity, state.masterVolume, enabled])
 
   // ── Victory cue ──────────────────────────────────────────────────────────
 
@@ -252,73 +230,80 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     if (currentVictoryTrigger.current === trigger) return
     currentVictoryTrigger.current = trigger
 
-    const hasTracks = state.victoryTracks.low || state.victoryTracks.med || state.victoryTracks.high
-    if (!hasTracks) return
+    const victoryStems = state.victoryStems
+    if (victoryStems.length === 0) return
 
-    const intensity = Math.max(1, Math.min(5, Math.round(state.musicIntensity)))
-    const mix = INTENSITY_MIX[intensity] ?? INTENSITY_MIX[3]
-    const master = state.masterVolume / 100
+    const intensity = Math.max(1, Math.min(5, intensityRef.current))
+    const masterVolume = masterVolumeRef.current
 
-    victoryPrevMode.current = state.musicMode
+    // Check audibility BEFORE muting anything — if nothing would play, bail
+    const audibleVictoryStems = victoryStems.filter(
+      (s) => stemTargetVolume(s, intensity, masterVolume) > 0
+    )
+    if (audibleVictoryStems.length === 0) return
 
-    // Mute active mode tracks
-    const activeMode = state.musicMode
-    if (activeMode !== "off") {
-      MUSIC_SLOTS.forEach((slot) => {
-        const h = musicHowls.current[activeMode][slot]
-        if (h) try { h.fade(h.volume(), 0, VICTORY_FADE_MS) } catch { h.volume(0) }
-      })
+    // Store current stems so we can restore them after victory ends
+    victoryPrevStems.current = [...currentStems.current]
+
+    // Fade out and unload current mode stems
+    for (const howl of stemHowls.current.values()) {
+      howl.fade(howl.volume(), 0, STEM_FADE_MS)
+      const h = howl
+      setTimeout(() => h.unload(), STEM_FADE_MS + 100)
     }
+    stemHowls.current = new Map()
+    currentStems.current = []
 
-    // Destroy any lingering victory Howls
-    fadeOutHowlSet(musicHowls.current.victory, VICTORY_FADE_MS)
+    // Loudest stem gets the onend callback to trigger restore
+    const loudestStem = audibleVictoryStems.reduce((a, b) =>
+      stemTargetVolume(b, intensity, masterVolume) >= stemTargetVolume(a, intensity, masterVolume) ? b : a
+    )
 
-    // Find the loudest slot for the onend callback
-    const loudestIdx = mix.indexOf(Math.max(...mix))
-    const loudestSlot = MUSIC_SLOTS[loudestIdx]
+    for (const stem of victoryStems) {
+      const target = stemTargetVolume(stem, intensity, masterVolume)
+      if (target === 0) continue
 
-    // Create victory Howls
-    MUSIC_SLOTS.forEach((slot, i) => {
-      const url = state.victoryTracks[slot]
-      if (!url) return
-      const targetVol = mix[i] * master
-      const h = new Howl({ src: [url], loop: false, volume: 0, html5: true })
+      const howl = new Howl({ src: [stem.r2Url], loop: false, volume: 0, html5: true })
 
-      if (slot === loudestSlot) {
-        h.on("end", () => {
-          // Fade out all victory Howls
-          MUSIC_SLOTS.forEach((s) => {
-            const vh = musicHowls.current.victory[s]
-            if (!vh) return
-            try { vh.fade(vh.volume(), 0, VICTORY_FADE_MS); setTimeout(() => vh.unload(), VICTORY_FADE_MS + 50) } catch { vh.unload() }
-            musicHowls.current.victory[s] = null
-          })
-          // Restore previous mode's volumes
-          const restoreMode = victoryPrevMode.current
-          if (restoreMode !== "off") {
-            const restoreMix = INTENSITY_MIX[intensity] ?? INTENSITY_MIX[3]
-            MUSIC_SLOTS.forEach((s, si) => {
-              const mh = musicHowls.current[restoreMode][s]
-              if (!mh) return
-              const targetVol = restoreMix[si] * master
-              try { mh.fade(mh.volume(), targetVol, VICTORY_FADE_MS) } catch { mh.volume(targetVol) }
+      if (stem._id === loudestStem._id) {
+        howl.on("end", () => {
+          // Fade out victory howls
+          for (const vh of stemHowls.current.values()) {
+            try {
+              vh.fade(vh.volume(), 0, VICTORY_FADE_MS)
+              const v = vh
+              setTimeout(() => v.unload(), VICTORY_FADE_MS + 50)
+            } catch { vh.unload() }
+          }
+          stemHowls.current = new Map()
+
+          // Re-activate previous mode stems from position 0 per spec
+          const prevStems = victoryPrevStems.current
+          currentStems.current = prevStems
+          for (const s of prevStems) {
+            const t = stemTargetVolume(s, intensityRef.current, masterVolumeRef.current)
+            const h = new Howl({ src: [s.r2Url], loop: true, volume: 0, html5: true })
+            h.once("load", () => {
+              if (!mounted.current) { h.unload(); return }
+              try {
+                h.play()
+                if (t > 0) h.fade(0, t, STEM_FADE_MS)
+              } catch (e) { console.error("Restore play/fade error:", e) }
             })
+            h.on("loaderror", (_id, err) => console.error("Restore stem load error:", err))
+            stemHowls.current.set(s._id, h)
           }
         })
       }
 
-      h.once("load", () => {
-        if (!mounted.current) { h.unload(); return }
-        try { h.play(); h.fade(0, targetVol, VICTORY_FADE_MS) } catch (e) { console.error("Victory play/fade error:", e) }
+      howl.once("load", () => {
+        if (!mounted.current) { howl.unload(); return }
+        try { howl.play(); howl.fade(0, target, VICTORY_FADE_MS) } catch (e) { console.error("Victory play error:", e) }
       })
-      h.on("loaderror", (_id, err) => console.error("Victory load error:", err))
-
-      musicHowls.current.victory[slot] = h
-    })
-  }, [
-    state.victoryCuedAt, state.victoryTracks, state.musicMode,
-    state.musicIntensity, state.masterVolume, enabled, fadeOutHowlSet,
-  ])
+      howl.on("loaderror", (_id, err) => console.error("Victory load error:", err))
+      stemHowls.current.set(stem._id, howl)
+    }
+  }, [state.victoryCuedAt, state.victoryStems, enabled])
 
   // ── Ambience volume ───────────────────────────────────────────────────────
 
@@ -367,15 +352,11 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     if (!enabled) {
       ambienceRef.current?.pause()
       layerRefs.current.forEach((r) => r.pause())
-      ;(["explore", "combat", "victory"] as const).forEach((m) => {
-        MUSIC_SLOTS.forEach((slot) => musicHowls.current[m][slot]?.pause())
-      })
+      stemHowls.current.forEach((h) => h.pause())
     } else {
       ambienceRef.current?.play()
       layerRefs.current.forEach((r) => r.play())
-      ;(["explore", "combat", "victory"] as const).forEach((m) => {
-        MUSIC_SLOTS.forEach((slot) => musicHowls.current[m][slot]?.play())
-      })
+      stemHowls.current.forEach((h) => h.play())
     }
   }, [enabled])
 
@@ -389,19 +370,19 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
       layerRefs.current.forEach((r) => r.unload())
       layerRefs.current.clear()
       currentLayers.current.clear()
-      ;(["explore", "combat", "victory"] as const).forEach((m) => {
-        MUSIC_SLOTS.forEach((slot) => {
-          musicHowls.current[m][slot]?.unload()
-          musicHowls.current[m][slot] = null
-        })
-      })
+      stemHowls.current.forEach((h) => h.unload())
+      stemHowls.current = new Map()
+      currentStems.current = []
     }
   }, [])
 
-  const playSfx = useCallback((url: string) => {
-    const h = new Howl({ src: [url], volume: state.masterVolume / 100, html5: true })
-    h.play()
-  }, [state.masterVolume])
+  const playSfx = useCallback(
+    (url: string) => {
+      const h = new Howl({ src: [url], volume: state.masterVolume / 100, html5: true })
+      h.play()
+    },
+    [state.masterVolume]
+  )
 
   return { playSfx }
 }
