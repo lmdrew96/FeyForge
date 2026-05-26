@@ -5,6 +5,7 @@ import { Howl } from "howler"
 
 export type AudioEngineState = {
   ambienceUrl: string | null
+  activeLayers?: Array<{ layerId: string; url: string; volume: number }>
   exploreUrls?: string[]
   combatUrls?: string[]
   intensity: number
@@ -22,11 +23,13 @@ const FADE_MS = 500
 
 export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
   const ambienceRef = useRef<Howl | null>(null)
+  const layerRefs = useRef<Map<string, Howl>>(new Map())
   const exploreRefs = useRef<Howl[]>([])
   const combatRefs = useRef<Howl[]>([])
   const victoryRef = useRef<Howl | null>(null)
 
   const currentUrls = useRef({ ambience: "", explore: [] as string[], combat: [] as string[] })
+  const currentLayers = useRef<Map<string, { url: string; volume: number }>>(new Map())
   const currentTrigger = useRef({ victoryTriggeredAt: 0 })
   const mounted = useRef(false)
 
@@ -47,6 +50,15 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
       h.fade(0, vol, FADE_MS)
     })
     return h
+  }, [])
+
+  const destroyLayerHowl = useCallback((layerId: string) => {
+    const howl = layerRefs.current.get(layerId)
+    if (!howl) return
+    howl.fade(howl.volume(), 0, FADE_MS)
+    setTimeout(() => howl.unload(), FADE_MS + 50)
+    layerRefs.current.delete(layerId)
+    currentLayers.current.delete(layerId)
   }, [])
 
   const destroyVictory = useCallback(() => {
@@ -80,9 +92,62 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     })
   }, [])
 
-  // Sync ambience track
+  // Sync layered ambience tracks
   useEffect(() => {
     if (!enabled) return
+
+    const nextLayers = new Map(
+      (state.activeLayers ?? [])
+        .filter((layer) => Boolean(layer.url))
+        .map((layer) => [layer.layerId, { url: layer.url, volume: layer.volume }] as const)
+    )
+
+    // remove layers no longer active
+    for (const layerId of currentLayers.current.keys()) {
+      if (!nextLayers.has(layerId)) destroyLayerHowl(layerId)
+    }
+
+    // add/update active layers
+    for (const [layerId, next] of nextLayers.entries()) {
+      const existingHowl = layerRefs.current.get(layerId)
+      const previous = currentLayers.current.get(layerId)
+      const targetVol = next.volume * (state.masterVolume / 100)
+
+      if (!existingHowl || previous?.url !== next.url) {
+        if (existingHowl) destroyLayerHowl(layerId)
+
+        const howl = new Howl({ src: [next.url], loop: true, volume: 0, html5: true })
+        howl.once("load", () => {
+          if (!mounted.current) return
+          howl.play()
+          howl.fade(0, targetVol, FADE_MS)
+        })
+
+        layerRefs.current.set(layerId, howl)
+        currentLayers.current.set(layerId, next)
+        continue
+      }
+
+      try {
+        existingHowl.fade(existingHowl.volume(), targetVol, FADE_MS)
+      } catch (e) {
+        existingHowl.volume(targetVol)
+      }
+
+      currentLayers.current.set(layerId, next)
+    }
+  }, [state.activeLayers, state.masterVolume, enabled, destroyLayerHowl])
+
+  // Sync ambience track (legacy single-slot path)
+  useEffect(() => {
+    if (!enabled) return
+    const hasLayeredAmbience = (state.activeLayers?.length ?? 0) > 0
+    if (hasLayeredAmbience) {
+      currentUrls.current.ambience = ""
+      destroyHowl(ambienceRef)
+      return
+    }
+
     const url = state.ambienceUrl ?? ""
     if (url === currentUrls.current.ambience) return
     currentUrls.current.ambience = url
@@ -91,7 +156,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
       const targetVol = (state.ambienceVolume / 100) * (state.masterVolume / 100)
       ambienceRef.current = createHowl(url, true, targetVol)
     }
-  }, [state.ambienceUrl, enabled, createHowl, destroyHowl, state.ambienceVolume, state.masterVolume])
+  }, [state.ambienceUrl, state.activeLayers, enabled, createHowl, destroyHowl, state.ambienceVolume, state.masterVolume])
   // Sync explore tracks (array)
   useEffect(() => {
     if (!enabled) return
@@ -231,18 +296,20 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
   // Ambience volume
   useEffect(() => {
     if (!enabled) return
-    if (ambienceRef.current) {
+    const hasLayeredAmbience = (state.activeLayers?.length ?? 0) > 0
+    if (!hasLayeredAmbience && ambienceRef.current) {
       const vol = (state.ambienceVolume / 100) * (state.masterVolume / 100)
       ambienceRef.current.volume(vol)
     }
-  }, [state.ambienceVolume, state.masterVolume, enabled])
+  }, [state.ambienceVolume, state.masterVolume, state.activeLayers, enabled])
 
   // Master volume
   useEffect(() => {
     if (!enabled) return
     const master = state.masterVolume / 100
+    const hasLayeredAmbience = (state.activeLayers?.length ?? 0) > 0
     const ambienceTarget = (state.ambienceVolume / 100) * master
-    if (ambienceRef.current) {
+    if (!hasLayeredAmbience && ambienceRef.current) {
       try {
         const cur = ambienceRef.current.volume()
         ambienceRef.current.fade(cur, ambienceTarget, FADE_MS)
@@ -250,6 +317,20 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
         ambienceRef.current.volume(ambienceTarget)
       }
     }
+
+    if (hasLayeredAmbience) {
+      for (const [layerId, howl] of layerRefs.current.entries()) {
+        const layer = currentLayers.current.get(layerId)
+        if (!layer) continue
+        const target = layer.volume * master
+        try {
+          howl.fade(howl.volume(), target, FADE_MS)
+        } catch (e) {
+          howl.volume(target)
+        }
+      }
+    }
+
     // master volume changes should update mixed refs according to musicMode
     if (state.musicMode === "explore") {
       setRefsForLevel(exploreRefs.current, state.intensity, master)
@@ -261,16 +342,18 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
       setRefsForLevel(exploreRefs.current, 100 - state.intensity, master)
       setRefsForLevel(combatRefs.current, state.intensity, master)
     }
-  }, [state.masterVolume, enabled, state.ambienceVolume, state.intensity])
+  }, [state.masterVolume, enabled, state.ambienceVolume, state.intensity, state.musicMode, state.activeLayers, setRefsForLevel])
 
   // Pause/resume when enabled changes
   useEffect(() => {
     if (!enabled) {
       ambienceRef.current?.pause()
+      layerRefs.current.forEach((r) => r.pause())
       exploreRefs.current.forEach((r) => r.pause())
       combatRefs.current.forEach((r) => r.pause())
     } else {
       ambienceRef.current?.play()
+      layerRefs.current.forEach((r) => r.play())
       exploreRefs.current.forEach((r) => r.play())
       combatRefs.current.forEach((r) => r.play())
     }
@@ -282,6 +365,9 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     return () => {
       mounted.current = false
       ambienceRef.current?.unload()
+      layerRefs.current.forEach((r) => r.unload())
+      layerRefs.current.clear()
+      currentLayers.current.clear()
       exploreRefs.current.forEach((r) => r.unload())
       combatRefs.current.forEach((r) => r.unload())
     }

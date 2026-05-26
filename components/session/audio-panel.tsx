@@ -1,18 +1,28 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { useAudioEngine } from "@/hooks/use-audio-engine"
 import {
-  Music, Waves, Zap, Volume2, ChevronDown, ChevronUp,
+  Music, Waves, Volume2, ChevronDown, ChevronUp,
   Radio, WifiOff, X, Check,
 } from "lucide-react"
 
 type SessionId = Id<"partySessions">
 type TrackId = Id<"audioTracks">
+type AmbienceLayerId = Id<"ambienceLayers">
 type AudioTrack = Doc<"audioTracks">
+type LayerTier = "i" | "ii" | "iii" | "off"
+type ResolvedAmbienceLayer = Doc<"ambienceLayers"> & { r2Url: string; trackType: string | null }
+
+const TIER_MULTIPLIERS: Record<LayerTier, number> = {
+  i: 0.33,
+  ii: 0.66,
+  iii: 1,
+  off: 0,
+}
 
 // ── Track picker modal ────────────────────────────────────────────────────────
 
@@ -22,12 +32,12 @@ function TrackPicker({
   onSelect,
   onClose,
 }: {
-  slot: "ambience" | "explore" | "combat" | "victory"
+  slot: "explore" | "combat" | "victory"
   currentId: TrackId | null
   onSelect: (trackId: TrackId | null) => void
   onClose: () => void
 }) {
-  const typeFilter = slot === "ambience" ? "ambience" : "music"
+  const typeFilter = "music"
   // victory should show any music (no intensity filter)
   const tierFilter = slot === "explore" ? "explore" : slot === "combat" ? "combat" : undefined
   const tracks = useQuery(api.audio.listAudioTracks, {
@@ -109,10 +119,8 @@ const SFX_CATEGORIES = [
 
 function SfxBoard({
   playSfx,
-  masterVolume,
 }: {
   playSfx: (url: string) => void
-  masterVolume: number
 }) {
   const tracks = useQuery(api.audio.listAudioTracks, { type: "sfx" })
   const [flashing, setFlashing] = useState<string | null>(null)
@@ -216,12 +224,144 @@ function TrackSlot({
   )
 }
 
+function AmbienceLayerMixer({
+  sessionId,
+  campaignId,
+  activeScene,
+  activePresetId,
+  activeLayers,
+  onLayerChange,
+}: {
+  sessionId: SessionId
+  campaignId: Id<"campaigns">
+  activeScene: string
+  activePresetId: Id<"ambiencePresets"> | null
+  activeLayers: Array<{ layerId: AmbienceLayerId; tier: LayerTier }>
+  onLayerChange: (layerId: AmbienceLayerId, tier: LayerTier) => void
+}) {
+  const presets = useQuery(api.audio.listAmbiencePresets, { campaignId, sceneName: activeScene })
+  const layers = useQuery(api.audio.listAmbienceLayers, { campaignId })
+  const loadPreset = useMutation(api.audio.loadPreset)
+  const [loadingPresetId, setLoadingPresetId] = useState<Id<"ambiencePresets"> | null>(null)
+
+  const activeTierMap = useMemo(() => {
+    const map = new Map<AmbienceLayerId, LayerTier>()
+    for (const layer of activeLayers) {
+      map.set(layer.layerId, layer.tier)
+    }
+    return map
+  }, [activeLayers])
+
+  const groupedLayers = useMemo(() => {
+    const groups = new Map<string, ResolvedAmbienceLayer[]>()
+    if (!layers) return groups
+    for (const layer of layers) {
+      const category = layer.category || "other"
+      const current: ResolvedAmbienceLayer[] = groups.get(category) ?? []
+      current.push(layer)
+      groups.set(category, current)
+    }
+    return groups
+  }, [layers])
+
+  const handlePresetSelect = (presetId: string) => {
+    if (!presetId) return
+    const typedPresetId = presetId as Id<"ambiencePresets">
+    setLoadingPresetId(typedPresetId)
+    loadPreset({ sessionId, presetId: typedPresetId })
+      .catch(console.error)
+      .finally(() => setLoadingPresetId(null))
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "var(--scene-text-muted)" }}>
+          Variation
+        </p>
+        <select
+          value={activePresetId ?? ""}
+          onChange={(e) => handlePresetSelect(e.target.value)}
+          disabled={!presets || loadingPresetId !== null}
+          className="w-full rounded-md px-3 py-2 text-sm"
+          style={{
+            background: "var(--scene-bg)",
+            border: "1px solid var(--scene-border)",
+            color: "var(--scene-text-primary)",
+          }}
+        >
+          <option value="">Select variation…</option>
+          {(presets ?? []).map((preset) => (
+            <option key={preset._id} value={preset._id}>
+              {preset.variationName}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {Array.from(groupedLayers.entries()).map(([category, categoryLayers]) => (
+        <div key={category} className="space-y-2">
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--scene-text-muted)" }}>
+            {category}
+          </p>
+
+          {categoryLayers.map((layer) => {
+            const activeTier = activeTierMap.get(layer._id) ?? "off"
+            return (
+              <div
+                key={layer._id}
+                className="flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+                style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {layer.icon ? (
+                    <i className={`ti ti-${layer.icon}`} style={{ color: "var(--scene-text-muted)" }} />
+                  ) : (
+                    <Waves size={13} style={{ color: "var(--scene-text-muted)" }} />
+                  )}
+                  <p className="text-xs truncate" style={{ color: "var(--scene-text-primary)" }}>
+                    {layer.name}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {([
+                    ["i", "I"],
+                    ["ii", "II"],
+                    ["iii", "III"],
+                  ] as const).map(([tierValue, label]) => {
+                    const isActive = activeTier === tierValue
+                    return (
+                      <button
+                        key={tierValue}
+                        onClick={() => onLayerChange(layer._id, isActive ? "off" : tierValue)}
+                        className="px-2 py-1 rounded text-[10px] font-semibold"
+                        style={{
+                          background: isActive ? "var(--scene-accent)" : "var(--scene-border)",
+                          color: isActive ? "var(--scene-bg)" : "var(--scene-text-muted)",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── DM Audio Panel ────────────────────────────────────────────────────────────
 
-type PickerSlot = "ambience" | "explore" | "combat" | "victory" | null
+type PickerSlot = "explore" | "combat" | "victory" | null
 
 export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const updateAudio = useMutation(api.audio.updateSessionAudio)
+  const updateSessionLayers = useMutation(api.audio.updateSessionLayers)
   const updateIntensity = useMutation(api.audio.updateSessionIntensity)
   const triggerVictoryCue = useMutation(api.audio.triggerVictoryCue)
 
@@ -235,7 +375,8 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const [syncEnabled, setSyncEnabled] = useState(false)
   const prevAmbienceRef = useRef<number | null>(null)
   const [collapsed, setCollapsed] = useState(false)
-  const [showSfx, setShowSfx] = useState(false)
+  const [activeTab, setActiveTab] = useState<"ambiences" | "one-shots">("ambiences")
+  const [activeLayers, setActiveLayers] = useState<Array<{ layerId: AmbienceLayerId; tier: LayerTier }>>([])
   const [pickerSlot, setPickerSlot] = useState<PickerSlot>(null)
 
   const sessionRef = useQuery(api.audio.getSessionAudio, { sessionId })
@@ -252,6 +393,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
       setAmbienceVolume(sessionRef.ambienceVolume ?? 70)
       setMasterVolume(sessionRef.masterVolume ?? 80)
       setSyncEnabled(sessionRef.audioSyncEnabled ?? false)
+      setActiveLayers(sessionRef.activeLayers ?? [])
     }
   }, [sessionRef])
 
@@ -275,14 +417,35 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
     .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
     .map((t) => t.r2Url)
 
+  const ambienceLayers = useQuery(
+    api.audio.listAmbienceLayers,
+    sessionRef?.campaignId ? { campaignId: sessionRef.campaignId } : "skip"
+  )
+
   // Fetch active victory track doc (used only for engine/viz)
   const activeVictoryTrack = useQuery(
     api.audio.getAudioTrack,
     sessionRef?.activeVictoryTrackId ? { trackId: sessionRef.activeVictoryTrackId } : "skip"
   )
 
+  const resolvedActiveLayers = useMemo(() => {
+    const layerMap = new Map((ambienceLayers ?? []).map((layer) => [layer._id, layer] as const))
+    return (activeLayers ?? [])
+      .filter((layer) => layer.tier !== "off")
+      .map((layer) => {
+        const resolved = layerMap.get(layer.layerId)
+        return {
+          layerId: layer.layerId,
+          url: resolved?.r2Url ?? "",
+          volume: TIER_MULTIPLIERS[layer.tier] * ((ambienceVolume ?? 70) / 100),
+        }
+      })
+      .filter((layer) => layer.url !== "")
+  }, [ambienceLayers, activeLayers, ambienceVolume])
+
   const engineState = {
     ambienceUrl: ambienceTrack?.r2Url ?? null,
+    activeLayers: resolvedActiveLayers,
     // arrays of URLs for multi-track mixing
     exploreUrls: sortedExploreUrls,
     combatUrls: sortedCombatUrls,
@@ -329,11 +492,18 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
     [updateAudio, sessionId, ambienceId, exploreId, combatId, ambienceVolume, masterVolume, syncEnabled]
   )
 
-  const handleTrackSelect = (slot: "ambience" | "explore" | "combat", trackId: TrackId | null) => {
-    if (slot === "ambience") {
-      setAmbienceId(trackId)
-      pushAudioState({ ambienceId: trackId })
-    } else if (slot === "explore") {
+  const handleLayerChange = useCallback((layerId: AmbienceLayerId, tier: LayerTier) => {
+    setActiveLayers((current) => {
+      const next = current.some((layer) => layer.layerId === layerId)
+        ? current.map((layer) => (layer.layerId === layerId ? { layerId, tier } : layer))
+        : [...current, { layerId, tier }]
+      updateSessionLayers({ sessionId, activeLayers: next }).catch(console.error)
+      return next
+    })
+  }, [sessionId, updateSessionLayers])
+
+  const handleTrackSelect = (slot: "explore" | "combat", trackId: TrackId | null) => {
+    if (slot === "explore") {
       setExploreId(trackId)
       pushAudioState({ exploreId: trackId })
     } else {
@@ -374,12 +544,6 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
             {/* Track slots */}
             <div className="space-y-2">
               <TrackSlot
-                label="Ambience"
-                icon={Waves}
-                track={ambienceTrack ?? null}
-                onOverride={() => setPickerSlot("ambience")}
-              />
-              <TrackSlot
                 label="Explore"
                 icon={Music}
                 track={exploreTrack ?? null}
@@ -398,6 +562,44 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                 onOverride={() => setPickerSlot("victory")}
               />
             </div>
+
+            <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: "var(--scene-border)" }}>
+              <button
+                onClick={() => setActiveTab("ambiences")}
+                className="px-3 py-1 rounded-md text-xs font-medium"
+                style={{ background: activeTab === "ambiences" ? "var(--scene-accent)" : "var(--scene-border)", color: activeTab === "ambiences" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
+              >
+                Ambiences
+              </button>
+              <button
+                onClick={() => setActiveTab("one-shots")}
+                className="px-3 py-1 rounded-md text-xs font-medium"
+                style={{ background: activeTab === "one-shots" ? "var(--scene-accent)" : "var(--scene-border)", color: activeTab === "one-shots" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
+              >
+                One-shots
+              </button>
+            </div>
+
+            {activeTab === "ambiences" ? (
+              <div>
+                {sessionRef?.campaignId ? (
+                  <AmbienceLayerMixer
+                    sessionId={sessionId}
+                    campaignId={sessionRef.campaignId}
+                    activeScene={sessionRef?.activeScene ?? ""}
+                    activePresetId={sessionRef?.activePresetId ?? null}
+                    activeLayers={activeLayers}
+                    onLayerChange={handleLayerChange}
+                  />
+                ) : (
+                  <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                    Load a session to configure ambience layers.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <SfxBoard playSfx={playSfx} />
+            )}
 
             {/* Intensity slider */}
             <div>
@@ -466,15 +668,29 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                 </span>
                 <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>High</span>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={intensity}
-                onChange={(e) => handleIntensityChange(Number(e.target.value))}
-                className="w-full h-2 rounded-full appearance-none cursor-pointer"
-                style={{ accentColor: "var(--scene-accent)" }}
-              />
+              <div className="relative">
+                <div
+                  className="absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    background: `linear-gradient(to right,
+                      var(--scene-surface) 0%,
+                      var(--scene-surface) ${intensity}%,
+                      var(--scene-accent) ${intensity}%,
+                      var(--scene-accent) 100%
+                    )`,
+                    opacity: 0.35,
+                  }}
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={intensity}
+                  onChange={(e) => handleIntensityChange(Number(e.target.value))}
+                  className="relative w-full h-2 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: "var(--scene-accent)" }}
+                />
+              </div>
             </div>
 
             {/* Volume sliders */}
@@ -519,19 +735,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
               </div>
             </div>
 
-            {/* SFX board toggle */}
-            <div>
-              <button
-                onClick={() => setShowSfx((s) => !s)}
-                className="flex items-center gap-1.5 text-xs mb-3 transition-opacity hover:opacity-80"
-                style={{ color: "var(--scene-text-muted)" }}
-              >
-                <Zap size={12} />
-                SFX Board
-                {showSfx ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              </button>
-              {showSfx && <SfxBoard playSfx={playSfx} masterVolume={masterVolume} />}
-            </div>
+            {/* One-shots are now a tab, so no separate SFX toggle here */}
 
             {/* Sync toggle */}
             <div
@@ -552,19 +756,6 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                     {syncEnabled ? "Players hear what you hear" : "Local only"}
                   </p>
                 </div>
-              </div>
-                {/* Victory cue button */}
-                <div>
-                  <button
-                    onClick={() => {
-                      // default hold 10s
-                      triggerVictoryCue({ sessionId, trackId: sessionRef?.activeVictoryTrackId ?? undefined, durationMs: 10000 }).catch(console.error)
-                    }}
-                    className="mt-2 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
-                    style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
-                  >
-                    Cue Victory
-                  </button>
                 </div>
               <button
                 onClick={handleSyncToggle}
@@ -585,10 +776,8 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
         <TrackPicker
           slot={pickerSlot}
           currentId={
-            pickerSlot === "ambience" ? ambienceId :
             pickerSlot === "explore" ? exploreId :
             pickerSlot === "combat" ? combatId :
-            // victory
             sessionRef?.activeVictoryTrackId ?? null
           }
           onSelect={(id) => {
@@ -609,6 +798,8 @@ export function PlayerAudioReceiver({ sessionId, campaignId }: { sessionId: Sess
   const [localVolume, setLocalVolume] = useState(80)
   const [synced, setSynced] = useState(false)
   const [consentGiven, setConsentGiven] = useState(false)
+
+  const ambienceLayers = useQuery(api.audio.listAmbienceLayers, { campaignId })
 
   const ambienceTrack = useQuery(
     api.audio.getAudioTrack,
@@ -651,8 +842,24 @@ export function PlayerAudioReceiver({ sessionId, campaignId }: { sessionId: Sess
       .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
       .map((t) => t.r2Url)
 
+  const resolvedActiveLayers = useMemo(() => {
+    const layerMap = new Map((ambienceLayers ?? []).map((layer) => [layer._id, layer] as const))
+    return (sessionAudio?.activeLayers ?? [])
+      .filter((layer) => layer.tier !== "off")
+      .map((layer) => {
+        const resolved = layerMap.get(layer.layerId)
+        return {
+          layerId: layer.layerId,
+          url: resolved?.r2Url ?? "",
+          volume: TIER_MULTIPLIERS[layer.tier] * ((sessionAudio?.ambienceVolume ?? 70) / 100),
+        }
+      })
+      .filter((layer) => layer.url !== "")
+  }, [ambienceLayers, sessionAudio?.activeLayers, sessionAudio?.ambienceVolume])
+
   const engineState = {
     ambienceUrl: ambienceTrack?.r2Url ?? null,
+    activeLayers: resolvedActiveLayers,
     exploreUrls: sortedExploreUrls,
     combatUrls: sortedCombatUrls,
     intensity: sessionAudio?.intensity ?? 0,

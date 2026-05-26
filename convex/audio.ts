@@ -385,3 +385,299 @@ export const triggerVictoryCue = mutation({
     await ctx.db.patch(args.sessionId, patch)
   },
 })
+
+export const listAmbienceLayers = query({
+  args: {
+    campaignId: v.optional(v.id("campaigns")),
+  },
+  handler: async (ctx, args): Promise<Array<Doc<"ambienceLayers"> & { r2Url: string; trackType: string | null }>> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const allLayers = await ctx.db.query("ambienceLayers").take(200)
+
+    const campaignLayers = args.campaignId
+      ? allLayers.filter((layer) => layer.campaignId === args.campaignId)
+      : []
+
+    const globalSharedLayers = allLayers.filter((layer) => layer.campaignId === undefined && layer.isShared)
+
+    const visibleCampaignLayers = campaignLayers.filter(
+      (layer) => layer.userId === identity.tokenIdentifier || layer.isShared
+    )
+    const visibleGlobalLayers = globalSharedLayers.filter((layer) => layer.isShared)
+
+    const deduped = new Map<string, Doc<"ambienceLayers">>()
+    for (const layer of [...visibleCampaignLayers, ...visibleGlobalLayers]) {
+      deduped.set(layer._id, layer)
+    }
+
+    const resolved: Array<Doc<"ambienceLayers"> & { r2Url: string; trackType: string | null }> = []
+    for (const layer of deduped.values()) {
+      const track = await ctx.db.get(layer.trackId)
+      resolved.push({
+        ...layer,
+        r2Url: track?.r2Url ?? "",
+        trackType: track?.type ?? null,
+      })
+    }
+
+    return resolved
+  },
+})
+
+export const listAmbiencePresets = query({
+  args: {
+    campaignId: v.optional(v.id("campaigns")),
+    sceneName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const allPresets = await ctx.db.query("ambiencePresets").take(200)
+
+    return allPresets.filter((preset) => {
+      if (preset.userId !== identity.tokenIdentifier) return false
+      if (args.campaignId && preset.campaignId !== args.campaignId) return false
+      if (!args.campaignId && preset.campaignId !== undefined) return false
+      if (args.sceneName && preset.sceneName !== args.sceneName) return false
+      return true
+    })
+  },
+})
+
+export const getAmbiencePreset = query({
+  args: {
+    presetId: v.id("ambiencePresets"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const preset = await ctx.db.get(args.presetId)
+    if (!preset) return null
+    if (preset.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    return preset
+  },
+})
+
+export const createAmbienceLayer = mutation({
+  args: {
+    campaignId: v.optional(v.id("campaigns")),
+    name: v.string(),
+    category: v.string(),
+    icon: v.optional(v.string()),
+    trackId: v.id("audioTracks"),
+    isShared: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const track = await ctx.db.get(args.trackId)
+    if (!track) throw new Error("Track not found")
+    if (track.type !== "ambience") throw new Error("Ambience layer track must have type ambience")
+
+    return await ctx.db.insert("ambienceLayers", {
+      userId: identity.tokenIdentifier,
+      campaignId: args.campaignId,
+      name: args.name,
+      category: args.category,
+      icon: args.icon,
+      trackId: args.trackId,
+      isShared: args.isShared,
+      createdAt: Date.now(),
+    })
+  },
+})
+
+export const updateAmbienceLayer = mutation({
+  args: {
+    layerId: v.id("ambienceLayers"),
+    name: v.optional(v.string()),
+    category: v.optional(v.string()),
+    icon: v.optional(v.string()),
+    trackId: v.optional(v.id("audioTracks")),
+    isShared: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const layer = await ctx.db.get(args.layerId)
+    if (!layer) throw new Error("Layer not found")
+    if (layer.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    if (args.trackId) {
+      const track = await ctx.db.get(args.trackId)
+      if (!track) throw new Error("Track not found")
+      if (track.type !== "ambience") throw new Error("Ambience layer track must have type ambience")
+    }
+
+    const { layerId, ...updates } = args
+    await ctx.db.patch(layerId, updates)
+  },
+})
+
+export const deleteAmbienceLayer = mutation({
+  args: {
+    layerId: v.id("ambienceLayers"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const layer = await ctx.db.get(args.layerId)
+    if (!layer) throw new Error("Layer not found")
+    if (layer.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    await ctx.db.delete(args.layerId)
+  },
+})
+
+export const createAmbiencePreset = mutation({
+  args: {
+    campaignId: v.optional(v.id("campaigns")),
+    sceneName: v.string(),
+    variationName: v.string(),
+    layers: v.array(
+      v.object({
+        layerId: v.id("ambienceLayers"),
+        defaultTier: v.optional(v.union(v.literal("i"), v.literal("ii"), v.literal("iii"))),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    for (const layerDef of args.layers) {
+      const layer = await ctx.db.get(layerDef.layerId)
+      if (!layer) throw new Error("Layer not found")
+      if (layer.userId !== identity.tokenIdentifier && !layer.isShared) {
+        throw new Error("Cannot include a private layer you do not own")
+      }
+    }
+
+    return await ctx.db.insert("ambiencePresets", {
+      userId: identity.tokenIdentifier,
+      campaignId: args.campaignId,
+      sceneName: args.sceneName,
+      variationName: args.variationName,
+      layers: args.layers,
+      createdAt: Date.now(),
+    })
+  },
+})
+
+export const updateAmbiencePreset = mutation({
+  args: {
+    presetId: v.id("ambiencePresets"),
+    sceneName: v.optional(v.string()),
+    variationName: v.optional(v.string()),
+    layers: v.optional(
+      v.array(
+        v.object({
+          layerId: v.id("ambienceLayers"),
+          defaultTier: v.optional(v.union(v.literal("i"), v.literal("ii"), v.literal("iii"))),
+        })
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const preset = await ctx.db.get(args.presetId)
+    if (!preset) throw new Error("Preset not found")
+    if (preset.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    if (args.layers) {
+      for (const layerDef of args.layers) {
+        const layer = await ctx.db.get(layerDef.layerId)
+        if (!layer) throw new Error("Layer not found")
+        if (layer.userId !== identity.tokenIdentifier && !layer.isShared) {
+          throw new Error("Cannot include a private layer you do not own")
+        }
+      }
+    }
+
+    const { presetId, ...updates } = args
+    await ctx.db.patch(presetId, updates)
+  },
+})
+
+export const deleteAmbiencePreset = mutation({
+  args: {
+    presetId: v.id("ambiencePresets"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const preset = await ctx.db.get(args.presetId)
+    if (!preset) throw new Error("Preset not found")
+    if (preset.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    await ctx.db.delete(args.presetId)
+  },
+})
+
+export const updateSessionLayers = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    activeLayers: v.array(
+      v.object({
+        layerId: v.id("ambienceLayers"),
+        tier: v.union(v.literal("i"), v.literal("ii"), v.literal("iii"), v.literal("off")),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const session = await ctx.db.get(args.sessionId)
+    if (!session) throw new Error("Session not found")
+    if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    await ctx.db.patch(args.sessionId, { activeLayers: args.activeLayers })
+  },
+})
+
+export const loadPreset = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    presetId: v.id("ambiencePresets"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const session = await ctx.db.get(args.sessionId)
+    if (!session) throw new Error("Session not found")
+    if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    const preset = await ctx.db.get(args.presetId)
+    if (!preset) throw new Error("Preset not found")
+    if (preset.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
+    if (preset.campaignId && preset.campaignId !== session.campaignId) {
+      throw new Error("Preset campaign does not match session campaign")
+    }
+
+    const activeLayers = preset.layers.map((layer) => ({
+      layerId: layer.layerId,
+      tier: (layer.defaultTier ?? "off") as "off" | "i" | "ii" | "iii",
+    })) as Array<{ layerId: typeof preset.layers[number]["layerId"]; tier: "off" | "i" | "ii" | "iii" }>
+
+    await ctx.db.patch(args.sessionId, {
+      activePresetId: args.presetId,
+      activeLayers,
+    })
+
+    return { activeLayers }
+  },
+})
+

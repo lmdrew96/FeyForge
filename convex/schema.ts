@@ -416,6 +416,11 @@ export default defineSchema({
     victoryTriggeredAt: v.optional(v.number()),
     // Optional duration in milliseconds that clients should hold the victory cue before returning
     victoryDurationMs: v.optional(v.number()),
+    activePresetId: v.optional(v.id("ambiencePresets")),
+    activeLayers: v.optional(v.array(v.object({
+      layerId: v.id("ambienceLayers"),
+      tier: v.union(v.literal("i"), v.literal("ii"), v.literal("iii"), v.literal("off")),
+    }))),
   })
     .index("by_campaignId_and_isActive", ["campaignId", "isActive"])
     .index("by_dmUserId", ["dmUserId"])
@@ -517,6 +522,33 @@ export default defineSchema({
   })
     .index("by_type", ["type"])
     .index("by_uploadedBy", ["uploadedBy"]),
+
+  ambienceLayers: defineTable({
+    userId: v.string(),
+    campaignId: v.optional(v.id("campaigns")),
+    name: v.string(),
+    category: v.string(), // "environment" | "weather" | "action" | "creature"
+    icon: v.optional(v.string()), // tabler icon slug e.g. "cloud-rain", "wind"
+    trackId: v.id("audioTracks"),
+    isShared: v.optional(v.boolean()),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"]),
+
+  ambiencePresets: defineTable({
+    userId: v.string(),
+    campaignId: v.optional(v.id("campaigns")),
+    sceneName: v.string(),
+    variationName: v.string(),
+    layers: v.array(v.object({
+      layerId: v.id("ambienceLayers"),
+      defaultTier: v.optional(v.union(v.literal("i"), v.literal("ii"), v.literal("iii"))),
+    })),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"]),
 
   campaignSceneAudio: defineTable({
     campaignId: v.id("campaigns"),
