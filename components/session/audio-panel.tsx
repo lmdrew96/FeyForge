@@ -696,10 +696,10 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                       className="absolute inset-0 rounded-full pointer-events-none"
                       style={{
                         background: `linear-gradient(to right,
-                          var(--scene-surface) 0%,
-                          var(--scene-surface) ${(musicIntensity - 1) / 4 * 100}%,
+                          var(--scene-accent) 0%,
                           var(--scene-accent) ${(musicIntensity - 1) / 4 * 100}%,
-                          var(--scene-accent) 100%
+                          var(--scene-surface) ${(musicIntensity - 1) / 4 * 100}%,
+                          var(--scene-surface) 100%
                         )`,
                         opacity: 0.45,
                       }}
