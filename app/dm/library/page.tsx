@@ -48,6 +48,17 @@ function TierBadge({ tier }: { tier: IntensityTier }) {
   )
 }
 
+const RANK_LABELS: Record<number, string> = { 1: "I", 2: "II", 3: "III", 4: "IV", 5: "V" }
+
+function RankBadge({ rank }: { rank: number }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border bg-slate-800/60 text-slate-300 border-slate-600/50">
+      <Star size={8} className="fill-current" />
+      {RANK_LABELS[rank] ?? rank}
+    </span>
+  )
+}
+
 function AudioPreview({ url, locked }: { url: string; locked?: boolean }) {
   const [playing, setPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -112,6 +123,7 @@ function TrackCard({ track, isPremium }: { track: AudioTrack; isPremium: boolean
       <div className="flex flex-wrap items-center gap-1">
         <TypeBadge type={track.type as TrackType} />
         {track.intensityTier && <TierBadge tier={track.intensityTier as IntensityTier} />}
+        {typeof track.intensityRank === "number" && <RankBadge rank={track.intensityRank} />}
         {(track.sceneTag ?? []).map((tag) => (
           <span
             key={tag}
