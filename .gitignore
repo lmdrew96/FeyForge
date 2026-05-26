@@ -29,6 +29,9 @@ next-env.d.ts
 components/.DS_Store
 *.mp3
 
+# Local audio working directory (stems, GarageBand projects, exports — never commit)
+feyforge-audio/
+
 # IDE
 .idea/
 

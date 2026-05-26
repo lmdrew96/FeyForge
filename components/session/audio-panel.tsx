@@ -4,10 +4,10 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
-import { useAudioEngine } from "@/hooks/use-audio-engine"
+import { useAudioEngine, type MusicTrackSet } from "@/hooks/use-audio-engine"
 import {
   Waves, Volume2, ChevronDown, ChevronUp,
-  Radio, WifiOff, X, Check, Pause, Play, Pencil,
+  Radio, WifiOff, X, Check, Pause, Play, Pencil, Music2,
 } from "lucide-react"
 
 type SessionId = Id<"partySessions">
@@ -25,6 +25,14 @@ const TIER_MULTIPLIERS: Record<LayerTier, number> = {
 }
 
 const RANK_LABELS: Record<number, string> = { 1: "I", 2: "II", 3: "III", 4: "IV", 5: "V" }
+
+const INTENSITY_MIX: Record<number, [number, number, number]> = {
+  1: [1, 0, 0],
+  2: [0.5, 0.5, 0],
+  3: [0, 1, 0],
+  4: [0, 0.5, 0.5],
+  5: [0, 0, 1],
+}
 
 // ── Track picker modal ────────────────────────────────────────────────────────
 
@@ -101,6 +109,75 @@ function TrackPicker({
           {filtered.length === 0 && (
             <p className="px-4 py-6 text-xs text-center" style={{ color: "var(--scene-text-muted)" }}>
               No tracks found
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Music Set Picker ──────────────────────────────────────────────────────────
+
+function MusicSetPicker({
+  slot,
+  onSelect,
+  onClose,
+}: {
+  slot: "explore" | "combat" | "victory"
+  onSelect: (set: { _id: Id<"musicSetLibrary">; lowTrackId: Id<"audioTracks">; medTrackId: Id<"audioTracks">; highTrackId: Id<"audioTracks">; name: string }) => void
+  onClose: () => void
+}) {
+  const tierFilter = slot === "explore" ? "explore" : slot === "combat" ? "combat" : undefined
+  const sets = useQuery(api.audio.listMusicSetLibrary, tierFilter ? { intensityTier: tierFilter } : {})
+  const [search, setSearch] = useState("")
+  const filtered = (sets ?? []).filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div
+        className="w-full max-w-sm rounded-xl overflow-hidden"
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--scene-border)" }}>
+          <h3 className="text-sm font-semibold capitalize" style={{ color: "var(--scene-text-primary)" }}>
+            Pick {slot} music set
+          </h3>
+          <button onClick={onClose} style={{ color: "var(--scene-text-muted)" }}><X size={16} /></button>
+        </div>
+        <div className="p-3 border-b" style={{ borderColor: "var(--scene-border)" }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search…"
+            className="w-full px-3 py-1.5 rounded-md text-sm"
+            style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+            autoFocus
+          />
+        </div>
+        <div className="max-h-72 overflow-y-auto">
+          {filtered.map((set) => (
+            <button
+              key={set._id}
+              onClick={() => {
+                onSelect({ _id: set._id, lowTrackId: set.lowTrackId, medTrackId: set.medTrackId, highTrackId: set.highTrackId, name: set.name })
+                onClose()
+              }}
+              className="w-full px-4 py-3 text-left hover:opacity-80 transition-opacity flex items-center justify-between border-b"
+              style={{ borderColor: "var(--scene-border)" }}
+            >
+              <div>
+                <p className="text-sm" style={{ color: "var(--scene-text-primary)" }}>{set.name}</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
+                  {set.intensityTier} · {set.tier ?? "free"}
+                </p>
+              </div>
+              <Music2 size={13} style={{ color: "var(--scene-text-muted)" }} />
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="px-4 py-6 text-xs text-center" style={{ color: "var(--scene-text-muted)" }}>
+              {(sets ?? []).length === 0 ? "No music sets in library yet." : "No sets match your search."}
             </p>
           )}
         </div>
@@ -321,20 +398,20 @@ function AmbienceLayerMixer({
 
 // ── DM Audio Panel ────────────────────────────────────────────────────────────
 
-type PickerSlot = "explore" | "combat" | "victory" | null
+type MusicPickerSlot = "explore" | "combat" | "victory" | null
 
 export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const updateAudio = useMutation(api.audio.updateSessionAudio)
   const updateSessionLayers = useMutation(api.audio.updateSessionLayers)
-  const updateIntensity = useMutation(api.audio.updateSessionIntensity)
+  const updateSessionMusicMode = useMutation(api.audio.updateSessionMusicMode)
+  const updateSessionMusicIntensity = useMutation(api.audio.updateSessionMusicIntensity)
+  const upsertSceneMusicSet = useMutation(api.audio.upsertSceneMusicSet)
   const triggerVictoryCue = useMutation(api.audio.triggerVictoryCue)
   const pauseAudioMutation = useMutation(api.audio.pauseAudio)
 
-  // Local state mirrors session audio — optimistic
+  // Local state
   const [ambienceId, setAmbienceId] = useState<TrackId | null>(null)
-  const [exploreId, setExploreId] = useState<TrackId | null>(null)
-  const [combatId, setCombatId] = useState<TrackId | null>(null)
-  const [intensity, setIntensity] = useState(3)
+  const [musicIntensity, setMusicIntensity] = useState(3)
   const [ambienceVolume, setAmbienceVolume] = useState(70)
   const [masterVolume, setMasterVolume] = useState(80)
   const [syncEnabled, setSyncEnabled] = useState(false)
@@ -342,7 +419,8 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const [collapsed, setCollapsed] = useState(false)
   const [activeTab, setActiveTab] = useState<"ambiences" | "one-shots">("ambiences")
   const [activeLayers, setActiveLayers] = useState<Array<{ layerId: AmbienceLayerId; tier: LayerTier }>>([])
-  const [pickerSlot, setPickerSlot] = useState<PickerSlot>(null)
+  const [musicPickerSlot, setMusicPickerSlot] = useState<MusicPickerSlot>(null)
+  const [victoryPickerOpen, setVictoryPickerOpen] = useState(false)
 
   const sessionRef = useQuery(api.audio.getSessionAudio, { sessionId })
 
@@ -352,11 +430,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
     if (sessionRef && !initializedRef.current) {
       initializedRef.current = true
       setAmbienceId(sessionRef.activeAmbienceTrackId ?? null)
-      setExploreId(sessionRef.activeExploreTrackId ?? null)
-      setCombatId(sessionRef.activeCombatTrackId ?? null)
-      const rawInt = sessionRef.intensity ?? 3
-      const normInt = rawInt > 5 ? Math.max(1, Math.min(5, Math.round(rawInt / 20))) : Math.max(1, Math.min(5, rawInt || 3))
-      setIntensity(normInt)
+      setMusicIntensity(Math.max(1, Math.min(5, sessionRef.musicIntensity ?? 3)))
       setAmbienceVolume(sessionRef.ambienceVolume ?? 70)
       setMasterVolume(sessionRef.masterVolume ?? 80)
       setSyncEnabled(sessionRef.audioSyncEnabled ?? false)
@@ -365,41 +439,83 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
     }
   }, [sessionRef])
 
-  // Fetch track docs for display
+  const campaignId = sessionRef?.campaignId
+  const activeScene = sessionRef?.activeScene ?? ""
+
+  // Ambience track
   const ambienceTrack = useQuery(api.audio.getAudioTrack, ambienceId ? { trackId: ambienceId } : "skip")
-  const exploreTrack = useQuery(api.audio.getAudioTrack, exploreId ? { trackId: exploreId } : "skip")
-  const combatTrack = useQuery(api.audio.getAudioTrack, combatId ? { trackId: combatId } : "skip")
 
-  const activeTrackName = useMemo(() => {
-    if (sessionRef?.musicMode === "explore") return exploreTrack?.name ?? null
-    if (sessionRef?.musicMode === "combat") return combatTrack?.name ?? null
-    return null
-  }, [sessionRef?.musicMode, exploreTrack?.name, combatTrack?.name])
-
-  // If DM has not overridden with a single track, gather multiple tracks for the active scene and tier
-  const sceneTag = sessionRef?.activeScene ?? undefined
-  const exploreTracksList = useQuery(api.audio.listAudioTracks, sceneTag ? { type: "music", intensityTier: "explore", sceneTag } : { type: "music", intensityTier: "explore" })
-  const combatTracksList = useQuery(api.audio.listAudioTracks, sceneTag ? { type: "music", intensityTier: "combat", sceneTag } : { type: "music", intensityTier: "combat" })
-
-  const sortedExploreUrls = (exploreId && exploreTrack) ? [exploreTrack.r2Url] : (exploreTracksList ?? [])
-    .slice()
-    .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
-    .map((t) => t.r2Url)
-
-  const sortedCombatUrls = (combatId && combatTrack) ? [combatTrack.r2Url] : (combatTracksList ?? [])
-    .slice()
-    .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
-    .map((t) => t.r2Url)
-
-  const ambienceLayers = useQuery(
-    api.audio.listAmbienceLayers,
-    sessionRef?.campaignId ? { campaignId: sessionRef.campaignId } : "skip"
-  )
-
-  // Fetch active victory track doc (used only for engine/viz)
+  // Active victory track (single-track fallback)
   const activeVictoryTrack = useQuery(
     api.audio.getAudioTrack,
     sessionRef?.activeVictoryTrackId ? { trackId: sessionRef.activeVictoryTrackId } : "skip"
+  )
+
+  // Scene music set assignments
+  const exploreSet = useQuery(
+    api.audio.getSceneMusicSet,
+    campaignId && activeScene ? { campaignId, sceneName: activeScene, mode: "explore" } : "skip"
+  )
+  const combatSet = useQuery(
+    api.audio.getSceneMusicSet,
+    campaignId && activeScene ? { campaignId, sceneName: activeScene, mode: "combat" } : "skip"
+  )
+
+  // Resolve explore track URLs
+  const exploreLow = useQuery(api.audio.getAudioTrack, exploreSet?.lowTrackId ? { trackId: exploreSet.lowTrackId } : "skip")
+  const exploreMed = useQuery(api.audio.getAudioTrack, exploreSet?.medTrackId ? { trackId: exploreSet.medTrackId } : "skip")
+  const exploreHigh = useQuery(api.audio.getAudioTrack, exploreSet?.highTrackId ? { trackId: exploreSet.highTrackId } : "skip")
+
+  // Resolve combat track URLs
+  const combatLow = useQuery(api.audio.getAudioTrack, combatSet?.lowTrackId ? { trackId: combatSet.lowTrackId } : "skip")
+  const combatMed = useQuery(api.audio.getAudioTrack, combatSet?.medTrackId ? { trackId: combatSet.medTrackId } : "skip")
+  const combatHigh = useQuery(api.audio.getAudioTrack, combatSet?.highTrackId ? { trackId: combatSet.highTrackId } : "skip")
+
+  // Library set names for display
+  const exploreLibSet = useQuery(
+    api.audio.listMusicSetLibrary,
+    exploreSet?.musicSetLibraryId ? {} : "skip"
+  )
+  const combatLibSet = useQuery(
+    api.audio.listMusicSetLibrary,
+    combatSet?.musicSetLibraryId ? {} : "skip"
+  )
+  const exploreSetName = useMemo(
+    () => (exploreLibSet ?? []).find((s) => s._id === exploreSet?.musicSetLibraryId)?.name ?? null,
+    [exploreLibSet, exploreSet?.musicSetLibraryId]
+  )
+  const combatSetName = useMemo(
+    () => (combatLibSet ?? []).find((s) => s._id === combatSet?.musicSetLibraryId)?.name ?? null,
+    [combatLibSet, combatSet?.musicSetLibraryId]
+  )
+
+  const activeSetName = useMemo(() => {
+    if (sessionRef?.musicMode === "explore") return exploreSetName ?? (exploreSet ? "Custom set" : null)
+    if (sessionRef?.musicMode === "combat") return combatSetName ?? (combatSet ? "Custom set" : null)
+    return null
+  }, [sessionRef?.musicMode, exploreSetName, combatSetName, exploreSet, combatSet])
+
+  const exploreTracks: MusicTrackSet = useMemo(() => ({
+    low: exploreLow?.r2Url ?? null,
+    med: exploreMed?.r2Url ?? null,
+    high: exploreHigh?.r2Url ?? null,
+  }), [exploreLow?.r2Url, exploreMed?.r2Url, exploreHigh?.r2Url])
+
+  const combatTracks: MusicTrackSet = useMemo(() => ({
+    low: combatLow?.r2Url ?? null,
+    med: combatMed?.r2Url ?? null,
+    high: combatHigh?.r2Url ?? null,
+  }), [combatLow?.r2Url, combatMed?.r2Url, combatHigh?.r2Url])
+
+  const victoryTracks: MusicTrackSet = useMemo(() => ({
+    low: null,
+    med: activeVictoryTrack?.r2Url ?? null,
+    high: null,
+  }), [activeVictoryTrack?.r2Url])
+
+  const ambienceLayers = useQuery(
+    api.audio.listAmbienceLayers,
+    campaignId ? { campaignId } : "skip"
   )
 
   const resolvedActiveLayers = useMemo(() => {
@@ -420,35 +536,56 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const engineState = {
     ambienceUrl: ambienceTrack?.r2Url ?? null,
     activeLayers: resolvedActiveLayers,
-    // arrays of URLs for multi-track mixing
-    exploreUrls: sortedExploreUrls,
-    combatUrls: sortedCombatUrls,
-    intensity: (intensity - 1) * 25,
+    musicMode: (sessionRef?.musicMode === "off" || sessionRef?.musicMode === "explore" || sessionRef?.musicMode === "combat")
+      ? sessionRef.musicMode
+      : "off" as const,
+    musicIntensity,
+    exploreTracks,
+    combatTracks,
+    victoryTracks,
+    victoryCuedAt: sessionRef?.victoryTriggeredAt ?? null,
     ambienceVolume,
     masterVolume,
-    // victory fields for local engine cueing
-    victoryUrl: activeVictoryTrack?.r2Url ?? null,
-    victoryTriggeredAt: sessionRef?.victoryTriggeredAt ?? null,
-    victoryDurationMs: sessionRef?.victoryDurationMs ?? null,
-    musicMode: sessionRef?.musicMode ?? "blend",
   }
   const { playSfx } = useAudioEngine(engineState, !paused)
 
   // Debounce intensity sync to Convex
   const intensityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleIntensityChange = (val: number) => {
-    setIntensity(val)
+    setMusicIntensity(val)
     if (intensityTimerRef.current) clearTimeout(intensityTimerRef.current)
     intensityTimerRef.current = setTimeout(() => {
-      updateIntensity({ sessionId, intensity: val }).catch(console.error)
+      updateSessionMusicIntensity({ sessionId, musicIntensity: val }).catch(console.error)
     }, 100)
+  }
+
+  const handleModeChange = (mode: "off" | "explore" | "combat") => {
+    updateSessionMusicMode({ sessionId, musicMode: mode }).catch(console.error)
+  }
+
+  const handleMusicSetSelect = useCallback((
+    slot: "explore" | "combat" | "victory",
+    set: { _id: Id<"musicSetLibrary">; lowTrackId: Id<"audioTracks">; medTrackId: Id<"audioTracks">; highTrackId: Id<"audioTracks"> }
+  ) => {
+    if (!campaignId || !activeScene) return
+    upsertSceneMusicSet({
+      campaignId,
+      sceneName: activeScene,
+      mode: slot,
+      musicSetLibraryId: set._id,
+      lowTrackId: set.lowTrackId,
+      medTrackId: set.medTrackId,
+      highTrackId: set.highTrackId,
+    }).catch(console.error)
+  }, [campaignId, activeScene, upsertSceneMusicSet])
+
+  const handleVictoryTrackSelect = (trackId: TrackId | null) => {
+    updateAudio({ sessionId, activeVictoryTrackId: trackId ?? undefined }).catch(console.error)
   }
 
   const pushAudioState = useCallback(
     (patch: Partial<{
       ambienceId: TrackId | null
-      exploreId: TrackId | null
-      combatId: TrackId | null
       ambienceVolume: number
       masterVolume: number
       syncEnabled: boolean
@@ -456,14 +593,12 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
       updateAudio({
         sessionId,
         activeAmbienceTrackId: patch.ambienceId !== undefined ? patch.ambienceId ?? undefined : ambienceId ?? undefined,
-        activeExploreTrackId: patch.exploreId !== undefined ? patch.exploreId ?? undefined : exploreId ?? undefined,
-        activeCombatTrackId: patch.combatId !== undefined ? patch.combatId ?? undefined : combatId ?? undefined,
         ambienceVolume: patch.ambienceVolume !== undefined ? patch.ambienceVolume : ambienceVolume,
         masterVolume: patch.masterVolume !== undefined ? patch.masterVolume : masterVolume,
         audioSyncEnabled: patch.syncEnabled !== undefined ? patch.syncEnabled : syncEnabled,
       }).catch(console.error)
     },
-    [updateAudio, sessionId, ambienceId, exploreId, combatId, ambienceVolume, masterVolume, syncEnabled]
+    [updateAudio, sessionId, ambienceId, ambienceVolume, masterVolume, syncEnabled]
   )
 
   const handleLayerChange = useCallback((layerId: AmbienceLayerId, tier: LayerTier) => {
@@ -475,21 +610,6 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
       return next
     })
   }, [sessionId, updateSessionLayers])
-
-  const handleTrackSelect = (slot: "explore" | "combat", trackId: TrackId | null) => {
-    if (slot === "explore") {
-      setExploreId(trackId)
-      pushAudioState({ exploreId: trackId })
-    } else {
-      setCombatId(trackId)
-      pushAudioState({ combatId: trackId })
-    }
-  }
-
-  const handleVictoryTrackSelect = (trackId: TrackId | null) => {
-    // store active victory track on session
-    updateAudio({ sessionId, activeVictoryTrackId: trackId ?? undefined }).catch(console.error)
-  }
 
   const handleSyncToggle = () => {
     const next = !syncEnabled
@@ -539,7 +659,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                 {(["off", "explore", "combat"] as const).map((mode) => (
                   <button
                     key={mode}
-                    onClick={() => updateAudio({ sessionId, musicMode: mode }).catch(console.error)}
+                    onClick={() => handleModeChange(mode)}
                     className="px-3 py-1 rounded-md text-xs font-medium capitalize"
                     style={{
                       background: sessionRef?.musicMode === mode ? "var(--scene-accent)" : "var(--scene-border)",
@@ -551,16 +671,19 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                 ))}
               </div>
 
-              {/* Clickable active track name — opens picker for current mode */}
-              {sessionRef?.musicMode !== "off" && (
+              {/* Clickable active set name — opens music set picker */}
+              {sessionRef?.musicMode !== "off" && sessionRef?.musicMode !== "blend" && (
                 <button
-                  onClick={() => setPickerSlot(sessionRef?.musicMode as "explore" | "combat")}
+                  onClick={() => setMusicPickerSlot(sessionRef?.musicMode as "explore" | "combat")}
                   className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-opacity hover:opacity-80"
                   style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
                 >
-                  <p className="text-xs truncate" style={{ color: activeTrackName ? "var(--scene-text-primary)" : "var(--scene-text-muted)" }}>
-                    {activeTrackName ?? "—"}
-                  </p>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Music2 size={11} style={{ color: "var(--scene-text-muted)", flexShrink: 0 }} />
+                    <p className="text-xs truncate" style={{ color: activeSetName ? "var(--scene-text-primary)" : "var(--scene-text-muted)" }}>
+                      {activeSetName ?? "No set assigned — pick one"}
+                    </p>
+                  </div>
                   <Pencil size={11} style={{ color: "var(--scene-text-muted)", flexShrink: 0 }} />
                 </button>
               )}
@@ -574,8 +697,8 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                       style={{
                         background: `linear-gradient(to right,
                           var(--scene-surface) 0%,
-                          var(--scene-surface) ${(intensity - 1) / 4 * 100}%,
-                          var(--scene-accent) ${(intensity - 1) / 4 * 100}%,
+                          var(--scene-surface) ${(musicIntensity - 1) / 4 * 100}%,
+                          var(--scene-accent) ${(musicIntensity - 1) / 4 * 100}%,
                           var(--scene-accent) 100%
                         )`,
                         opacity: 0.45,
@@ -586,15 +709,34 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                       min={1}
                       max={5}
                       step={1}
-                      value={intensity}
+                      value={musicIntensity}
                       onChange={(e) => handleIntensityChange(Number(e.target.value))}
                       className="relative w-full h-2 rounded-full appearance-none cursor-pointer bg-transparent"
                       style={{ accentColor: "var(--scene-accent)" }}
                     />
                   </div>
                   <span className="text-xs font-semibold w-5 text-right shrink-0" style={{ color: "var(--scene-accent)" }}>
-                    {RANK_LABELS[intensity]}
+                    {RANK_LABELS[musicIntensity]}
                   </span>
+                </div>
+              )}
+              {/* INTENSITY_MIX display */}
+              {sessionRef?.musicMode !== "off" && (
+                <div className="flex items-center gap-3 px-1">
+                  {["L", "M", "H"].map((label, i) => {
+                    const weight = (INTENSITY_MIX[musicIntensity] ?? INTENSITY_MIX[3])[i]
+                    return (
+                      <div key={label} className="flex items-center gap-1">
+                        <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>{label}</span>
+                        <div className="w-10 h-1 rounded-full overflow-hidden" style={{ background: "var(--scene-border)" }}>
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${Math.round(weight * 100)}%`, background: "var(--scene-accent)" }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -613,7 +755,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                 🏆 Cue Victory
               </button>
               <button
-                onClick={() => setPickerSlot("victory")}
+                onClick={() => setVictoryPickerOpen(true)}
                 className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition-opacity hover:opacity-80"
                 style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
               >
@@ -742,19 +884,20 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
         )}
       </section>
 
-      {pickerSlot && (
+      {musicPickerSlot && musicPickerSlot !== "victory" && (
+        <MusicSetPicker
+          slot={musicPickerSlot}
+          onSelect={(set) => handleMusicSetSelect(musicPickerSlot, set)}
+          onClose={() => setMusicPickerSlot(null)}
+        />
+      )}
+
+      {victoryPickerOpen && (
         <TrackPicker
-          slot={pickerSlot}
-          currentId={
-            pickerSlot === "explore" ? exploreId :
-            pickerSlot === "combat" ? combatId :
-            sessionRef?.activeVictoryTrackId ?? null
-          }
-          onSelect={(id) => {
-            if (pickerSlot === "victory") handleVictoryTrackSelect(id)
-            else if (pickerSlot) handleTrackSelect(pickerSlot, id)
-          }}
-          onClose={() => setPickerSlot(null)}
+          slot="victory"
+          currentId={sessionRef?.activeVictoryTrackId ?? null}
+          onSelect={(id) => handleVictoryTrackSelect(id)}
+          onClose={() => setVictoryPickerOpen(false)}
         />
       )}
     </>
@@ -775,42 +918,51 @@ export function PlayerAudioReceiver({ sessionId, campaignId }: { sessionId: Sess
     api.audio.getAudioTrack,
     sessionAudio?.activeAmbienceTrackId ? { trackId: sessionAudio.activeAmbienceTrackId } : "skip"
   )
-  const exploreTrack = useQuery(
-    api.audio.getAudioTrack,
-    sessionAudio?.activeExploreTrackId ? { trackId: sessionAudio.activeExploreTrackId } : "skip"
+
+  const activeScene = sessionAudio?.activeScene ?? ""
+
+  // Scene music set assignments
+  const exploreSet = useQuery(
+    api.audio.getSceneMusicSet,
+    campaignId && activeScene ? { campaignId, sceneName: activeScene, mode: "explore" } : "skip"
   )
-  const combatTrack = useQuery(
-    api.audio.getAudioTrack,
-    sessionAudio?.activeCombatTrackId ? { trackId: sessionAudio.activeCombatTrackId } : "skip"
+  const combatSet = useQuery(
+    api.audio.getSceneMusicSet,
+    campaignId && activeScene ? { campaignId, sceneName: activeScene, mode: "combat" } : "skip"
   )
+
+  // Resolve explore track URLs
+  const exploreLow = useQuery(api.audio.getAudioTrack, exploreSet?.lowTrackId ? { trackId: exploreSet.lowTrackId } : "skip")
+  const exploreMed = useQuery(api.audio.getAudioTrack, exploreSet?.medTrackId ? { trackId: exploreSet.medTrackId } : "skip")
+  const exploreHigh = useQuery(api.audio.getAudioTrack, exploreSet?.highTrackId ? { trackId: exploreSet.highTrackId } : "skip")
+
+  // Resolve combat track URLs
+  const combatLow = useQuery(api.audio.getAudioTrack, combatSet?.lowTrackId ? { trackId: combatSet.lowTrackId } : "skip")
+  const combatMed = useQuery(api.audio.getAudioTrack, combatSet?.medTrackId ? { trackId: combatSet.medTrackId } : "skip")
+  const combatHigh = useQuery(api.audio.getAudioTrack, combatSet?.highTrackId ? { trackId: combatSet.highTrackId } : "skip")
+
   const activeVictoryTrack = useQuery(
     api.audio.getAudioTrack,
     sessionAudio?.activeVictoryTrackId ? { trackId: sessionAudio.activeVictoryTrackId } : "skip"
   )
 
-  const sceneTag = sessionAudio?.activeScene ?? undefined
-  const exploreTracksList = useQuery(
-    api.audio.listAudioTracks,
-    sceneTag ? { type: "music", intensityTier: "explore", sceneTag } : { type: "music", intensityTier: "explore" }
-  )
-  const combatTracksList = useQuery(
-    api.audio.listAudioTracks,
-    sceneTag ? { type: "music", intensityTier: "combat", sceneTag } : { type: "music", intensityTier: "combat" }
-  )
+  const exploreTracks: MusicTrackSet = useMemo(() => ({
+    low: exploreLow?.r2Url ?? null,
+    med: exploreMed?.r2Url ?? null,
+    high: exploreHigh?.r2Url ?? null,
+  }), [exploreLow?.r2Url, exploreMed?.r2Url, exploreHigh?.r2Url])
 
-  const sortedExploreUrls = (sessionAudio?.activeExploreTrackId && exploreTrack)
-    ? [exploreTrack.r2Url]
-    : (exploreTracksList ?? [])
-      .slice()
-      .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
-      .map((t) => t.r2Url)
+  const combatTracks: MusicTrackSet = useMemo(() => ({
+    low: combatLow?.r2Url ?? null,
+    med: combatMed?.r2Url ?? null,
+    high: combatHigh?.r2Url ?? null,
+  }), [combatLow?.r2Url, combatMed?.r2Url, combatHigh?.r2Url])
 
-  const sortedCombatUrls = (sessionAudio?.activeCombatTrackId && combatTrack)
-    ? [combatTrack.r2Url]
-    : (combatTracksList ?? [])
-      .slice()
-      .sort((a, b) => (a.intensityRank ?? 0) - (b.intensityRank ?? 0))
-      .map((t) => t.r2Url)
+  const victoryTracks: MusicTrackSet = useMemo(() => ({
+    low: null,
+    med: activeVictoryTrack?.r2Url ?? null,
+    high: null,
+  }), [activeVictoryTrack?.r2Url])
 
   const resolvedActiveLayers = useMemo(() => {
     const layerMap = new Map((ambienceLayers ?? []).map((layer) => [layer._id, layer] as const))
@@ -827,23 +979,19 @@ export function PlayerAudioReceiver({ sessionId, campaignId }: { sessionId: Sess
       .filter((layer) => layer.url !== "")
   }, [ambienceLayers, sessionAudio?.activeLayers, sessionAudio?.ambienceVolume])
 
-  const rawPlayerInt = sessionAudio?.intensity ?? 3
-  const normPlayerInt = rawPlayerInt > 5
-    ? Math.max(1, Math.min(5, Math.round(rawPlayerInt / 20)))
-    : Math.max(1, Math.min(5, rawPlayerInt || 3))
-
   const engineState = {
     ambienceUrl: ambienceTrack?.r2Url ?? null,
     activeLayers: resolvedActiveLayers,
-    exploreUrls: sortedExploreUrls,
-    combatUrls: sortedCombatUrls,
-    intensity: (normPlayerInt - 1) * 25,
+    musicMode: (sessionAudio?.musicMode === "off" || sessionAudio?.musicMode === "explore" || sessionAudio?.musicMode === "combat")
+      ? sessionAudio.musicMode
+      : "off" as const,
+    musicIntensity: Math.max(1, Math.min(5, sessionAudio?.musicIntensity ?? 3)),
+    exploreTracks,
+    combatTracks,
+    victoryTracks,
+    victoryCuedAt: sessionAudio?.victoryTriggeredAt ?? null,
     ambienceVolume: sessionAudio?.ambienceVolume ?? 70,
     masterVolume: localVolume,
-    victoryUrl: activeVictoryTrack?.r2Url ?? null,
-    victoryTriggeredAt: sessionAudio?.victoryTriggeredAt ?? null,
-    victoryDurationMs: sessionAudio?.victoryDurationMs ?? null,
-    musicMode: sessionAudio?.musicMode ?? "blend",
   }
 
   useAudioEngine(engineState, synced && consentGiven && (sessionAudio?.audioSyncEnabled ?? false) && !(sessionAudio?.audioPaused ?? false))
