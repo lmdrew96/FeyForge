@@ -19,7 +19,11 @@ export type AudioEngineState = {
   musicMode?: "explore" | "combat" | "off" | "blend"
 }
 
-const FADE_MS = 500
+const FADE_MS = 500         // legacy ambience single-slot
+const MUSIC_FADE_MS = 1500  // mode switch / URL array change
+const INTENSITY_FADE_MS = 600 // same-URL intensity drag
+const LAYER_FADE_MS = 800   // ambience layer add/remove
+const VICTORY_FADE_MS = 300 // victory start/end
 
 export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
   const ambienceRef = useRef<Howl | null>(null)
@@ -42,7 +46,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     }
   }, [])
 
-   const createHowl = useCallback((url: string, loop: boolean, vol: number): Howl => {
+   const createHowl = useCallback((url: string, loop: boolean, vol: number, fadeMs = FADE_MS): Howl => {
      const h = new Howl({ src: [url], loop, volume: 0, html5: true })
      h.once("load", () => {
        if (!mounted.current) {
@@ -51,7 +55,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
        }
        try {
          h.play()
-         h.fade(0, vol, FADE_MS)
+         h.fade(0, vol, fadeMs)
        } catch (e) {
          console.error("Howl play/fade error:", e)
        }
@@ -65,8 +69,8 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
   const destroyLayerHowl = useCallback((layerId: string) => {
     const howl = layerRefs.current.get(layerId)
     if (!howl) return
-    howl.fade(howl.volume(), 0, FADE_MS)
-    setTimeout(() => howl.unload(), FADE_MS + 50)
+    howl.fade(howl.volume(), 0, LAYER_FADE_MS)
+    setTimeout(() => howl.unload(), LAYER_FADE_MS + 50)
     layerRefs.current.delete(layerId)
     currentLayers.current.delete(layerId)
   }, [])
@@ -81,7 +85,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
   }, [])
 
   // helper: set volumes across refs according to level 0-100
-  const setRefsForLevel = useCallback((refs: Howl[], level: number, master: number) => {
+  const setRefsForLevel = useCallback((refs: Howl[], level: number, master: number, fadeMs = FADE_MS) => {
     if (refs.length === 0) return
     const p = Math.max(0, Math.min(1, level / 100))
     const scaled = p * (refs.length - 1)
@@ -95,7 +99,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
       const targetVol = weight * master
       try {
         const cur = r.volume()
-        r.fade(cur, targetVol, FADE_MS)
+        r.fade(cur, targetVol, fadeMs)
       } catch (e) {
         r.volume(targetVol)
       }
@@ -130,7 +134,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
         howl.once("load", () => {
           if (!mounted.current) return
           howl.play()
-          howl.fade(0, targetVol, FADE_MS)
+          howl.fade(0, targetVol, LAYER_FADE_MS)
         })
 
         layerRefs.current.set(layerId, howl)
@@ -172,111 +176,114 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
      if (!enabled) return
 
      const master = state.masterVolume / 100
-
-     // Determine which mode is active
-     const activeMode = state.musicMode === "explore" ? "explore" : state.musicMode === "combat" ? "combat" : "blend"
      const exploreUrls = state.exploreUrls ?? []
      const combatUrls = state.combatUrls ?? []
 
-     // Destroy and recreate only what's needed
+     // Handle "off": fade everything out and clear URL tracking so mode switch reloads cleanly
+     if (state.musicMode === "off") {
+       exploreRefs.current.forEach((r) => {
+         try { r.fade(r.volume(), 0, MUSIC_FADE_MS); setTimeout(() => r.unload(), MUSIC_FADE_MS + 50) } catch (e) { r.unload() }
+       })
+       exploreRefs.current = []
+       combatRefs.current.forEach((r) => {
+         try { r.fade(r.volume(), 0, MUSIC_FADE_MS); setTimeout(() => r.unload(), MUSIC_FADE_MS + 50) } catch (e) { r.unload() }
+       })
+       combatRefs.current = []
+       currentUrls.current.explore = []
+       currentUrls.current.combat = []
+       return
+     }
+
+     const activeMode = state.musicMode === "explore" ? "explore" : state.musicMode === "combat" ? "combat" : "blend"
+
      if (activeMode === "explore") {
-       // Load explore, destroy combat
-       { // Explore scope
+       // Load explore
+       {
          const old = currentUrls.current.explore
          const same = exploreUrls.length === old.length && exploreUrls.every((u, i) => u === old[i])
          if (!same) {
            currentUrls.current.explore = exploreUrls
            exploreRefs.current.forEach((r) => {
-             try { r.fade(r.volume(), 0, FADE_MS); setTimeout(() => r.unload(), FADE_MS + 50) } catch (e) { r.unload() }
+             try { r.fade(r.volume(), 0, MUSIC_FADE_MS); setTimeout(() => r.unload(), MUSIC_FADE_MS + 50) } catch (e) { r.unload() }
            })
            exploreRefs.current = []
-           if (exploreUrls.length > 0) {
-             exploreUrls.forEach((u) => {
-               const h = createHowl(u, true, (state.intensity / 100) * master)
-               exploreRefs.current.push(h)
-             })
-           }
+           exploreUrls.forEach((u) => {
+             const h = createHowl(u, true, (state.intensity / 100) * master, MUSIC_FADE_MS)
+             exploreRefs.current.push(h)
+           })
          } else {
-           // Same URL array; just update volume
-           setRefsForLevel(exploreRefs.current, state.intensity, master)
+           setRefsForLevel(exploreRefs.current, state.intensity, master, INTENSITY_FADE_MS)
          }
        }
        // Destroy combat
-       { // Combat scope
+       {
          currentUrls.current.combat = []
          combatRefs.current.forEach((r) => {
-           try { r.fade(r.volume(), 0, FADE_MS); setTimeout(() => r.unload(), FADE_MS + 50) } catch (e) { r.unload() }
+           try { r.fade(r.volume(), 0, MUSIC_FADE_MS); setTimeout(() => r.unload(), MUSIC_FADE_MS + 50) } catch (e) { r.unload() }
          })
          combatRefs.current = []
        }
      } else if (activeMode === "combat") {
-       // Load combat, destroy explore
-       { // Combat scope
+       // Load combat
+       {
          const old = currentUrls.current.combat
          const same = combatUrls.length === old.length && combatUrls.every((u, i) => u === old[i])
          if (!same) {
            currentUrls.current.combat = combatUrls
            combatRefs.current.forEach((r) => {
-             try { r.fade(r.volume(), 0, FADE_MS); setTimeout(() => r.unload(), FADE_MS + 50) } catch (e) { r.unload() }
+             try { r.fade(r.volume(), 0, MUSIC_FADE_MS); setTimeout(() => r.unload(), MUSIC_FADE_MS + 50) } catch (e) { r.unload() }
            })
            combatRefs.current = []
-           if (combatUrls.length > 0) {
-             combatUrls.forEach((u) => {
-               const h = createHowl(u, true, (state.intensity / 100) * master)
-               combatRefs.current.push(h)
-             })
-           }
+           combatUrls.forEach((u) => {
+             const h = createHowl(u, true, (state.intensity / 100) * master, MUSIC_FADE_MS)
+             combatRefs.current.push(h)
+           })
          } else {
-           // Same URL array; just update volume
-           setRefsForLevel(combatRefs.current, state.intensity, master)
+           setRefsForLevel(combatRefs.current, state.intensity, master, INTENSITY_FADE_MS)
          }
        }
        // Destroy explore
-       { // Explore scope
+       {
          currentUrls.current.explore = []
          exploreRefs.current.forEach((r) => {
-           try { r.fade(r.volume(), 0, FADE_MS); setTimeout(() => r.unload(), FADE_MS + 50) } catch (e) { r.unload() }
+           try { r.fade(r.volume(), 0, MUSIC_FADE_MS); setTimeout(() => r.unload(), MUSIC_FADE_MS + 50) } catch (e) { r.unload() }
          })
          exploreRefs.current = []
        }
      } else {
        // blend: load both
-       { // Explore scope
+       {
          const old = currentUrls.current.explore
          const same = exploreUrls.length === old.length && exploreUrls.every((u, i) => u === old[i])
          if (!same) {
            currentUrls.current.explore = exploreUrls
            exploreRefs.current.forEach((r) => {
-             try { r.fade(r.volume(), 0, FADE_MS); setTimeout(() => r.unload(), FADE_MS + 50) } catch (e) { r.unload() }
+             try { r.fade(r.volume(), 0, MUSIC_FADE_MS); setTimeout(() => r.unload(), MUSIC_FADE_MS + 50) } catch (e) { r.unload() }
            })
            exploreRefs.current = []
-           if (exploreUrls.length > 0) {
-             exploreUrls.forEach((u) => {
-               const h = createHowl(u, true, ((100 - state.intensity) / 100) * master)
-               exploreRefs.current.push(h)
-             })
-           }
+           exploreUrls.forEach((u) => {
+             const h = createHowl(u, true, ((100 - state.intensity) / 100) * master, MUSIC_FADE_MS)
+             exploreRefs.current.push(h)
+           })
          } else {
-           setRefsForLevel(exploreRefs.current, 100 - state.intensity, master)
+           setRefsForLevel(exploreRefs.current, 100 - state.intensity, master, INTENSITY_FADE_MS)
          }
        }
-       { // Combat scope
+       {
          const old = currentUrls.current.combat
          const same = combatUrls.length === old.length && combatUrls.every((u, i) => u === old[i])
          if (!same) {
            currentUrls.current.combat = combatUrls
            combatRefs.current.forEach((r) => {
-             try { r.fade(r.volume(), 0, FADE_MS); setTimeout(() => r.unload(), FADE_MS + 50) } catch (e) { r.unload() }
+             try { r.fade(r.volume(), 0, MUSIC_FADE_MS); setTimeout(() => r.unload(), MUSIC_FADE_MS + 50) } catch (e) { r.unload() }
            })
            combatRefs.current = []
-           if (combatUrls.length > 0) {
-             combatUrls.forEach((u) => {
-               const h = createHowl(u, true, (state.intensity / 100) * master)
-               combatRefs.current.push(h)
-             })
-           }
+           combatUrls.forEach((u) => {
+             const h = createHowl(u, true, (state.intensity / 100) * master, MUSIC_FADE_MS)
+             combatRefs.current.push(h)
+           })
          } else {
-           setRefsForLevel(combatRefs.current, state.intensity, master)
+           setRefsForLevel(combatRefs.current, state.intensity, master, INTENSITY_FADE_MS)
          }
        }
      }
@@ -296,16 +303,15 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
 
     // start victory playback
     destroyVictory()
-    // create victory howl at full master volume
     const targetVol = state.masterVolume / 100
-    victoryRef.current = createHowl(url, true, targetVol)
+    victoryRef.current = createHowl(url, true, targetVol, VICTORY_FADE_MS)
 
     // crossfade out explore & combat (we mute both for victory)
     exploreRefs.current.forEach((r) => {
-      try { r.fade(r.volume(), 0, FADE_MS) } catch (e) { r.volume(0) }
+      try { r.fade(r.volume(), 0, VICTORY_FADE_MS) } catch (e) { r.volume(0) }
     })
     combatRefs.current.forEach((r) => {
-      try { r.fade(r.volume(), 0, FADE_MS) } catch (e) { r.volume(0) }
+      try { r.fade(r.volume(), 0, VICTORY_FADE_MS) } catch (e) { r.volume(0) }
     })
 
     const holdMs = state.victoryDurationMs ?? 10000
@@ -314,27 +320,27 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     victoryTimerRef.current = setTimeout(() => {
       // fade victory out
       if (victoryRef.current) {
-        victoryRef.current.fade(victoryRef.current.volume(), 0, FADE_MS)
+        victoryRef.current.fade(victoryRef.current.volume(), 0, VICTORY_FADE_MS)
       }
 
       // restore explore/combat volumes based on musicMode and music level
       const master = state.masterVolume / 100
       if (state.musicMode === "explore") {
-        setRefsForLevel(exploreRefs.current, state.intensity, master)
-        setRefsForLevel(combatRefs.current, 0, master)
+        setRefsForLevel(exploreRefs.current, state.intensity, master, VICTORY_FADE_MS)
+        setRefsForLevel(combatRefs.current, 0, master, VICTORY_FADE_MS)
       } else if (state.musicMode === "combat") {
-        setRefsForLevel(combatRefs.current, state.intensity, master)
-        setRefsForLevel(exploreRefs.current, 0, master)
-      } else {
-        // blend legacy behavior: explore = 100 - intensity
-        setRefsForLevel(exploreRefs.current, 100 - state.intensity, master)
-        setRefsForLevel(combatRefs.current, state.intensity, master)
+        setRefsForLevel(combatRefs.current, state.intensity, master, VICTORY_FADE_MS)
+        setRefsForLevel(exploreRefs.current, 0, master, VICTORY_FADE_MS)
+      } else if (state.musicMode !== "off") {
+        // blend: explore = 100 - intensity
+        setRefsForLevel(exploreRefs.current, 100 - state.intensity, master, VICTORY_FADE_MS)
+        setRefsForLevel(combatRefs.current, state.intensity, master, VICTORY_FADE_MS)
       }
 
       // unload victory howl after fade
       setTimeout(() => {
         destroyVictory()
-      }, FADE_MS + 100)
+      }, VICTORY_FADE_MS + 100)
     }, holdMs)
 
     return () => {
@@ -386,12 +392,11 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
      }
 
      // Update music tracks volume (active mode only, based on music sync effect)
-     const activeMode = state.musicMode === "explore" ? "explore" : state.musicMode === "combat" ? "combat" : "blend"
-     if (activeMode === "explore") {
+     if (state.musicMode === "explore") {
        setRefsForLevel(exploreRefs.current, state.intensity, master)
-     } else if (activeMode === "combat") {
+     } else if (state.musicMode === "combat") {
        setRefsForLevel(combatRefs.current, state.intensity, master)
-     } else {
+     } else if (state.musicMode !== "off") {
        // blend
        setRefsForLevel(exploreRefs.current, 100 - state.intensity, master)
        setRefsForLevel(combatRefs.current, state.intensity, master)
