@@ -6,8 +6,8 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { useAudioEngine } from "@/hooks/use-audio-engine"
 import {
-  Music, Waves, Volume2, ChevronDown, ChevronUp,
-  Radio, WifiOff, X, Check,
+  Waves, Volume2, ChevronDown, ChevronUp,
+  Radio, WifiOff, X, Check, Pause, Play, Pencil,
 } from "lucide-react"
 
 type SessionId = Id<"partySessions">
@@ -188,44 +188,6 @@ function SfxBoard({
   )
 }
 
-// ── Track slot display ────────────────────────────────────────────────────────
-
-function TrackSlot({
-  label,
-  icon: Icon,
-  track,
-  onOverride,
-}: {
-  label: string
-  icon: React.ElementType
-  track: AudioTrack | null | undefined
-  onOverride: () => void
-}) {
-  return (
-    <div
-      className="flex items-center justify-between rounded-lg px-3 py-2"
-      style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <Icon size={13} style={{ color: "var(--scene-text-muted)", flexShrink: 0 }} />
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--scene-text-muted)" }}>{label}</p>
-          <p className="text-xs truncate" style={{ color: track ? "var(--scene-text-primary)" : "var(--scene-text-muted)" }}>
-            {track?.name ?? "—"}
-          </p>
-        </div>
-      </div>
-      <button
-        onClick={onOverride}
-        className="text-[10px] px-2 py-1 rounded ml-2 shrink-0 transition-opacity hover:opacity-80"
-        style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
-      >
-        Change
-      </button>
-    </div>
-  )
-}
-
 function AmbienceLayerMixer({
   sessionId,
   campaignId,
@@ -366,6 +328,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const updateSessionLayers = useMutation(api.audio.updateSessionLayers)
   const updateIntensity = useMutation(api.audio.updateSessionIntensity)
   const triggerVictoryCue = useMutation(api.audio.triggerVictoryCue)
+  const pauseAudioMutation = useMutation(api.audio.pauseAudio)
 
   // Local state mirrors session audio — optimistic
   const [ambienceId, setAmbienceId] = useState<TrackId | null>(null)
@@ -375,7 +338,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const [ambienceVolume, setAmbienceVolume] = useState(70)
   const [masterVolume, setMasterVolume] = useState(80)
   const [syncEnabled, setSyncEnabled] = useState(false)
-  const prevAmbienceRef = useRef<number | null>(null)
+  const [paused, setPaused] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [activeTab, setActiveTab] = useState<"ambiences" | "one-shots">("ambiences")
   const [activeLayers, setActiveLayers] = useState<Array<{ layerId: AmbienceLayerId; tier: LayerTier }>>([])
@@ -398,6 +361,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
       setMasterVolume(sessionRef.masterVolume ?? 80)
       setSyncEnabled(sessionRef.audioSyncEnabled ?? false)
       setActiveLayers(sessionRef.activeLayers ?? [])
+      setPaused(sessionRef.audioPaused ?? false)
     }
   }, [sessionRef])
 
@@ -468,7 +432,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
     victoryDurationMs: sessionRef?.victoryDurationMs ?? null,
     musicMode: sessionRef?.musicMode ?? "blend",
   }
-  const { playSfx } = useAudioEngine(engineState, true)
+  const { playSfx } = useAudioEngine(engineState, !paused)
 
   // Debounce intensity sync to Convex
   const intensityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -533,133 +497,75 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
     pushAudioState({ syncEnabled: next })
   }
 
+  const handlePauseToggle = () => {
+    const next = !paused
+    setPaused(next)
+    pauseAudioMutation({ sessionId, paused: next }).catch(console.error)
+  }
+
   return (
     <>
       <section>
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          className="w-full flex items-center justify-between py-1 mb-3"
-        >
+        {/* Header */}
+        <div className="flex items-center justify-between py-1 mb-3">
           <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
             Audio
           </h2>
-          {collapsed ? <ChevronDown size={14} style={{ color: "var(--scene-text-muted)" }} /> : <ChevronUp size={14} style={{ color: "var(--scene-text-muted)" }} />}
-        </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePauseToggle}
+              title={paused ? "Resume audio for everyone" : "Pause audio for everyone"}
+              style={{ color: paused ? "var(--scene-highlight)" : "var(--scene-text-muted)" }}
+            >
+              {paused ? <Play size={14} /> : <Pause size={14} />}
+            </button>
+            <button onClick={() => setCollapsed((c) => !c)}>
+              {collapsed
+                ? <ChevronDown size={14} style={{ color: "var(--scene-text-muted)" }} />
+                : <ChevronUp size={14} style={{ color: "var(--scene-text-muted)" }} />}
+            </button>
+          </div>
+        </div>
 
         {!collapsed && (
           <div
             className="rounded-xl p-4 space-y-4"
             style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
           >
-            {/* Track slots */}
+            {/* Music zone */}
             <div className="space-y-2">
-              <TrackSlot
-                label="Explore"
-                icon={Music}
-                track={exploreTrack ?? null}
-                onOverride={() => setPickerSlot("explore")}
-              />
-              <TrackSlot
-                label="Combat"
-                icon={Music}
-                track={combatTrack ?? null}
-                onOverride={() => setPickerSlot("combat")}
-              />
-              <TrackSlot
-                label="Victory"
-                icon={Music}
-                track={activeVictoryTrack ?? null}
-                onOverride={() => setPickerSlot("victory")}
-              />
-            </div>
+              {/* Mode strip */}
+              <div className="flex items-center gap-2">
+                {(["off", "explore", "combat"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => updateAudio({ sessionId, musicMode: mode }).catch(console.error)}
+                    className="px-3 py-1 rounded-md text-xs font-medium capitalize"
+                    style={{
+                      background: sessionRef?.musicMode === mode ? "var(--scene-accent)" : "var(--scene-border)",
+                      color: sessionRef?.musicMode === mode ? "var(--scene-bg)" : "var(--scene-text-muted)",
+                    }}
+                  >
+                    {mode === "off" ? "Off" : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  </button>
+                ))}
+              </div>
 
-            <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: "var(--scene-border)" }}>
-              <button
-                onClick={() => setActiveTab("ambiences")}
-                className="px-3 py-1 rounded-md text-xs font-medium"
-                style={{ background: activeTab === "ambiences" ? "var(--scene-accent)" : "var(--scene-border)", color: activeTab === "ambiences" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
-              >
-                Ambiences
-              </button>
-              <button
-                onClick={() => setActiveTab("one-shots")}
-                className="px-3 py-1 rounded-md text-xs font-medium"
-                style={{ background: activeTab === "one-shots" ? "var(--scene-accent)" : "var(--scene-border)", color: activeTab === "one-shots" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
-              >
-                One-shots
-              </button>
-            </div>
-
-            {activeTab === "ambiences" ? (
-              <div>
-                {sessionRef?.campaignId ? (
-                  <AmbienceLayerMixer
-                    sessionId={sessionId}
-                    campaignId={sessionRef.campaignId}
-                    activeScene={sessionRef?.activeScene ?? ""}
-                    activePresetId={sessionRef?.activePresetId ?? null}
-                    activeLayers={activeLayers}
-                    onLayerChange={handleLayerChange}
-                  />
-                ) : (
-                  <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
-                    Load a session to configure ambience layers.
+              {/* Clickable active track name — opens picker for current mode */}
+              {sessionRef?.musicMode !== "off" && (
+                <button
+                  onClick={() => setPickerSlot(sessionRef?.musicMode as "explore" | "combat")}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-opacity hover:opacity-80"
+                  style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+                >
+                  <p className="text-xs truncate" style={{ color: activeTrackName ? "var(--scene-text-primary)" : "var(--scene-text-muted)" }}>
+                    {activeTrackName ?? "—"}
                   </p>
-                )}
-              </div>
-            ) : (
-              <SfxBoard playSfx={playSfx} />
-            )}
-
-            {/* Intensity slider */}
-            <div>
-              {/* Music mode strip (Pocket Bard style) */}
-              <div className="flex items-center gap-2 mb-3">
-                <button
-                  onClick={() => updateAudio({ sessionId, musicMode: "off" }).catch(console.error)}
-                  className="px-3 py-1 rounded-md text-xs font-medium"
-                  style={{ background: sessionRef?.musicMode === "off" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "off" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
-                >
-                  Off
+                  <Pencil size={11} style={{ color: "var(--scene-text-muted)", flexShrink: 0 }} />
                 </button>
-                <button
-                  onClick={() => updateAudio({ sessionId, musicMode: "explore" }).catch(console.error)}
-                  className="px-3 py-1 rounded-md text-xs font-medium"
-                  style={{ background: sessionRef?.musicMode === "explore" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "explore" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
-                >
-                  Explore
-                </button>
-                <button
-                  onClick={() => updateAudio({ sessionId, musicMode: "combat" }).catch(console.error)}
-                  className="px-3 py-1 rounded-md text-xs font-medium"
-                  style={{ background: sessionRef?.musicMode === "combat" ? "var(--scene-accent)" : "var(--scene-border)", color: sessionRef?.musicMode === "combat" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
-                >
-                  Combat
-                </button>
-                {/* Ambience toggle */}
-                <button
-                  onClick={() => {
-                    if ((ambienceVolume ?? 0) > 0) {
-                      prevAmbienceRef.current = ambienceVolume
-                      setAmbienceVolume(0)
-                      pushAudioState({ ambienceVolume: 0 })
-                    } else {
-                      const restore = prevAmbienceRef.current ?? 70
-                      setAmbienceVolume(restore)
-                      pushAudioState({ ambienceVolume: restore })
-                      prevAmbienceRef.current = null
-                    }
-                  }}
-                  className="ml-auto px-3 py-1 rounded-md text-xs font-medium"
-                  style={{ background: (ambienceVolume ?? 0) === 0 ? "var(--scene-border)" : "var(--scene-accent)", color: (ambienceVolume ?? 0) === 0 ? "var(--scene-text-muted)" : "var(--scene-bg)" }}
-                >
-                  Ambience {ambienceVolume === 0 ? "Off" : "On"}
-                </button>
-              </div>
-              {sessionRef?.musicMode !== "off" && activeTrackName && (
-                <p className="text-xs truncate mb-2" style={{ color: "var(--scene-text-muted)" }}>{activeTrackName}</p>
               )}
 
+              {/* Intensity slider */}
               {sessionRef?.musicMode !== "off" && (
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1 h-2">
@@ -693,44 +599,99 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
               )}
             </div>
 
-            {/* Victory Cue */}
-            <button
-              onClick={() => triggerVictoryCue({ sessionId, trackId: sessionRef?.activeVictoryTrackId ?? undefined, durationMs: 10000 }).catch(console.error)}
-              className="w-full py-1.5 rounded-md text-sm font-medium transition-colors"
-              style={{
-                background: "color-mix(in srgb, var(--scene-highlight) 20%, transparent)",
-                color: "var(--scene-highlight)",
-                border: "1px solid color-mix(in srgb, var(--scene-highlight) 40%, transparent)",
-              }}
-            >
-              🏆 Cue Victory
-            </button>
+            {/* Victory Cue + track selector */}
+            <div className="space-y-1.5">
+              <button
+                onClick={() => triggerVictoryCue({ sessionId, trackId: sessionRef?.activeVictoryTrackId ?? undefined, durationMs: 10000 }).catch(console.error)}
+                className="w-full py-1.5 rounded-md text-sm font-medium transition-colors"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-highlight) 20%, transparent)",
+                  color: "var(--scene-highlight)",
+                  border: "1px solid color-mix(in srgb, var(--scene-highlight) 40%, transparent)",
+                }}
+              >
+                🏆 Cue Victory
+              </button>
+              <button
+                onClick={() => setPickerSlot("victory")}
+                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition-opacity hover:opacity-80"
+                style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+              >
+                <p className="text-xs truncate" style={{ color: activeVictoryTrack ? "var(--scene-text-primary)" : "var(--scene-text-muted)" }}>
+                  {activeVictoryTrack?.name ?? "No victory track"}
+                </p>
+                <Pencil size={11} style={{ color: "var(--scene-text-muted)", flexShrink: 0 }} />
+              </button>
+            </div>
 
-            {/* Volume sliders */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="flex items-center gap-1 mb-1">
-                  <Waves size={11} style={{ color: "var(--scene-text-muted)" }} />
-                  <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>Ambience</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={ambienceVolume}
-                  onChange={(e) => {
-                    const v = Number(e.target.value)
-                    setAmbienceVolume(v)
-                    pushAudioState({ ambienceVolume: v })
-                  }}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                  style={{ accentColor: "var(--scene-accent)" }}
-                />
+            {/* Tabs */}
+            <div>
+              <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: "var(--scene-border)" }}>
+                <button
+                  onClick={() => setActiveTab("ambiences")}
+                  className="px-3 py-1 rounded-md text-xs font-medium"
+                  style={{ background: activeTab === "ambiences" ? "var(--scene-accent)" : "var(--scene-border)", color: activeTab === "ambiences" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
+                >
+                  Ambiences
+                </button>
+                <button
+                  onClick={() => setActiveTab("one-shots")}
+                  className="px-3 py-1 rounded-md text-xs font-medium"
+                  style={{ background: activeTab === "one-shots" ? "var(--scene-accent)" : "var(--scene-border)", color: activeTab === "one-shots" ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
+                >
+                  One-shots
+                </button>
               </div>
+
+              {activeTab === "ambiences" ? (
+                <div className="pt-3 space-y-4">
+                  {sessionRef?.campaignId ? (
+                    <AmbienceLayerMixer
+                      sessionId={sessionId}
+                      campaignId={sessionRef.campaignId}
+                      activeScene={sessionRef?.activeScene ?? ""}
+                      activePresetId={sessionRef?.activePresetId ?? null}
+                      activeLayers={activeLayers}
+                      onLayerChange={handleLayerChange}
+                    />
+                  ) : (
+                    <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                      Load a session to configure ambience layers.
+                    </p>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-1 mb-1">
+                      <Waves size={11} style={{ color: "var(--scene-text-muted)" }} />
+                      <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>Ambience Volume</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={ambienceVolume}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        setAmbienceVolume(v)
+                        pushAudioState({ ambienceVolume: v })
+                      }}
+                      className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                      style={{ accentColor: "var(--scene-accent)" }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-3">
+                  <SfxBoard playSfx={playSfx} />
+                </div>
+              )}
+            </div>
+
+            {/* Footer: master volume + sync */}
+            <div className="space-y-3 border-t pt-3" style={{ borderColor: "var(--scene-border)" }}>
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Volume2 size={11} style={{ color: "var(--scene-text-muted)" }} />
-                  <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>Master</span>
+                  <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>Master Volume</span>
                 </div>
                 <input
                   type="range"
@@ -746,40 +707,36 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                   style={{ accentColor: "var(--scene-accent)" }}
                 />
               </div>
-            </div>
-
-            {/* One-shots are now a tab, so no separate SFX toggle here */}
-
-            {/* Sync toggle */}
-            <div
-              className="flex items-center justify-between rounded-lg px-3 py-2"
-              style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
-            >
-              <div className="flex items-center gap-2">
-                {syncEnabled ? (
-                  <Radio size={14} style={{ color: "var(--scene-accent)" }} />
-                ) : (
-                  <WifiOff size={14} style={{ color: "var(--scene-text-muted)" }} />
-                )}
-                <div>
-                  <p className="text-xs font-medium" style={{ color: "var(--scene-text-primary)" }}>
-                    Sync audio to players
-                  </p>
-                  <p className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>
-                    {syncEnabled ? "Players hear what you hear" : "Local only"}
-                  </p>
-                </div>
-                </div>
-              <button
-                onClick={handleSyncToggle}
-                className="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors"
-                style={{ background: syncEnabled ? "var(--scene-accent)" : "var(--scene-border)" }}
+              <div
+                className="flex items-center justify-between rounded-lg px-3 py-2"
+                style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
               >
-                <span
-                  className="inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm mt-0.5"
-                  style={{ transform: syncEnabled ? "translateX(18px)" : "translateX(2px)" }}
-                />
-              </button>
+                <div className="flex items-center gap-2">
+                  {syncEnabled ? (
+                    <Radio size={14} style={{ color: "var(--scene-accent)" }} />
+                  ) : (
+                    <WifiOff size={14} style={{ color: "var(--scene-text-muted)" }} />
+                  )}
+                  <div>
+                    <p className="text-xs font-medium" style={{ color: "var(--scene-text-primary)" }}>
+                      Sync audio to players
+                    </p>
+                    <p className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>
+                      {syncEnabled ? "Players hear what you hear" : "Local only"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleSyncToggle}
+                  className="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors"
+                  style={{ background: syncEnabled ? "var(--scene-accent)" : "var(--scene-border)" }}
+                >
+                  <span
+                    className="inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm mt-0.5"
+                    style={{ transform: syncEnabled ? "translateX(18px)" : "translateX(2px)" }}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -889,7 +846,7 @@ export function PlayerAudioReceiver({ sessionId, campaignId }: { sessionId: Sess
     musicMode: sessionAudio?.musicMode ?? "blend",
   }
 
-  useAudioEngine(engineState, synced && consentGiven && (sessionAudio?.audioSyncEnabled ?? false))
+  useAudioEngine(engineState, synced && consentGiven && (sessionAudio?.audioSyncEnabled ?? false) && !(sessionAudio?.audioPaused ?? false))
 
   if (!sessionAudio?.audioSyncEnabled) return null
 

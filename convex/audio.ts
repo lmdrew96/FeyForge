@@ -681,3 +681,20 @@ export const loadPreset = mutation({
   },
 })
 
+export const pauseAudio = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    paused: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const session = await ctx.db.get(args.sessionId)
+    if (!session) throw new Error("Session not found")
+    if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    await ctx.db.patch(args.sessionId, { audioPaused: args.paused })
+  },
+})
+

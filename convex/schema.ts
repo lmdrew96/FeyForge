@@ -421,6 +421,7 @@ export default defineSchema({
       layerId: v.id("ambienceLayers"),
       tier: v.union(v.literal("i"), v.literal("ii"), v.literal("iii"), v.literal("off")),
     }))),
+    audioPaused: v.optional(v.boolean()),
   })
     .index("by_campaignId_and_isActive", ["campaignId", "isActive"])
     .index("by_dmUserId", ["dmUserId"])
