@@ -571,35 +571,6 @@ export default defineSchema({
     .index("by_campaignId", ["campaignId"])
     .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"]),
 
-  musicSetLibrary: defineTable({
-    name: v.string(),
-    intensityTier: v.union(v.literal("explore"), v.literal("combat")),
-    lowTrackId: v.id("audioTracks"),
-    medTrackId: v.id("audioTracks"),
-    highTrackId: v.id("audioTracks"),
-    sceneTag: v.optional(v.array(v.string())),
-    tier: v.optional(v.union(v.literal("free"), v.literal("premium"))),
-    approved: v.optional(v.boolean()),
-    uploadedBy: v.string(),
-    createdAt: v.number(),
-  })
-    .index("by_intensityTier", ["intensityTier"])
-    .index("by_uploadedBy", ["uploadedBy"]),
-
-  sceneMusicSets: defineTable({
-    userId: v.string(),
-    campaignId: v.id("campaigns"),
-    sceneName: v.string(),
-    mode: v.union(v.literal("explore"), v.literal("combat"), v.literal("victory")),
-    musicSetLibraryId: v.optional(v.id("musicSetLibrary")),
-    lowTrackId: v.optional(v.id("audioTracks")),
-    medTrackId: v.optional(v.id("audioTracks")),
-    highTrackId: v.optional(v.id("audioTracks")),
-    createdAt: v.number(),
-  })
-    .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"])
-    .index("by_campaignId_sceneName_and_mode", ["campaignId", "sceneName", "mode"]),
-
   musicStems: defineTable({
     userId: v.string(),
     // undefined = global (not campaign-scoped); campaignId = campaign-specific

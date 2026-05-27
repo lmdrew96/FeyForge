@@ -2,13 +2,12 @@
 """
 feyforge_normalize.py
 
-Normalizes and loop-trims the Low/Med/High exports from GarageBand
+Normalizes and trims trailing silence on a flat folder of stem files
 before uploading to FeyForge/R2.
 
-- Normalizes peak loudness to -1dB across all three variants
+- Normalizes peak loudness to -1dBFS per file
 - Trims trailing silence
-- Verifies all three variants are the same duration (warns if not)
-- Exports to ./ready/<track-name>/{low,med,high}.mp3
+- Exports each file individually to the output folder as MP3 320k
 
 Usage:
     python feyforge_normalize.py --input ./exports --output ./ready
@@ -20,7 +19,6 @@ Requirements:
 
 import argparse
 import sys
-import shutil
 from pathlib import Path
 
 try:
@@ -32,11 +30,10 @@ except ImportError:
     sys.exit(1)
 
 
-EXPECTED_VARIANTS = {"low", "med", "high"}
+SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".aiff", ".flac", ".m4a", ".ogg"}
 TARGET_PEAK_DBFS = -1.0
 SILENCE_THRESHOLD_DBFS = -60.0
 SILENCE_CHUNK_MS = 100
-DURATION_TOLERANCE_MS = 500  # warn if variants differ by more than this
 
 
 def trim_trailing_silence(audio: AudioSegment) -> AudioSegment:
@@ -50,72 +47,30 @@ def trim_trailing_silence(audio: AudioSegment) -> AudioSegment:
     return audio[:end]
 
 
-def process_set(set_dir: Path, output_dir: Path) -> None:
-    print(f"\n🎵  Processing set: {set_dir.name}")
+def process_file(src: Path, output_dir: Path) -> None:
+    print(f"\n🎵  {src.name}")
+    audio = AudioSegment.from_file(str(src))
+    original_ms = len(audio)
+    audio = trim_trailing_silence(audio)
+    trimmed_ms = original_ms - len(audio)
+    audio = normalize(audio, headroom=(0 - TARGET_PEAK_DBFS))
 
-    # Find low/med/high files (any supported extension)
-    variants: dict[str, Path] = {}
-    for f in set_dir.iterdir():
-        stem = f.stem.lower()
-        if stem in EXPECTED_VARIANTS and f.suffix.lower() in {".mp3", ".wav", ".aiff"}:
-            variants[stem] = f
+    out_path = output_dir / f"{src.stem}.mp3"
+    audio.export(str(out_path), format="mp3", bitrate="320k")
 
-    missing = EXPECTED_VARIANTS - set(variants.keys())
-    if missing:
-        print(f"⚠️   Missing variants: {missing} — skipping set")
-        return
-
-    dest = output_dir / set_dir.name
-    dest.mkdir(parents=True, exist_ok=True)
-
-    # Pass 1 — Load, trim silence, normalize
-    processed: dict[str, AudioSegment] = {}
-    for variant_name in ["low", "med", "high"]:
-        src = variants[variant_name]
-        print(f"    Loading {variant_name}: {src.name}")
-        audio = AudioSegment.from_file(str(src))
-        audio = trim_trailing_silence(audio)
-        audio = normalize(audio, headroom=(0 - TARGET_PEAK_DBFS))
-        processed[variant_name] = audio
-
-    # Pass 2 — Sync durations to shortest variant
-    durations = {name: len(audio) for name, audio in processed.items()}
-    shortest_ms = min(durations.values())
-    longest_ms = max(durations.values())
-    spread = longest_ms - shortest_ms
-
-    if spread > DURATION_TOLERANCE_MS:
-        print(f"    ⚠️   Duration spread {spread}ms exceeds tolerance — likely GarageBand reverb tails. "
-              f"Safe to ignore if tracks loop cleanly. Auto-trimming now.")
-    elif spread > 0:
-        print(f"    ℹ️   Duration spread {spread}ms — auto-trimming to sync.")
-
-    for variant_name in ["low", "med", "high"]:
-        original_ms = durations[variant_name]
-        if original_ms > shortest_ms:
-            trimmed_by = original_ms - shortest_ms
-            processed[variant_name] = processed[variant_name][:shortest_ms]
-            print(f"    ✂️   Trimmed {variant_name} by {trimmed_by}ms "
-                  f"({original_ms/1000:.1f}s → {shortest_ms/1000:.1f}s)")
-
-    # Pass 3 — Export
-    for variant_name in ["low", "med", "high"]:
-        audio = processed[variant_name]
-        out_path = dest / f"{variant_name}.mp3"
-        audio.export(str(out_path), format="mp3", bitrate="320k")
-        print(f"    ✅  {variant_name}.mp3 — {len(audio)/1000:.1f}s, peak: {audio.max_dBFS:.1f}dBFS")
-
-    print(f"    📁  Saved to: {dest} — shared duration: {shortest_ms/1000:.1f}s")
+    if trimmed_ms > 0:
+        print(f"    ✂️   Trimmed {trimmed_ms}ms of trailing silence")
+    print(f"    ✅  {out_path.name} — {len(audio)/1000:.1f}s, peak: {audio.max_dBFS:.1f}dBFS")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Normalize and validate FeyForge Low/Med/High track exports"
+        description="Normalize and trim a flat folder of FeyForge stem files"
     )
     parser.add_argument(
         "--input", "-i",
         required=True,
-        help="Folder containing subfolders per track set, each with low/med/high files",
+        help="Folder containing stem files (flat — not nested)",
     )
     parser.add_argument(
         "--output", "-o",
@@ -126,24 +81,32 @@ def main():
 
     input_dir = Path(args.input)
     output_dir = Path(args.output)
+
+    if not input_dir.is_dir():
+        print(f"❌  Input folder not found: {input_dir}")
+        sys.exit(1)
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    sets = [d for d in input_dir.iterdir() if d.is_dir()]
-    if not sets:
-        print(f"❌  No subfolders found in {input_dir}")
-        print(f"    Expected structure: exports/<track-name>/{{low,med,high}}.mp3")
+    files = sorted(
+        f for f in input_dir.iterdir()
+        if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS
+    )
+    if not files:
+        print(f"❌  No audio files found in {input_dir}")
+        print(f"    Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}")
         sys.exit(1)
 
     print(f"🎶  FeyForge Normalizer")
-    print(f"    Sets found : {len(sets)}")
+    print(f"    Files found: {len(files)}")
     print(f"    Target peak: {TARGET_PEAK_DBFS}dBFS")
     print(f"    Output     : {output_dir.resolve()}")
 
-    for set_dir in sorted(sets):
-        process_set(set_dir, output_dir)
+    for src in files:
+        process_file(src, output_dir)
 
     print(f"\n{'─' * 50}")
-    print(f"✨  Done! Normalized {len(sets)} set(s).")
+    print(f"✨  Done! Normalized {len(files)} file(s).")
     print(f"📁  Upload-ready files in: {output_dir.resolve()}")
     print(f"{'─' * 50}\n")
 

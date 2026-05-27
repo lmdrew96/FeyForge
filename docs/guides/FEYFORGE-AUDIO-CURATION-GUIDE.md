@@ -1,201 +1,256 @@
 # FEYFORGE-AUDIO-CURATION-GUIDE.md
 
-A practical guide for preparing Low/Med/High track variants for the FeyForge
-adaptive music engine. Follow this process for every track you want to use
-in the scene music mixer.
+A practical guide for sourcing, preparing, and uploading audio stems for the
+FeyForge adaptive music engine. This is the guide for you and Ashley — not for
+Cody.
 
 ---
 
-## The content contract
+## How the engine works (the short version)
 
-The three variants assigned to any scene+mode slot (e.g. Town → Explore) must be:
+Each scene+mode (e.g. Town → Explore) has 4–5 stems. Each stem is a single
+looping audio file — one instrument group (just strings, just drums, just pads,
+etc.). Every stem has an intensity window (min–max on a 1–5 scale). As the DM
+moves the intensity slider, stems fade in and out over ~4 seconds based on their
+windows.
 
-- **The same musical piece** at different arrangement densities
-- **The same BPM** — even a few BPM off will cause the blend to drift out of sync
-- **The same loop length** — or a clean multiple (e.g. 32 bars, 64 bars, 128 bars)
-- **The same key**
-
-If these constraints aren't met, blended intensities (2 and 4) will sound like
-two songs fighting. The engine can't fix bad source material.
+**Your job:** find or make loops that sound good together and upload them as
+individual files. You assign the intensity windows when you approve them in the
+admin panel.
 
 ---
 
-## Required tools
+## What makes a good stem
 
-| Tool | Purpose | Cost |
-|------|---------|------|
-| Python 3.10+ | Run the helper scripts | Free |
-| Demucs | AI stem separation | Free (local) |
-| GarageBand | Reassemble stems into variants | Free (Mac App Store) |
-| feyforge_stems.py | Batch Demucs runner | Included |
-| feyforge_normalize.py | Normalize + duration check | Included |
+- **Single instrument group** — just the strings, just the percussion, just the
+  atmospheric pads. Not a full mix.
+- **Loops cleanly** — the end flows back into the beginning without a pop, gap,
+  or awkward beat.
+- **Matches the scene energy** — a "Full Percussion" stem for Town → Explore
+  should feel busier than a "Soft Melody" stem for the same scene.
+- **Royalty-free** — Freesound (CC0 or CC-BY), Pixabay Music, or your own
+  GarageBand exports.
 
-Install Python dependencies once:
+---
+
+## Stem roles and intensity windows
+
+Use this as a starting template. You don't have to follow it exactly — trust
+your ears.
+
+| Stem role | Intensity window | Character |
+|-----------|-----------------|-----------|
+| Pads / atmosphere | 1–3 | Foundation, always present at low energy, fades as it builds |
+| Soft melody | 1–4 | Melodic thread, present through most of the range |
+| Rhythm / light percussion | 2–5 | Grows in as energy rises |
+| Lead instrument (strings, brass, etc.) | 3–5 | Upper half only |
+| Full percussion / high energy layer | 4–5 | High energy only |
+
+At intensity 1: just pads + soft melody. Sparse, atmospheric.
+At intensity 3: everything overlaps briefly — the richest mix.
+At intensity 5: rhythm + lead + percussion. Pads gone. Full energy.
+
+---
+
+## Option A — Source from Freesound / Pixabay
+
+Good for: getting started fast, atmospheric layers, weather sounds, crowd noise.
+
+**Freesound.org tips:**
+- Search `[instrument] loop fantasy` or `[instrument] loop medieval`
+- Filter by license: **CC0** (no attribution required) or **CC-BY** (credit in
+  your app's credits page)
+- Filter by duration: 10s–120s works well for looping stems
+- Listen for clean loop points — if the end doesn't match the beginning,
+  Audacity can fix it (see below)
+
+**Pixabay Music tips:**
+- Use the genre filter: **Cinematic**, **Ambient**, or **Classical**
+- All Pixabay music is royalty-free with no attribution required
+- Full mixes download here, not stems — better for ambience layers than music
+  stems
+
+---
+
+## Option B — GarageBand Apple Loops
+
+Good for: making your own stems with zero mixing knowledge required.
+
+GarageBand ships with hundreds of pre-recorded instrument loops sorted by
+genre, instrument, and mood. You're not playing anything or programming MIDI —
+you're dragging loops onto a timeline and exporting.
+
+**Workflow:**
+
+1. Open GarageBand → New Project → Empty Project
+2. Click the loop browser (top right, looks like a loop icon)
+3. Filter by **Genre: Cinematic** or **Instrument: Strings / Brass / Percussion**
+4. Drag a loop onto the timeline — it auto-repeats to fill the region
+5. Set your cycle region to a clean bar length (8, 16, or 32 bars)
+6. **Export**: Share → Export Song to Disk → MP3 → Highest Quality (320kbps)
+7. Name it descriptively: `town-explore-strings-mid.mp3`
+
+For each scene+mode, make one export per stem role. Each export is one
+instrument group only — mute everything else before exporting.
+
+**Key thing:** all stems for the same scene+mode should use the same BPM and
+loop length. GarageBand's Apple Loops are all BPM-synced by default — if you
+stick to loops from the same tempo project they'll automatically match.
+
+---
+
+## Option C — Demucs stem separation
+
+Good for: tracks you already have downloaded that you love but can't find
+instrument-separated versions of.
+
+Run the separator script on your raw files:
 
 ```bash
-pip3 install demucs pydub
-brew install ffmpeg   # required by pydub
+python scripts/audio-pipeline/feyforge_stems.py \
+  --input ./feyforge-audio/raw \
+  --output ./feyforge-audio/stems
 ```
+
+You'll get per-instrument stems in `feyforge-audio/stems/track-name/`. Quality
+varies — simpler tracks separate better than dense ones. Check each stem for
+bleed before uploading.
+
+Demucs stem categories:
+- `other.mp3` — pads, strings, atmosphere (often the most useful)
+- `piano.mp3` — keys
+- `guitar.mp3` — plucked strings, guitar
+- `bass.mp3` — bass line
+- `drums.mp3` — percussion
+- `vocals.mp3` — usually empty for instrumentals, ignore it
 
 ---
 
-## Step 1 — Organize your raw tracks
+## Cleaning up loops in Audacity
 
-Create a working folder:
+Use Audacity to fix loop points and normalize volume before uploading.
+Free, available at audacityteam.org.
+
+**Fix a loop point:**
+1. Open the file in Audacity
+2. Zoom into the end of the track
+3. Find a zero-crossing near the natural end of a musical phrase
+4. Select from that point to the end → Delete
+5. File → Export → MP3
+
+**Normalize:**
+Effect → Normalize → set peak amplitude to **-1.0 dB** → OK
+
+**Test the loop:**
+Enable Transport → Loop Play, then hit play. Listen for pops or gaps. If you
+hear one, trim a little more from the end until it's clean.
+
+---
+
+## Folder structure
+
+Keep your working files organized:
 
 ```
 feyforge-audio/
-  raw/          ← drop your source MP3s/WAVs here
-  stems/        ← Demucs output (created by script)
-  exports/      ← your GarageBand exports (you create these)
-    track-name/
-      low.mp3
-      med.mp3
-      high.mp3
-  ready/        ← normalized, upload-ready (created by script)
+  raw/          ← source downloads (don't upload these)
+  stems/        ← Demucs output
+  exports/      ← GarageBand exports before cleanup
+  ready/        ← cleaned, normalized, loop-trimmed files (upload these)
 ```
+
+Name files descriptively in kebab-case:
+
+```
+town-explore-pads.mp3
+town-explore-strings-mid.mp3
+town-explore-full-percussion.mp3
+forest-combat-brass-lead.mp3
+dungeon-explore-atmosphere.mp3
+```
+
+You don't have to include the scene/mode in the filename — the admin panel is
+where you assign those — but it helps you stay organized locally.
 
 ---
 
-## Step 2 — Run Demucs stem separation
+## Running the normalize script
 
-Run from the project root:
+After cleaning in Audacity, run the normalizer to do a final check and
+ensure consistent loudness across all stems:
 
 ```bash
-python3 scripts/audio-pipeline/feyforge_stems.py --input ./feyforge-audio/raw --output ./feyforge-audio/stems
+python scripts/audio-pipeline/feyforge_normalize.py \
+  --input ./feyforge-audio/exports \
+  --output ./feyforge-audio/ready
 ```
 
-To process a single track:
+For music stems, each file is processed individually — there's no duration
+matching requirement anymore (unlike the old Low/Med/High system). The script
+just normalizes loudness and trims trailing silence.
+
+---
+
+## Uploading
+
+Once your files are in `feyforge-audio/ready/`, upload them all at once:
 
 ```bash
-python3 scripts/audio-pipeline/feyforge_stems.py --track ./feyforge-audio/raw/my-track.mp3 --output ./feyforge-audio/stems
+pnpm upload --input ./feyforge-audio/ready --type music
 ```
 
-**Output per track** (`stems/track-name/`):
-
-| Stem | Contents |
-|------|---------|
-| `other.mp3` | Ambient pads, strings, atmosphere |
-| `piano.mp3` | Piano / keys |
-| `guitar.mp3` | Guitar / plucked strings |
-| `bass.mp3` | Bass line |
-| `drums.mp3` | Percussion |
-| `vocals.mp3` | Usually empty for instrumentals — ignore |
-
-⚠️ Demucs quality varies by track. Dense, heavily-layered tracks will have
-more "bleed" between stems. Simpler orchestral/acoustic tracks separate
-much cleaner. Run a test track before committing to a full batch.
-
----
-
-## Step 3 — Assemble variants in GarageBand
-
-Open GarageBand → New Project → Empty Project.
-
-Import all stems from `stems/track-name/` as separate audio tracks.
-
-Build three exports per the table below. For each export:
-`Share → Export Song to Disk → MP3 → Highest Quality (320kbps)`
-
-Save as `exports/track-name/low.mp3`, `med.mp3`, `high.mp3`.
-
-### Stem mix guide per variant
-
-| Variant | other | piano/guitar | bass | drums | Notes |
-|---------|-------|-------------|------|-------|-------|
-| **Low** | 100% | 0–20% | 20% | 0% | Atmosphere only. Peaceful, minimal. |
-| **Med** | 80% | 70% | 80% | 30–50% | Melody present, light rhythm. |
-| **High** | 100% | 100% | 100% | 100% | Full reconstruction. All stems at unity. |
-
-These are starting points — trust your ears. The goal is a clear, audible
-difference in energy between each variant.
-
-### Loop trimming in GarageBand
-
-Before exporting, make sure each variant:
-1. Ends at a musically natural point (end of a phrase, end of a bar)
-2. Can loop seamlessly — the last beat/note should flow into the first beat
-   without a gap or pop
-
-Use the cycle region (yellow bar at the top of the timeline) to test the loop.
-**All three variants must end at the same bar/beat position** so they stay in
-sync when blended by the engine.
-
----
-
-## Step 4 — Normalize and validate
+For ambience layers:
 
 ```bash
-python3 scripts/audio-pipeline/feyforge_normalize.py --input ./feyforge-audio/exports --output ./feyforge-audio/ready
+pnpm upload --input ./feyforge-audio/ready --type ambience
 ```
 
-This script:
-- Normalizes peak loudness to **-1dBFS** across all three variants
-- Trims trailing silence
-- Warns you if the three variants have significantly different durations
-  (a sign that loop points need fixing in GarageBand)
-- Outputs upload-ready MP3s to `./feyforge-audio/ready/track-name/{low,med,high}.mp3`
-
-If you see a duration mismatch warning, go back to GarageBand and align the
-export end points before re-running.
+Files go to R2 and land in the admin review queue as pending. The script skips
+files it's already uploaded (safe to re-run).
 
 ---
 
-## Step 5 — Upload to FeyForge
+## Approving in the admin panel
 
-In FeyForge, navigate to the scene music set manager (DM library view).
+1. Open FeyForge admin → Audio Review
+2. Find your pending track, hit play — give it a listen
+3. Set tier: **Free** or **Premium**
+4. For music tracks, fill out stem assignment slots:
+   - **Scene** — pick from the dropdown (town, forest, dungeon, etc.)
+   - **Mode** — explore, combat, or victory
+   - **Stem name** — descriptive label (e.g. "Strings — Mid Layer")
+   - **Intensity min/max** — where this stem should be audible (1–5)
+   - Add more slots if the same file works for multiple scenes/modes
+5. Click **Approve + Assign Stems**
 
-For each scene+mode slot, upload:
-- `low.mp3` → Low track
-- `med.mp3` → Med track
-- `high.mp3` → High track
-
-Files are uploaded to R2 and associated with the `sceneMusicSets` record.
-
----
-
-## Checklist per track
-
-- [ ] Stems look clean (no obvious bleed artifacts in key stems)
-- [ ] Low variant is clearly less energetic than High
-- [ ] All three variants have the same BPM and loop length
-- [ ] Loop plays seamlessly (tested in GarageBand cycle region)
-- [ ] Normalizer ran without duration mismatch warnings
-- [ ] Upload-ready files are in `./feyforge-audio/ready/track-name/`
+The stem is immediately live in any session using that scene.
 
 ---
 
-## Track naming convention
+## Intensity window quick reference
 
-Use kebab-case. Be descriptive — you'll be looking at these in dropdowns.
+Not sure what window to set? Use this:
 
-```
-town-explore          → town-explore/low.mp3, med.mp3, high.mp3
-town-combat           → town-combat/low.mp3, med.mp3, high.mp3
-town-victory          → town-victory/low.mp3, med.mp3, high.mp3
-forest-explore        → forest-explore/low.mp3, ...
-dungeon-combat        → dungeon-combat/low.mp3, ...
-```
+| This stem sounds like... | Set window to |
+|--------------------------|--------------|
+| Atmospheric, droney, sparse | 1–2 or 1–3 |
+| Melodic but gentle | 1–4 |
+| Rhythmic, some energy | 2–4 or 2–5 |
+| Bold, punchy, full | 3–5 |
+| Intense, driving, loud | 4–5 or 5 only |
+
+When in doubt: overlap generously. The 4-second fade smooths everything out.
+Having stems overlap at intensity 3 creates the richest, most interesting
+midpoint.
 
 ---
 
-## Troubleshooting
+## Checklist per stem
 
-**Demucs bleed is too bad (drums audible in other stem)**
-Some tracks just don't separate well. Try the `mdx_extra` model instead:
-```bash
-python3 scripts/audio-pipeline/feyforge_stems.py --input ./feyforge-audio/raw --output ./feyforge-audio/stems
-# Edit the script: change DEMUCS_MODEL = "htdemucs" to "mdx_extra"
-```
-`mdx_extra` sometimes handles dense productions better at the cost of speed.
-
-**Low and High sound too similar**
-Lean harder on stem omission. For Low, zero out drums and bass entirely.
-The energy difference needs to be obvious — the blend will smooth it out.
-
-**Duration mismatch warning won't go away**
-Open GarageBand, enable the metronome, and make sure your cycle region ends
-on an exact bar boundary for all three variants before exporting.
-
-**feyforge_normalize.py pydub error**
-Make sure ffmpeg is installed: `brew install ffmpeg`
+- [ ] Single instrument group only (not a full mix)
+- [ ] Loops cleanly — tested in Audacity loop play
+- [ ] Normalized to -1dBFS
+- [ ] Named descriptively in kebab-case
+- [ ] In `feyforge-audio/ready/` folder
+- [ ] Uploaded via upload script
+- [ ] Approved in admin panel with at least one stem slot assigned

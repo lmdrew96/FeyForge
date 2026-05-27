@@ -1,6 +1,6 @@
 {
   "name": "feyforge",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "private": true,
   "scripts": {
     "build": "next build",
@@ -13,7 +13,7 @@
     "lint:fix": "next lint --fix",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
-    "seed": "tsx scripts/audio-pipeline/seed-audio.ts"
+    "upload": "tsx scripts/audio-pipeline/upload.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.2",

@@ -34,16 +34,36 @@ const STEM_FADE_MS = 4000
 const VICTORY_FADE_MS = 300
 const INTENSITY_DEBOUNCE_MS = 150
 
+// 100ms scheduling buffer — gives browser time to prepare nodes before startTime
+const START_BUFFER_S = 0.1
+
 function stemTargetVolume(stem: MusicStem, intensity: number, masterVolume: number): number {
   if (intensity < stem.intensityMin || intensity > stem.intensityMax) return 0
   return masterVolume / 100
 }
 
+// ── Web Audio stem node ───────────────────────────────────────────────────────
+
+type StemNode = {
+  gainNode: GainNode
+  source: AudioBufferSourceNode | null
+  buffer: AudioBuffer
+  playing: boolean
+}
+
+// ── Hook ─────────────────────────────────────────────────────────────────────
+
 export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
+  // ── Ambience (Howler — unchanged) ─────────────────────────────────────────
   const ambienceRef = useRef<Howl | null>(null)
   const layerRefs = useRef<Map<string, Howl>>(new Map())
-  const stemHowls = useRef<Map<string, Howl>>(new Map())
 
+  // ── Web Audio stem engine ─────────────────────────────────────────────────
+  const audioContext = useRef<AudioContext | null>(null)
+  const stemNodes = useRef<Map<string, StemNode>>(new Map())
+  const stemBufferCache = useRef<Map<string, AudioBuffer>>(new Map())
+
+  // ── Shared state refs ─────────────────────────────────────────────────────
   const currentLayers = useRef<Map<string, { url: string; volume: number }>>(new Map())
   const currentStems = useRef<MusicStem[]>([])
   const victoryPrevStems = useRef<MusicStem[]>([])
@@ -59,7 +79,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
 
   const mounted = useRef(false)
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Ambience helpers (Howler) ─────────────────────────────────────────────
 
   const destroyHowl = useCallback((ref: React.MutableRefObject<Howl | null>) => {
     if (ref.current) {
@@ -79,7 +99,196 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     currentLayers.current.delete(layerId)
   }, [])
 
-  // ── Layered ambience sync ─────────────────────────────────────────────────
+  // ── Web Audio helpers ─────────────────────────────────────────────────────
+
+  async function ensureContextRunning(): Promise<void> {
+    if (audioContext.current?.state === "suspended") {
+      await audioContext.current.resume()
+    }
+  }
+
+  async function loadStemBuffer(stem: MusicStem): Promise<AudioBuffer | null> {
+    const ctx = audioContext.current
+    if (!ctx) return null
+
+    const cached = stemBufferCache.current.get(stem._id)
+    if (cached) return cached
+
+    try {
+      const response = await fetch(stem.r2Url)
+      if (!response.ok) throw new Error(`HTTP ${response.status} fetching stem ${stem._id}`)
+      const arrayBuffer = await response.arrayBuffer()
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+      stemBufferCache.current.set(stem._id, audioBuffer)
+      return audioBuffer
+    } catch (e) {
+      console.error(`[AudioEngine] Failed to load stem ${stem._id}:`, e)
+      return null
+    }
+  }
+
+  async function preloadStems(stems: MusicStem[]): Promise<void> {
+    await Promise.all(stems.map(loadStemBuffer))
+  }
+
+  function deactivateCurrentStems(fadeMs: number = STEM_FADE_MS): void {
+    const ctx = audioContext.current
+    if (!ctx) return
+    const now = ctx.currentTime
+
+    for (const [stemId, node] of stemNodes.current.entries()) {
+      const currentGain = node.gainNode.gain.value
+      node.gainNode.gain.cancelScheduledValues(now)
+      node.gainNode.gain.setValueAtTime(currentGain, now)
+      node.gainNode.gain.linearRampToValueAtTime(0, now + fadeMs / 1000)
+
+      const src = node.source
+      if (src) {
+        setTimeout(() => {
+          try { src.stop() } catch { /* already stopped */ }
+          node.gainNode.disconnect()
+        }, fadeMs + 100)
+      }
+
+      stemNodes.current.delete(stemId)
+    }
+
+    stemNodes.current = new Map()
+    currentStems.current = []
+  }
+
+  async function activateMode(
+    stems: MusicStem[],
+    intensity: number,
+    masterVolume: number
+  ): Promise<void> {
+    const ctx = audioContext.current
+    if (!ctx || !mounted.current) return
+    await ensureContextRunning()
+
+    await preloadStems(stems)
+    if (!mounted.current) return // unmounted during async load
+
+    const startTime = ctx.currentTime + START_BUFFER_S
+
+    for (const stem of stems) {
+      const buffer = stemBufferCache.current.get(stem._id)
+      if (!buffer) continue // fetch failed for this stem — skip it
+
+      const gainNode = ctx.createGain()
+      const target = stemTargetVolume(stem, intensity, masterVolume)
+
+      gainNode.gain.setValueAtTime(0, startTime)
+      if (target > 0) {
+        gainNode.gain.linearRampToValueAtTime(target, startTime + STEM_FADE_MS / 1000)
+      }
+      gainNode.connect(ctx.destination)
+
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.loop = true
+      source.connect(gainNode)
+      source.start(startTime) // all stems: exact same startTime
+
+      stemNodes.current.set(stem._id, { gainNode, source, buffer, playing: true })
+    }
+
+    currentStems.current = stems
+  }
+
+  function updateStemVolumes(intensity: number, masterVolume: number): void {
+    const ctx = audioContext.current
+    if (!ctx) return
+    ensureContextRunning() // fire-and-forget — resuming is best-effort here
+    const now = ctx.currentTime
+    const fadeDuration = STEM_FADE_MS / 1000
+
+    for (const stem of currentStems.current) {
+      const node = stemNodes.current.get(stem._id)
+      if (!node) continue
+
+      const target = stemTargetVolume(stem, intensity, masterVolume)
+      const current = node.gainNode.gain.value
+
+      if (Math.abs(current - target) < 0.01) continue
+
+      node.gainNode.gain.cancelScheduledValues(now)
+      node.gainNode.gain.setValueAtTime(current, now)
+      node.gainNode.gain.linearRampToValueAtTime(target, now + fadeDuration)
+    }
+  }
+
+  async function triggerVictory(
+    victoryStems: MusicStem[],
+    intensity: number,
+    masterVolume: number
+  ): Promise<void> {
+    const ctx = audioContext.current
+    if (!ctx || !mounted.current) return
+    await ensureContextRunning()
+
+    const audibleStems = victoryStems.filter(
+      (s) => stemTargetVolume(s, intensity, masterVolume) > 0
+    )
+    if (audibleStems.length === 0) return
+
+    // Store current mode stems for restore after victory ends
+    victoryPrevStems.current = [...currentStems.current]
+
+    // Fade out current mode
+    deactivateCurrentStems(STEM_FADE_MS)
+
+    // Pre-load victory buffers
+    await preloadStems(victoryStems)
+    if (!mounted.current) return
+
+    const startTime = ctx.currentTime + START_BUFFER_S
+
+    // Loudest stem gets the onended callback to trigger restore
+    const loudestStem = audibleStems.reduce((a, b) =>
+      stemTargetVolume(b, intensity, masterVolume) >= stemTargetVolume(a, intensity, masterVolume)
+        ? b
+        : a
+    )
+
+    for (const stem of victoryStems) {
+      const target = stemTargetVolume(stem, intensity, masterVolume)
+      if (target === 0) continue
+
+      const buffer = stemBufferCache.current.get(stem._id)
+      if (!buffer) continue
+
+      const gainNode = ctx.createGain()
+      gainNode.gain.setValueAtTime(0, startTime)
+      gainNode.gain.linearRampToValueAtTime(target, startTime + VICTORY_FADE_MS / 1000)
+      gainNode.connect(ctx.destination)
+
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.loop = false // victory plays once
+      source.connect(gainNode)
+      source.start(startTime)
+
+      if (stem._id === loudestStem._id) {
+        source.onended = () => {
+          if (!mounted.current) return
+          // Fade out victory stems
+          deactivateCurrentStems(VICTORY_FADE_MS)
+          // Re-activate previous mode
+          const prevStems = victoryPrevStems.current
+          if (prevStems.length > 0) {
+            activateMode(prevStems, intensityRef.current, masterVolumeRef.current)
+          }
+        }
+      }
+
+      stemNodes.current.set(stem._id, { gainNode, source, buffer, playing: true })
+    }
+
+    currentStems.current = audibleStems
+  }
+
+  // ── Layered ambience sync (Howler — unchanged) ────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
@@ -102,7 +311,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
       if (!existingHowl || previous?.url !== next.url) {
         if (existingHowl) destroyLayerHowl(layerId)
 
-        const howl = new Howl({ src: [next.url], loop: true, volume: 0, html5: true })
+        const howl = new Howl({ src: [next.url], loop: true, volume: 0 })
         howl.once("load", () => {
           if (!mounted.current) return
           howl.play()
@@ -124,7 +333,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     }
   }, [state.activeLayers, state.masterVolume, enabled, destroyLayerHowl])
 
-  // ── Legacy single-slot ambience ───────────────────────────────────────────
+  // ── Legacy single-slot ambience (Howler — unchanged) ─────────────────────
 
   const currentAmbienceUrl = useRef("")
 
@@ -143,7 +352,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     destroyHowl(ambienceRef)
     if (url) {
       const targetVol = (state.ambienceVolume / 100) * (state.masterVolume / 100)
-      const h = new Howl({ src: [url], loop: true, volume: 0, html5: true })
+      const h = new Howl({ src: [url], loop: true, volume: 0 })
       h.once("load", () => {
         if (!mounted.current) { h.unload(); return }
         try { h.play(); h.fade(0, targetVol, FADE_MS) } catch (e) { console.error("Ambience play/fade error:", e) }
@@ -153,7 +362,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     }
   }, [state.ambienceUrl, state.activeLayers, enabled, destroyHowl, state.ambienceVolume, state.masterVolume])
 
-  // ── Music mode + stems ────────────────────────────────────────────────────
+  // ── Music mode (Web Audio) ────────────────────────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
@@ -164,64 +373,31 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
       : mode === "combat" ? state.combatStems
       : []
 
-    // Deduplicate: only act when mode or active stem set actually changes
     const newKey = `${mode}:${activeStems.map((s) => s._id).join(",")}`
     if (newKey === currentModeKey.current) return
     currentModeKey.current = newKey
 
-    // Fade out and unload all current stem howls
-    for (const howl of stemHowls.current.values()) {
-      howl.fade(howl.volume(), 0, STEM_FADE_MS)
-      const h = howl
-      setTimeout(() => h.unload(), STEM_FADE_MS + 100)
-    }
-    stemHowls.current = new Map()
-    currentStems.current = []
+    deactivateCurrentStems(STEM_FADE_MS)
 
-    if (mode === "off" || activeStems.length === 0) return
-
-    currentStems.current = activeStems
-
-    for (const stem of activeStems) {
-      const target = stemTargetVolume(stem, intensityRef.current, masterVolumeRef.current)
-      const howl = new Howl({ src: [stem.r2Url], loop: true, volume: 0, html5: true })
-      howl.once("load", () => {
-        if (!mounted.current) { howl.unload(); return }
-        try {
-          howl.play()
-          if (target > 0) howl.fade(0, target, STEM_FADE_MS)
-        } catch (e) { console.error("Stem play/fade error:", e) }
-      })
-      howl.on("loaderror", (_id, err) => console.error("Stem load error:", err))
-      stemHowls.current.set(stem._id, howl)
+    if (mode !== "off" && activeStems.length > 0) {
+      activateMode(activeStems, intensityRef.current, masterVolumeRef.current)
     }
   }, [state.musicMode, state.exploreStems, state.combatStems, enabled])
 
-  // ── Intensity (debounced) ─────────────────────────────────────────────────
+  // ── Intensity (debounced, Web Audio) ─────────────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
-
     const timer = setTimeout(() => {
-      const intensity = Math.max(1, Math.min(5, state.musicIntensity))
-      const masterVolume = state.masterVolume
-
-      for (const stem of currentStems.current) {
-        const howl = stemHowls.current.get(stem._id)
-        if (!howl) continue
-
-        const current = howl.volume()
-        const target = stemTargetVolume(stem, intensity, masterVolume)
-        if (Math.abs(current - target) < 0.01) continue
-
-        try { howl.fade(current, target, STEM_FADE_MS) } catch { howl.volume(target) }
-      }
+      updateStemVolumes(
+        Math.max(1, Math.min(5, state.musicIntensity)),
+        state.masterVolume
+      )
     }, INTENSITY_DEBOUNCE_MS)
-
     return () => clearTimeout(timer)
   }, [state.musicIntensity, state.masterVolume, enabled])
 
-  // ── Victory cue ──────────────────────────────────────────────────────────
+  // ── Victory cue (Web Audio) ───────────────────────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
@@ -230,82 +406,16 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     if (currentVictoryTrigger.current === trigger) return
     currentVictoryTrigger.current = trigger
 
-    const victoryStems = state.victoryStems
-    if (victoryStems.length === 0) return
+    if (state.victoryStems.length === 0) return
 
-    const intensity = Math.max(1, Math.min(5, intensityRef.current))
-    const masterVolume = masterVolumeRef.current
-
-    // Check audibility BEFORE muting anything — if nothing would play, bail
-    const audibleVictoryStems = victoryStems.filter(
-      (s) => stemTargetVolume(s, intensity, masterVolume) > 0
+    triggerVictory(
+      state.victoryStems,
+      Math.max(1, Math.min(5, intensityRef.current)),
+      masterVolumeRef.current
     )
-    if (audibleVictoryStems.length === 0) return
-
-    // Store current stems so we can restore them after victory ends
-    victoryPrevStems.current = [...currentStems.current]
-
-    // Fade out and unload current mode stems
-    for (const howl of stemHowls.current.values()) {
-      howl.fade(howl.volume(), 0, STEM_FADE_MS)
-      const h = howl
-      setTimeout(() => h.unload(), STEM_FADE_MS + 100)
-    }
-    stemHowls.current = new Map()
-    currentStems.current = []
-
-    // Loudest stem gets the onend callback to trigger restore
-    const loudestStem = audibleVictoryStems.reduce((a, b) =>
-      stemTargetVolume(b, intensity, masterVolume) >= stemTargetVolume(a, intensity, masterVolume) ? b : a
-    )
-
-    for (const stem of victoryStems) {
-      const target = stemTargetVolume(stem, intensity, masterVolume)
-      if (target === 0) continue
-
-      const howl = new Howl({ src: [stem.r2Url], loop: false, volume: 0, html5: true })
-
-      if (stem._id === loudestStem._id) {
-        howl.on("end", () => {
-          // Fade out victory howls
-          for (const vh of stemHowls.current.values()) {
-            try {
-              vh.fade(vh.volume(), 0, VICTORY_FADE_MS)
-              const v = vh
-              setTimeout(() => v.unload(), VICTORY_FADE_MS + 50)
-            } catch { vh.unload() }
-          }
-          stemHowls.current = new Map()
-
-          // Re-activate previous mode stems from position 0 per spec
-          const prevStems = victoryPrevStems.current
-          currentStems.current = prevStems
-          for (const s of prevStems) {
-            const t = stemTargetVolume(s, intensityRef.current, masterVolumeRef.current)
-            const h = new Howl({ src: [s.r2Url], loop: true, volume: 0, html5: true })
-            h.once("load", () => {
-              if (!mounted.current) { h.unload(); return }
-              try {
-                h.play()
-                if (t > 0) h.fade(0, t, STEM_FADE_MS)
-              } catch (e) { console.error("Restore play/fade error:", e) }
-            })
-            h.on("loaderror", (_id, err) => console.error("Restore stem load error:", err))
-            stemHowls.current.set(s._id, h)
-          }
-        })
-      }
-
-      howl.once("load", () => {
-        if (!mounted.current) { howl.unload(); return }
-        try { howl.play(); howl.fade(0, target, VICTORY_FADE_MS) } catch (e) { console.error("Victory play error:", e) }
-      })
-      howl.on("loaderror", (_id, err) => console.error("Victory load error:", err))
-      stemHowls.current.set(stem._id, howl)
-    }
   }, [state.victoryCuedAt, state.victoryStems, enabled])
 
-  // ── Ambience volume ───────────────────────────────────────────────────────
+  // ── Ambience volume (Howler — unchanged) ─────────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
@@ -316,7 +426,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     }
   }, [state.ambienceVolume, state.masterVolume, state.activeLayers, enabled])
 
-  // ── Master volume (layered ambience) ─────────────────────────────────────
+  // ── Master volume (layered ambience — Howler) ─────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
@@ -350,13 +460,15 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) {
+      // Stems: suspend the whole AudioContext — pauses all nodes simultaneously
+      audioContext.current?.suspend()
+      // Ambience: Howler pause/play
       ambienceRef.current?.pause()
       layerRefs.current.forEach((r) => r.pause())
-      stemHowls.current.forEach((h) => h.pause())
     } else {
+      audioContext.current?.resume()
       ambienceRef.current?.play()
       layerRefs.current.forEach((r) => r.play())
-      stemHowls.current.forEach((h) => h.play())
     }
   }, [enabled])
 
@@ -364,21 +476,35 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
 
   useEffect(() => {
     mounted.current = true
+    audioContext.current = new AudioContext()
+
     return () => {
       mounted.current = false
+
+      // Tear down Web Audio stem engine
+      stemNodes.current.forEach((node) => {
+        try { node.source?.stop() } catch { /* already stopped */ }
+        node.gainNode.disconnect()
+      })
+      stemNodes.current = new Map()
+      stemBufferCache.current.clear()
+      audioContext.current?.close()
+      audioContext.current = null
+
+      // Tear down Howler ambience
       ambienceRef.current?.unload()
       layerRefs.current.forEach((r) => r.unload())
       layerRefs.current.clear()
       currentLayers.current.clear()
-      stemHowls.current.forEach((h) => h.unload())
-      stemHowls.current = new Map()
       currentStems.current = []
     }
   }, [])
 
+  // ── SFX one-shots (Howler) ────────────────────────────────────────────────
+
   const playSfx = useCallback(
     (url: string) => {
-      const h = new Howl({ src: [url], volume: state.masterVolume / 100, html5: true })
+      const h = new Howl({ src: [url], volume: state.masterVolume / 100 })
       h.play()
     },
     [state.masterVolume]

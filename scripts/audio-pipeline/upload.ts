@@ -3,8 +3,8 @@
  * creates pending audioTrack records in Convex.
  *
  * Usage:
- *   node scripts/audio-pipeline/upload.ts --input ./feyforge-audio/raw --type music
- *   node scripts/audio-pipeline/upload.ts --input ./feyforge-audio/raw --type music --dry-run
+ *   pnpm upload --input ./feyforge-audio/ready --type music
+ *   pnpm upload --input ./feyforge-audio/ready --type music --dry-run
  *
  * Flags:
  *   --input   Path to a folder of MP3/WAV files
@@ -12,8 +12,7 @@
  *   --dry-run Print what would happen without uploading or writing to DB
  *
  * Auth:
- *   Uses SEED_SECRET env var (same as seed-audio.ts). CLI scripts cannot do
- *   headless Clerk auth, so this matches the existing seed pattern.
+ *   Uses SEED_SECRET env var. CLI scripts cannot do headless Clerk auth.
  *
  * R2 key convention: audio/{type}/{filename}  (e.g. audio/music/forest-strings.mp3)
  *

@@ -119,11 +119,15 @@ Audio tracks are stored in Cloudflare R2 and managed through Convex. The library
 
 Tracks are tagged by `type` (ambience, music, sfx), `intensityTier` (explore, combat), and `sceneTag` for multi-scene applicability. Live party sessions sync the active track and volume state to all connected players in real time.
 
-Seed the audio library in development:
+Bulk-upload stems and ambience files from a local folder:
 
 ```bash
-pnpm seed
+pnpm upload --input ./feyforge-audio/ready --type music
+pnpm upload --input ./feyforge-audio/ready --type ambience
 ```
+
+Files land in the admin review queue as `pending`. See
+`docs/guides/FEYFORGE-AUDIO-CURATION-GUIDE.md` for the full curation workflow.
 
 ## Scripts
 
@@ -139,7 +143,7 @@ pnpm seed
 | `pnpm db:push` | Push Convex schema changes |
 | `pnpm db:studio` | Open Drizzle Studio (local Convex inspector) |
 | `pnpm db:generate` | Generate Convex types |
-| `pnpm seed` | Seed the audio track library |
+| `pnpm upload` | Bulk-upload audio files to R2 + Convex review queue |
 
 ## Deployment
 

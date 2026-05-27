@@ -124,9 +124,9 @@ const MUSIC_CROSSFADE_MS = STEM_FADE_MS // same duration, consistent feel
 
 ## Schema
 
-### Replace `sceneMusicSets` with `musicStems`
+### `musicStems` table
 
-Remove the old `sceneMusicSets` table entirely. Replace with:
+The stem-based mixer schema:
 
 ```ts
 musicStems: defineTable({
