@@ -860,13 +860,23 @@ export const listMusicStemsResolved = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
-    const stems = await ctx.db
+    // Campaign-specific stems
+    const campaignStems = await ctx.db
       .query("musicStems")
       .withIndex("by_campaignId_sceneName_and_mode", (idx) =>
         idx.eq("campaignId", args.campaignId).eq("sceneName", args.sceneName).eq("mode", args.mode)
       )
       .take(50)
 
+    // Global stems (campaignId = undefined) — shared across all sessions
+    const globalStems = await ctx.db
+      .query("musicStems")
+      .withIndex("by_sceneName_mode_and_campaignId", (idx) =>
+        idx.eq("sceneName", args.sceneName).eq("mode", args.mode).eq("campaignId", undefined)
+      )
+      .take(50)
+
+    const seen = new Set<string>()
     const resolved: Array<{
       _id: string
       name: string
@@ -876,7 +886,9 @@ export const listMusicStemsResolved = query({
       r2Url: string
     }> = []
 
-    for (const stem of stems) {
+    for (const stem of [...campaignStems, ...globalStems]) {
+      if (seen.has(stem._id)) continue
+      seen.add(stem._id)
       const track = await ctx.db.get(stem.trackId)
       if (!track?.r2Url) continue
       resolved.push({
@@ -1011,6 +1023,126 @@ export const deleteMusicStem = mutation({
     if (stem.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
 
     await ctx.db.delete(args.stemId)
+  },
+})
+
+// ── Admin: bulk upload + approve+assign ───────────────────────────────────────
+
+/**
+ * Called by scripts/audio-pipeline/upload.ts — uses SEED_SECRET env var for
+ * auth instead of Clerk (CLI scripts can't do headless Clerk auth).
+ * Creates one pending audioTrack per file; deduplicates by r2Key.
+ */
+export const createAudioTrackBulk = mutation({
+  args: {
+    bulkSecret: v.string(),
+    originalFilename: v.string(),
+    type: v.union(v.literal("music"), v.literal("ambience")),
+    r2Key: v.string(),
+    r2Url: v.string(),
+    duration: v.number(),
+    tier: v.optional(v.union(v.literal("free"), v.literal("premium"))),
+  },
+  handler: async (ctx, args) => {
+    if (args.bulkSecret !== process.env.SEED_SECRET) throw new Error("Unauthorized")
+
+    // Dedup by r2Key — skip if this file was already uploaded
+    const existing = await ctx.db
+      .query("audioTracks")
+      .withIndex("by_r2Key", (q) => q.eq("r2Key", args.r2Key))
+      .unique()
+    if (existing) return { id: existing._id, skipped: true }
+
+    const id = await ctx.db.insert("audioTracks", {
+      name: args.originalFilename,
+      originalFilename: args.originalFilename,
+      type: args.type,
+      intensityTier: null,
+      r2Key: args.r2Key,
+      r2Url: args.r2Url,
+      duration: args.duration,
+      tier: args.tier ?? "free",
+      status: "pending",
+      approved: false,
+      uploadedBy: "bulk-upload",
+      createdAt: Date.now(),
+    })
+    return { id, skipped: false }
+  },
+})
+
+/**
+ * Combined approve + stem-assign for music tracks.
+ * Replaces the two-step "adminUpdate → approveAudioTrack" flow for music.
+ * Validates all stem slot rows before touching the DB.
+ */
+export const approveAndAssignStems = mutation({
+  args: {
+    trackId: v.id("audioTracks"),
+    tier: v.union(v.literal("free"), v.literal("premium")),
+    stems: v.array(
+      v.object({
+        sceneName: v.string(),
+        mode: v.union(
+          v.literal("explore"),
+          v.literal("combat"),
+          v.literal("victory"),
+        ),
+        name: v.string(),
+        intensityMin: v.number(),
+        intensityMax: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+      .unique()
+    if (!me || me.role !== "admin") throw new Error("Not authorized")
+
+    const track = await ctx.db.get(args.trackId)
+    if (!track) throw new Error("Track not found")
+    if (track.type !== "music") throw new Error("approveAndAssignStems is for music tracks only")
+    if (args.stems.length === 0) throw new Error("At least one stem slot is required")
+
+    // Validate all intensity ranges before any DB writes
+    for (const stem of args.stems) {
+      if (!Number.isInteger(stem.intensityMin) || stem.intensityMin < 1 || stem.intensityMin > 5)
+        throw new Error(`Invalid intensityMin (must be 1–5): ${stem.intensityMin}`)
+      if (!Number.isInteger(stem.intensityMax) || stem.intensityMax < stem.intensityMin || stem.intensityMax > 5)
+        throw new Error(`Invalid intensityMax (must be ≥ intensityMin and ≤ 5): ${stem.intensityMax}`)
+    }
+
+    // Approve the track
+    await ctx.db.patch(args.trackId, {
+      status: "approved",
+      approved: true,
+      tier: args.tier,
+      approvedAt: Date.now(),
+      approvedBy: identity.tokenIdentifier,
+    })
+
+    // Insert one global musicStem record per slot
+    await Promise.all(
+      args.stems.map((stem) =>
+        ctx.db.insert("musicStems", {
+          userId: identity.tokenIdentifier,
+          campaignId: undefined,     // global — not campaign-scoped
+          sceneName: stem.sceneName,
+          mode: stem.mode,
+          name: stem.name,
+          trackId: args.trackId,
+          intensityMin: stem.intensityMin,
+          intensityMax: stem.intensityMax,
+          sortOrder: stem.intensityMin, // auto-assign sort order
+          createdAt: Date.now(),
+        }),
+      ),
+    )
   },
 })
 

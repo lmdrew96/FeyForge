@@ -31,7 +31,7 @@ from pathlib import Path
 
 
 SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".flac", ".aiff", ".m4a"}
-DEMUCS_MODEL = "htdemucs"
+DEMUCS_MODEL = "htdemucs_6s"
 
 
 def check_demucs():

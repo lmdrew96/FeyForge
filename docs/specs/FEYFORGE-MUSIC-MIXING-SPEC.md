@@ -1,126 +1,135 @@
 # FEYFORGE-MUSIC-MIXING-SPEC.md
 
+> **v2 — replaces the previous spec entirely.** The three-track Low/Med/High
+> vertical remix model has been replaced with a dynamic stem window system.
+
+---
+
 ## Overview
 
-Replaces FeyForge's single-track-per-mode music system with an adaptive vertical
-remix engine. Each scene+mode combination holds three tracks (low, medium, high
-intensity). The DM controls a 1–5 intensity slider. Odd values play a single
-track; even values blend two adjacent tracks simultaneously at equal volumes,
-creating a musically coherent mix — not a crossfade between different songs, but
-a blend of the same piece at different arrangement densities.
+Each scene+mode has a set of **4–5 stems**. Every stem has a presence window
+defined by `intensityMin` and `intensityMax` on a 1–5 scale. The DM controls a
+single intensity slider. As the slider moves, the engine fades stems in and out
+based on whether the current intensity falls within each stem's window. Stems can
+overlap freely — the engine handles the mix. The DM never thinks about any of
+this.
 
 ---
 
-## Content contract (important — read before uploading tracks)
+## Core concepts
 
-The three tracks assigned to any given scene+mode slot **must be versions of the
-same musical piece** at different arrangement densities:
+### Stem presence windows
 
-- **Low** — sparse, atmospheric. Minimal instrumentation. e.g. solo piano or
-  ambient pads only.
-- **Med** — fuller. Add rhythm, melody, more instruments.
-- **High** — complete arrangement. Full energy.
+Each stem defines the intensity range where it should be audible:
 
-They must share:
-- The same BPM
-- The same loop length (or a clean multiple)
-- The same key
+```
+intensityMin  — intensity at which the stem is fully faded in
+intensityMax  — intensity at which the stem is fully faded out
+```
 
-If these constraints aren't met, even-intensity blends will sound like two songs
-fighting each other. This is a curation requirement, not something the engine can
-enforce.
+A stem is **fully audible** when the slider is within its window, and
+**silent** when the slider is outside it. The engine fades between these states
+over `STEM_FADE_MS` whenever the slider changes.
 
----
+### Example stem layout for Town → Explore
 
-## Blend math
+| Stem | Role | intensityMin | intensityMax | Audible at |
+|------|------|-------------|-------------|------------|
+| Pads | Atmosphere, foundation | 1 | 3 | 1–3, fading out by 3 |
+| Soft melody | Melodic thread | 1 | 4 | 1–4 |
+| Rhythm | Adds momentum | 2 | 5 | 2–5 |
+| Lead strings | Upper energy layer | 3 | 5 | 3–5 |
+| Full percussion | High energy only | 4 | 5 | 4–5 |
 
-All three tracks in the active set run simultaneously at all times. Intensity
-controls their volumes only — tracks are never stopped or restarted mid-session
-except on a mode switch.
+At intensity 1: pads + soft melody only. Sparse, atmospheric.
+At intensity 3: all five stems briefly overlap at the crossover point.
+At intensity 5: rhythm + lead strings + full percussion. Pads and soft melody
+gone. Full energy.
 
-| Intensity | Low vol | Med vol | High vol |
-|-----------|---------|---------|----------|
-| 1         | 100%    | 0%      | 0%       |
-| 2         | 50%     | 50%     | 0%       |
-| 3         | 0%      | 100%    | 0%       |
-| 4         | 0%      | 50%     | 50%      |
-| 5         | 0%      | 0%      | 100%     |
+### Volume computation
 
-All percentages are multiplied by `masterMusicVolume` before being passed to
-Howler.
+For a given stem at current intensity `I`:
 
 ```ts
-const INTENSITY_MIX: Record<number, [number, number, number]> = {
-  1: [1.0, 0.0, 0.0],
-  2: [0.5, 0.5, 0.0],
-  3: [0.0, 1.0, 0.0],
-  4: [0.0, 0.5, 0.5],
-  5: [0.0, 0.0, 1.0],
-}
+function stemVolume(stem: MusicStem, intensity: number, masterVolume: number): number {
+  const { intensityMin, intensityMax } = stem
 
-function resolveVolumes(intensity: number, masterVolume: number) {
-  const [low, med, high] = INTENSITY_MIX[intensity]
-  return {
-    low:  low  * (masterVolume / 100),
-    med:  med  * (masterVolume / 100),
-    high: high * (masterVolume / 100),
-  }
+  // Fully outside window — silent
+  if (intensity < intensityMin || intensity > intensityMax) return 0
+
+  // Fade in zone: approaching intensityMin from below
+  // (handled by the engine's fade, not by volume scaling)
+
+  // Within window — full volume
+  return masterVolume / 100
 }
 ```
+
+Volume is binary (full or zero) within/outside the window. The 3–5 second fade
+IS the transition — no additional volume curve math needed. This keeps the engine
+simple and the transitions organic.
+
+### Fade behavior
+
+```ts
+const STEM_FADE_MS = 4000 // 4 seconds — center of the 3–5s range
+```
+
+When the slider moves and a stem's target volume changes:
+- If stem should now be audible and currently isn't → fade in over `STEM_FADE_MS`
+- If stem should now be silent and currently isn't → fade out over `STEM_FADE_MS`
+- If stem's target volume is unchanged → do nothing
+
+Use Howler's `.fade(from, to, duration)`. Never stop or restart a Howl
+mid-session — only adjust volume.
+
+**Debounce slider input** — the slider fires continuously as the DM drags.
+Debounce volume recomputation by ~150ms so the engine isn't triggering
+overlapping fades on every pixel of drag.
+
+---
+
+## Victory behavior
+
+Victory is a **one-shot event**, not a persistent mode. It does not change
+`musicMode`.
+
+When the DM hits Cue Victory:
+1. Fade out all current mode stems over `STEM_FADE_MS`
+2. Start the Victory stem set at position 0, at current intensity volumes
+3. Victory stems play with `loop: false`
+4. When the loudest Victory stem ends (Howler `onend` callback), crossfade back
+   to the previous mode's stems from position 0 at current intensity
+5. `musicMode` in `partySessions` never changes during Victory — store the
+   pre-victory Howl state in a `previousModeHowls` ref
+
+Trigger mechanism: `victoryCuedAt: v.optional(v.number())` timestamp on
+`partySessions`. Engine watches for changes.
 
 ---
 
 ## Mode switch behavior
 
 When the DM switches modes (e.g. Explore → Combat):
-
-1. **Immediately** start all three tracks of the incoming mode at position 0,
-   volumes set to the current intensity mix
-2. **Simultaneously** begin fading out all three tracks of the outgoing mode
-3. Fade duration: `MUSIC_CROSSFADE_MS = 2000` (2 seconds, defined as a constant
-   — adjustable later)
-4. After fade-out completes, destroy the outgoing Howl instances
-
-No loop-boundary waiting. The switch happens the moment the DM taps the button.
+1. Fade out all current mode stems over `STEM_FADE_MS`
+2. Start all Combat stems simultaneously from position 0
+3. Each Combat stem fades in to its target volume based on current intensity
+4. Destroy outgoing Howls after fade completes
 
 ```ts
-const MUSIC_CROSSFADE_MS = 2000
+const MUSIC_CROSSFADE_MS = STEM_FADE_MS // same duration, consistent feel
 ```
 
 ---
 
-## Victory behavior
+## Schema
 
-Victory is a **one-shot**, not a looping mode. It does not replace the current
-mode — it plays over it.
+### Replace `sceneMusicSets` with `musicStems`
 
-When the DM hits Cue Victory:
-1. Fade out all current mode tracks over `MUSIC_CROSSFADE_MS`
-2. Start the appropriate Victory tracks at position 0, volumes set to current
-   intensity mix (same INTENSITY_MIX table applies)
-3. Victory tracks play **without looping** (`loop: false` in Howler)
-4. When the highest-volume Victory track ends (use Howler's `onend` callback on
-   the loudest track), crossfade back to the previous mode at the current
-   intensity
-5. Resume the previous mode's tracks from position 0 (not from where they were
-   — they were destroyed on the Victory cue)
-
-The DM's `musicMode` state does not change during Victory. Store the pre-victory
-mode in a `previousMusicMode` ref so the engine knows where to return.
-
----
-
-## Schema additions
-
-### New table: `sceneMusicSets`
-
-One row per scene+mode combination. All track slots are optional — a set with no
-tracks assigned is valid and the engine falls back to silence for that mode.
-
-Add to `convex/schema.ts`:
+Remove the old `sceneMusicSets` table entirely. Replace with:
 
 ```ts
-sceneMusicSets: defineTable({
+musicStems: defineTable({
   userId: v.string(),
   campaignId: v.id("campaigns"),
   sceneName: v.string(),
@@ -129,63 +138,72 @@ sceneMusicSets: defineTable({
     v.literal("combat"),
     v.literal("victory")
   ),
-  lowTrackId:  v.optional(v.id("audioTracks")),
-  medTrackId:  v.optional(v.id("audioTracks")),
-  highTrackId: v.optional(v.id("audioTracks")),
+  name: v.string(),           // e.g. "Pads", "Soft Melody", "Full Percussion"
+  trackId: v.id("audioTracks"),
+  intensityMin: v.number(),   // 1–5
+  intensityMax: v.number(),   // 1–5, must be >= intensityMin
+  sortOrder: v.number(),      // display order in the stem manager UI
   createdAt: v.number(),
 })
   .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"])
   .index("by_campaignId_sceneName_and_mode", ["campaignId", "sceneName", "mode"]),
 ```
 
-### Existing tables
-
-`audioTracks` — no changes needed. Tracks assigned to music sets do not need a
-specific `type` value but should use `type: "music"` by convention.
-
-`partySessions` — add the following fields:
+### `partySessions` fields
 
 ```ts
-musicMode:       v.optional(v.union(v.literal("off"), v.literal("explore"), v.literal("combat"))),
-musicIntensity:  v.optional(v.number()), // 1–5, default 3
-activeMusicSet:  v.optional(v.id("sceneMusicSets")), // per-mode, updated on mode switch
+musicMode:      v.optional(v.union(v.literal("off"), v.literal("explore"), v.literal("combat"))),
+musicIntensity: v.optional(v.number()),   // 1–5, default 3
+victoryCuedAt:  v.optional(v.number()),   // timestamp, watched by engine
 ```
 
-Note: `musicMode` does not include `"victory"` — Victory is a momentary cue, not
-a persistent mode state.
+Note: `musicMode` does not include `"victory"` — Victory is momentary, not a
+persistent mode state.
 
 ---
 
-## Backend: `convex/audio.ts` additions
+## Backend: `convex/audio.ts`
 
 ### Queries
 
 ```ts
-getSceneMusicSet({ campaignId, sceneName, mode })
-// Returns the sceneMusicSets row for the given scene+mode, or null.
+listMusicStems({ campaignId, sceneName, mode? })
+// Returns all stems for a scene, optionally filtered by mode.
+// Used by the engine to load the active stem set on mode switch.
 
-listSceneMusicSets({ campaignId, sceneName })
-// Returns all three mode rows for a scene (for the track assignment UI).
+getMusicStem({ stemId })
+// Single stem doc.
 ```
 
 ### Mutations
 
 ```ts
-upsertSceneMusicSet({ campaignId, sceneName, mode, lowTrackId?, medTrackId?, highTrackId? })
-// Creates or updates the row. Uses an index lookup then insert-or-patch.
-// Validates that any provided trackId exists in audioTracks.
+createMusicStem({
+  campaignId, sceneName, mode,
+  name, trackId,
+  intensityMin, intensityMax,
+  sortOrder
+})
+// Validates intensityMin <= intensityMax, both 1–5.
+// Validates trackId exists in audioTracks.
+
+updateMusicStem({
+  stemId,
+  name?, trackId?, intensityMin?, intensityMax?, sortOrder?
+})
+// Ownership check. Re-validates intensity range if either field changes.
+
+deleteMusicStem({ stemId })
+// Ownership check.
 
 updateSessionMusicMode({ sessionId, musicMode })
-// Updates partySessions.musicMode. dmUserId auth check.
+// dmUserId auth check.
 
 updateSessionMusicIntensity({ sessionId, intensity })
-// Updates partySessions.musicIntensity. Validates 1–5. dmUserId auth check.
+// Validates 1–5. dmUserId auth check.
 
 triggerVictoryCue({ sessionId })
-// Does not change musicMode. Players observe this via a separate field or
-// a Convex action that fires a transient event. See Victory behavior above.
-// Simplest approach: add a `victoryCuedAt: v.optional(v.number())` timestamp
-// field to partySessions. Engine watches for changes and triggers the sequence.
+// Sets victoryCuedAt = Date.now(). dmUserId auth check.
 ```
 
 ---
@@ -194,247 +212,226 @@ triggerVictoryCue({ sessionId })
 
 ### Howl structure
 
-Maintain three Howl refs per active music set:
+```ts
+// Map of stemId → Howl instance. Maintained for the active mode.
+const stemHowls = useRef<Map<string, Howl>>(new Map())
+
+// Ref to pre-victory Howl state for return after Victory ends
+const previousModeHowls = useRef<Map<string, Howl>>(new Map())
+```
+
+### Volume computation
 
 ```ts
-const musicHowls = useRef<{
-  low:  Howl | null
-  med:  Howl | null
-  high: Howl | null
-}>({ low: null, med: null, high: null })
+const STEM_FADE_MS = 4000
+
+function targetVolume(stem: MusicStem, intensity: number, masterVolume: number): number {
+  if (intensity < stem.intensityMin || intensity > stem.intensityMax) return 0
+  return masterVolume / 100
+}
 ```
 
 ### On mode activation
 
 ```ts
-function activateMusicSet(set: SceneMusicSet, intensity: number, masterVolume: number) {
-  const volumes = resolveVolumes(intensity, masterVolume)
-  const slots = [
-    { key: "low",  trackUrl: set.lowTrackUrl,  volume: volumes.low  },
-    { key: "med",  trackUrl: set.medTrackUrl,  volume: volumes.med  },
-    { key: "high", trackUrl: set.highTrackUrl, volume: volumes.high },
-  ]
+function activateMode(stems: MusicStem[], intensity: number, masterVolume: number) {
+  for (const stem of stems) {
+    const track = resolveTrack(stem.trackId) // get r2Url
+    if (!track) continue
 
-  for (const { key, trackUrl, volume } of slots) {
-    if (!trackUrl) continue
-    const howl = new Howl({
-      src: [trackUrl],
-      loop: true,
-      volume: 0,
-    })
+    const target = targetVolume(stem, intensity, masterVolume)
+    const howl = new Howl({ src: [track.r2Url], loop: true, volume: 0 })
     howl.play()
-    howl.fade(0, volume, MUSIC_CROSSFADE_MS)
-    musicHowls.current[key] = howl
+    if (target > 0) howl.fade(0, target, STEM_FADE_MS)
+    stemHowls.current.set(stem._id, howl)
   }
 }
 ```
 
-### On intensity change
+### On intensity change (debounced)
 
 ```ts
-function updateIntensityVolumes(intensity: number, masterVolume: number) {
-  const volumes = resolveVolumes(intensity, masterVolume)
-  const howls = musicHowls.current
+// Debounce by 150ms before computing
+function updateStemVolumes(stems: MusicStem[], intensity: number, masterVolume: number) {
+  for (const stem of stems) {
+    const howl = stemHowls.current.get(stem._id)
+    if (!howl) continue
 
-  if (howls.low)  howls.low.volume(volumes.low)
-  if (howls.med)  howls.med.volume(volumes.med)
-  if (howls.high) howls.high.volume(volumes.high)
+    const current = howl.volume()
+    const target = targetVolume(stem, intensity, masterVolume)
+    if (Math.abs(current - target) < 0.01) continue // no meaningful change
+
+    howl.fade(current, target, STEM_FADE_MS)
+  }
 }
 ```
-
-No restart. Volume updates are immediate.
 
 ### On mode switch
 
 ```ts
 function switchMode(
-  outgoing: typeof musicHowls.current,
-  incoming: SceneMusicSet,
+  outgoingHowls: Map<string, Howl>,
+  incomingStems: MusicStem[],
   intensity: number,
   masterVolume: number
 ) {
-  // Fade out all outgoing Howls
-  for (const howl of Object.values(outgoing)) {
-    if (!howl) continue
-    howl.fade(howl.volume(), 0, MUSIC_CROSSFADE_MS)
-    setTimeout(() => howl.unload(), MUSIC_CROSSFADE_MS + 100)
+  // Fade out and destroy outgoing
+  for (const howl of outgoingHowls.values()) {
+    howl.fade(howl.volume(), 0, STEM_FADE_MS)
+    setTimeout(() => howl.unload(), STEM_FADE_MS + 100)
   }
 
-  // Reset ref before activating incoming
-  musicHowls.current = { low: null, med: null, high: null }
-  activateMusicSet(incoming, intensity, masterVolume)
+  // Reset and activate incoming
+  stemHowls.current = new Map()
+  activateMode(incomingStems, intensity, masterVolume)
 }
 ```
 
 ### On Victory cue
 
-The engine watches `session.victoryCuedAt`. When it changes:
-
 ```ts
 function triggerVictory(
-  victorySet: SceneMusicSet,
+  victoryStems: MusicStem[],
   intensity: number,
-  masterVolume: number,
-  onComplete: () => void  // returns to previousMode
+  masterVolume: number
 ) {
-  previousModeHowls.current = { ...musicHowls.current }
+  // Store current mode for return
+  previousModeHowls.current = new Map(stemHowls.current)
 
   // Fade out current mode
-  for (const howl of Object.values(musicHowls.current)) {
-    if (!howl) continue
-    howl.fade(howl.volume(), 0, MUSIC_CROSSFADE_MS)
-    setTimeout(() => howl.unload(), MUSIC_CROSSFADE_MS + 100)
+  for (const howl of stemHowls.current.values()) {
+    howl.fade(howl.volume(), 0, STEM_FADE_MS)
+    setTimeout(() => howl.unload(), STEM_FADE_MS + 100)
   }
+  stemHowls.current = new Map()
 
-  musicHowls.current = { low: null, med: null, high: null }
+  // Find the loudest victory stem (for onend callback)
+  const loudestStem = victoryStems.reduce((a, b) =>
+    targetVolume(b, intensity, masterVolume) >= targetVolume(a, intensity, masterVolume) ? b : a
+  )
 
-  const volumes = resolveVolumes(intensity, masterVolume)
+  for (const stem of victoryStems) {
+    const track = resolveTrack(stem.trackId)
+    if (!track) continue
 
-  // Find the loudest victory slot for onend callback
-  const loudestSlot =
-    volumes.high > 0 ? "high" : volumes.med > 0 ? "med" : "low"
+    const target = targetVolume(stem, intensity, masterVolume)
+    if (target === 0) continue
 
-  const slots = [
-    { key: "low",  trackUrl: victorySet.lowTrackUrl,  volume: volumes.low  },
-    { key: "med",  trackUrl: victorySet.medTrackUrl,  volume: volumes.med  },
-    { key: "high", trackUrl: victorySet.highTrackUrl, volume: volumes.high },
-  ]
-
-  for (const { key, trackUrl, volume } of slots) {
-    if (!trackUrl || volume === 0) continue
     const howl = new Howl({
-      src: [trackUrl],
+      src: [track.r2Url],
       loop: false,
       volume: 0,
-      onend: key === loudestSlot ? onComplete : undefined,
+      onend: stem._id === loudestStem._id ? () => returnToPreviousMode() : undefined,
     })
     howl.play()
-    howl.fade(0, volume, MUSIC_CROSSFADE_MS)
-    musicHowls.current[key] = howl
+    howl.fade(0, target, STEM_FADE_MS)
+    stemHowls.current.set(stem._id, howl)
   }
+}
+
+function returnToPreviousMode() {
+  // Fade out victory stems
+  for (const howl of stemHowls.current.values()) {
+    howl.fade(howl.volume(), 0, STEM_FADE_MS)
+    setTimeout(() => howl.unload(), STEM_FADE_MS + 100)
+  }
+  stemHowls.current = new Map()
+
+  // Re-activate previous mode from position 0
+  // (previousModeHowls are already unloaded — re-fetch stems and activateMode)
+  activateMode(previousModeStems, currentIntensity, currentMasterVolume)
 }
 ```
 
-`onComplete` fades out the victory Howls and re-activates the previous mode set
-from position 0 at the current intensity.
-
 ### PlayerAudioReceiver
 
-The receiver (`components/session/player-audio-receiver.tsx` or equivalent)
-mirrors the DM engine exactly. It reads `session.musicMode`, `session.musicIntensity`,
-`session.victoryCuedAt`, and `session.masterMusicVolume` from the Convex session
-ref and drives `useAudioEngine` with the same logic. Players hear exactly what the
-DM hears, in sync.
+Mirrors the DM engine exactly. Reads `musicMode`, `musicIntensity`,
+`victoryCuedAt` from the Convex session ref. Players hear the same mix in
+real time.
 
 ---
 
-## UI: `components/session/audio-panel.tsx` — music section
+## UI: `components/session/audio-panel.tsx`
 
-### Mode strip
+### Unchanged from previous spec
 
-Three buttons: **Off** | **Explore** | **Combat**
+- Mode strip: **Off** | **Explore** | **Combat**
+- Intensity slider: 1–5, dual-zone visual fill, rank labels I–V
+- Victory Cue: standalone gold-accent button, disabled when no Victory stems exist
+- Active track display: show names of stems currently audible at this intensity
 
-Victory is not in the strip. Each button sets `musicMode` via
-`updateSessionMusicMode`. Active state: `--scene-accent` background.
+### Stem manager (DM library view, not the session panel)
 
-### Intensity slider
+A separate UI (outside the live session panel) for configuring stems per
+scene+mode. Per stem row:
 
-1–5 step range. Dual-zone visual split at current value.
+- Name field
+- Track picker (from audioTracks where type = "music")
+- Intensity range: two-handle range slider for `intensityMin` / `intensityMax`
+- Sort order drag handle
+- Delete button
 
-```tsx
-const RANK_LABELS = ["I", "II", "III", "IV", "V"]
+This is a pre-session configuration tool, not a live session control.
 
-// Fill percentage: maps 1–5 onto 0–100% in 25% increments
-const fillPct = ((intensity - 1) / 4) * 100
-```
+---
 
-Background gradient:
+## Curation guide impact
 
-```tsx
-style={{
-  background: `linear-gradient(to right,
-    var(--scene-muted) 0%,
-    var(--scene-muted) ${fillPct}%,
-    var(--scene-accent) ${fillPct}%,
-    var(--scene-accent) 100%
-  )`,
-  opacity: 0.4,
-}}
-```
+The audio curation workflow changes significantly for the better:
 
-Label shows current rank (`I` – `V`) to the right of the slider. Slider is
-disabled and visually muted when `musicMode === "off"`.
+- **No more Low/Med/High full mixes** — each stem is a single instrument group
+  exported as its own loop (e.g. just the pads, just the strings, just the drums)
+- **GarageBand workflow**: one project per scene+mode, export each track/group
+  separately rather than three mixed-down versions
+- **Stems are much easier to produce**: mute everything except the target
+  instrument group, export, done
+- **The normalize script still applies** — normalize each stem individually
+  before uploading, but duration matching between stems is no longer required
+  (each stem loops independently)
 
-### Active track display
-
-Below the mode strip, show the names of whichever 1–2 tracks are currently
-audible at the current intensity. Small, muted text — ambient info only.
-
-```tsx
-// e.g. "Whispers of the Fey  ·  Tension Rising" at intensity 2
-const audibleTracks = resolvedTrackNames
-  .filter((_, i) => INTENSITY_MIX[intensity][i] > 0)
-  .join("  ·  ")
-```
-
-### Victory Cue button
-
-Standalone button below the music controls, above the volume sliders. Visually
-distinct — gold/highlight accent. Disabled when no victory set is configured for
-the current scene.
-
-```tsx
-<button
-  onClick={() => triggerVictoryCue({ sessionId })}
-  disabled={!victorySetExists}
-  className="..."
->
-  🏆 Cue Victory
-</button>
-```
+Update `FEYFORGE-AUDIO-CURATION-GUIDE.md` to reflect this.
 
 ---
 
 ## Data flow summary
 
 ```
-── Intensity change ────────────────────────────────────────────
-DM moves slider (1–5)
+── Intensity change ─────────────────────────────────────────────
+DM moves slider to intensity I
+  → debounce 150ms
   → updateSessionMusicIntensity mutation
-  → partySessions.musicIntensity updated
-  → engine calls updateIntensityVolumes()
-  → Howler .volume() called on each of the 3 running Howls
-  → no restart, no seek — tracks stay in sync
+  → engine calls updateStemVolumes()
+  → for each stem: compute targetVolume(stem, I, masterVolume)
+  → if changed: howl.fade(current, target, STEM_FADE_MS)
+  → stems outside their window fade out over 4s
+  → stems entering their window fade in over 4s
 
-── Mode switch ─────────────────────────────────────────────────
+── Mode switch ──────────────────────────────────────────────────
 DM taps Explore / Combat / Off
   → updateSessionMusicMode mutation
   → engine calls switchMode()
-  → outgoing Howls fade out over MUSIC_CROSSFADE_MS
-  → incoming Howls start at position 0, fade in at current intensity volumes
-  → outgoing Howls destroyed after fade
+  → outgoing stems fade out over STEM_FADE_MS, destroyed after
+  → incoming stems start at position 0, fade to intensity volumes
 
-── Victory cue ─────────────────────────────────────────────────
+── Victory cue ──────────────────────────────────────────────────
 DM taps Cue Victory
-  → triggerVictoryCue mutation
-  → partySessions.victoryCuedAt = Date.now()
+  → triggerVictoryCue mutation → victoryCuedAt = Date.now()
   → engine detects change, calls triggerVictory()
-  → current mode Howls fade out
-  → victory Howls start (loop: false) at intensity volumes
-  → loudest victory Howl onend → fade out victory, re-activate previous mode
+  → current mode stems fade out
+  → victory stems start (loop: false) at intensity volumes
+  → loudest stem onend → returnToPreviousMode()
 
-── Player receiver ─────────────────────────────────────────────
+── Player receiver ──────────────────────────────────────────────
 Reads musicMode, musicIntensity, victoryCuedAt from session
   → mirrors DM engine exactly
-  → players hear same blend in real time
 ```
 
 ---
 
 ## Out of scope (MVP)
 
-- Per-track volume trim (normalize loud/quiet tracks before they go into the mix)
+- Per-stem volume trim offset (normalize at upload time instead)
 - BPM sync / beat-matched crossfades
-- Looping from a defined loop point (currently always loops from position 0)
-- Configurable crossfade duration per scene
-- Playlist / track rotation (same 3 tracks loop indefinitely for now)
+- Configurable fade duration per scene or per stem
+- Playlist / stem rotation
+- Stem preview in the stem manager UI

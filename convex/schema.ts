@@ -512,6 +512,12 @@ export default defineSchema({
     intensityTier: v.union(v.literal("explore"), v.literal("combat"), v.null()),
     intensityRank: v.optional(v.number()),
     approved: v.optional(v.boolean()),
+    // Admin review status — pending → approved or rejected
+    status: v.optional(v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"))),
+    // Original filename from bulk upload (used as label in review UI)
+    originalFilename: v.optional(v.string()),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.string()),
     // Array of scene tags for multi-scene applicability
     sceneTag: v.optional(v.array(v.string())),
     // Curation tier: "free" = all users, "premium" = Ko-fi subscribers only
@@ -524,7 +530,9 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_type", ["type"])
-    .index("by_uploadedBy", ["uploadedBy"]),
+    .index("by_uploadedBy", ["uploadedBy"])
+    .index("by_status", ["status"])
+    .index("by_r2Key", ["r2Key"]),
 
   ambienceLayers: defineTable({
     userId: v.string(),
@@ -594,7 +602,8 @@ export default defineSchema({
 
   musicStems: defineTable({
     userId: v.string(),
-    campaignId: v.id("campaigns"),
+    // undefined = global (not campaign-scoped); campaignId = campaign-specific
+    campaignId: v.optional(v.id("campaigns")),
     sceneName: v.string(),
     mode: v.union(
       v.literal("explore"),
@@ -609,5 +618,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"])
-    .index("by_campaignId_sceneName_and_mode", ["campaignId", "sceneName", "mode"]),
+    .index("by_campaignId_sceneName_and_mode", ["campaignId", "sceneName", "mode"])
+    // Used to query global (non-campaign-scoped) stems by scene+mode
+    .index("by_sceneName_mode_and_campaignId", ["sceneName", "mode", "campaignId"]),
 })

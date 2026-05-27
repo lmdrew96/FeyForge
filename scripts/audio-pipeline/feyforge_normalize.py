@@ -68,32 +68,44 @@ def process_set(set_dir: Path, output_dir: Path) -> None:
     dest = output_dir / set_dir.name
     dest.mkdir(parents=True, exist_ok=True)
 
-    durations = {}
+    # Pass 1 — Load, trim silence, normalize
+    processed: dict[str, AudioSegment] = {}
     for variant_name in ["low", "med", "high"]:
         src = variants[variant_name]
-        print(f"    Processing {variant_name}: {src.name}")
-
+        print(f"    Loading {variant_name}: {src.name}")
         audio = AudioSegment.from_file(str(src))
         audio = trim_trailing_silence(audio)
         audio = normalize(audio, headroom=(0 - TARGET_PEAK_DBFS))
+        processed[variant_name] = audio
 
+    # Pass 2 — Sync durations to shortest variant
+    durations = {name: len(audio) for name, audio in processed.items()}
+    shortest_ms = min(durations.values())
+    longest_ms = max(durations.values())
+    spread = longest_ms - shortest_ms
+
+    if spread > DURATION_TOLERANCE_MS:
+        print(f"    ⚠️   Duration spread {spread}ms exceeds tolerance — likely GarageBand reverb tails. "
+              f"Safe to ignore if tracks loop cleanly. Auto-trimming now.")
+    elif spread > 0:
+        print(f"    ℹ️   Duration spread {spread}ms — auto-trimming to sync.")
+
+    for variant_name in ["low", "med", "high"]:
+        original_ms = durations[variant_name]
+        if original_ms > shortest_ms:
+            trimmed_by = original_ms - shortest_ms
+            processed[variant_name] = processed[variant_name][:shortest_ms]
+            print(f"    ✂️   Trimmed {variant_name} by {trimmed_by}ms "
+                  f"({original_ms/1000:.1f}s → {shortest_ms/1000:.1f}s)")
+
+    # Pass 3 — Export
+    for variant_name in ["low", "med", "high"]:
+        audio = processed[variant_name]
         out_path = dest / f"{variant_name}.mp3"
         audio.export(str(out_path), format="mp3", bitrate="320k")
-        durations[variant_name] = len(audio)
         print(f"    ✅  {variant_name}.mp3 — {len(audio)/1000:.1f}s, peak: {audio.max_dBFS:.1f}dBFS")
 
-    # Duration check
-    durations_ms = list(durations.values())
-    spread = max(durations_ms) - min(durations_ms)
-    if spread > DURATION_TOLERANCE_MS:
-        print(f"    ⚠️   Duration mismatch: low={durations['low']/1000:.1f}s, "
-              f"med={durations['med']/1000:.1f}s, high={durations['high']/1000:.1f}s")
-        print(f"         Variants should be the same length for clean blending.")
-        print(f"         Trim loop points in GarageBand before uploading.")
-    else:
-        print(f"    ✅  Durations consistent (within {spread}ms)")
-
-    print(f"    📁  Saved to: {dest}")
+    print(f"    📁  Saved to: {dest} — shared duration: {shortest_ms/1000:.1f}s")
 
 
 def main():
