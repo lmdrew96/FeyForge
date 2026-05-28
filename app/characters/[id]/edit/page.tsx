@@ -19,10 +19,45 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ALIGNMENTS } from "@/lib/character/constants"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2 } from "lucide-react"
 import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 type CharDoc = Doc<"characters">
+
+type TraitSuggestion = {
+  personalityTraits: string[]
+  ideals: string[]
+  bonds: string[]
+  flaws: string[]
+  namesuggestions: string[]
+  backstoryHooks: string[]
+}
+
+type OptimizeRecommendation = {
+  type: "asi" | "feat" | "multiclass"
+  name: string
+  description: string
+  reason: string
+  mechanicalBenefit: string
+  synergies: string[]
+  alternative?: { name: string; reason: string }
+}
+
+type OptimizeResponse = {
+  recommendations: OptimizeRecommendation[]
+  generalAdvice: string
+  spellRecommendations?: string[]
+  combatTips?: string[]
+}
 
 type EditState = {
   name: string
@@ -118,6 +153,13 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
   const [draft, setDraft] = useState<EditState | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const [generatingBackstory, setGeneratingBackstory] = useState(false)
+  const [suggestingTraits, setSuggestingTraits] = useState(false)
+  const [traitSuggestions, setTraitSuggestions] = useState<TraitSuggestion | null>(null)
+  const [optimizing, setOptimizing] = useState(false)
+  const [optimizeResponse, setOptimizeResponse] = useState<OptimizeResponse | null>(null)
+  const [optimizeOpen, setOptimizeOpen] = useState(false)
+
   // Initialize draft once the character loads. We only seed on first load —
   // subsequent updates from the live query shouldn't overwrite in-flight edits.
   useEffect(() => {
@@ -163,6 +205,99 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
 
   const setField = <K extends keyof EditState>(key: K, value: EditState[K]) => {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
+  }
+
+  const handleGenerateBackstory = async () => {
+    setGeneratingBackstory(true)
+    try {
+      const res = await fetch("/api/character/generate-backstory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: draft.name,
+          race: char.race,
+          characterClass: char.characterClass,
+          background: draft.background,
+          alignment: draft.alignment,
+          personality: draft.personalityTraits || undefined,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to generate backstory")
+      const data = (await res.json()) as { backstory?: string }
+      if (data.backstory) setField("backstory", data.backstory)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't generate backstory.")
+    } finally {
+      setGeneratingBackstory(false)
+    }
+  }
+
+  const handleSuggestTraits = async () => {
+    setSuggestingTraits(true)
+    try {
+      const res = await fetch("/api/character/suggest-traits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          race: char.race,
+          class: char.characterClass,
+          background: draft.background,
+          alignment: draft.alignment,
+          partialBackstory: draft.backstory || undefined,
+          existingTraits: {
+            personalityTraits: draft.personalityTraits || undefined,
+            ideals: draft.ideals || undefined,
+            bonds: draft.bonds || undefined,
+            flaws: draft.flaws || undefined,
+          },
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to suggest traits")
+      const data = (await res.json()) as { suggestion?: TraitSuggestion }
+      if (data.suggestion) setTraitSuggestions(data.suggestion)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't suggest traits.")
+    } finally {
+      setSuggestingTraits(false)
+    }
+  }
+
+  const handleOptimize = async () => {
+    setOptimizing(true)
+    setOptimizeOpen(true)
+    setOptimizeResponse(null)
+    try {
+      const racialBonuses = char.racialBonuses ?? {}
+      const currentAbilities = {
+        strength: char.baseAbilities.strength + (racialBonuses.strength ?? 0),
+        dexterity: char.baseAbilities.dexterity + (racialBonuses.dexterity ?? 0),
+        constitution: char.baseAbilities.constitution + (racialBonuses.constitution ?? 0),
+        intelligence: char.baseAbilities.intelligence + (racialBonuses.intelligence ?? 0),
+        wisdom: char.baseAbilities.wisdom + (racialBonuses.wisdom ?? 0),
+        charisma: char.baseAbilities.charisma + (racialBonuses.charisma ?? 0),
+      }
+      const res = await fetch("/api/character/optimize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          race: char.race,
+          class: char.characterClass,
+          subclass: char.subclass,
+          level: char.level,
+          upcomingLevel: Math.min(20, char.level + 1),
+          currentAbilities,
+          skillProficiencies: char.skillProficiencies,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to fetch advice")
+      const data = (await res.json()) as OptimizeResponse
+      setOptimizeResponse(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't fetch level-up advice.")
+      setOptimizeOpen(false)
+    } finally {
+      setOptimizing(false)
+    }
   }
 
   const handleSave = async () => {
@@ -454,7 +589,28 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="char-backstory">Backstory</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="char-backstory">Backstory</Label>
+                <button
+                  type="button"
+                  onClick={handleGenerateBackstory}
+                  disabled={generatingBackstory}
+                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-opacity hover:opacity-80 disabled:opacity-50"
+                  style={{
+                    background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))",
+                    color: "var(--scene-accent)",
+                    border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, var(--scene-border))",
+                  }}
+                  title="Generate a backstory from your character's details"
+                >
+                  {generatingBackstory ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  {generatingBackstory ? "Writing…" : "AI generate"}
+                </button>
+              </div>
               <Textarea
                 id="char-backstory"
                 rows={5}
@@ -462,6 +618,62 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setField("backstory", e.target.value)}
               />
             </div>
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                Stuck on traits, ideals, bonds, or flaws? Ask the AI for ideas tailored to your build.
+              </p>
+              <button
+                type="button"
+                onClick={handleSuggestTraits}
+                disabled={suggestingTraits}
+                className="shrink-0 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-opacity hover:opacity-80 disabled:opacity-50"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))",
+                  color: "var(--scene-accent)",
+                  border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, var(--scene-border))",
+                }}
+              >
+                {suggestingTraits ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {suggestingTraits ? "Thinking…" : "Suggest traits"}
+              </button>
+            </div>
+          </div>
+        </FieldGroup>
+
+        <FieldGroup title="Level-up advisor">
+          <div className="flex items-start gap-3">
+            <Wand2 className="h-5 w-5 mt-0.5 shrink-0" style={{ color: "var(--scene-accent)" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm" style={{ color: "var(--scene-text-primary)" }}>
+                Get ASI, feat, and multiclass recommendations tailored to{" "}
+                <strong>{char.name}</strong> for level {Math.min(20, char.level + 1)}.
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--scene-text-muted)" }}>
+                Suggestions are advisory — apply them via the level field above when you&rsquo;re ready.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOptimize}
+              disabled={optimizing}
+              className="shrink-0 inline-flex items-center gap-1.5 text-sm px-3 py-2 rounded-md transition-opacity hover:opacity-80 disabled:opacity-50"
+              style={{
+                background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))",
+                color: "var(--scene-accent)",
+                border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, var(--scene-border))",
+              }}
+            >
+              {optimizing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {optimizing ? "Thinking…" : "Get advice"}
+            </button>
           </div>
         </FieldGroup>
 
@@ -497,6 +709,245 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
           </Button>
         </div>
       </div>
+
+      <Dialog
+        open={traitSuggestions !== null}
+        onOpenChange={(open) => !open && setTraitSuggestions(null)}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Trait suggestions</DialogTitle>
+            <DialogDescription>
+              Click any option to apply it to your character. Suggestions are tailored to your race,
+              class, background, and current backstory.
+            </DialogDescription>
+          </DialogHeader>
+          {traitSuggestions && (
+            <div className="space-y-5">
+              {(
+                [
+                  ["Personality traits", "personalityTraits", "personalityTraits"],
+                  ["Ideals", "ideals", "ideals"],
+                  ["Bonds", "bonds", "bonds"],
+                  ["Flaws", "flaws", "flaws"],
+                ] as const
+              ).map(([label, key, field]) => {
+                const options = traitSuggestions[key]
+                if (!options?.length) return null
+                return (
+                  <section key={key}>
+                    <h3
+                      className="text-xs uppercase tracking-widest mb-2"
+                      style={{ color: "var(--scene-text-muted)" }}
+                    >
+                      {label}
+                    </h3>
+                    <div className="space-y-2">
+                      {options.map((option, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setField(field as keyof EditState, option as EditState[keyof EditState])
+                            toast.success(`Applied to ${label.toLowerCase()}.`)
+                          }}
+                          className="w-full text-left rounded-lg p-3 text-sm flex items-start gap-2 transition-opacity hover:opacity-80"
+                          style={{
+                            background: "var(--scene-surface)",
+                            border: "1px solid var(--scene-border)",
+                            color: "var(--scene-text-primary)",
+                          }}
+                        >
+                          <span className="flex-1">{option}</span>
+                          <ChevronRight
+                            className="h-4 w-4 mt-0.5 shrink-0"
+                            style={{ color: "var(--scene-text-muted)" }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )
+              })}
+              {traitSuggestions.backstoryHooks?.length > 0 && (
+                <section>
+                  <h3
+                    className="text-xs uppercase tracking-widest mb-2"
+                    style={{ color: "var(--scene-text-muted)" }}
+                  >
+                    Backstory hooks
+                  </h3>
+                  <ul
+                    className="rounded-lg p-3 space-y-1.5 text-sm list-disc list-inside"
+                    style={{
+                      background: "var(--scene-surface)",
+                      border: "1px solid var(--scene-border)",
+                      color: "var(--scene-text-primary)",
+                    }}
+                  >
+                    {traitSuggestions.backstoryHooks.map((hook, i) => (
+                      <li key={i}>{hook}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTraitSuggestions(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={optimizeOpen} onOpenChange={setOptimizeOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Level {Math.min(20, char.level + 1)} advisor
+            </DialogTitle>
+            <DialogDescription>
+              Recommendations for {char.name} based on current build and ability scores.
+            </DialogDescription>
+          </DialogHeader>
+          {optimizing && (
+            <div className="flex items-center gap-3 py-6" style={{ color: "var(--scene-text-muted)" }}>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Analysing the build…</span>
+            </div>
+          )}
+          {optimizeResponse && !optimizing && (
+            <div className="space-y-5">
+              {optimizeResponse.recommendations.length === 0 && (
+                <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                  {optimizeResponse.generalAdvice}
+                </p>
+              )}
+              {optimizeResponse.recommendations.map((rec, i) => (
+                <section
+                  key={i}
+                  className="rounded-lg p-4"
+                  style={{
+                    background: "var(--scene-surface)",
+                    border: "1px solid var(--scene-border)",
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className="text-xs uppercase tracking-widest px-2 py-0.5 rounded-full"
+                      style={{
+                        background: "color-mix(in srgb, var(--scene-accent) 18%, transparent)",
+                        color: "var(--scene-accent)",
+                      }}
+                    >
+                      {rec.type}
+                    </span>
+                    <h3 className="font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+                      {rec.name}
+                    </h3>
+                  </div>
+                  <p className="text-sm mb-2" style={{ color: "var(--scene-text-primary)" }}>
+                    {rec.description}
+                  </p>
+                  <p className="text-sm mb-2" style={{ color: "var(--scene-text-muted)" }}>
+                    <strong>Why: </strong>
+                    {rec.reason}
+                  </p>
+                  <p className="text-sm mb-2" style={{ color: "var(--scene-text-muted)" }}>
+                    <strong>Benefit: </strong>
+                    {rec.mechanicalBenefit}
+                  </p>
+                  {rec.synergies?.length > 0 && (
+                    <div className="text-sm mb-1" style={{ color: "var(--scene-text-muted)" }}>
+                      <strong>Synergies:</strong>
+                      <ul className="list-disc list-inside ml-2">
+                        {rec.synergies.map((s, j) => (
+                          <li key={j}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {rec.alternative && (
+                    <p className="text-xs mt-2" style={{ color: "var(--scene-text-muted)" }}>
+                      <em>Alternative — {rec.alternative.name}: {rec.alternative.reason}</em>
+                    </p>
+                  )}
+                </section>
+              ))}
+              {optimizeResponse.generalAdvice && optimizeResponse.recommendations.length > 0 && (
+                <section>
+                  <h3
+                    className="text-xs uppercase tracking-widest mb-2"
+                    style={{ color: "var(--scene-text-muted)" }}
+                  >
+                    General advice
+                  </h3>
+                  <div
+                    className="text-sm rounded-lg p-3"
+                    style={{
+                      background: "var(--scene-surface)",
+                      border: "1px solid var(--scene-border)",
+                      color: "var(--scene-text-primary)",
+                    }}
+                  >
+                    <MarkdownRenderer content={optimizeResponse.generalAdvice} />
+                  </div>
+                </section>
+              )}
+              {optimizeResponse.spellRecommendations?.length ? (
+                <section>
+                  <h3
+                    className="text-xs uppercase tracking-widest mb-2"
+                    style={{ color: "var(--scene-text-muted)" }}
+                  >
+                    Spell picks
+                  </h3>
+                  <ul
+                    className="rounded-lg p-3 space-y-1.5 text-sm list-disc list-inside"
+                    style={{
+                      background: "var(--scene-surface)",
+                      border: "1px solid var(--scene-border)",
+                      color: "var(--scene-text-primary)",
+                    }}
+                  >
+                    {optimizeResponse.spellRecommendations.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {optimizeResponse.combatTips?.length ? (
+                <section>
+                  <h3
+                    className="text-xs uppercase tracking-widest mb-2"
+                    style={{ color: "var(--scene-text-muted)" }}
+                  >
+                    Combat tips
+                  </h3>
+                  <ul
+                    className="rounded-lg p-3 space-y-1.5 text-sm list-disc list-inside"
+                    style={{
+                      background: "var(--scene-surface)",
+                      border: "1px solid var(--scene-border)",
+                      color: "var(--scene-text-primary)",
+                    }}
+                  >
+                    {optimizeResponse.combatTips.map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOptimizeOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   )
 }

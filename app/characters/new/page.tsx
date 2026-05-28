@@ -5,16 +5,67 @@ import { useRouter } from "next/navigation"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { AppShell } from "@/components/app-shell"
-import { Wand2, Dice6, BookOpen, ArrowLeft, RefreshCw, Check } from "lucide-react"
+import { Wand2, Dice6, BookOpen, ArrowLeft, RefreshCw, Check, Sparkles, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import {
+  RACES,
+  CLASSES,
+  BACKGROUNDS,
   quickRollCharacter,
   generateName,
   type QuickRollResult,
 } from "@/lib/character/character-data"
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
+import type { Ability } from "@/lib/character/constants"
 import { NormalBuilder } from "./normal-builder"
 import { GuidedFlow } from "./guided-flow"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/ui/button"
+
+type BuildSuggestion = {
+  race: string
+  subrace?: string
+  raceReason: string
+  class: string
+  subclass?: string
+  classReason: string
+  background: string
+  backgroundReason: string
+  abilityPriority: string[]
+  suggestedAbilities: Record<Ability, number>
+  keySynergies: string[]
+  playstyleTips: string[]
+  levelProgression: string
+}
+
+const findRace = (name: string) => {
+  const lower = name.toLowerCase()
+  return RACES.find((r) => r.name.toLowerCase() === lower)
+}
+const findSubrace = (raceName: string, subraceName?: string) => {
+  if (!subraceName) return undefined
+  const race = findRace(raceName)
+  const lower = subraceName.toLowerCase()
+  return race?.subraces?.find((s) => s.name.toLowerCase() === lower)
+}
+const findClass = (name: string) => {
+  const lower = name.toLowerCase()
+  return CLASSES.find((c) => c.name.toLowerCase() === lower)
+}
+const findBackground = (name: string) => {
+  const lower = name.toLowerCase()
+  return BACKGROUNDS.find((b) => b.name.toLowerCase() === lower)
+}
 
 type CreationMode = "choose" | "quick-roll-preview" | "guided" | "normal"
 
@@ -26,6 +77,15 @@ const CHOICE_CARDS = [
     subtitle: "A hero in 60 seconds",
     description: "Let fate decide. We'll roll your stats, pick a race and class, and hand you a ready-to-play character.",
     accent: "var(--scene-accent)",
+    available: true,
+  },
+  {
+    id: "concept",
+    icon: Sparkles,
+    title: "From Concept",
+    subtitle: "Describe your hero",
+    description: "Type a few sentences about who they are. We'll let AI suggest a build that fits the vision.",
+    accent: "var(--scene-highlight)",
     available: true,
   },
   {
@@ -264,6 +324,11 @@ export default function NewCharacterPage() {
   const [rolled, setRolled] = useState<QuickRollResult | null>(null)
   const [rollCount, setRollCount] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [conceptOpen, setConceptOpen] = useState(false)
+  const [conceptText, setConceptText] = useState("")
+  const [conceptName, setConceptName] = useState("")
+  const [generatingBuild, setGeneratingBuild] = useState(false)
+  const [buildSuggestion, setBuildSuggestion] = useState<BuildSuggestion | null>(null)
 
   const handleQuickRoll = () => {
     setRolled(quickRollCharacter())
@@ -322,6 +387,102 @@ export default function NewCharacterPage() {
     saveCharacter({ ...rolled, name: editedName })
   }
 
+  const handleGenerateBuild = async () => {
+    if (!conceptText.trim()) {
+      toast.error("Describe your concept first.")
+      return
+    }
+    setGeneratingBuild(true)
+    setBuildSuggestion(null)
+    try {
+      const res = await fetch("/api/character/suggest-build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concept: conceptText.trim() }),
+      })
+      if (!res.ok) throw new Error("Failed to generate a build")
+      const data = (await res.json()) as { suggestion?: BuildSuggestion }
+      if (!data.suggestion) throw new Error("No build returned")
+      setBuildSuggestion(data.suggestion)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't generate a build.")
+    } finally {
+      setGeneratingBuild(false)
+    }
+  }
+
+  const handleAcceptBuild = async () => {
+    if (!buildSuggestion) return
+    const race = findRace(buildSuggestion.race)
+    const cls = findClass(buildSuggestion.class)
+    const background = findBackground(buildSuggestion.background)
+    if (!race || !cls || !background) {
+      toast.error(
+        `AI suggested ${[
+          !race && `race "${buildSuggestion.race}"`,
+          !cls && `class "${buildSuggestion.class}"`,
+          !background && `background "${buildSuggestion.background}"`,
+        ]
+          .filter(Boolean)
+          .join(", ")}, which we don't recognise. Try regenerating.`,
+      )
+      return
+    }
+    const subrace = findSubrace(buildSuggestion.race, buildSuggestion.subrace)
+    const finalName = conceptName.trim() || generateName(race.id)
+
+    const racialBonuses: Partial<Record<Ability, number>> = {}
+    const merge = (src?: Partial<Record<Ability, number>>) => {
+      if (!src) return
+      for (const [k, v] of Object.entries(src) as [Ability, number][]) {
+        racialBonuses[k] = (racialBonuses[k] ?? 0) + v
+      }
+    }
+    merge(race.abilityBonuses)
+    merge(subrace?.abilityBonuses)
+
+    const baseAbilities = buildSuggestion.suggestedAbilities
+    const conTotal = baseAbilities.constitution + (racialBonuses.constitution ?? 0)
+    const conMod = Math.floor((conTotal - 10) / 2)
+    const hitDie = CLASS_HIT_DICE[cls.id] ?? 8
+    const maxHp = hitDie + conMod
+
+    setSaving(true)
+    try {
+      await createCharacter({
+        name: finalName,
+        race: race.name,
+        subrace: subrace?.name,
+        characterClass: cls.name,
+        subclass: buildSuggestion.subclass || undefined,
+        level: 1,
+        experiencePoints: 0,
+        background: background.name,
+        baseAbilities,
+        racialBonuses: Object.keys(racialBonuses).length > 0 ? racialBonuses : undefined,
+        hitPoints: { current: maxHp, max: maxHp, temp: 0 },
+        hitDice: [{ diceSize: hitDie, total: 1, used: 0 }],
+        deathSaves: { successes: 0, failures: 0 },
+        speed: subrace?.speed ?? race.speed,
+        inspiration: false,
+        savingThrowProficiencies: cls.savingThrows,
+        skillProficiencies: background.skillProficiencies,
+        skillExpertise: [],
+        armorProficiencies: cls.armorProficiencies,
+        weaponProficiencies: cls.weaponProficiencies,
+        toolProficiencies: cls.toolProficiencies,
+        languages: race.languages,
+        currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+      })
+      toast.success(`${finalName} is ready to adventure!`)
+      setConceptOpen(false)
+      router.push("/characters")
+    } catch {
+      toast.error("Failed to save character. Please try again.")
+      setSaving(false)
+    }
+  }
+
   return (
     <AppShell>
       <div className="p-4 sm:p-6 max-w-4xl mx-auto">
@@ -355,7 +516,7 @@ export default function NewCharacterPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {CHOICE_CARDS.map((card) => {
                 const Icon = card.icon
                 return (
@@ -367,6 +528,12 @@ export default function NewCharacterPage() {
                         return
                       }
                       if (card.id === "quick-roll") handleQuickRoll()
+                      if (card.id === "concept") {
+                        setBuildSuggestion(null)
+                        setConceptText("")
+                        setConceptName("")
+                        setConceptOpen(true)
+                      }
                       if (card.id === "guided") setMode("guided")
                       if (card.id === "normal") setMode("normal")
                     }}
@@ -473,6 +640,157 @@ export default function NewCharacterPage() {
           </>
         )}
       </div>
+
+      <Dialog open={conceptOpen} onOpenChange={setConceptOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Build from a concept</DialogTitle>
+            <DialogDescription>
+              Describe who your character is in a few sentences. We&rsquo;ll suggest a race, class,
+              background, and ability scores that match.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="concept-text">Concept</Label>
+              <Textarea
+                id="concept-text"
+                rows={4}
+                value={conceptText}
+                onChange={(e) => setConceptText(e.target.value)}
+                placeholder="A retired pirate trying to atone for a betrayed crew. Quiet, tough, used to surviving on the sea."
+                disabled={generatingBuild || saving}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="concept-name">Name (optional)</Label>
+              <Input
+                id="concept-name"
+                value={conceptName}
+                onChange={(e) => setConceptName(e.target.value)}
+                placeholder="Leave blank for a generated name"
+                disabled={generatingBuild || saving}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleGenerateBuild} disabled={generatingBuild || saving}>
+                {generatingBuild ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Thinking…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Generate build
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {buildSuggestion && (
+              <div
+                className="rounded-xl p-4 space-y-3"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-accent) 6%, var(--scene-surface))",
+                  border: "1px solid color-mix(in srgb, var(--scene-accent) 20%, var(--scene-border))",
+                }}
+              >
+                <div>
+                  <h3
+                    className="font-bold text-base"
+                    style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+                  >
+                    {buildSuggestion.subrace
+                      ? `${buildSuggestion.subrace} ${buildSuggestion.race}`
+                      : buildSuggestion.race}{" "}
+                    · {buildSuggestion.class}
+                    {buildSuggestion.subclass ? ` (${buildSuggestion.subclass})` : ""}
+                  </h3>
+                  <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                    Background: {buildSuggestion.background}
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+                  {(
+                    ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as const
+                  ).map((a) => (
+                    <div
+                      key={a}
+                      className="rounded-md py-2"
+                      style={{
+                        background: "var(--scene-surface)",
+                        border: "1px solid var(--scene-border)",
+                      }}
+                    >
+                      <div
+                        className="text-xs uppercase tracking-widest"
+                        style={{ color: "var(--scene-text-muted)" }}
+                      >
+                        {a.slice(0, 3).toUpperCase()}
+                      </div>
+                      <div
+                        className="text-base font-bold"
+                        style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+                      >
+                        {buildSuggestion.suggestedAbilities[a]}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1 text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                  <p>
+                    <strong style={{ color: "var(--scene-text-primary)" }}>Race: </strong>
+                    {buildSuggestion.raceReason}
+                  </p>
+                  <p>
+                    <strong style={{ color: "var(--scene-text-primary)" }}>Class: </strong>
+                    {buildSuggestion.classReason}
+                  </p>
+                  <p>
+                    <strong style={{ color: "var(--scene-text-primary)" }}>Background: </strong>
+                    {buildSuggestion.backgroundReason}
+                  </p>
+                </div>
+                {buildSuggestion.keySynergies?.length > 0 && (
+                  <div className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                    <strong style={{ color: "var(--scene-text-primary)" }}>Synergies:</strong>
+                    <ul className="list-disc list-inside ml-2">
+                      {buildSuggestion.keySynergies.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {buildSuggestion.playstyleTips?.length > 0 && (
+                  <div className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                    <strong style={{ color: "var(--scene-text-primary)" }}>Tips:</strong>
+                    <ul className="list-disc list-inside ml-2">
+                      {buildSuggestion.playstyleTips.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConceptOpen(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            {buildSuggestion && (
+              <Button onClick={handleAcceptBuild} disabled={saving}>
+                {saving ? "Saving…" : "Use this build"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   )
 }

@@ -48,6 +48,7 @@ const navItems: NavItem[] = [
     icon: Swords,
     children: [
       { label: "NPCs", href: "/dm/npcs", icon: Users },
+      { label: "Sessions", href: "/sessions", icon: ScrollText },
       { label: "Story Web", href: "/dm/campaign-web", icon: Network },
       { label: "Scenes", href: "/dm/scenes", icon: Map },
       { label: "Audio Library", href: "/dm/library", icon: Music },

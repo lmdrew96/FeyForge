@@ -11,7 +11,8 @@ import {
   getAbilityModifier,
   formatModifier,
 } from "@/lib/character/constants"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Sparkles, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -175,6 +176,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   const [raceId, setRaceId] = useState("")
   const [subraceId, setSubraceId] = useState("")
   const [backgroundId, setBackgroundId] = useState("")
+  const [suggestingName, setSuggestingName] = useState(false)
   const [method, setMethod] = useState<AbilityMethod>("standard-array")
   const [assignments, setAssignments] = useState<Assignments>({
     strength: 0, dexterity: 0, constitution: 0,
@@ -242,6 +244,24 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   const handleClassChange = (id: string) => {
     setClassId(id)
     setSelectedSkills([])
+  }
+
+  const handleSuggestName = async () => {
+    setSuggestingName(true)
+    try {
+      const res = await fetch("/api/character/generate-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ race: race?.name, characterClass: cls?.name }),
+      })
+      if (!res.ok) throw new Error("Failed to suggest a name")
+      const data = (await res.json()) as { name?: string }
+      if (data.name) setName(data.name)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't suggest a name.")
+    } finally {
+      setSuggestingName(false)
+    }
   }
 
   const handleRaceChange = (id: string) => {
@@ -316,17 +336,38 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
         >
           Character Name
         </label>
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="What do they call you?"
-          className="w-full px-4 py-3 rounded-xl text-lg font-medium bg-transparent outline-none"
-          style={{
-            border: "1px solid var(--scene-border)",
-            color: "var(--scene-text-primary)",
-            fontFamily: "var(--font-cinzel)",
-          }}
-        />
+        <div className="flex gap-2">
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="What do they call you?"
+            className="flex-1 px-4 py-3 rounded-xl text-lg font-medium bg-transparent outline-none"
+            style={{
+              border: "1px solid var(--scene-border)",
+              color: "var(--scene-text-primary)",
+              fontFamily: "var(--font-cinzel)",
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleSuggestName}
+            disabled={suggestingName}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-3 rounded-xl text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+            style={{
+              background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))",
+              color: "var(--scene-accent)",
+              border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, var(--scene-border))",
+            }}
+            title="Suggest a name with AI"
+          >
+            {suggestingName ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">Suggest</span>
+          </button>
+        </div>
       </section>
 
       {/* ── Class ────────────────────────────────────────────────────────────── */}
