@@ -13,6 +13,7 @@ import {
   ScrollText,
   Dices,
   BookOpen,
+  BookMarked,
   ChevronDown,
   ChevronRight,
   UserSquare2,
@@ -38,6 +39,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Campaigns", href: "/campaigns", icon: BookMarked },
   { label: "Characters", href: "/characters", icon: UserSquare2 },
   { label: "Live Session", href: "/session", icon: Sparkles },
   {

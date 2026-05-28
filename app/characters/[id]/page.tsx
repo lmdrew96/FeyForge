@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Shield, Zap, Wind } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -231,15 +231,29 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     <AppShell>
       <div className="p-4 sm:p-6 max-w-4xl mx-auto pb-12">
 
-        {/* Back */}
-        <Link
-          href="/characters"
-          className="inline-flex items-center gap-2 text-sm mb-6 transition-opacity hover:opacity-80"
-          style={{ color: "var(--scene-text-muted)" }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to characters
-        </Link>
+        {/* Back + Edit */}
+        <div className="flex items-center justify-between mb-6">
+          <Link
+            href="/characters"
+            className="inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-80"
+            style={{ color: "var(--scene-text-muted)" }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to characters
+          </Link>
+          <Link
+            href={`/characters/${char._id}/edit`}
+            className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-opacity hover:opacity-80"
+            style={{
+              background: "var(--scene-surface)",
+              color: "var(--scene-text-primary)",
+              border: "1px solid var(--scene-border)",
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </Link>
+        </div>
 
         {/* Header */}
         <div
