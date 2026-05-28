@@ -12,7 +12,7 @@ A comprehensive D&D 5e campaign management tool built with Next.js and Convex, f
 - **Session Management** — Log sessions, track plot threads, objectives, and XP
 - **Live Party Sessions** — Real-time shared sessions where players join and DMs broadcast scenes
 - **Campaign Web** — Interactive node graph for mapping NPC/location/faction relationships
-- **Audio Engine** — Synchronized ambient audio with explore/combat tiers, scene presets, and Ko-fi premium tracks
+- **Audio Engine** — Synchronized adaptive music with sample-perfect stem sync (Web Audio API), layered ambience, explore/combat/victory modes, and Ko-fi premium tracks
 - **Codex** — Browse spells, monsters, and items from the Open5e API
 - **NPC Generator** — Create and manage NPCs with full stat blocks and AI assistance
 - **Dice Roller** — Full-featured dice roller with history and saved rolls
@@ -60,7 +60,6 @@ pnpm install
 | `R2_SECRET_ACCESS_KEY` | R2 secret key | Yes |
 | `R2_BUCKET_NAME` | R2 bucket name for audio storage | Yes |
 | `R2_PUBLIC_URL` | Public base URL for R2 bucket | Yes |
-| `SEED_SECRET` | Secret to gate the audio seed script | Dev |
 
 Clerk also requires `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` set automatically via the Clerk dashboard integration, and Convex requires `CONVEX_DEPLOYMENT` (set by `npx convex dev`).
 
@@ -93,16 +92,18 @@ pnpm db:push
 | `npcs` | Campaign NPCs with stat blocks |
 | `gameSessions` | Session logs with objectives, encounters, and XP |
 | `gameSessionNotes` | DM notes attached to a game session |
-| `partySessions` | Live real-time party sessions (DM-hosted) |
+| `partySessions` | Live real-time party sessions — DM-hosted, includes audio sync and scene state |
 | `sessionNotes` | Per-user notes within a live party session |
 | `partyMembers` | Players joined to a live session with their characters |
 | `partyInventory` | Shared party loot during a live session |
-| `partySessions` | Live session state including audio sync and scene |
 | `campaignScenes` | Custom scene presets with color palette |
-| `campaignSceneAudio` | Per-scene audio track assignments |
 | `campaignWebNodes` / `campaignWebEdges` | Campaign relationship graph nodes and edges |
 | `audioTracks` | Curated audio library (free + premium tiers) |
 | `libraryReviewComments` | Admin review reactions on audio tracks |
+| `musicStems` | Stem assignments per scene+mode with intensity windows (1–5) |
+| `ambienceLayers` | Named audio layers (environment/weather/creature) for layered ambience |
+| `ambiencePresets` | Saved layer configurations per scene variation |
+| `campaignSceneAudio` | Per-scene legacy audio track assignments |
 | `dmConversations` | Saved AI DM Assistant conversation threads |
 | `wikiEntries` | Campaign wiki articles |
 | `worldMaps` / `mapPins` / `mapLocations` | World map data |
@@ -117,7 +118,17 @@ Audio tracks are stored in Cloudflare R2 and managed through Convex. The library
 - **Free** — available to all users
 - **Premium** — requires an active Ko-fi subscription
 
-Tracks are tagged by `type` (ambience, music, sfx), `intensityTier` (explore, combat), and `sceneTag` for multi-scene applicability. Live party sessions sync the active track and volume state to all connected players in real time.
+### Adaptive music engine
+
+The music engine (`hooks/use-audio-engine.ts`) uses the **Web Audio API** for sample-perfect stem synchronization. Each scene+mode (e.g. Forest → Explore) has 4–5 stems. Every stem has an intensity window (`intensityMin`–`intensityMax` on a 1–5 scale). When the DM moves the intensity slider, stems fade in and out over ~4 seconds based on their windows. All stems share one `AudioContext` clock — they start at exactly the same moment with no race conditions.
+
+Ambience layers and SFX one-shots continue to use Howler for streaming playback.
+
+### Layered ambience
+
+Independent ambient layers (environment, weather, creature sounds) stack on top of the music engine. Layers are saved as named presets per scene and synced to all players in real time.
+
+### Upload workflow
 
 Bulk-upload stems and ambience files from a local folder:
 
@@ -126,8 +137,9 @@ pnpm upload --input ./feyforge-audio/ready --type music
 pnpm upload --input ./feyforge-audio/ready --type ambience
 ```
 
-Files land in the admin review queue as `pending`. See
-`docs/guides/FEYFORGE-AUDIO-CURATION-GUIDE.md` for the full curation workflow.
+Files land in the admin review queue as `pending`. Approve and assign stem intensity windows in the Audio Review panel. See `docs/guides/FEYFORGE-AUDIO-CURATION-GUIDE.md` for the full curation workflow.
+
+> **Note:** The R2 bucket must have CORS configured (`Access-Control-Allow-Origin`) for the Web Audio `fetch` path to work. See Cloudflare R2 → Bucket Settings → CORS.
 
 ## Scripts
 

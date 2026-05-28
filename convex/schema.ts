@@ -571,6 +571,9 @@ export default defineSchema({
     .index("by_campaignId", ["campaignId"])
     .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"]),
 
+  // v3 instrument-variant model: one row per (scene, mode, instrument, intensity).
+  // Uniqueness enforced in mutations on (campaignId, sceneName, mode, instrument, intensity)
+  // so a campaign can override a global default for the same slot.
   musicStems: defineTable({
     userId: v.string(),
     // undefined = global (not campaign-scoped); campaignId = campaign-specific
@@ -581,15 +584,16 @@ export default defineSchema({
       v.literal("combat"),
       v.literal("victory"),
     ),
-    name: v.string(),
+    instrument: v.string(),
+    intensity: v.number(),
     trackId: v.id("audioTracks"),
-    intensityMin: v.number(),
-    intensityMax: v.number(),
     sortOrder: v.number(),
     createdAt: v.number(),
   })
     .index("by_campaignId_and_sceneName", ["campaignId", "sceneName"])
     .index("by_campaignId_sceneName_and_mode", ["campaignId", "sceneName", "mode"])
     // Used to query global (non-campaign-scoped) stems by scene+mode
-    .index("by_sceneName_mode_and_campaignId", ["sceneName", "mode", "campaignId"]),
+    .index("by_sceneName_mode_and_campaignId", ["sceneName", "mode", "campaignId"])
+    // Used by getInstrumentVariants to fetch all variants of one instrument
+    .index("by_scene_mode_instrument", ["sceneName", "mode", "instrument"]),
 })

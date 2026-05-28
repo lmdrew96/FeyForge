@@ -5,10 +5,9 @@ import { Howl } from "howler"
 
 export type MusicStem = {
   _id: string
-  name: string
+  instrument: string
+  intensity: number // 1–5
   r2Url: string
-  intensityMin: number
-  intensityMax: number
   sortOrder: number
 }
 
@@ -18,7 +17,7 @@ export type AudioEngineState = {
   activeLayers?: Array<{ layerId: string; url: string; volume: number }>
   ambienceVolume: number
   masterVolume: number
-  // Stem window music engine
+  // Per-instrument variant engine
   musicMode: "explore" | "combat" | "off"
   musicIntensity: number // 1–5
   exploreStems: MusicStem[]
@@ -37,18 +36,35 @@ const INTENSITY_DEBOUNCE_MS = 150
 // 100ms scheduling buffer — gives browser time to prepare nodes before startTime
 const START_BUFFER_S = 0.1
 
-function stemTargetVolume(stem: MusicStem, intensity: number, masterVolume: number): number {
-  if (intensity < stem.intensityMin || intensity > stem.intensityMax) return 0
-  return masterVolume / 100
+// ── Variant resolution ───────────────────────────────────────────────────────
+
+// For each instrument in `stems`, pick the variant matching `intensity` (or null
+// if the composer left that slot empty). Exported so UI components can compute
+// "what instruments are audible right now" without duplicating the grouping.
+export function resolveVariants(
+  stems: MusicStem[],
+  intensity: number,
+): Map<string, MusicStem | null> {
+  const byInstrument = new Map<string, MusicStem[]>()
+  for (const stem of stems) {
+    const list = byInstrument.get(stem.instrument)
+    if (list) list.push(stem)
+    else byInstrument.set(stem.instrument, [stem])
+  }
+  const resolved = new Map<string, MusicStem | null>()
+  for (const [instrument, variants] of byInstrument.entries()) {
+    resolved.set(instrument, variants.find((v) => v.intensity === intensity) ?? null)
+  }
+  return resolved
 }
 
-// ── Web Audio stem node ───────────────────────────────────────────────────────
+// ── Web Audio per-instrument node ────────────────────────────────────────────
 
-type StemNode = {
+type InstrumentNode = {
   gainNode: GainNode
   source: AudioBufferSourceNode | null
-  buffer: AudioBuffer
-  playing: boolean
+  currentStemId: string | null
+  buffer: AudioBuffer | null
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -58,24 +74,32 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
   const ambienceRef = useRef<Howl | null>(null)
   const layerRefs = useRef<Map<string, Howl>>(new Map())
 
-  // ── Web Audio stem engine ─────────────────────────────────────────────────
+  // ── Web Audio music engine ────────────────────────────────────────────────
   const audioContext = useRef<AudioContext | null>(null)
-  const stemNodes = useRef<Map<string, StemNode>>(new Map())
+  // Keyed by instrument so intensity changes can crossfade in place.
+  const instrumentNodes = useRef<Map<string, InstrumentNode>>(new Map())
   const stemBufferCache = useRef<Map<string, AudioBuffer>>(new Map())
 
   // ── Shared state refs ─────────────────────────────────────────────────────
   const currentLayers = useRef<Map<string, { url: string; volume: number }>>(new Map())
+  // The pool of variants currently driving playback (full set across all intensities).
   const currentStems = useRef<MusicStem[]>([])
-  const victoryPrevStems = useRef<MusicStem[]>([])
+  // Captured at render time so the victory-return callback always uses fresh state.
+  const exploreStemsRef = useRef<MusicStem[]>([])
+  const combatStemsRef = useRef<MusicStem[]>([])
   const currentVictoryTrigger = useRef<number>(0)
   const currentModeKey = useRef<string>("")
+  // True while a mode change is preloading + scheduling — intensity effect skips
+  // during this window to avoid racing two parallel activations on the same instrument.
+  const modeChangeInFlight = useRef(false)
 
-  // Kept in sync at render time so effects can read current values without
-  // re-running on every slider drag
+  // Kept in sync at render time so async callbacks read current values
   const intensityRef = useRef(state.musicIntensity)
   const masterVolumeRef = useRef(state.masterVolume)
   intensityRef.current = state.musicIntensity
   masterVolumeRef.current = state.masterVolume
+  exploreStemsRef.current = state.exploreStems
+  combatStemsRef.current = state.combatStems
 
   const mounted = useRef(false)
 
@@ -131,131 +155,205 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     await Promise.all(stems.map(loadStemBuffer))
   }
 
-  function deactivateCurrentStems(fadeMs: number = STEM_FADE_MS): void {
+  function deactivateAllInstruments(fadeMs: number = STEM_FADE_MS): void {
     const ctx = audioContext.current
     if (!ctx) return
     const now = ctx.currentTime
 
-    for (const [stemId, node] of stemNodes.current.entries()) {
+    for (const node of instrumentNodes.current.values()) {
       const currentGain = node.gainNode.gain.value
       node.gainNode.gain.cancelScheduledValues(now)
       node.gainNode.gain.setValueAtTime(currentGain, now)
       node.gainNode.gain.linearRampToValueAtTime(0, now + fadeMs / 1000)
 
       const src = node.source
-      if (src) {
-        setTimeout(() => {
-          try { src.stop() } catch { /* already stopped */ }
-          node.gainNode.disconnect()
-        }, fadeMs + 100)
-      }
-
-      stemNodes.current.delete(stemId)
+      const gn = node.gainNode
+      setTimeout(() => {
+        try { src?.stop() } catch { /* already stopped */ }
+        gn.disconnect()
+      }, fadeMs + 100)
     }
 
-    stemNodes.current = new Map()
+    instrumentNodes.current.clear()
     currentStems.current = []
   }
 
   async function activateMode(
     stems: MusicStem[],
     intensity: number,
-    masterVolume: number
+    masterVolume: number,
+  ): Promise<void> {
+    const ctx = audioContext.current
+    if (!ctx || !mounted.current) return
+    modeChangeInFlight.current = true
+    try {
+      await ensureContextRunning()
+
+      const variants = resolveVariants(stems, intensity)
+      const toLoad = Array.from(variants.values()).filter(
+        (v): v is MusicStem => v !== null,
+      )
+      await preloadStems(toLoad)
+      if (!mounted.current) return
+
+      const startTime = ctx.currentTime + START_BUFFER_S
+      const target = masterVolume / 100
+
+      for (const [instrument, variant] of variants.entries()) {
+        if (!variant) continue
+        const buffer = stemBufferCache.current.get(variant._id)
+        if (!buffer) continue
+
+        const gainNode = ctx.createGain()
+        gainNode.gain.setValueAtTime(0, startTime)
+        gainNode.gain.linearRampToValueAtTime(target, startTime + STEM_FADE_MS / 1000)
+        gainNode.connect(ctx.destination)
+
+        const source = ctx.createBufferSource()
+        source.buffer = buffer
+        source.loop = true
+        source.connect(gainNode)
+        source.start(startTime)
+
+        instrumentNodes.current.set(instrument, {
+          gainNode,
+          source,
+          currentStemId: variant._id,
+          buffer,
+        })
+      }
+
+      currentStems.current = stems
+    } finally {
+      modeChangeInFlight.current = false
+    }
+  }
+
+  // 4-case crossfade across the union of currently-playing instruments and
+  // the new resolved variant set. See spec §"Intensity change — the crossfade".
+  async function updateIntensity(
+    stems: MusicStem[],
+    intensity: number,
+    masterVolume: number,
   ): Promise<void> {
     const ctx = audioContext.current
     if (!ctx || !mounted.current) return
     await ensureContextRunning()
 
-    await preloadStems(stems)
-    if (!mounted.current) return // unmounted during async load
+    const nextVariants = resolveVariants(stems, intensity)
+    const fadeDuration = STEM_FADE_MS / 1000
+    const targetGain = masterVolume / 100
 
-    const startTime = ctx.currentTime + START_BUFFER_S
+    // Preload any new variants we don't have buffers for yet
+    const toLoad = Array.from(nextVariants.values()).filter(
+      (v): v is MusicStem => v !== null && !stemBufferCache.current.has(v._id),
+    )
+    if (toLoad.length > 0) await preloadStems(toLoad)
+    if (!mounted.current) return
 
-    for (const stem of stems) {
-      const buffer = stemBufferCache.current.get(stem._id)
-      if (!buffer) continue // fetch failed for this stem — skip it
+    const now = ctx.currentTime
+    const startTime = now + START_BUFFER_S
 
-      const gainNode = ctx.createGain()
-      const target = stemTargetVolume(stem, intensity, masterVolume)
+    const allInstruments = new Set<string>([
+      ...instrumentNodes.current.keys(),
+      ...nextVariants.keys(),
+    ])
 
-      gainNode.gain.setValueAtTime(0, startTime)
-      if (target > 0) {
-        gainNode.gain.linearRampToValueAtTime(target, startTime + STEM_FADE_MS / 1000)
+    for (const instrument of allInstruments) {
+      const currentNode = instrumentNodes.current.get(instrument)
+      const nextVariant = nextVariants.get(instrument) ?? null
+
+      // Case 1: same variant still playing — adjust gain if masterVolume changed
+      if (currentNode && nextVariant && currentNode.currentStemId === nextVariant._id) {
+        const cur = currentNode.gainNode.gain.value
+        if (Math.abs(cur - targetGain) > 0.01) {
+          currentNode.gainNode.gain.cancelScheduledValues(now)
+          currentNode.gainNode.gain.setValueAtTime(cur, now)
+          currentNode.gainNode.gain.linearRampToValueAtTime(targetGain, now + fadeDuration)
+        }
+        continue
       }
-      gainNode.connect(ctx.destination)
 
-      const source = ctx.createBufferSource()
-      source.buffer = buffer
-      source.loop = true
-      source.connect(gainNode)
-      source.start(startTime) // all stems: exact same startTime
+      // Case 2: fade out current (going silent or being replaced)
+      if (currentNode) {
+        const cur = currentNode.gainNode.gain.value
+        currentNode.gainNode.gain.cancelScheduledValues(now)
+        currentNode.gainNode.gain.setValueAtTime(cur, now)
+        currentNode.gainNode.gain.linearRampToValueAtTime(0, now + fadeDuration)
+        const src = currentNode.source
+        const gn = currentNode.gainNode
+        setTimeout(() => {
+          try { src?.stop() } catch { /* already stopped */ }
+          gn.disconnect()
+        }, STEM_FADE_MS + 100)
+        instrumentNodes.current.delete(instrument)
+      }
 
-      stemNodes.current.set(stem._id, { gainNode, source, buffer, playing: true })
+      // Case 3: fade in new variant
+      if (nextVariant) {
+        const buffer = stemBufferCache.current.get(nextVariant._id)
+        if (!buffer) continue
+
+        const gainNode = ctx.createGain()
+        gainNode.gain.setValueAtTime(0, startTime)
+        gainNode.gain.linearRampToValueAtTime(targetGain, startTime + fadeDuration)
+        gainNode.connect(ctx.destination)
+
+        const source = ctx.createBufferSource()
+        source.buffer = buffer
+        source.loop = true
+        source.connect(gainNode)
+        source.start(startTime)
+
+        instrumentNodes.current.set(instrument, {
+          gainNode,
+          source,
+          currentStemId: nextVariant._id,
+          buffer,
+        })
+      }
     }
 
     currentStems.current = stems
   }
 
-  function updateStemVolumes(intensity: number, masterVolume: number): void {
-    const ctx = audioContext.current
-    if (!ctx) return
-    ensureContextRunning() // fire-and-forget — resuming is best-effort here
-    const now = ctx.currentTime
-    const fadeDuration = STEM_FADE_MS / 1000
-
-    for (const stem of currentStems.current) {
-      const node = stemNodes.current.get(stem._id)
-      if (!node) continue
-
-      const target = stemTargetVolume(stem, intensity, masterVolume)
-      const current = node.gainNode.gain.value
-
-      if (Math.abs(current - target) < 0.01) continue
-
-      node.gainNode.gain.cancelScheduledValues(now)
-      node.gainNode.gain.setValueAtTime(current, now)
-      node.gainNode.gain.linearRampToValueAtTime(target, now + fadeDuration)
-    }
-  }
-
+  // Victory ALWAYS returns to Explore — see spec §"Victory return target".
+  // Holds modeChangeInFlight for the duration of the cue so the intensity
+  // slider can't trigger updateIntensity mid-victory (which would replace the
+  // one-shot victory sources with combat variants and break the onended return).
   async function triggerVictory(
     victoryStems: MusicStem[],
     intensity: number,
-    masterVolume: number
+    masterVolume: number,
   ): Promise<void> {
     const ctx = audioContext.current
     if (!ctx || !mounted.current) return
     await ensureContextRunning()
 
-    const audibleStems = victoryStems.filter(
-      (s) => stemTargetVolume(s, intensity, masterVolume) > 0
-    )
-    if (audibleStems.length === 0) return
+    const victoryVariants = resolveVariants(victoryStems, intensity)
+    const audibleVariants = Array.from(victoryVariants.entries())
+      .filter((entry): entry is [string, MusicStem] => entry[1] !== null)
 
-    // Store current mode stems for restore after victory ends
-    victoryPrevStems.current = [...currentStems.current]
+    if (audibleVariants.length === 0) return
 
-    // Fade out current mode
-    deactivateCurrentStems(STEM_FADE_MS)
+    modeChangeInFlight.current = true
+    deactivateAllInstruments(STEM_FADE_MS)
 
-    // Pre-load victory buffers
-    await preloadStems(victoryStems)
-    if (!mounted.current) return
+    await preloadStems(audibleVariants.map(([, v]) => v))
+    if (!mounted.current) {
+      modeChangeInFlight.current = false
+      return
+    }
 
     const startTime = ctx.currentTime + START_BUFFER_S
+    const target = masterVolume / 100
 
-    // Loudest stem gets the onended callback to trigger restore
-    const loudestStem = audibleStems.reduce((a, b) =>
-      stemTargetVolume(b, intensity, masterVolume) >= stemTargetVolume(a, intensity, masterVolume)
-        ? b
-        : a
-    )
+    // All victory variants play at master volume; use the first instrument's
+    // onended as the trigger to return to Explore.
+    const triggerStemId = audibleVariants[0][1]._id
 
-    for (const stem of victoryStems) {
-      const target = stemTargetVolume(stem, intensity, masterVolume)
-      if (target === 0) continue
-
-      const buffer = stemBufferCache.current.get(stem._id)
+    for (const [instrument, variant] of audibleVariants) {
+      const buffer = stemBufferCache.current.get(variant._id)
       if (!buffer) continue
 
       const gainNode = ctx.createGain()
@@ -269,23 +367,32 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
       source.connect(gainNode)
       source.start(startTime)
 
-      if (stem._id === loudestStem._id) {
+      if (variant._id === triggerStemId) {
         source.onended = () => {
-          if (!mounted.current) return
-          // Fade out victory stems
-          deactivateCurrentStems(VICTORY_FADE_MS)
-          // Re-activate previous mode
-          const prevStems = victoryPrevStems.current
-          if (prevStems.length > 0) {
-            activateMode(prevStems, intensityRef.current, masterVolumeRef.current)
+          if (!mounted.current) {
+            modeChangeInFlight.current = false
+            return
+          }
+          deactivateAllInstruments(VICTORY_FADE_MS)
+          const returnStems = exploreStemsRef.current
+          // Clear the in-flight flag before delegating to activateMode, which
+          // re-asserts it for the explore activation.
+          modeChangeInFlight.current = false
+          if (returnStems.length > 0) {
+            activateMode(returnStems, intensityRef.current, masterVolumeRef.current)
           }
         }
       }
 
-      stemNodes.current.set(stem._id, { gainNode, source, buffer, playing: true })
+      instrumentNodes.current.set(instrument, {
+        gainNode,
+        source,
+        currentStemId: variant._id,
+        buffer,
+      })
     }
 
-    currentStems.current = audibleStems
+    currentStems.current = victoryStems
   }
 
   // ── Layered ambience sync (Howler — unchanged) ────────────────────────────
@@ -362,7 +469,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     }
   }, [state.ambienceUrl, state.activeLayers, enabled, destroyHowl, state.ambienceVolume, state.masterVolume])
 
-  // ── Music mode (Web Audio) ────────────────────────────────────────────────
+  // ── Music mode + stem pool changes ────────────────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
@@ -375,29 +482,46 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
 
     const newKey = `${mode}:${activeStems.map((s) => s._id).join(",")}`
     if (newKey === currentModeKey.current) return
+
+    const previousMode = currentModeKey.current.split(":")[0]
     currentModeKey.current = newKey
 
-    deactivateCurrentStems(STEM_FADE_MS)
-
-    if (mode !== "off" && activeStems.length > 0) {
-      activateMode(activeStems, intensityRef.current, masterVolumeRef.current)
+    if (previousMode !== mode) {
+      // Mode boundary — hard cut. Spec §"Mode switch behavior".
+      deactivateAllInstruments(STEM_FADE_MS)
+      if (mode !== "off" && activeStems.length > 0) {
+        activateMode(activeStems, intensityRef.current, masterVolumeRef.current)
+      }
+    } else if (mode !== "off") {
+      // Same mode, variant pool changed (e.g. a new variant was added in the
+      // admin UI). Reconcile rather than restarting from zero.
+      updateIntensity(activeStems, intensityRef.current, masterVolumeRef.current)
     }
   }, [state.musicMode, state.exploreStems, state.combatStems, enabled])
 
-  // ── Intensity (debounced, Web Audio) ─────────────────────────────────────
+  // ── Intensity (debounced) ─────────────────────────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
+    if (state.musicMode === "off") return
+
     const timer = setTimeout(() => {
-      updateStemVolumes(
+      if (modeChangeInFlight.current) return
+      const activeStems =
+        state.musicMode === "explore" ? exploreStemsRef.current
+        : state.musicMode === "combat" ? combatStemsRef.current
+        : []
+      if (activeStems.length === 0) return
+      updateIntensity(
+        activeStems,
         Math.max(1, Math.min(5, state.musicIntensity)),
-        state.masterVolume
+        state.masterVolume,
       )
     }, INTENSITY_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [state.musicIntensity, state.masterVolume, enabled])
+  }, [state.musicIntensity, state.masterVolume, state.musicMode, enabled])
 
-  // ── Victory cue (Web Audio) ───────────────────────────────────────────────
+  // ── Victory cue ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!enabled) return
@@ -411,7 +535,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     triggerVictory(
       state.victoryStems,
       Math.max(1, Math.min(5, intensityRef.current)),
-      masterVolumeRef.current
+      masterVolumeRef.current,
     )
   }, [state.victoryCuedAt, state.victoryStems, enabled])
 
@@ -460,9 +584,7 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) {
-      // Stems: suspend the whole AudioContext — pauses all nodes simultaneously
       audioContext.current?.suspend()
-      // Ambience: Howler pause/play
       ambienceRef.current?.pause()
       layerRefs.current.forEach((r) => r.pause())
     } else {
@@ -481,17 +603,15 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     return () => {
       mounted.current = false
 
-      // Tear down Web Audio stem engine
-      stemNodes.current.forEach((node) => {
+      instrumentNodes.current.forEach((node) => {
         try { node.source?.stop() } catch { /* already stopped */ }
         node.gainNode.disconnect()
       })
-      stemNodes.current = new Map()
+      instrumentNodes.current.clear()
       stemBufferCache.current.clear()
       audioContext.current?.close()
       audioContext.current = null
 
-      // Tear down Howler ambience
       ambienceRef.current?.unload()
       layerRefs.current.forEach((r) => r.unload())
       layerRefs.current.clear()

@@ -80,8 +80,7 @@ When the slider moves and a stem's target volume changes:
 - If stem should now be silent and currently isn't → fade out over `STEM_FADE_MS`
 - If stem's target volume is unchanged → do nothing
 
-Use Howler's `.fade(from, to, duration)`. Never stop or restart a Howl
-mid-session — only adjust volume.
+Fades are implemented via `GainNode.gain.linearRampToValueAtTime` on the Web Audio API. See `docs/specs/FEYFORGE-STEM-ENGINE-WEBAUDIO-SPEC.md` for the full implementation spec.
 
 **Debounce slider input** — the slider fires continuously as the DM drags.
 Debounce volume recomputation by ~150ms so the engine isn't triggering
@@ -98,10 +97,10 @@ When the DM hits Cue Victory:
 1. Fade out all current mode stems over `STEM_FADE_MS`
 2. Start the Victory stem set at position 0, at current intensity volumes
 3. Victory stems play with `loop: false`
-4. When the loudest Victory stem ends (Howler `onend` callback), crossfade back
+4. When the loudest Victory stem ends (`AudioBufferSourceNode.onended`), crossfade back
    to the previous mode's stems from position 0 at current intensity
 5. `musicMode` in `partySessions` never changes during Victory — store the
-   pre-victory Howl state in a `previousModeHowls` ref
+   pre-victory stems in a `victoryPrevStems` ref
 
 Trigger mechanism: `victoryCuedAt: v.optional(v.number())` timestamp on
 `partySessions`. Engine watches for changes.
@@ -210,138 +209,52 @@ triggerVictoryCue({ sessionId })
 
 ## Audio engine: `hooks/use-audio-engine.ts`
 
-### Howl structure
+> **Implementation note:** The engine was migrated from Howler to the Web Audio
+> API in v0.26.0 to achieve sample-perfect stem synchronization. All stems share
+> one `AudioContext` clock and are scheduled to start at exactly the same
+> `currentTime + START_BUFFER_S`. Ambience layers and SFX one-shots remain on
+> Howler.
+>
+> For the full implementation spec, see
+> `docs/specs/FEYFORGE-STEM-ENGINE-WEBAUDIO-SPEC.md`.
+
+### Core data structures
 
 ```ts
-// Map of stemId → Howl instance. Maintained for the active mode.
-const stemHowls = useRef<Map<string, Howl>>(new Map())
+type StemNode = {
+  gainNode: GainNode           // persists across source node recreation
+  source: AudioBufferSourceNode | null
+  buffer: AudioBuffer          // decoded in-memory audio — reused across mode switches
+  playing: boolean
+}
 
-// Ref to pre-victory Howl state for return after Victory ends
-const previousModeHowls = useRef<Map<string, Howl>>(new Map())
+const audioContext = useRef<AudioContext | null>(null)
+const stemNodes    = useRef<Map<string, StemNode>>(new Map())
+const stemBufferCache = useRef<Map<string, AudioBuffer>>(new Map())
+// Cache persists across mode switches — revisited scenes don't re-fetch
 ```
 
-### Volume computation
+### Volume computation (unchanged)
 
 ```ts
 const STEM_FADE_MS = 4000
 
-function targetVolume(stem: MusicStem, intensity: number, masterVolume: number): number {
+function stemTargetVolume(stem: MusicStem, intensity: number, masterVolume: number): number {
   if (intensity < stem.intensityMin || intensity > stem.intensityMax) return 0
   return masterVolume / 100
 }
 ```
 
-### On mode activation
+### Key behaviors
 
-```ts
-function activateMode(stems: MusicStem[], intensity: number, masterVolume: number) {
-  for (const stem of stems) {
-    const track = resolveTrack(stem.trackId) // get r2Url
-    if (!track) continue
-
-    const target = targetVolume(stem, intensity, masterVolume)
-    const howl = new Howl({ src: [track.r2Url], loop: true, volume: 0 })
-    howl.play()
-    if (target > 0) howl.fade(0, target, STEM_FADE_MS)
-    stemHowls.current.set(stem._id, howl)
-  }
-}
-```
-
-### On intensity change (debounced)
-
-```ts
-// Debounce by 150ms before computing
-function updateStemVolumes(stems: MusicStem[], intensity: number, masterVolume: number) {
-  for (const stem of stems) {
-    const howl = stemHowls.current.get(stem._id)
-    if (!howl) continue
-
-    const current = howl.volume()
-    const target = targetVolume(stem, intensity, masterVolume)
-    if (Math.abs(current - target) < 0.01) continue // no meaningful change
-
-    howl.fade(current, target, STEM_FADE_MS)
-  }
-}
-```
-
-### On mode switch
-
-```ts
-function switchMode(
-  outgoingHowls: Map<string, Howl>,
-  incomingStems: MusicStem[],
-  intensity: number,
-  masterVolume: number
-) {
-  // Fade out and destroy outgoing
-  for (const howl of outgoingHowls.values()) {
-    howl.fade(howl.volume(), 0, STEM_FADE_MS)
-    setTimeout(() => howl.unload(), STEM_FADE_MS + 100)
-  }
-
-  // Reset and activate incoming
-  stemHowls.current = new Map()
-  activateMode(incomingStems, intensity, masterVolume)
-}
-```
-
-### On Victory cue
-
-```ts
-function triggerVictory(
-  victoryStems: MusicStem[],
-  intensity: number,
-  masterVolume: number
-) {
-  // Store current mode for return
-  previousModeHowls.current = new Map(stemHowls.current)
-
-  // Fade out current mode
-  for (const howl of stemHowls.current.values()) {
-    howl.fade(howl.volume(), 0, STEM_FADE_MS)
-    setTimeout(() => howl.unload(), STEM_FADE_MS + 100)
-  }
-  stemHowls.current = new Map()
-
-  // Find the loudest victory stem (for onend callback)
-  const loudestStem = victoryStems.reduce((a, b) =>
-    targetVolume(b, intensity, masterVolume) >= targetVolume(a, intensity, masterVolume) ? b : a
-  )
-
-  for (const stem of victoryStems) {
-    const track = resolveTrack(stem.trackId)
-    if (!track) continue
-
-    const target = targetVolume(stem, intensity, masterVolume)
-    if (target === 0) continue
-
-    const howl = new Howl({
-      src: [track.r2Url],
-      loop: false,
-      volume: 0,
-      onend: stem._id === loudestStem._id ? () => returnToPreviousMode() : undefined,
-    })
-    howl.play()
-    howl.fade(0, target, STEM_FADE_MS)
-    stemHowls.current.set(stem._id, howl)
-  }
-}
-
-function returnToPreviousMode() {
-  // Fade out victory stems
-  for (const howl of stemHowls.current.values()) {
-    howl.fade(howl.volume(), 0, STEM_FADE_MS)
-    setTimeout(() => howl.unload(), STEM_FADE_MS + 100)
-  }
-  stemHowls.current = new Map()
-
-  // Re-activate previous mode from position 0
-  // (previousModeHowls are already unloaded — re-fetch stems and activateMode)
-  activateMode(previousModeStems, currentIntensity, currentMasterVolume)
-}
-```
+- **Mode activation** — `fetch` + `decodeAudioData` all stems, then schedule all
+  `AudioBufferSourceNode.start(startTime)` to the same value. No load-callback race.
+- **Intensity change** — `GainNode.gain.linearRampToValueAtTime`, debounced 150ms.
+- **Mode switch** — `deactivateCurrentStems` (gain ramp to 0 + delayed `stop`) then
+  `activateMode` (async but non-awaited — `START_BUFFER_S` provides runway).
+- **Victory cue** — `source.onended` on the loudest stem triggers `deactivateCurrentStems`
+  + `activateMode(prevStems)`.
+- **Pause/resume** — `AudioContext.suspend()` / `resume()` pauses all stems simultaneously.
 
 ### PlayerAudioReceiver
 
@@ -402,7 +315,7 @@ DM moves slider to intensity I
   → updateSessionMusicIntensity mutation
   → engine calls updateStemVolumes()
   → for each stem: compute targetVolume(stem, I, masterVolume)
-  → if changed: howl.fade(current, target, STEM_FADE_MS)
+  → if changed: gainNode.gain.linearRampToValueAtTime(target, now + fadeDuration)
   → stems outside their window fade out over 4s
   → stems entering their window fade in over 4s
 

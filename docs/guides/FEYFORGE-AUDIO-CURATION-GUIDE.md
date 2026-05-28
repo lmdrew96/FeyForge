@@ -1,256 +1,295 @@
 # FEYFORGE-AUDIO-CURATION-GUIDE.md
 
-A practical guide for sourcing, preparing, and uploading audio stems for the
-FeyForge adaptive music engine. This is the guide for you and Ashley — not for
-Cody.
+A guide for composing and uploading instrument variants for the FeyForge
+adaptive music engine. Primarily for Ashley as the composer, with notes
+for Nae as the admin reviewer.
 
 ---
 
 ## How the engine works (the short version)
 
-Each scene+mode (e.g. Town → Explore) has 4–5 stems. Each stem is a single
-looping audio file — one instrument group (just strings, just drums, just pads,
-etc.). Every stem has an intensity window (min–max on a 1–5 scale). As the DM
-moves the intensity slider, stems fade in and out over ~4 seconds based on their
-windows.
+Each scene + mode (e.g. Forest → Combat) has a set of **instruments**
+(strings, brass, percussion, pads, etc.). For each instrument, you compose
+up to **5 variants** — one per intensity level on the DM's 1–5 slider. As
+the DM moves the slider, the engine crossfades between adjacent variants
+of the same instrument over ~4 seconds.
 
-**Your job:** find or make loops that sound good together and upload them as
-individual files. You assign the intensity windows when you approve them in the
-admin panel.
-
----
-
-## What makes a good stem
-
-- **Single instrument group** — just the strings, just the percussion, just the
-  atmospheric pads. Not a full mix.
-- **Loops cleanly** — the end flows back into the beginning without a pop, gap,
-  or awkward beat.
-- **Matches the scene energy** — a "Full Percussion" stem for Town → Explore
-  should feel busier than a "Soft Melody" stem for the same scene.
-- **Royalty-free** — Freesound (CC0 or CC-BY), Pixabay Music, or your own
-  GarageBand exports.
+**Your job:** compose stems where each instrument *evolves* across the
+intensity range. Not "louder strings at higher intensity" — fundamentally
+different musical ideas that capture rising energy.
 
 ---
 
-## Stem roles and intensity windows
+## The variant model
 
-Use this as a starting template. You don't have to follow it exactly — trust
-your ears.
+For each instrument, you can compose all 5 levels or skip ones that don't
+serve the scene. Example for Forest → Combat:
 
-| Stem role | Intensity window | Character |
-|-----------|-----------------|-----------|
-| Pads / atmosphere | 1–3 | Foundation, always present at low energy, fades as it builds |
-| Soft melody | 1–4 | Melodic thread, present through most of the range |
-| Rhythm / light percussion | 2–5 | Grows in as energy rises |
-| Lead instrument (strings, brass, etc.) | 3–5 | Upper half only |
-| Full percussion / high energy layer | 4–5 | High energy only |
+| Instrument | Intensity 1 | Intensity 2 | Intensity 3 | Intensity 4 | Intensity 5 |
+|------------|-------------|-------------|-------------|-------------|-------------|
+| Pads | sustained drone | gentle motion | low pulse | — | — |
+| Strings | sparse notes | legato phrases | rhythmic ostinato | tremolo | spiccato runs |
+| Brass | — | — | sustained chords | aggressive stabs | full fanfare |
+| Percussion | — | soft hits | tom roll | full kit | full kit + cymbals |
 
-At intensity 1: just pads + soft melody. Sparse, atmospheric.
-At intensity 3: everything overlaps briefly — the richest mix.
-At intensity 5: rhythm + lead + percussion. Pads gone. Full energy.
-
----
-
-## Option A — Source from Freesound / Pixabay
-
-Good for: getting started fast, atmospheric layers, weather sounds, crowd noise.
-
-**Freesound.org tips:**
-- Search `[instrument] loop fantasy` or `[instrument] loop medieval`
-- Filter by license: **CC0** (no attribution required) or **CC-BY** (credit in
-  your app's credits page)
-- Filter by duration: 10s–120s works well for looping stems
-- Listen for clean loop points — if the end doesn't match the beginning,
-  Audacity can fix it (see below)
-
-**Pixabay Music tips:**
-- Use the genre filter: **Cinematic**, **Ambient**, or **Classical**
-- All Pixabay music is royalty-free with no attribution required
-- Full mixes download here, not stems — better for ambience layers than music
-  stems
+Empty cells = silence for that instrument at that intensity. That's a
+**feature**, not a gap. Use absence intentionally — pads dropping out at
+high energy or brass entering at intensity 3 is musically meaningful.
 
 ---
 
-## Option B — GarageBand Apple Loops
+## Mode behavior to know about
 
-Good for: making your own stems with zero mixing knowledge required.
-
-GarageBand ships with hundreds of pre-recorded instrument loops sorted by
-genre, instrument, and mood. You're not playing anything or programming MIDI —
-you're dragging loops onto a timeline and exporting.
-
-**Workflow:**
-
-1. Open GarageBand → New Project → Empty Project
-2. Click the loop browser (top right, looks like a loop icon)
-3. Filter by **Genre: Cinematic** or **Instrument: Strings / Brass / Percussion**
-4. Drag a loop onto the timeline — it auto-repeats to fill the region
-5. Set your cycle region to a clean bar length (8, 16, or 32 bars)
-6. **Export**: Share → Export Song to Disk → MP3 → Highest Quality (320kbps)
-7. Name it descriptively: `town-explore-strings-mid.mp3`
-
-For each scene+mode, make one export per stem role. Each export is one
-instrument group only — mute everything else before exporting.
-
-**Key thing:** all stems for the same scene+mode should use the same BPM and
-loop length. GarageBand's Apple Loops are all BPM-synced by default — if you
-stick to loops from the same tempo project they'll automatically match.
+- **Explore ↔ Combat are hard switches.** When the DM changes modes, all
+  current-mode instruments fade out and the new-mode instruments start fresh.
+  This is by design — mode changes in tabletop are dramatic moments and the
+  music should mark them.
+- **Victory always returns to Explore.** Combat → Victory → Explore, regardless
+  of what was playing before. Compose accordingly: Victory is a "the day is
+  won" moment that lands cleanly into exploration.
 
 ---
 
-## Option C — Demucs stem separation
+## Composition constraints
 
-Good for: tracks you already have downloaded that you love but can't find
-instrument-separated versions of.
+### BPM and loop length
 
-Run the separator script on your raw files:
+All instruments in the same scene+mode must share BPM and loop length.
+**Variants of the same instrument** must also match. So all Forest Combat
+files (strings 1–5, brass 3–5, etc.) are the same tempo and the same
+duration.
 
-```bash
-python scripts/audio-pipeline/feyforge_stems.py \
-  --input ./feyforge-audio/raw \
-  --output ./feyforge-audio/stems
+This matters because:
+- All instruments play simultaneously when their slots align
+- When intensity changes, a new variant of an instrument starts at position 0
+  of its loop, while other instruments continue playing — they need to share
+  a rhythmic grid
+
+### Key signature
+
+Variants of the same instrument should be in the same key. Different
+instruments within a scene+mode should also be in the same key. Otherwise
+crossfading variants creates dissonance.
+
+### Loudness
+
+Each variant should sit at a similar perceived loudness within its instrument
+family. The normalize script will handle peak normalization at upload, but
+your mix decisions before export matter. If intensity 5 strings are 3x as
+loud as intensity 1 strings in your DAW, the player experience will feel
+unbalanced even after normalization.
+
+---
+
+## Composition workflow
+
+### 1. Pick a scene + mode
+
+Start with one combination. e.g. **Forest → Combat**.
+
+### 2. Decide your instruments
+
+Choose 3–6 instruments for the scene. Examples:
+- **Strings** (could be split into "High Strings" and "Low Strings" for
+  more granularity)
+- **Brass**
+- **Percussion** (could split into "Toms", "Cymbals", "Tribal Drums")
+- **Pads / Atmosphere**
+- **Choir**
+- **Solo melody** (flute, horn, etc.)
+
+Free-text instrument names — name them whatever fits the piece.
+
+### 3. Plan the intensity arc
+
+For each instrument, decide which intensities it appears at. A useful
+exercise: write a one-sentence description of the scene at each intensity
+level.
+
+```
+Forest Combat:
+  1 — distant tension, calm before the storm
+  2 — first hostile movements, footfalls
+  3 — direct engagement, weapons drawn
+  4 — full battle, party fighting for their lives
+  5 — climactic moment, ultimate stakes
 ```
 
-You'll get per-instrument stems in `feyforge-audio/stems/track-name/`. Quality
-varies — simpler tracks separate better than dense ones. Check each stem for
-bleed before uploading.
+Then for each instrument, decide which descriptions it should reinforce.
+Pads serve 1–3. Brass serves 3–5. Percussion serves 2–5. Each instrument
+doesn't have to do everything.
 
-Demucs stem categories:
-- `other.mp3` — pads, strings, atmosphere (often the most useful)
-- `piano.mp3` — keys
-- `guitar.mp3` — plucked strings, guitar
-- `bass.mp3` — bass line
-- `drums.mp3` — percussion
-- `vocals.mp3` — usually empty for instrumentals, ignore it
+### 4. Compose all variants of one instrument together
+
+Work instrument by instrument. Compose strings 1–5 in sequence — this keeps
+the musical voice consistent across the intensity range. Don't bounce around.
+
+### 5. Cross-check between instruments
+
+After each instrument is done, play them simultaneously at the same intensity
+to verify they sit well together. Then play different combinations:
+strings 3 + brass 3 + percussion 3, etc.
+
+### 6. Export each variant as its own file
+
+One file per variant. No "stems within stems" — if you want strings to have
+two distinct character lines, that's two separate instruments
+("High Strings" and "Low Strings"), each with their own intensity variants.
+
+### 7. Bake any time-stretched loops before exporting
+
+If you're using GarageBand Apple Loops at a tempo different from their native
+BPM, GarageBand stretches them during playback but exports them at their
+original tempo with silence padding. **Solo each track and export it
+individually** to bake the time-stretching, then re-import that baked file
+before doing your final stem export. (Or compose at a tempo close to your
+source loops' native BPM to avoid this entirely.)
 
 ---
 
-## Cleaning up loops in Audacity
+## File naming
 
-Use Audacity to fix loop points and normalize volume before uploading.
-Free, available at audacityteam.org.
+Use kebab-case. The pattern is:
 
-**Fix a loop point:**
-1. Open the file in Audacity
-2. Zoom into the end of the track
-3. Find a zero-crossing near the natural end of a musical phrase
-4. Select from that point to the end → Delete
-5. File → Export → MP3
+```
+<scene>-<mode>-<instrument>-<intensity>.mp3
+```
 
-**Normalize:**
-Effect → Normalize → set peak amplitude to **-1.0 dB** → OK
+Examples:
+```
+forest-combat-strings-1.mp3
+forest-combat-strings-3.mp3
+forest-combat-brass-4.mp3
+forest-explore-pads-2.mp3
+dungeon-combat-percussion-5.mp3
+```
 
-**Test the loop:**
-Enable Transport → Loop Play, then hit play. Listen for pops or gaps. If you
-hear one, trim a little more from the end until it's clean.
+This is for your own organization — the admin panel doesn't read filenames.
+But it'll save you when you upload 20+ files at once.
 
 ---
 
 ## Folder structure
 
-Keep your working files organized:
-
 ```
 feyforge-audio/
-  raw/          ← source downloads (don't upload these)
-  stems/        ← Demucs output
-  exports/      ← GarageBand exports before cleanup
-  ready/        ← cleaned, normalized, loop-trimmed files (upload these)
+  raw/        ← work-in-progress DAW exports
+  ready/      ← normalized, final files ready to upload
 ```
-
-Name files descriptively in kebab-case:
-
-```
-town-explore-pads.mp3
-town-explore-strings-mid.mp3
-town-explore-full-percussion.mp3
-forest-combat-brass-lead.mp3
-dungeon-explore-atmosphere.mp3
-```
-
-You don't have to include the scene/mode in the filename — the admin panel is
-where you assign those — but it helps you stay organized locally.
 
 ---
 
 ## Running the normalize script
 
-After cleaning in Audacity, run the normalizer to do a final check and
-ensure consistent loudness across all stems:
+After exporting from your DAW:
 
 ```bash
-python scripts/audio-pipeline/feyforge_normalize.py \
-  --input ./feyforge-audio/exports \
+python3 scripts/audio-pipeline/feyforge_normalize.py \
+  --input ./feyforge-audio/raw \
   --output ./feyforge-audio/ready
 ```
 
-For music stems, each file is processed individually — there's no duration
-matching requirement anymore (unlike the old Low/Med/High system). The script
-just normalizes loudness and trims trailing silence.
+Each file is processed independently:
+- Normalized to -1dBFS peak
+- Trailing silence trimmed
+- Re-exported at 320kbps MP3
+
+No duration matching is enforced anymore (the engine handles different file
+lengths since variants don't replace each other in real time — they crossfade
+over 4 seconds).
 
 ---
 
 ## Uploading
 
-Once your files are in `feyforge-audio/ready/`, upload them all at once:
-
 ```bash
 pnpm upload --input ./feyforge-audio/ready --type music
 ```
 
-For ambience layers:
-
-```bash
-pnpm upload --input ./feyforge-audio/ready --type ambience
-```
-
-Files go to R2 and land in the admin review queue as pending. The script skips
-files it's already uploaded (safe to re-run).
+Files go to R2 and land in the admin review queue as pending. The script
+skips duplicates (safe to re-run).
 
 ---
 
-## Approving in the admin panel
+## Admin review (Nae)
 
-1. Open FeyForge admin → Audio Review
-2. Find your pending track, hit play — give it a listen
-3. Set tier: **Free** or **Premium**
-4. For music tracks, fill out stem assignment slots:
-   - **Scene** — pick from the dropdown (town, forest, dungeon, etc.)
-   - **Mode** — explore, combat, or victory
-   - **Stem name** — descriptive label (e.g. "Strings — Mid Layer")
-   - **Intensity min/max** — where this stem should be audible (1–5)
-   - Add more slots if the same file works for multiple scenes/modes
-5. Click **Approve + Assign Stems**
+For each pending track:
+1. Listen — make sure it sounds right
+2. Set tier (free / premium)
+3. Fill out variant assignment:
+   - **Scene**: forest, town, etc. (dropdown)
+   - **Mode**: explore, combat, or victory
+   - **Instrument**: free-text with autocomplete from existing instruments
+     in this scene+mode (so "Strings" stays consistent across all 5 variants)
+   - **Intensity**: 1–5
+4. Multiple assignments per track are possible (rare — usually 1:1)
+5. Click **Approve + Assign**
 
-The stem is immediately live in any session using that scene.
-
----
-
-## Intensity window quick reference
-
-Not sure what window to set? Use this:
-
-| This stem sounds like... | Set window to |
-|--------------------------|--------------|
-| Atmospheric, droney, sparse | 1–2 or 1–3 |
-| Melodic but gentle | 1–4 |
-| Rhythmic, some energy | 2–4 or 2–5 |
-| Bold, punchy, full | 3–5 |
-| Intense, driving, loud | 4–5 or 5 only |
-
-When in doubt: overlap generously. The 4-second fade smooths everything out.
-Having stems overlap at intensity 3 creates the richest, most interesting
-midpoint.
+The variant is immediately live in any session.
 
 ---
 
-## Checklist per stem
+## Sources for raw audio (if you're not composing from scratch)
 
-- [ ] Single instrument group only (not a full mix)
-- [ ] Loops cleanly — tested in Audacity loop play
-- [ ] Normalized to -1dBFS
-- [ ] Named descriptively in kebab-case
+If Ashley isn't available or you want test material:
+
+**Looperman** ([looperman.com](https://looperman.com)) — free loop library,
+every loop tagged with BPM and key, strong orchestral/cinematic section.
+Best free option for finding tempo-matched stems.
+
+**Freesound** ([freesound.org](https://freesound.org)) — filter by
+`license:Creative Commons 0`, duration 10–120s. BPM tagging is inconsistent,
+so ear-test required.
+
+**Pixabay Music** ([pixabay.com](https://pixabay.com)) — full mixes, not
+stems. Better for ambience layers than music variants.
+
+**Splice** ([splice.com](https://splice.com)) — paid ($8–16/month), best-in-class
+filtering by BPM/key/instrument, huge cinematic catalog. Worth it if you're
+curating a lot.
+
+**Demucs stem separation** — for tracks you already have but need
+instrument-separated. Quality varies; see the `scripts/audio-pipeline/`
+folder for the separator script.
+
+---
+
+## Common pitfalls
+
+**The intensity arc is too uniform**
+If intensity 1 vs 5 just feels louder, the variants aren't distinct enough.
+Each variant should be a different musical *idea*, not just a volume bump.
+
+**Variants drift in tempo across an instrument**
+If strings 3 and strings 4 are at slightly different tempos, the crossfade
+will feel weird. DAW project tempo locked at the start prevents this.
+
+**Instruments fight at intensity overlaps**
+If your strings at intensity 3 and your brass at intensity 3 occupy the
+same melodic space, the mix gets muddy at that level. Compose them with
+distinct roles (e.g. strings on melody, brass on harmonic stabs).
+
+**GarageBand export has silence padding at the end**
+You forgot to bake time-stretched loops before exporting. Solo the track,
+export it solo, re-import the exported file, then do your final stem export.
+
+**Empty intensity slots not used intentionally**
+"I just didn't have time" is fine for MVP. "Pads drop out at high energy
+because the scene gets too chaotic for sustained tones" is better.
+
+---
+
+## Checklist per scene+mode
+
+- [ ] 3–6 instruments planned
+- [ ] Each instrument has 1–5 variants composed
+- [ ] All files at same BPM
+- [ ] All files at same loop length
+- [ ] All files in same key
+- [ ] Time-stretched loops baked before final export
+- [ ] Loudness balanced across variants of each instrument
+- [ ] Cross-checked combinations at each intensity sound coherent
+- [ ] Exported with the kebab-case naming convention
 - [ ] In `feyforge-audio/ready/` folder
-- [ ] Uploaded via upload script
-- [ ] Approved in admin panel with at least one stem slot assigned
+- [ ] Uploaded via `pnpm upload` script
+- [ ] Each file approved + assigned in admin panel

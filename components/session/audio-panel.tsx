@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
-import { useAudioEngine, type MusicStem } from "@/hooks/use-audio-engine"
+import { useAudioEngine, resolveVariants, type MusicStem } from "@/hooks/use-audio-engine"
 import {
   Waves, Volume2, ChevronDown, ChevronUp,
   Radio, WifiOff, Pause, Play,
@@ -329,14 +329,16 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   }
   const { playSfx } = useAudioEngine(engineState, !paused)
 
-  // Audible stems at current intensity for display
+  // Audible instruments at current intensity (deduped via resolveVariants).
   const activeMode = sessionRef?.musicMode
   const activeStems = activeMode === "explore" ? exploreStems
     : activeMode === "combat" ? combatStems
     : []
-  const audibleStemNames = (activeStems as MusicStem[])
-    .filter((s) => musicIntensity >= s.intensityMin && musicIntensity <= s.intensityMax)
-    .map((s) => s.name)
+  const audibleInstruments = Array.from(
+    resolveVariants(activeStems as MusicStem[], musicIntensity).entries(),
+  )
+    .filter(([, variant]) => variant !== null)
+    .map(([instrument]) => instrument)
 
   // Debounce intensity sync to Convex
   const intensityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -472,13 +474,13 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
               </div>
             )}
 
-            {/* Audible stems display */}
+            {/* Audible instruments display */}
             {sessionRef?.musicMode !== "off" && (
               <div className="flex flex-wrap gap-1 min-h-[20px]">
-                {audibleStemNames.length > 0 ? (
-                  audibleStemNames.map((name) => (
+                {audibleInstruments.length > 0 ? (
+                  audibleInstruments.map((instrument) => (
                     <span
-                      key={name}
+                      key={instrument}
                       className="px-2 py-0.5 rounded text-[10px]"
                       style={{
                         background: "color-mix(in srgb, var(--scene-accent) 15%, transparent)",
@@ -486,7 +488,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                         border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)",
                       }}
                     >
-                      {name}
+                      {instrument}
                     </span>
                   ))
                 ) : (

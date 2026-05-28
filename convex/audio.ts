@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
-import type { Doc } from "./_generated/dataModel"
+import type { MutationCtx } from "./_generated/server"
+import type { Doc, Id } from "./_generated/dataModel"
 import { v } from "convex/values"
 
 function isValidIntensityRank(intensityRank: number): boolean {
@@ -738,7 +739,7 @@ export const listMusicStemsResolved = query({
       .withIndex("by_campaignId_sceneName_and_mode", (idx) =>
         idx.eq("campaignId", args.campaignId).eq("sceneName", args.sceneName).eq("mode", args.mode)
       )
-      .take(50)
+      .take(100)
 
     // Global stems (campaignId = undefined) — shared across all sessions
     const globalStems = await ctx.db
@@ -746,14 +747,13 @@ export const listMusicStemsResolved = query({
       .withIndex("by_sceneName_mode_and_campaignId", (idx) =>
         idx.eq("sceneName", args.sceneName).eq("mode", args.mode).eq("campaignId", undefined)
       )
-      .take(50)
+      .take(100)
 
     const seen = new Set<string>()
     const resolved: Array<{
       _id: string
-      name: string
-      intensityMin: number
-      intensityMax: number
+      instrument: string
+      intensity: number
       sortOrder: number
       r2Url: string
     }> = []
@@ -765,15 +765,61 @@ export const listMusicStemsResolved = query({
       if (!track?.r2Url) continue
       resolved.push({
         _id: stem._id,
-        name: stem.name,
-        intensityMin: stem.intensityMin,
-        intensityMax: stem.intensityMax,
+        instrument: stem.instrument,
+        intensity: stem.intensity,
         sortOrder: stem.sortOrder,
         r2Url: track.r2Url,
       })
     }
 
     return resolved.sort((a, b) => a.sortOrder - b.sortOrder)
+  },
+})
+
+// Distinct instrument names already assigned at the global scope for a given
+// (scene, mode). Used by the admin review UI to autocomplete instrument names
+// as Ashley adds more variants for the same scene.
+export const listGlobalInstrumentsForSlot = query({
+  args: {
+    sceneName: v.string(),
+    mode: v.union(v.literal("explore"), v.literal("combat"), v.literal("victory")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const rows = await ctx.db
+      .query("musicStems")
+      .withIndex("by_sceneName_mode_and_campaignId", (idx) =>
+        idx.eq("sceneName", args.sceneName).eq("mode", args.mode).eq("campaignId", undefined)
+      )
+      .take(200)
+    return Array.from(new Set(rows.map((r) => r.instrument))).sort()
+  },
+})
+
+export const getInstrumentVariants = query({
+  args: {
+    campaignId: v.id("campaigns"),
+    sceneName: v.string(),
+    mode: v.union(v.literal("explore"), v.literal("combat"), v.literal("victory")),
+    instrument: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const rows = await ctx.db
+      .query("musicStems")
+      .withIndex("by_scene_mode_instrument", (idx) =>
+        idx.eq("sceneName", args.sceneName).eq("mode", args.mode).eq("instrument", args.instrument)
+      )
+      .take(20)
+
+    // Merge: keep campaign-specific rows + global rows (campaignId === undefined)
+    return rows
+      .filter((stem) => stem.campaignId === args.campaignId || stem.campaignId === undefined)
+      .sort((a, b) => a.intensity - b.intensity)
   },
 })
 
@@ -808,41 +854,79 @@ export const getMusicStem = query({
   },
 })
 
+// Check whether a (campaignId, scene, mode, instrument, intensity) slot is already taken.
+// excludeStemId lets updateMusicStem skip self-collision.
+async function isSlotTaken(
+  ctx: MutationCtx,
+  scope: {
+    campaignId: Id<"campaigns"> | undefined
+    sceneName: string
+    mode: "explore" | "combat" | "victory"
+    instrument: string
+    intensity: number
+  },
+  excludeStemId?: Id<"musicStems">,
+): Promise<boolean> {
+  const candidates = await ctx.db
+    .query("musicStems")
+    .withIndex("by_scene_mode_instrument", (idx) =>
+      idx.eq("sceneName", scope.sceneName).eq("mode", scope.mode).eq("instrument", scope.instrument)
+    )
+    .take(20)
+  return candidates.some(
+    (s) =>
+      s._id !== excludeStemId &&
+      s.campaignId === scope.campaignId &&
+      s.intensity === scope.intensity,
+  )
+}
+
 export const createMusicStem = mutation({
   args: {
     campaignId: v.id("campaigns"),
     sceneName: v.string(),
     mode: v.union(v.literal("explore"), v.literal("combat"), v.literal("victory")),
-    name: v.string(),
+    instrument: v.string(),
+    intensity: v.number(),
     trackId: v.id("audioTracks"),
-    intensityMin: v.number(),
-    intensityMax: v.number(),
-    sortOrder: v.number(),
+    sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
-    if (args.intensityMin < 1 || args.intensityMin > 5 || args.intensityMax < 1 || args.intensityMax > 5) {
-      throw new Error("intensityMin and intensityMax must be between 1 and 5")
+    if (!Number.isInteger(args.intensity) || args.intensity < 1 || args.intensity > 5) {
+      throw new Error("intensity must be an integer between 1 and 5")
     }
-    if (args.intensityMin > args.intensityMax) {
-      throw new Error("intensityMin must be <= intensityMax")
+    if (args.instrument.trim() === "") {
+      throw new Error("instrument is required")
     }
 
     const track = await ctx.db.get(args.trackId)
     if (!track) throw new Error("Track not found")
+
+    const taken = await isSlotTaken(ctx, {
+      campaignId: args.campaignId,
+      sceneName: args.sceneName,
+      mode: args.mode,
+      instrument: args.instrument,
+      intensity: args.intensity,
+    })
+    if (taken) {
+      throw new Error(
+        `Slot already exists for ${args.sceneName}/${args.mode}/${args.instrument} at intensity ${args.intensity}`,
+      )
+    }
 
     return ctx.db.insert("musicStems", {
       userId: identity.tokenIdentifier,
       campaignId: args.campaignId,
       sceneName: args.sceneName,
       mode: args.mode,
-      name: args.name,
+      instrument: args.instrument,
+      intensity: args.intensity,
       trackId: args.trackId,
-      intensityMin: args.intensityMin,
-      intensityMax: args.intensityMax,
-      sortOrder: args.sortOrder,
+      sortOrder: args.sortOrder ?? args.intensity,
       createdAt: Date.now(),
     })
   },
@@ -851,10 +935,9 @@ export const createMusicStem = mutation({
 export const updateMusicStem = mutation({
   args: {
     stemId: v.id("musicStems"),
-    name: v.optional(v.string()),
+    instrument: v.optional(v.string()),
+    intensity: v.optional(v.number()),
     trackId: v.optional(v.id("audioTracks")),
-    intensityMin: v.optional(v.number()),
-    intensityMax: v.optional(v.number()),
     sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -865,18 +948,40 @@ export const updateMusicStem = mutation({
     if (!stem) throw new Error("Stem not found")
     if (stem.userId !== identity.tokenIdentifier) throw new Error("Not authorized")
 
-    if (args.intensityMin !== undefined || args.intensityMax !== undefined) {
-      const nextMin = args.intensityMin ?? stem.intensityMin
-      const nextMax = args.intensityMax ?? stem.intensityMax
-      if (nextMin < 1 || nextMin > 5 || nextMax < 1 || nextMax > 5) {
-        throw new Error("intensityMin and intensityMax must be between 1 and 5")
+    const nextIntensity = args.intensity ?? stem.intensity
+    const nextInstrument = args.instrument ?? stem.instrument
+
+    if (args.intensity !== undefined) {
+      if (!Number.isInteger(args.intensity) || args.intensity < 1 || args.intensity > 5) {
+        throw new Error("intensity must be an integer between 1 and 5")
       }
-      if (nextMin > nextMax) throw new Error("intensityMin must be <= intensityMax")
+    }
+    if (args.instrument !== undefined && args.instrument.trim() === "") {
+      throw new Error("instrument is required")
     }
 
     if (args.trackId !== undefined) {
       const track = await ctx.db.get(args.trackId)
       if (!track) throw new Error("Track not found")
+    }
+
+    if (args.instrument !== undefined || args.intensity !== undefined) {
+      const taken = await isSlotTaken(
+        ctx,
+        {
+          campaignId: stem.campaignId,
+          sceneName: stem.sceneName,
+          mode: stem.mode,
+          instrument: nextInstrument,
+          intensity: nextIntensity,
+        },
+        args.stemId,
+      )
+      if (taken) {
+        throw new Error(
+          `Slot already exists for ${stem.sceneName}/${stem.mode}/${nextInstrument} at intensity ${nextIntensity}`,
+        )
+      }
     }
 
     const { stemId, ...updates } = args
@@ -944,9 +1049,11 @@ export const createAudioTrackBulk = mutation({
 })
 
 /**
- * Combined approve + stem-assign for music tracks.
- * Replaces the two-step "adminUpdate → approveAudioTrack" flow for music.
- * Validates all stem slot rows before touching the DB.
+ * Combined approve + variant-assign for music tracks.
+ * Each stem slot is one variant: (sceneName, mode, instrument, intensity).
+ * Inserts are SERIALIZED (not Promise.all) so uniqueness checks earlier in the
+ * loop are visible to later iterations — avoids two slots in one call racing
+ * past validation onto the same (scene, mode, instrument, intensity).
  */
 export const approveAndAssignStems = mutation({
   args: {
@@ -960,9 +1067,8 @@ export const approveAndAssignStems = mutation({
           v.literal("combat"),
           v.literal("victory"),
         ),
-        name: v.string(),
-        intensityMin: v.number(),
-        intensityMax: v.number(),
+        instrument: v.string(),
+        intensity: v.number(),
       }),
     ),
   },
@@ -981,12 +1087,24 @@ export const approveAndAssignStems = mutation({
     if (track.type !== "music") throw new Error("approveAndAssignStems is for music tracks only")
     if (args.stems.length === 0) throw new Error("At least one stem slot is required")
 
-    // Validate all intensity ranges before any DB writes
+    // Validate each slot first (cheap, no DB writes)
     for (const stem of args.stems) {
-      if (!Number.isInteger(stem.intensityMin) || stem.intensityMin < 1 || stem.intensityMin > 5)
-        throw new Error(`Invalid intensityMin (must be 1–5): ${stem.intensityMin}`)
-      if (!Number.isInteger(stem.intensityMax) || stem.intensityMax < stem.intensityMin || stem.intensityMax > 5)
-        throw new Error(`Invalid intensityMax (must be ≥ intensityMin and ≤ 5): ${stem.intensityMax}`)
+      if (!Number.isInteger(stem.intensity) || stem.intensity < 1 || stem.intensity > 5)
+        throw new Error(`Invalid intensity (must be integer 1–5): ${stem.intensity}`)
+      if (stem.instrument.trim() === "")
+        throw new Error("instrument is required for every slot")
+    }
+
+    // Detect duplicates within this single submission
+    const slotKeys = new Set<string>()
+    for (const stem of args.stems) {
+      const key = `${stem.sceneName}|${stem.mode}|${stem.instrument}|${stem.intensity}`
+      if (slotKeys.has(key)) {
+        throw new Error(
+          `Duplicate slot in submission: ${stem.sceneName}/${stem.mode}/${stem.instrument} @${stem.intensity}`,
+        )
+      }
+      slotKeys.add(key)
     }
 
     // Approve the track
@@ -998,23 +1116,32 @@ export const approveAndAssignStems = mutation({
       approvedBy: identity.tokenIdentifier,
     })
 
-    // Insert one global musicStem record per slot
-    await Promise.all(
-      args.stems.map((stem) =>
-        ctx.db.insert("musicStems", {
-          userId: identity.tokenIdentifier,
-          campaignId: undefined,     // global — not campaign-scoped
-          sceneName: stem.sceneName,
-          mode: stem.mode,
-          name: stem.name,
-          trackId: args.trackId,
-          intensityMin: stem.intensityMin,
-          intensityMax: stem.intensityMax,
-          sortOrder: stem.intensityMin, // auto-assign sort order
-          createdAt: Date.now(),
-        }),
-      ),
-    )
+    // Insert each variant — serialized so collision checks see prior inserts
+    for (const stem of args.stems) {
+      const taken = await isSlotTaken(ctx, {
+        campaignId: undefined,
+        sceneName: stem.sceneName,
+        mode: stem.mode,
+        instrument: stem.instrument,
+        intensity: stem.intensity,
+      })
+      if (taken) {
+        throw new Error(
+          `Slot already exists for ${stem.sceneName}/${stem.mode}/${stem.instrument} @${stem.intensity}`,
+        )
+      }
+      await ctx.db.insert("musicStems", {
+        userId: identity.tokenIdentifier,
+        campaignId: undefined, // global — not campaign-scoped
+        sceneName: stem.sceneName,
+        mode: stem.mode,
+        instrument: stem.instrument,
+        intensity: stem.intensity,
+        trackId: args.trackId,
+        sortOrder: stem.intensity,
+        createdAt: Date.now(),
+      })
+    }
   },
 })
 

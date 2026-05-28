@@ -41,17 +41,16 @@ type StemSlot = {
   id: string // client-only key
   sceneName: string
   mode: StemMode | ""
-  name: string
-  intensityMin: string
-  intensityMax: string
+  instrument: string
+  intensity: string // "1"–"5"
 }
 
 type StemSlotError = {
   sceneName?: string
   mode?: string
-  name?: string
-  intensityMin?: string
-  intensityMax?: string
+  instrument?: string
+  intensity?: string
+  duplicate?: string
 }
 
 function emptyStemSlot(): StemSlot {
@@ -59,9 +58,8 @@ function emptyStemSlot(): StemSlot {
     id: Math.random().toString(36).slice(2),
     sceneName: "",
     mode: "",
-    name: "",
-    intensityMin: "1",
-    intensityMax: "5",
+    instrument: "",
+    intensity: "1",
   }
 }
 
@@ -70,15 +68,157 @@ function validateSlots(slots: StemSlot[]): { errors: StemSlotError[]; valid: boo
     const e: StemSlotError = {}
     if (!slot.sceneName) e.sceneName = "Required"
     if (!slot.mode) e.mode = "Required"
-    if (!slot.name.trim()) e.name = "Required"
-    const min = parseInt(slot.intensityMin, 10)
-    const max = parseInt(slot.intensityMax, 10)
-    if (isNaN(min) || min < 1 || min > 5) e.intensityMin = "1–5"
-    if (isNaN(max) || max < 1 || max > 5 || max < min) e.intensityMax = `≥${isNaN(min) ? 1 : min}, ≤5`
+    if (!slot.instrument.trim()) e.instrument = "Required"
+    const intensity = parseInt(slot.intensity, 10)
+    if (isNaN(intensity) || intensity < 1 || intensity > 5) e.intensity = "1–5"
     return e
   })
+
+  // Detect duplicate (scene, mode, instrument, intensity) within this submission
+  const keyToIndex = new Map<string, number>()
+  slots.forEach((slot, i) => {
+    if (!slot.sceneName || !slot.mode || !slot.instrument.trim() || errors[i].intensity) return
+    const key = `${slot.sceneName}|${slot.mode}|${slot.instrument.trim()}|${slot.intensity}`
+    if (keyToIndex.has(key)) {
+      errors[i].duplicate = `Duplicate of slot ${keyToIndex.get(key)! + 1}`
+    } else {
+      keyToIndex.set(key, i)
+    }
+  })
+
   const valid = errors.every((e) => Object.keys(e).length === 0)
   return { errors, valid }
+}
+
+// ── Per-slot row (own datalist for instrument autocomplete) ────────────────────
+
+function StemSlotRow({
+  slot,
+  index,
+  totalSlots,
+  err,
+  onChange,
+  onRemove,
+}: {
+  slot: StemSlot
+  index: number
+  totalSlots: number
+  err: StemSlotError
+  onChange: (id: string, field: keyof StemSlot, value: string) => void
+  onRemove: (id: string) => void
+}) {
+  const inputCls = "px-2 py-1 rounded border text-xs outline-none"
+  const inputStyle = {
+    borderColor: "var(--scene-border)",
+    background: "var(--scene-bg)",
+    color: "var(--scene-text-primary)",
+  }
+  const errStyle = { color: "#f87171", fontSize: "10px" }
+
+  // Autocomplete suggestions: distinct instruments already assigned at the
+  // global scope for this (scene, mode). Skipped if scene+mode aren't picked yet.
+  const instrumentSuggestions = useQuery(
+    api.audio.listGlobalInstrumentsForSlot,
+    slot.sceneName && slot.mode
+      ? { sceneName: slot.sceneName, mode: slot.mode as StemMode }
+      : "skip",
+  ) ?? []
+
+  const datalistId = `instrument-suggestions-${slot.id}`
+
+  return (
+    <div
+      className="rounded-lg p-3 space-y-2"
+      style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+          Slot {index + 1}
+        </span>
+        {totalSlots > 1 && (
+          <button
+            type="button"
+            onClick={() => onRemove(slot.id)}
+            className="p-0.5 rounded"
+            style={{ color: "var(--scene-text-muted)" }}
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* Row 1: scene + mode */}
+      <div className="flex gap-2">
+        <div className="flex-1 space-y-0.5">
+          <select
+            value={slot.sceneName}
+            onChange={(e) => onChange(slot.id, "sceneName", e.currentTarget.value)}
+            className={inputCls + " w-full"}
+            style={inputStyle}
+          >
+            <option value="">Scene…</option>
+            {FEYFORGE_SCENES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          {err.sceneName && <p style={errStyle}>{err.sceneName}</p>}
+        </div>
+        <div className="flex-1 space-y-0.5">
+          <select
+            value={slot.mode}
+            onChange={(e) => onChange(slot.id, "mode", e.currentTarget.value)}
+            className={inputCls + " w-full"}
+            style={inputStyle}
+          >
+            <option value="">Mode…</option>
+            {MODES.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          {err.mode && <p style={errStyle}>{err.mode}</p>}
+        </div>
+      </div>
+
+      {/* Row 2: instrument (free text + datalist autocomplete) */}
+      <div className="space-y-0.5">
+        <input
+          type="text"
+          list={datalistId}
+          value={slot.instrument}
+          onChange={(e) => onChange(slot.id, "instrument", e.currentTarget.value)}
+          placeholder="Instrument (e.g. Strings, Brass, Ritual Drums)"
+          className={inputCls + " w-full"}
+          style={inputStyle}
+        />
+        <datalist id={datalistId}>
+          {instrumentSuggestions.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+        {err.instrument && <p style={errStyle}>{err.instrument}</p>}
+      </div>
+
+      {/* Row 3: intensity (single value) */}
+      <div className="flex items-center gap-2">
+        <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>Intensity</span>
+        <div className="space-y-0.5">
+          <input
+            type="number"
+            min={1}
+            max={5}
+            value={slot.intensity}
+            onChange={(e) => onChange(slot.id, "intensity", e.currentTarget.value)}
+            className={inputCls + " w-14 text-center"}
+            style={inputStyle}
+          />
+          {err.intensity && <p style={errStyle}>{err.intensity}</p>}
+        </div>
+        <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>(1–5)</span>
+      </div>
+
+      {err.duplicate && <p style={errStyle}>{err.duplicate}</p>}
+    </div>
+  )
 }
 
 // ── Stem Assignments section ───────────────────────────────────────────────────
@@ -96,19 +236,11 @@ function StemAssignmentsSection({
   onAdd: () => void
   onRemove: (id: string) => void
 }) {
-  const inputCls = "px-2 py-1 rounded border text-xs outline-none"
-  const inputStyle = {
-    borderColor: "var(--scene-border)",
-    background: "var(--scene-bg)",
-    color: "var(--scene-text-primary)",
-  }
-  const errStyle = { color: "#f87171", fontSize: "10px" }
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium" style={{ color: "var(--scene-highlight)" }}>
-          Stem Assignments
+          Variant Assignments
         </p>
         <button
           type="button"
@@ -126,107 +258,17 @@ function StemAssignmentsSection({
         </p>
       )}
 
-      {slots.map((slot, i) => {
-        const err = errors[i] ?? {}
-        return (
-          <div
-            key={slot.id}
-            className="rounded-lg p-3 space-y-2"
-            style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
-                Slot {i + 1}
-              </span>
-              {slots.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => onRemove(slot.id)}
-                  className="p-0.5 rounded"
-                  style={{ color: "var(--scene-text-muted)" }}
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-
-            {/* Row 1: scene + mode */}
-            <div className="flex gap-2">
-              <div className="flex-1 space-y-0.5">
-                <select
-                  value={slot.sceneName}
-                  onChange={(e) => onChange(slot.id, "sceneName", e.currentTarget.value)}
-                  className={inputCls + " w-full"}
-                  style={inputStyle}
-                >
-                  <option value="">Scene…</option>
-                  {FEYFORGE_SCENES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                {err.sceneName && <p style={errStyle}>{err.sceneName}</p>}
-              </div>
-              <div className="flex-1 space-y-0.5">
-                <select
-                  value={slot.mode}
-                  onChange={(e) => onChange(slot.id, "mode", e.currentTarget.value)}
-                  className={inputCls + " w-full"}
-                  style={inputStyle}
-                >
-                  <option value="">Mode…</option>
-                  {MODES.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-                {err.mode && <p style={errStyle}>{err.mode}</p>}
-              </div>
-            </div>
-
-            {/* Row 2: stem name */}
-            <div className="space-y-0.5">
-              <input
-                type="text"
-                value={slot.name}
-                onChange={(e) => onChange(slot.id, "name", e.currentTarget.value)}
-                placeholder="Stem name (e.g. Strings, Pads, Full Percussion)"
-                className={inputCls + " w-full"}
-                style={inputStyle}
-              />
-              {err.name && <p style={errStyle}>{err.name}</p>}
-            </div>
-
-            {/* Row 3: intensity range */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>Intensity</span>
-              <div className="space-y-0.5">
-                <input
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={slot.intensityMin}
-                  onChange={(e) => onChange(slot.id, "intensityMin", e.currentTarget.value)}
-                  className={inputCls + " w-14 text-center"}
-                  style={inputStyle}
-                />
-                {err.intensityMin && <p style={errStyle}>{err.intensityMin}</p>}
-              </div>
-              <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>–</span>
-              <div className="space-y-0.5">
-                <input
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={slot.intensityMax}
-                  onChange={(e) => onChange(slot.id, "intensityMax", e.currentTarget.value)}
-                  className={inputCls + " w-14 text-center"}
-                  style={inputStyle}
-                />
-                {err.intensityMax && <p style={errStyle}>{err.intensityMax}</p>}
-              </div>
-            </div>
-          </div>
-        )
-      })}
+      {slots.map((slot, i) => (
+        <StemSlotRow
+          key={slot.id}
+          slot={slot}
+          index={i}
+          totalSlots={slots.length}
+          err={errors[i] ?? {}}
+          onChange={onChange}
+          onRemove={onRemove}
+        />
+      ))}
     </div>
   )
 }
@@ -375,9 +417,8 @@ function TrackReviewCard({
         stems: slots.map((slot) => ({
           sceneName: slot.sceneName,
           mode: slot.mode as StemMode,
-          name: slot.name.trim(),
-          intensityMin: parseInt(slot.intensityMin, 10),
-          intensityMax: parseInt(slot.intensityMax, 10),
+          instrument: slot.instrument.trim(),
+          intensity: parseInt(slot.intensity, 10),
         })),
       })
     } catch (error) {
