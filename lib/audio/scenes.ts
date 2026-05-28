@@ -1,25 +1,15 @@
 /**
- * Predefined scene names for music stem assignment.
- * These are world-geography/environment categories distinct from the visual
- * theme palettes in lib/scenes.ts (feywild, shadowfell, etc.).
- * Cody adds to this list as new scenes are needed.
+ * Scene IDs for music stem assignment. Mirrors the live-session scene picker
+ * in lib/scenes.ts so admin assignments line up with what
+ * `partySessions.activeScene` actually holds — without this match, stems
+ * never resolve. "" (Neutral) is excluded since "no scene" has no audio.
  */
-export const FEYFORGE_SCENES = [
-  "town",
-  "tavern",
-  "forest",
-  "dungeon",
-  "cave",
-  "wilderness",
-  "castle",
-  "ruins",
-  "ocean",
-  "plains",
-  "mountain",
-  "swamp",
-  "temple",
-  "market",
-  "sewers",
-] as const
+import { SCENES } from "@/lib/scenes"
 
-export type FeyForgeScene = typeof FEYFORGE_SCENES[number]
+type NonNeutralSceneId = Exclude<(typeof SCENES)[number]["id"], "">
+
+export const FEYFORGE_SCENES: ReadonlyArray<NonNeutralSceneId> = SCENES
+  .filter((s): s is (typeof SCENES)[number] & { id: NonNeutralSceneId } => s.id !== "")
+  .map((s) => s.id)
+
+export type FeyForgeScene = NonNeutralSceneId

@@ -7,7 +7,6 @@ import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { Play, Pause, Music, Filter, Plus, X } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { SCENES } from "@/lib/scenes"
-import { FEYFORGE_SCENES } from "@/lib/audio/scenes"
 
 type AudioTrack = Doc<"audioTracks">
 type ReviewComment = {
@@ -157,8 +156,8 @@ function StemSlotRow({
             style={inputStyle}
           >
             <option value="">Scene…</option>
-            {FEYFORGE_SCENES.map((s) => (
-              <option key={s} value={s}>{s}</option>
+            {SCENES.filter((s) => s.id !== "").map((s) => (
+              <option key={s.id} value={s.id}>{s.label}</option>
             ))}
           </select>
           {err.sceneName && <p style={errStyle}>{err.sceneName}</p>}
