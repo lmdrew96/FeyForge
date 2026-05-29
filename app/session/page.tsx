@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-panel"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -213,9 +214,7 @@ function NotesView({ sessionId, isDM }: { sessionId: SessionId; isDM: boolean })
                     {note.isDM ? "DM" : "Player"}
                   </span>
                 </div>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--scene-text-primary)" }}>
-                  {note.content}
-                </p>
+                <MarkdownRenderer content={note.content} variant="scene" />
               </div>
             ))}
           </div>
