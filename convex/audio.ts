@@ -266,6 +266,11 @@ export const setSceneAudio = mutation({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
+    const campaign = await ctx.db.get(args.campaignId)
+    if (!campaign || campaign.userId !== identity.tokenIdentifier) {
+      throw new Error("Not authorized")
+    }
+
     const existing = await ctx.db
       .query("campaignSceneAudio")
       .withIndex("by_campaignId_and_sceneName", (q) =>

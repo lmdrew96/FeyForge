@@ -1,6 +1,18 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
+import type { MutationCtx } from "./_generated/server"
+
+// Throws unless the authenticated user owns the campaign. Campaign web editing is
+// DM tooling, so it's gated to the campaign owner.
+async function requireCampaignOwner(
+  ctx: MutationCtx,
+  campaignId: Id<"campaigns">,
+  userId: string
+): Promise<void> {
+  const campaign = await ctx.db.get(campaignId)
+  if (!campaign || campaign.userId !== userId) throw new Error("Campaign not found")
+}
 
 const entityTypeValidator = v.union(
   v.literal("npc"),
@@ -62,6 +74,7 @@ export const addNode = mutation({
   handler: async (ctx, args): Promise<Id<"campaignWebNodes">> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    await requireCampaignOwner(ctx, args.campaignId, identity.tokenIdentifier)
 
     return await ctx.db.insert("campaignWebNodes", {
       campaignId: args.campaignId,
@@ -84,6 +97,9 @@ export const moveNode = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    const node = await ctx.db.get(args.nodeId)
+    if (!node) throw new Error("Node not found")
+    await requireCampaignOwner(ctx, node.campaignId, identity.tokenIdentifier)
     await ctx.db.patch(args.nodeId, { x: args.x, y: args.y })
   },
 })
@@ -96,6 +112,7 @@ export const removeNode = mutation({
 
     const node = await ctx.db.get(args.nodeId)
     if (!node) return
+    await requireCampaignOwner(ctx, node.campaignId, identity.tokenIdentifier)
 
     // Delete all edges connected to this node
     const edges = await ctx.db
@@ -123,6 +140,7 @@ export const addEdge = mutation({
   handler: async (ctx, args): Promise<Id<"campaignWebEdges">> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    await requireCampaignOwner(ctx, args.campaignId, identity.tokenIdentifier)
 
     return await ctx.db.insert("campaignWebEdges", {
       campaignId: args.campaignId,
@@ -141,6 +159,9 @@ export const updateEdge = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    const edge = await ctx.db.get(args.edgeId)
+    if (!edge) throw new Error("Edge not found")
+    await requireCampaignOwner(ctx, edge.campaignId, identity.tokenIdentifier)
     await ctx.db.patch(args.edgeId, { label: args.label })
   },
 })
@@ -150,6 +171,9 @@ export const removeEdge = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    const edge = await ctx.db.get(args.edgeId)
+    if (!edge) return
+    await requireCampaignOwner(ctx, edge.campaignId, identity.tokenIdentifier)
     await ctx.db.delete(args.edgeId)
   },
 })

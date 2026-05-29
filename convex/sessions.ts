@@ -125,6 +125,10 @@ export const addNote = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    const session = await ctx.db.get(args.sessionId)
+    if (!session || session.userId !== identity.tokenIdentifier) {
+      throw new Error("Session not found")
+    }
     return await ctx.db.insert("gameSessionNotes", {
       sessionId: args.sessionId,
       content: args.content,
