@@ -228,7 +228,27 @@ export const deleteAudioTrack = mutation({
 
     const track = await ctx.db.get(args.trackId)
     if (!track) throw new Error("Track not found")
-    if (track.uploadedBy !== identity.tokenIdentifier) throw new Error("Not authorized")
+
+    // Allow the original uploader OR any admin to delete. Bulk-uploaded tracks
+    // (uploadedBy: "bulk-upload") have no human owner, so the admin review UI
+    // relies on the admin branch here.
+    if (track.uploadedBy !== identity.tokenIdentifier) {
+      const me = await ctx.db
+        .query("users")
+        .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+        .unique()
+      if (!me || me.role !== "admin") throw new Error("Not authorized")
+    }
+
+    // Sweep any review comments for this track so we don't leave orphans
+    // pointing at a deleted trackId.
+    const comments = await ctx.db
+      .query("libraryReviewComments")
+      .withIndex("by_trackId", (q) => q.eq("trackId", args.trackId))
+      .collect()
+    for (const comment of comments) {
+      await ctx.db.delete(comment._id)
+    }
 
     await ctx.db.delete(args.trackId)
     return track.r2Key

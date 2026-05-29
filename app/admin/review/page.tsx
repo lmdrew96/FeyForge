@@ -4,7 +4,8 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useState, useRef, useCallback } from "react"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
-import { Play, Pause, Music, Filter, Plus, X } from "lucide-react"
+import { Play, Pause, Music, Filter, Plus, X, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import { SCENES } from "@/lib/scenes"
 
@@ -306,9 +307,11 @@ function TrackReviewCard({
   const approveTrack = useMutation(api.audio.approveAudioTrack)
   const approveAndAssignStems = useMutation(api.audio.approveAndAssignStems)
   const adminUpdate = useMutation(api.audio.adminUpdateAudioTrack)
+  const deleteTrack = useMutation(api.audio.deleteAudioTrack)
 
   const [isApproving, setIsApproving] = useState(false)
   const [approveError, setApproveError] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Ambience / SFX fields
   const [selectedTags, setSelectedTags] = useState<string[]>(() => track.sceneTag ?? [])
@@ -428,6 +431,42 @@ function TrackReviewCard({
     }
   }
 
+  // ── Delete track (R2 first, then Convex record) ───────────────────────────────
+
+  const handleDelete = async () => {
+    if (isDeleting) return
+    const label = track.originalFilename ?? track.name
+    if (!window.confirm(`Delete "${label}"? This permanently removes the file and its record.`)) {
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      // 1. Remove the file from R2 first. If this fails we bail before touching
+      //    Convex, so a failure leaves the record intact and retryable rather
+      //    than orphaning a file in R2 with no DB pointer.
+      const res = await fetch("/api/audio/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ r2Key: track.r2Key }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? "Failed to delete file from storage")
+      }
+
+      // 2. R2 succeeded — remove the Convex record. The reactive query drops
+      //    the row automatically on success.
+      await deleteTrack({ trackId: track._id })
+      toast.success(`Deleted "${label}"`)
+    } catch (error) {
+      console.error(error)
+      toast.error(error instanceof Error ? error.message : "Delete failed")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const otherComments = allComments.filter((c) => c.userId !== myComment?.userId)
 
   return (
@@ -513,6 +552,17 @@ function TrackReviewCard({
                 Reject
               </button>
             </>
+          )}
+          {isAdmin && (
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              title="Delete track"
+              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: "rgba(248,113,113,0.15)", color: "#f87171" }}
+            >
+              <Trash2 size={13} />
+            </button>
           )}
           <button
             onClick={toggle}
