@@ -965,20 +965,15 @@ function PlayerWaiting() {
 export default function SessionPage() {
   const [tab, setTab] = useState<TabId>("live")
 
-  const myCampaign = useQuery(api.liveSessions.getMyDefaultCampaign)
-  const activeSessionForDM = useQuery(
-    api.liveSessions.getActiveSession,
-    myCampaign ? { campaignId: myCampaign._id } : "skip"
-  )
-  const anyActiveSession = useQuery(api.liveSessions.getAnyActiveSession)
+  const context = useQuery(api.campaignMembers.getMyCampaignContext)
+  const session = context?.session ?? null
+  const isDM = context?.role === "dm"
   const myPartyMember = useQuery(
     api.liveSessions.getMyPartyMember,
-    myCampaign === null && anyActiveSession ? { sessionId: anyActiveSession._id } : "skip"
+    !isDM && session ? { sessionId: session._id } : "skip"
   )
 
-  const isDM = !!myCampaign
-
-  if (myCampaign === undefined) {
+  if (context === undefined) {
     return (
       <AppShell>
         <div className="p-6 max-w-3xl mx-auto">
@@ -991,34 +986,34 @@ export default function SessionPage() {
   return (
     <AppShell>
       <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-        {isDM ? (
-          activeSessionForDM === undefined ? (
-            <div className="animate-pulse rounded-xl h-48" style={{ background: "var(--scene-surface)" }} />
-          ) : activeSessionForDM ? (
+        {context === null ? (
+          <PlayerWaiting />
+        ) : isDM ? (
+          session ? (
             <>
               <SessionTabs tab={tab} setTab={setTab} />
               {tab === "live" && (
                 <ConductorView
-                  sessionId={activeSessionForDM._id}
-                  campaignId={activeSessionForDM.campaignId}
-                  activeScene={activeSessionForDM.activeScene}
-                  activeScenePalette={activeSessionForDM.activeScenePalette}
-                  sceneTime={activeSessionForDM.sceneTime}
+                  sessionId={session._id}
+                  campaignId={session.campaignId}
+                  activeScene={session.activeScene}
+                  activeScenePalette={session.activeScenePalette}
+                  sceneTime={session.sceneTime}
                 />
               )}
-              {tab === "notes" && <NotesView sessionId={activeSessionForDM._id} isDM={true} />}
+              {tab === "notes" && <NotesView sessionId={session._id} isDM={true} />}
               {tab === "inventory" && (
                 <InventoryView
-                  sessionId={activeSessionForDM._id}
-                  campaignId={activeSessionForDM.campaignId}
+                  sessionId={session._id}
+                  campaignId={session.campaignId}
                   isDM={true}
                 />
               )}
             </>
           ) : (
-            <DMReadyView campaignId={myCampaign._id} />
+            <DMReadyView campaignId={context.campaignId} />
           )
-        ) : anyActiveSession ? (
+        ) : session ? (
           myPartyMember === undefined ? (
             <div className="animate-pulse rounded-xl h-48" style={{ background: "var(--scene-surface)" }} />
           ) : myPartyMember ? (
@@ -1026,23 +1021,23 @@ export default function SessionPage() {
               <SessionTabs tab={tab} setTab={setTab} />
               {tab === "live" && (
                 <ReceiverView
-                  sessionId={anyActiveSession._id}
-                  campaignId={anyActiveSession.campaignId}
+                  sessionId={session._id}
+                  campaignId={session.campaignId}
                   myMember={myPartyMember as MyMember}
                 />
               )}
-              {tab === "notes" && <NotesView sessionId={anyActiveSession._id} isDM={false} />}
+              {tab === "notes" && <NotesView sessionId={session._id} isDM={false} />}
               {tab === "inventory" && (
                 <InventoryView
-                  sessionId={anyActiveSession._id}
-                  campaignId={anyActiveSession.campaignId}
+                  sessionId={session._id}
+                  campaignId={session.campaignId}
                   isDM={false}
                   myCharacterId={myPartyMember.characterId}
                 />
               )}
             </>
           ) : (
-            <JoinView sessionId={anyActiveSession._id} />
+            <JoinView sessionId={session._id} />
           )
         ) : (
           <PlayerWaiting />

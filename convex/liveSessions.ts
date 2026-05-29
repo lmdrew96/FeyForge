@@ -1,18 +1,7 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
-
-export const getMyDefaultCampaign = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return null
-    return await ctx.db
-      .query("campaigns")
-      .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
-      .first()
-  },
-})
+import { ensureCampaignSetup } from "./campaignMembers"
 
 export const getActiveSession = query({
   args: { campaignId: v.id("campaigns") },
@@ -26,6 +15,22 @@ export const getActiveSession = query({
   },
 })
 
+// DEPRECATED — superseded by campaignMembers.getMyCampaignContext. Retained only so
+// the previously-deployed frontend keeps working during the membership-model rollout.
+// Safe to delete in a follow-up once the new frontend is confirmed live in prod.
+export const getMyDefaultCampaign = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+    return await ctx.db
+      .query("campaigns")
+      .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
+      .first()
+  },
+})
+
+// DEPRECATED — the old global-session hack. See getMyDefaultCampaign note above.
 export const getAnyActiveSession = query({
   args: {},
   handler: async (ctx) => {
@@ -73,6 +78,9 @@ export const setupDMSession = mutation({
         updatedAt: Date.now(),
       })
     }
+
+    // Ensure the DM membership + invite code exist (covers pre-membership campaigns too).
+    await ensureCampaignSetup(ctx, campaignId, identity.tokenIdentifier)
 
     // Get or create active session
     const activeSession = await ctx.db

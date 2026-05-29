@@ -8,7 +8,25 @@ export default defineSchema({
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
     updatedAt: v.number(),
-  }).index("by_userId", ["userId"]),
+    // Shareable invite code (e.g. "FEY-7K2Q") players use to join the campaign.
+    joinCode: v.optional(v.string()),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_joinCode", ["joinCode"]),
+
+  // Per-campaign role + membership. Replaces faking DM-ness via campaign ownership:
+  // a user's role is scoped to each campaign they belong to.
+  campaignMembers: defineTable({
+    campaignId: v.id("campaigns"),
+    userId: v.string(),
+    role: v.union(v.literal("dm"), v.literal("player")),
+    // The character this member plays in this campaign (players only).
+    characterId: v.optional(v.id("characters")),
+    joinedAt: v.number(),
+  })
+    .index("by_campaignId", ["campaignId"])
+    .index("by_userId", ["userId"])
+    .index("by_campaignId_and_userId", ["campaignId", "userId"]),
 
   characters: defineTable({
     userId: v.string(),

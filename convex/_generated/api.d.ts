@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as audio from "../audio.js";
+import type * as campaignMembers from "../campaignMembers.js";
 import type * as campaignScenes from "../campaignScenes.js";
 import type * as campaignWeb from "../campaignWeb.js";
 import type * as campaigns from "../campaigns.js";
@@ -19,6 +20,7 @@ import type * as dmConversations from "../dmConversations.js";
 import type * as encounters from "../encounters.js";
 import type * as libraryShare from "../libraryShare.js";
 import type * as liveSessions from "../liveSessions.js";
+import type * as migrations from "../migrations.js";
 import type * as npcs from "../npcs.js";
 import type * as partyInventory from "../partyInventory.js";
 import type * as sessionNotes from "../sessionNotes.js";
@@ -35,6 +37,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   audio: typeof audio;
+  campaignMembers: typeof campaignMembers;
   campaignScenes: typeof campaignScenes;
   campaignWeb: typeof campaignWeb;
   campaigns: typeof campaigns;
@@ -44,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   encounters: typeof encounters;
   libraryShare: typeof libraryShare;
   liveSessions: typeof liveSessions;
+  migrations: typeof migrations;
   npcs: typeof npcs;
   partyInventory: typeof partyInventory;
   sessionNotes: typeof sessionNotes;

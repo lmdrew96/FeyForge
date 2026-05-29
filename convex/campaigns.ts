@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { ensureCampaignSetup } from "./campaignMembers"
 
 export const list = query({
   args: {},
@@ -23,13 +24,16 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
-    return await ctx.db.insert("campaigns", {
+    const campaignId = await ctx.db.insert("campaigns", {
       userId: identity.tokenIdentifier,
       name: args.name,
       description: args.description,
       isActive: args.isActive ?? false,
       updatedAt: Date.now(),
     })
+    // Owner becomes the campaign's DM member; campaign gets an invite code.
+    await ensureCampaignSetup(ctx, campaignId, identity.tokenIdentifier)
+    return campaignId
   },
 })
 
@@ -60,6 +64,14 @@ export const remove = mutation({
     const campaign = await ctx.db.get(args.id)
     if (!campaign || campaign.userId !== identity.tokenIdentifier) {
       throw new Error("Campaign not found")
+    }
+    // Clean up memberships so they don't dangle.
+    const members = await ctx.db
+      .query("campaignMembers")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.id))
+      .collect()
+    for (const m of members) {
+      await ctx.db.delete(m._id)
     }
     await ctx.db.delete(args.id)
   },
