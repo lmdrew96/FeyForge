@@ -444,8 +444,7 @@ export default defineSchema({
     audioPaused: v.optional(v.boolean()),
   })
     .index("by_campaignId_and_isActive", ["campaignId", "isActive"])
-    .index("by_dmUserId", ["dmUserId"])
-    .index("by_isActive", ["isActive"]),
+    .index("by_dmUserId", ["dmUserId"]),
 
   campaignScenes: defineTable({
     campaignId: v.id("campaigns"),

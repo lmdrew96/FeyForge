@@ -14,34 +14,6 @@ export const getActiveSession = query({
       .first()
   },
 })
-
-// DEPRECATED — superseded by campaignMembers.getMyCampaignContext. Retained only so
-// the previously-deployed frontend keeps working during the membership-model rollout.
-// Safe to delete in a follow-up once the new frontend is confirmed live in prod.
-export const getMyDefaultCampaign = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return null
-    return await ctx.db
-      .query("campaigns")
-      .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
-      .first()
-  },
-})
-
-// DEPRECATED — the old global-session hack. See getMyDefaultCampaign note above.
-export const getAnyActiveSession = query({
-  args: {},
-  handler: async (ctx) => {
-    return await ctx.db
-      .query("partySessions")
-      .withIndex("by_isActive", (q) => q.eq("isActive", true))
-      .order("desc")
-      .first()
-  },
-})
-
 export const listBroadcasts = query({
   args: { sessionId: v.id("partySessions") },
   handler: async (ctx, args) => {
