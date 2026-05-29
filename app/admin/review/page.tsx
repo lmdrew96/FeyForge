@@ -297,6 +297,7 @@ function TrackReviewCard({
   sceneTagOptions: string[]
 }) {
   const addComment = useMutation(api.libraryShare.addReviewComment)
+  const deleteComment = useMutation(api.libraryShare.deleteReviewComment)
   const [playing, setPlaying] = useState(false)
   const [reaction, setReaction] = useState<"yes" | "no" | "maybe" | null>(myComment?.reaction ?? null)
   const [note, setNote] = useState(myComment?.comment ?? "")
@@ -372,6 +373,18 @@ function TrackReviewCard({
     setReaction(r)
     await addComment({ trackId: track._id, reaction: r, comment: note || undefined })
     setSaved(true)
+  }
+
+  const handleClearReview = async () => {
+    try {
+      await deleteComment({ trackId: track._id })
+      setReaction(null)
+      setNote("")
+      setSaved(false)
+      toast.success("Review cleared")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't clear review")
+    }
   }
 
   // ── Ambience approve ────────────────────────────────────────────────────────
@@ -762,7 +775,19 @@ function TrackReviewCard({
         style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}
       />
 
-      {saved && <p className="text-[10px]" style={{ color: "var(--scene-accent)" }}>Saved</p>}
+      {saved && (
+        <div className="flex items-center justify-between">
+          <p className="text-[10px]" style={{ color: "var(--scene-accent)" }}>Saved</p>
+          <button
+            onClick={handleClearReview}
+            className="inline-flex items-center gap-1 text-[10px] transition-opacity hover:opacity-80"
+            style={{ color: "var(--scene-text-muted)" }}
+          >
+            <Trash2 className="h-3 w-3" />
+            Clear review
+          </button>
+        </div>
+      )}
     </div>
   )
 }
