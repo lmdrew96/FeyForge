@@ -263,6 +263,10 @@ export const addProperty = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    const character = await ctx.db.get(args.characterId)
+    if (!character || character.userId !== identity.tokenIdentifier) {
+      throw new Error("Character not found")
+    }
     return await ctx.db.insert("characterProperties", args)
   },
 })
@@ -284,6 +288,12 @@ export const updateProperty = mutation({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
     const { id, ...fields } = args
+    const property = await ctx.db.get(id)
+    if (!property) throw new Error("Property not found")
+    const character = await ctx.db.get(property.characterId)
+    if (!character || character.userId !== identity.tokenIdentifier) {
+      throw new Error("Property not found")
+    }
     await ctx.db.patch(id, fields)
   },
 })
@@ -293,6 +303,12 @@ export const removeProperty = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    const property = await ctx.db.get(args.id)
+    if (!property) throw new Error("Property not found")
+    const character = await ctx.db.get(property.characterId)
+    if (!character || character.userId !== identity.tokenIdentifier) {
+      throw new Error("Property not found")
+    }
     await ctx.db.delete(args.id)
   },
 })
