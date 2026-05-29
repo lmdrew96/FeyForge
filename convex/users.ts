@@ -47,8 +47,16 @@ export const setPremiumByClerkId = mutation({
   args: {
     clerkId: v.string(),
     isPremium: v.boolean(),
+    webhookSecret: v.string(),
   },
   handler: async (ctx, args) => {
+    // Shared-secret gate: this public mutation is only legitimately called by the
+    // Ko-fi webhook, which passes KOFI_VERIFICATION_TOKEN. Without this, any client
+    // could grant themselves premium by calling the mutation directly.
+    if (!process.env.KOFI_VERIFICATION_TOKEN || args.webhookSecret !== process.env.KOFI_VERIFICATION_TOKEN) {
+      throw new Error("Unauthorized")
+    }
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.clerkId))

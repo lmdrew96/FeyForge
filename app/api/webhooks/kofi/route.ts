@@ -35,7 +35,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  if (KOFI_TOKEN && data.verification_token !== KOFI_TOKEN) {
+  // Fail closed: a missing token means the endpoint is misconfigured, not open.
+  if (!KOFI_TOKEN) {
+    console.error("Ko-fi webhook: KOFI_VERIFICATION_TOKEN is not set")
+    return NextResponse.json({ error: "Webhook not configured" }, { status: 500 })
+  }
+  if (data.verification_token !== KOFI_TOKEN) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 })
   }
 
@@ -68,6 +73,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   await fetchMutation(api.users.setPremiumByClerkId, {
     clerkId,
     isPremium: true,
+    webhookSecret: KOFI_TOKEN,
   })
 
   return NextResponse.json({ ok: true })
