@@ -1,12 +1,12 @@
 "use client"
 
-import { use } from "react"
+import { use, useState } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -192,6 +192,154 @@ function HpEditor({ char }: { char: CharDoc }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+function CustomPropertiesSection({ characterId }: { characterId: Id<"characters"> }) {
+  const allProps = useQuery(api.characters.listAllProperties)
+  const addProperty = useMutation(api.characters.addProperty)
+  const updateProperty = useMutation(api.characters.updateProperty)
+  const removeProperty = useMutation(api.characters.removeProperty)
+
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [adding, setAdding] = useState(false)
+
+  const props = (allProps ?? [])
+    .filter((p) => p.characterId === characterId)
+    .sort((a, b) => a.orderIndex - b.orderIndex)
+
+  const handleAdd = async () => {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      toast.error("Give the property a name.")
+      return
+    }
+    setAdding(true)
+    try {
+      const nextOrder = props.length ? Math.max(...props.map((p) => p.orderIndex)) + 1 : 0
+      await addProperty({
+        characterId,
+        type: "custom",
+        name: trimmed,
+        description: description.trim() || undefined,
+        active: true,
+        orderIndex: nextOrder,
+        data: {},
+      })
+      setName("")
+      setDescription("")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add property.")
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleToggle = async (id: Id<"characterProperties">, active: boolean) => {
+    try {
+      await updateProperty({ id, active: !active })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update property.")
+    }
+  }
+
+  const handleRemove = async (id: Id<"characterProperties">) => {
+    try {
+      await removeProperty({ id })
+      toast.success("Property removed.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't remove property.")
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+        Custom Properties
+      </h2>
+
+      <div className="space-y-2">
+        {allProps === undefined && (
+          <div className="h-12 rounded-lg animate-pulse" style={{ background: "var(--scene-surface)" }} />
+        )}
+        {allProps !== undefined && props.length === 0 && (
+          <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+            No custom properties yet. Add freeform stats, traits, or notes below.
+          </p>
+        )}
+        {props.map((p) => (
+          <div
+            key={p._id}
+            className="flex items-start gap-3 rounded-lg px-4 py-3"
+            style={{
+              background: "var(--scene-surface)",
+              border: "1px solid var(--scene-border)",
+              opacity: p.active ? 1 : 0.55,
+            }}
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{p.name}</p>
+              {p.description && (
+                <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>
+                  {p.description}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => handleToggle(p._id, p.active)}
+              className="text-[10px] px-2 py-1 rounded-md transition-opacity hover:opacity-80 flex-shrink-0"
+              style={{
+                background: p.active ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)" : "var(--scene-border)",
+                color: p.active ? "var(--scene-accent)" : "var(--scene-text-muted)",
+              }}
+              title={p.active ? "Active — click to disable" : "Inactive — click to enable"}
+            >
+              {p.active ? "Active" : "Inactive"}
+            </button>
+            <button
+              onClick={() => handleRemove(p._id)}
+              className="p-1.5 rounded transition-opacity hover:opacity-80 flex-shrink-0"
+              style={{ color: "var(--scene-text-muted)" }}
+              title="Remove property"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="mt-3 rounded-lg p-4 space-y-2"
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+      >
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAdd() }}
+          placeholder="Property name (e.g. Lucky, Darkvision)"
+          className="w-full px-3 py-2 rounded-md text-sm bg-transparent outline-none"
+          style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+        />
+        <input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAdd() }}
+          placeholder="Description or value (optional)"
+          className="w-full px-3 py-2 rounded-md text-sm bg-transparent outline-none"
+          style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+        />
+        <button
+          onClick={handleAdd}
+          disabled={adding}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+          style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+        >
+          <Plus className="h-4 w-4" />
+          {adding ? "Adding…" : "Add property"}
+        </button>
+      </div>
+    </section>
+  )
+}
 
 export default function CharacterSheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -526,6 +674,9 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
             ))}
           </div>
         </section>
+
+        {/* Custom Properties */}
+        <CustomPropertiesSection characterId={char._id} />
 
       </div>
     </AppShell>
