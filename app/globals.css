@@ -565,3 +565,195 @@
 .notification-pulse {
   animation: notification-pulse 2s ease-in-out infinite;
 }
+
+/* ============================================================
+   SCENE BACKDROP — layered atmosphere + per-scene living motes
+   A fixed layer behind all content, driven by the --scene-* tokens.
+   Each scene gets a distinct mote motion + texture matching its vibe
+   (set via body[data-scene="…"] rules at the bottom of this block).
+   ============================================================ */
+
+/* Registered so the gradient/mote colors crossfade with the 600ms scene
+   change instead of snapping (background-image colors aren't transitionable
+   unless the underlying custom property is a registered <color>). */
+@property --scene-accent-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(123, 104, 200, 0.25);
+}
+@property --scene-particle {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #7b68c8;
+}
+
+.scene-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Per-scene knobs (overridden below). Neutral defaults are deliberately calm
+     — most non-session pages are utilitarian, so the off-scene state is faint
+     and slow; vivid behaviors only kick in once a live scene is active. */
+  --mote-anim: float-particle-slow;
+  --mote-base-dur: 18s;
+  --mote-glow: none;
+  --motes-opacity: 0.32;
+  --glow-x: 50%;
+  --glow-y: 12%;
+  --glow-size: 75% 55%;
+  --grain-opacity: 0.04;
+}
+
+.scene-backdrop > * {
+  position: absolute;
+  inset: 0;
+}
+
+.scene-backdrop__glow {
+  background: radial-gradient(
+    ellipse var(--glow-size) at var(--glow-x) var(--glow-y),
+    var(--scene-accent-glow),
+    transparent 70%
+  );
+  transition: --scene-accent-glow 600ms ease, background 600ms ease;
+}
+
+.scene-backdrop__vignette {
+  background: radial-gradient(ellipse at center, transparent 45%, var(--scene-shadow) 118%);
+}
+
+.scene-backdrop__grain {
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.scene-backdrop__motes {
+  opacity: var(--motes-opacity);
+  transition: opacity 600ms ease;
+}
+
+.scene-mote {
+  position: absolute;
+  border-radius: 50%;
+  /* Soft glowing mote via radial-gradient (GPU-cheap — no animated blur). */
+  background: radial-gradient(circle, var(--scene-particle) 0%, transparent 70%);
+  box-shadow: var(--mote-glow);
+  opacity: 0;
+  transition: --scene-particle 600ms ease;
+  animation-name: var(--mote-anim);
+  /* Desync each mote by its index so the field never pulses in unison. */
+  animation-duration: calc(var(--mote-base-dur) + var(--i, 0) * 0.6s);
+  animation-delay: calc(var(--i, 0) * -1.7s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+/* Directional mote motions — each fades in/out at its travel ends so the
+   infinite loop reset is invisible. */
+@keyframes mote-rise {
+  0%   { transform: translateY(18px) scale(0.7);              opacity: 0; }
+  20%  {                                                      opacity: 0.7; }
+  80%  {                                                      opacity: 0.6; }
+  100% { transform: translateY(-130px) translateX(10px) scale(1.05); opacity: 0; }
+}
+@keyframes mote-fall {
+  0%   { transform: translateY(-18px) scale(0.85);            opacity: 0; }
+  20%  {                                                      opacity: 0.55; }
+  80%  {                                                      opacity: 0.5; }
+  100% { transform: translateY(130px) translateX(-8px) scale(0.9); opacity: 0; }
+}
+@keyframes mote-drift {
+  0%   { transform: translateX(-24px) scale(0.8);             opacity: 0; }
+  25%  {                                                      opacity: 0.5; }
+  75%  {                                                      opacity: 0.45; }
+  100% { transform: translateX(160px) translateY(-14px) scale(1); opacity: 0; }
+}
+@keyframes mote-twinkle {
+  0%, 100% { opacity: 0;    transform: scale(0.4); }
+  50%      { opacity: 0.95; transform: scale(1.1); }
+}
+@keyframes mote-swirl {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(0.7);        opacity: 0; }
+  25%  {                                                            opacity: 0.7; }
+  50%  { transform: translate(34px, -42px) rotate(180deg) scale(1.15); opacity: 0.6; }
+  75%  {                                                            opacity: 0.55; }
+  100% { transform: translate(-12px, -92px) rotate(360deg) scale(0.8); opacity: 0; }
+}
+
+/* ── Per-scene vibes ──────────────────────────────────────────────────────
+   data-scene is only set during a live session, so vivid behaviors appear
+   there; every other page uses the calm neutral defaults above. */
+
+/* Dungeon — cold, oppressive, ancient: sparse slow cold dust */
+body[data-scene="dungeon"] .scene-backdrop {
+  --mote-anim: float-particle-slow; --mote-base-dur: 17s;
+  --motes-opacity: 0.4; --grain-opacity: 0.055; --glow-y: 8%;
+}
+/* Tavern — warm, chaotic, alive: embers rising from the hearth */
+body[data-scene="tavern"] .scene-backdrop {
+  --mote-anim: mote-rise; --mote-base-dur: 6s;
+  --mote-glow: 0 0 6px var(--scene-particle);
+  --motes-opacity: 0.7; --glow-x: 50%; --glow-y: 88%; --grain-opacity: 0.045;
+}
+/* Forest — dappled, breathing: drifting pollen */
+body[data-scene="forest"] .scene-backdrop {
+  --mote-anim: float-particle; --mote-base-dur: 12s;
+  --motes-opacity: 0.55; --glow-y: 10%; --grain-opacity: 0.045;
+}
+/* Underdark — void, alien, bioluminescent: glowing spores rising */
+body[data-scene="underdark"] .scene-backdrop {
+  --mote-anim: mote-rise; --mote-base-dur: 13s;
+  --mote-glow: 0 0 9px var(--scene-particle);
+  --motes-opacity: 0.75; --glow-y: 60%; --glow-size: 60% 60%; --grain-opacity: 0.03;
+}
+/* Castle — imposing, cold stone: slow dust falling in light */
+body[data-scene="castle"] .scene-backdrop {
+  --mote-anim: mote-fall; --mote-base-dur: 16s;
+  --motes-opacity: 0.4; --glow-y: 6%; --grain-opacity: 0.06;
+}
+/* Coastal — open, salt-air, vast: sea-mist on the breeze */
+body[data-scene="coastal"] .scene-backdrop {
+  --mote-anim: mote-drift; --mote-base-dur: 11s;
+  --motes-opacity: 0.45; --glow-x: 50%; --glow-y: 20%; --glow-size: 90% 50%; --grain-opacity: 0.035;
+}
+/* Infernal — scorched, suffocating, red: fast embers rising from below */
+body[data-scene="infernal"] .scene-backdrop {
+  --mote-anim: mote-rise; --mote-base-dur: 4.5s;
+  --mote-glow: 0 0 8px var(--scene-particle);
+  --motes-opacity: 0.8; --glow-x: 50%; --glow-y: 100%; --glow-size: 90% 60%; --grain-opacity: 0.05;
+}
+/* Celestial — radiant, impossibly bright: twinkling stars */
+body[data-scene="celestial"] .scene-backdrop {
+  --mote-anim: mote-twinkle; --mote-base-dur: 5s;
+  --mote-glow: 0 0 7px var(--scene-particle);
+  --motes-opacity: 0.95; --glow-y: 8%; --glow-size: 95% 60%; --grain-opacity: 0.02;
+}
+/* Shadowfell — ashen, grief-heavy, still: very slow falling ash */
+body[data-scene="shadowfell"] .scene-backdrop {
+  --mote-anim: mote-fall; --mote-base-dur: 19s;
+  --motes-opacity: 0.35; --glow-y: 10%; --grain-opacity: 0.07;
+}
+/* Feywild — saturated, shifting, alive: swirling sparkles */
+body[data-scene="feywild"] .scene-backdrop {
+  --mote-anim: mote-swirl; --mote-base-dur: 9s;
+  --mote-glow: 0 0 7px var(--scene-particle);
+  --motes-opacity: 0.7; --glow-y: 25%; --glow-size: 80% 70%; --grain-opacity: 0.03;
+}
+
+/* Respect reduced-motion: freeze all drift; keep a faint static mote field
+   plus the static glow/vignette/grain so depth & texture remain. */
+@media (prefers-reduced-motion: reduce) {
+  .scene-mote {
+    animation: none !important;
+    opacity: 0.28;
+  }
+  .scene-backdrop__glow,
+  .scene-backdrop__motes,
+  .scene-mote {
+    transition: none;
+  }
+}

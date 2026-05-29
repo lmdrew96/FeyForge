@@ -28,6 +28,7 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { SceneBackdrop } from "@/components/scene-backdrop"
 
 type NavChild = { label: string; href: string; icon: React.ElementType }
 type NavItem = {
@@ -72,10 +73,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     href === "/dashboard" ? pathname === href : pathname.startsWith(href)
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "var(--scene-bg)" }}>
+    <div className="relative flex h-screen overflow-hidden" style={{ background: "var(--scene-bg)" }}>
+      <SceneBackdrop />
+
       {/* Desktop sidebar */}
       <aside
-        className="hidden md:flex flex-col w-56 shrink-0"
+        className="relative z-10 hidden md:flex flex-col w-56 shrink-0"
         style={{
           background: "var(--scene-surface)",
           borderRight: "1px solid var(--scene-border)",
@@ -223,7 +226,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto md:pt-0 pt-12 pb-14 md:pb-0">
+      <main className="relative z-10 flex-1 overflow-y-auto md:pt-0 pt-12 pb-14 md:pb-0">
         {children}
       </main>
 
