@@ -809,6 +809,10 @@ body[data-scene="forest"] .scene-backdrop__texture {
   0%   { transform: translateX(-4%) scale(1.05); }
   100% { transform: translateX(4%) translateY(-2%) scale(1.12); }
 }
+@keyframes cloud-drift {
+  0%   { transform: translateX(-4%); }
+  100% { transform: translateX(6%); }
+}
 @keyframes dapple-drift {
   0%   { transform: translate(0, 0) scale(1);       opacity: 0.5; }
   50%  {                                            opacity: 0.62; }
