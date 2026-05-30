@@ -3,17 +3,28 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+// ── Result shape ────────────────────────────────────────────────────────────────
+// A roll is a list of dice groups (terms) plus a flat modifier. Each term keeps the
+// individual dice so the UI can show "you rolled a nat 20", not just the sum.
+
+export interface DiceTerm {
+  sides: number // e.g. 20 for a d20
+  rolls: number[] // every die rolled for this term (post-crit doubling)
+  dropped: number[] // dice rolled but not counted (advantage/disadvantage)
+  subtotal: number // this term's contribution to the total
+}
+
 export interface DiceRollResult {
   id: string
-  expression: string
-  rolls: number[]
-  modifier: number
+  expression: string // normalized, e.g. "1d8 + 3d6 + 2"
+  terms: DiceTerm[]
+  modifier: number // sum of flat (non-dice) modifiers
   total: number
-  dieType: number
-  count: number
   isAdvantage?: boolean
   isDisadvantage?: boolean
-  timestamp: Date
+  isCrit?: boolean
+  label?: string // optional name (e.g. a saved roll like "Fireball")
+  timestamp: string // ISO string — survives localStorage persistence
 }
 
 export interface SavedRoll {
@@ -21,6 +32,16 @@ export interface SavedRoll {
   name: string
   expression: string
 }
+
+export type RollMode = "normal" | "advantage" | "disadvantage"
+
+interface RollOptions {
+  mode?: RollMode
+  crit?: boolean
+  label?: string
+}
+
+// ── Store ───────────────────────────────────────────────────────────────────────
 
 interface DiceStore {
   // Roll history (persisted)
@@ -40,33 +61,31 @@ interface DiceStore {
   currentResult: DiceRollResult | null
   setCurrentResult: (result: DiceRollResult | null) => void
 
-  // Advantage/Disadvantage toggle
-  rollMode: "normal" | "advantage" | "disadvantage"
-  setRollMode: (mode: "normal" | "advantage" | "disadvantage") => void
+  // Roll mode + crit toggle (not persisted)
+  rollMode: RollMode
+  setRollMode: (mode: RollMode) => void
+  crit: boolean
+  setCrit: (crit: boolean) => void
 }
 
 export const useDiceStore = create<DiceStore>()(
   persist(
     (set) => ({
-      // Roll history
       rollHistory: [],
       addRoll: (roll) =>
         set((state) => ({
-          rollHistory: [roll, ...state.rollHistory].slice(0, 50), // Keep last 50 rolls
+          rollHistory: [roll, ...state.rollHistory].slice(0, 50), // keep last 50
           currentResult: roll,
         })),
       clearHistory: () => set({ rollHistory: [] }),
 
-      // Saved rolls
       savedRolls: [
         { id: "default-1", name: "Fireball", expression: "8d6" },
         { id: "default-2", name: "Longsword", expression: "1d8+3" },
-        { id: "default-3", name: "Sneak Attack", expression: "3d6" },
+        { id: "default-3", name: "Sneak Attack", expression: "1d8+3d6" },
       ],
       addSavedRoll: (roll) =>
-        set((state) => ({
-          savedRolls: [...state.savedRolls, roll],
-        })),
+        set((state) => ({ savedRolls: [...state.savedRolls, roll] })),
       removeSavedRoll: (id) =>
         set((state) => ({
           savedRolls: state.savedRolls.filter((r) => r.id !== id),
@@ -74,19 +93,19 @@ export const useDiceStore = create<DiceStore>()(
       updateSavedRoll: (id, updates) =>
         set((state) => ({
           savedRolls: state.savedRolls.map((r) =>
-            r.id === id ? { ...r, ...updates } : r
+            r.id === id ? { ...r, ...updates } : r,
           ),
         })),
 
-      // Current roll state
       isRolling: false,
       setIsRolling: (rolling) => set({ isRolling: rolling }),
       currentResult: null,
       setCurrentResult: (result) => set({ currentResult: result }),
 
-      // Roll mode
       rollMode: "normal",
       setRollMode: (mode) => set({ rollMode: mode }),
+      crit: false,
+      setCrit: (crit) => set({ crit }),
     }),
     {
       name: "feyforge-dice-store",
@@ -94,84 +113,169 @@ export const useDiceStore = create<DiceStore>()(
         rollHistory: state.rollHistory,
         savedRolls: state.savedRolls,
       }),
-    }
-  )
+    },
+  ),
 )
 
-// Helper function to parse dice expressions
-export function parseDiceExpression(expression: string): {
-  count: number
-  sides: number
-  modifier: number
-} | null {
-  const match = expression.match(/^(\d*)d(\d+)([+-]\d+)?$/i)
-  if (!match) return null
+// ── Parsing ─────────────────────────────────────────────────────────────────────
 
-  const count = parseInt(match[1]) || 1
-  const sides = parseInt(match[2])
-  const modifier = match[3] ? parseInt(match[3]) : 0
-
-  if (sides <= 0 || count <= 0 || count > 100) return null
-
-  return { count, sides, modifier }
+export interface ParsedTerm {
+  type: "dice" | "flat"
+  sign: 1 | -1
+  count?: number // dice only
+  sides?: number // dice only
+  value?: number // flat only
 }
 
-// Helper function to roll dice
-export function rollDice(
-  sides: number,
-  count: number = 1,
-  modifier: number = 0,
-  options?: {
-    isAdvantage?: boolean
-    isDisadvantage?: boolean
-    label?: string
-  }
-): DiceRollResult {
-  const rolls: number[] = []
+const MAX_DICE = 100 // safety cap on total dice in one expression
 
-  // For advantage/disadvantage, roll twice
-  if ((options?.isAdvantage || options?.isDisadvantage) && sides === 20 && count === 1) {
-    const roll1 = Math.floor(Math.random() * sides) + 1
-    const roll2 = Math.floor(Math.random() * sides) + 1
-    rolls.push(roll1, roll2)
+/**
+ * Parse a dice expression into signed terms.
+ * Handles multiple dice groups and flat modifiers:
+ *   "1d20+5", "8d6", "1d8+3d6+2", "d20", "2d6 + 1d8 - 1", "+1d4"
+ * Returns null on anything it can't fully consume.
+ */
+export function parseDiceExpression(expression: string): ParsedTerm[] | null {
+  // Collapse whitespace around +/- operators, then reject any leftover internal
+  // whitespace — that means two terms with no operator (e.g. "1d6 1d6"), which
+  // would otherwise silently merge into a bogus "1d61" die.
+  const collapsed = expression.trim().replace(/\s*([+-])\s*/g, "$1")
+  if (/\s/.test(collapsed)) return null
+  const cleaned = collapsed.toLowerCase()
+  if (!cleaned) return null
 
-    const selectedRoll = options?.isAdvantage
-      ? Math.max(roll1, roll2)
-      : Math.min(roll1, roll2)
+  const tokenRe = /([+-]?)(?:(\d*)d(\d+)|(\d+))/g
+  const terms: ParsedTerm[] = []
+  let consumed = 0
+  let totalDice = 0
+  let match: RegExpExecArray | null
 
-    return {
-      id: crypto.randomUUID(),
-      expression: options?.label || `1d20${modifier >= 0 ? "+" : ""}${modifier !== 0 ? modifier : ""}`,
-      rolls,
-      modifier,
-      total: selectedRoll + modifier,
-      dieType: sides,
-      count: 1,
-      isAdvantage: options?.isAdvantage,
-      isDisadvantage: options?.isDisadvantage,
-      timestamp: new Date(),
+  while ((match = tokenRe.exec(cleaned)) !== null) {
+    // Reject gaps — every character must be part of a valid token.
+    if (match.index !== consumed) return null
+    consumed += match[0].length
+
+    const sign: 1 | -1 = match[1] === "-" ? -1 : 1
+    const isDice = match[3] !== undefined
+
+    if (isDice) {
+      const count = match[2] === "" ? 1 : parseInt(match[2], 10)
+      const sides = parseInt(match[3], 10)
+      if (count <= 0 || sides <= 1) return null
+      totalDice += count
+      if (totalDice > MAX_DICE) return null
+      terms.push({ type: "dice", sign, count, sides })
+    } else {
+      const value = parseInt(match[4], 10)
+      terms.push({ type: "flat", sign, value })
     }
   }
 
-  // Normal rolling
-  for (let i = 0; i < count; i++) {
-    rolls.push(Math.floor(Math.random() * sides) + 1)
-  }
+  if (consumed !== cleaned.length || terms.length === 0) return null
+  return terms
+}
 
-  const total = rolls.reduce((sum, r) => sum + r, 0) + modifier
+/** Pretty-print parsed terms back into a normalized expression string. */
+export function formatExpression(terms: ParsedTerm[]): string {
+  return terms
+    .map((t, i) => {
+      const body =
+        t.type === "dice" ? `${t.count}d${t.sides}` : `${t.value}`
+      if (i === 0) return t.sign === -1 ? `-${body}` : body
+      return t.sign === -1 ? ` - ${body}` : ` + ${body}`
+    })
+    .join("")
+}
+
+// ── Rolling ─────────────────────────────────────────────────────────────────────
+
+const rollOne = (sides: number) => Math.floor(Math.random() * sides) + 1
+
+/**
+ * Roll a parsed expression.
+ * - Advantage/disadvantage applies to a single d20 (the canonical case): the term
+ *   rolls two d20s and keeps the higher/lower; the other is recorded as dropped.
+ * - Crit doubles the number of dice rolled for every dice term (damage dice),
+ *   never the flat modifier.
+ */
+export function rollParsed(
+  terms: ParsedTerm[],
+  options?: RollOptions,
+): DiceRollResult {
+  const mode = options?.mode ?? "normal"
+  const crit = options?.crit ?? false
+
+  const resultTerms: DiceTerm[] = []
+  let modifier = 0
+  let total = 0
+
+  const diceTermCount = terms.filter((t) => t.type === "dice").length
+
+  for (const term of terms) {
+    if (term.type === "flat") {
+      const v = term.sign * (term.value ?? 0)
+      modifier += v
+      total += v
+      continue
+    }
+
+    const sides = term.sides!
+    const baseCount = term.count!
+    // Crit doubles damage dice — never the d20 (a d20 is an attack/check roll,
+    // not damage). This also lets a mixed attack+damage expression like
+    // "1d20+3d6" crit correctly: the d20 stays single, the 3d6 doubles.
+    const count = crit && sides !== 20 ? baseCount * 2 : baseCount
+
+    const rolls: number[] = []
+    const dropped: number[] = []
+
+    const singleD20 =
+      sides === 20 && baseCount === 1 && diceTermCount === 1
+
+    if (singleD20 && mode !== "normal") {
+      const a = rollOne(20)
+      const b = rollOne(20)
+      const kept = mode === "advantage" ? Math.max(a, b) : Math.min(a, b)
+      const drop = mode === "advantage" ? Math.min(a, b) : Math.max(a, b)
+      rolls.push(kept)
+      dropped.push(drop)
+    } else {
+      for (let i = 0; i < count; i++) rolls.push(rollOne(sides))
+    }
+
+    const subtotal = term.sign * rolls.reduce((s, r) => s + r, 0)
+    total += subtotal
+    resultTerms.push({ sides, rolls, dropped, subtotal })
+  }
 
   return {
     id: crypto.randomUUID(),
-    expression:
-      options?.label ||
-      `${count}d${sides}${modifier >= 0 ? "+" : ""}${modifier !== 0 ? modifier : ""}`,
-    rolls,
+    expression: formatExpression(terms),
+    terms: resultTerms,
     modifier,
     total,
-    dieType: sides,
-    count,
-    isAdvantage: options?.isAdvantage,
-    isDisadvantage: options?.isDisadvantage,
-    timestamp: new Date(),
+    isAdvantage: mode === "advantage",
+    isDisadvantage: mode === "disadvantage",
+    isCrit: crit,
+    label: options?.label,
+    timestamp: new Date().toISOString(),
   }
+}
+
+/** Parse + roll a raw expression string. Returns null if the expression is invalid. */
+export function rollExpression(
+  expression: string,
+  options?: RollOptions,
+): DiceRollResult | null {
+  const terms = parseDiceExpression(expression)
+  if (!terms) return null
+  return rollParsed(terms, options)
+}
+
+/** Convenience for the quick-die buttons (d4–d100). */
+export function rollDie(
+  sides: number,
+  options?: RollOptions,
+): DiceRollResult {
+  return rollParsed([{ type: "dice", sign: 1, count: 1, sides }], options)
 }
