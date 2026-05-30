@@ -848,3 +848,42 @@ body[data-scene="forest"] .scene-backdrop__texture {
     transition: none;
   }
 }
+
+/* Range slider with a transparent track (the visible fill line is drawn by a
+   sibling element). The runnable track, thumb, and input are all the same height
+   (16px) so the thumb centers on the input — and thus on the line — with no
+   browser-specific margin hacks. */
+.scene-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.scene-range::-webkit-slider-runnable-track {
+  height: 16px;
+  background: transparent;
+  border-radius: 9999px;
+}
+.scene-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--scene-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.scene-range::-moz-range-track {
+  height: 16px;
+  background: transparent;
+  border-radius: 9999px;
+}
+.scene-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 9999px;
+  background: var(--scene-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}

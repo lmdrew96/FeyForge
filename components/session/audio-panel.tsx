@@ -444,9 +444,9 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
             {/* Intensity slider */}
             {sessionRef?.musicMode !== "off" && (
               <div className="flex items-center gap-3">
-                <div className="relative flex-1 h-2">
+                <div className="relative flex-1 h-4">
                   <div
-                    className="absolute inset-0 rounded-full pointer-events-none"
+                    className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-2 rounded-full pointer-events-none"
                     style={{
                       background: `linear-gradient(to right,
                         var(--scene-accent) 0%,
@@ -464,8 +464,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
                     step={1}
                     value={musicIntensity}
                     onChange={(e) => handleIntensityChange(Number(e.target.value))}
-                    className="relative w-full h-2 rounded-full appearance-none cursor-pointer bg-transparent"
-                    style={{ accentColor: "var(--scene-accent)" }}
+                    className="scene-range relative w-full h-4 cursor-pointer"
                   />
                 </div>
                 <span className="text-xs font-semibold w-5 text-right shrink-0" style={{ color: "var(--scene-accent)" }}>
