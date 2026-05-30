@@ -475,6 +475,8 @@ function CustomPropertiesSection({ characterId }: { characterId: Id<"characters"
 export default function CharacterSheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const char = useQuery(api.characters.get, { id: id as Id<"characters"> })
+  // Hooks must run on every render — call before any early return (Rules of Hooks).
+  const roll = useSheetRoll()
 
   if (char === undefined) {
     return (
@@ -502,7 +504,6 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   }
 
   const { totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative, unarmoredAC } = computeStats(char)
-  const roll = useSheetRoll()
   const raceName = char.subrace ? `${char.subrace} ${char.race}` : char.race
   const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
   const hitDie = char.hitDice[0]?.diceSize ?? 8
