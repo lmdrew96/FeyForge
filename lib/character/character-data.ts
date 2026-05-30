@@ -610,6 +610,25 @@ export function getRaceById(id: string): RaceData | undefined {
   return RACES.find((r) => r.id === id)
 }
 
+/**
+ * Resolve a character's darkvision range (in feet) from its stored race +
+ * subrace names. "Superior Darkvision" → 120 ft, plain "Darkvision" → 60 ft,
+ * otherwise 0 (no darkvision). Matches by name (case-insensitive) since that's
+ * what the character doc stores. Returns 0 for unknown/homebrew lineages —
+ * those can record senses via Custom Properties instead.
+ */
+export function getDarkvisionRange(raceName: string, subraceName?: string): number {
+  const race = RACES.find((r) => r.name.toLowerCase() === raceName.toLowerCase())
+  if (!race) return 0
+  const subrace = subraceName
+    ? race.subraces?.find((s) => s.name.toLowerCase() === subraceName.toLowerCase())
+    : undefined
+  const traits = [...race.traits, ...(subrace?.traits ?? [])].map((t) => t.toLowerCase())
+  if (traits.some((t) => t.includes("superior darkvision"))) return 120
+  if (traits.some((t) => t.includes("darkvision"))) return 60
+  return 0
+}
+
 export function getClassById(id: string): ClassData | undefined {
   return CLASSES.find((c) => c.id === id)
 }

@@ -235,6 +235,55 @@ export const updateHp = mutation({
   },
 })
 
+// Set death-save tallies directly from the sheet. Both counts clamp to 0–3
+// (three of either ends the dying state per RAW). Focused setter like updateHp;
+// combatant death saves in the combat tracker are a separate concern.
+export const setDeathSaves = mutation({
+  args: {
+    id: v.id("characters"),
+    successes: v.number(),
+    failures: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const character = await ctx.db.get(args.id)
+    if (!character || character.userId !== identity.tokenIdentifier) throw new Error("Character not found")
+    const clamp = (n: number) => Math.max(0, Math.min(3, Math.round(n)))
+    await ctx.db.patch(args.id, {
+      deathSaves: { successes: clamp(args.successes), failures: clamp(args.failures) },
+      updatedAt: Date.now(),
+    })
+  },
+})
+
+// Set a character's full coin purse from the sheet. Each denomination clamps to
+// a non-negative integer.
+export const setCurrency = mutation({
+  args: {
+    id: v.id("characters"),
+    currency: currencyValidator,
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const character = await ctx.db.get(args.id)
+    if (!character || character.userId !== identity.tokenIdentifier) throw new Error("Character not found")
+    const clamp = (n: number) => Math.max(0, Math.round(n))
+    const { currency } = args
+    await ctx.db.patch(args.id, {
+      currency: {
+        cp: clamp(currency.cp),
+        sp: clamp(currency.sp),
+        ep: clamp(currency.ep),
+        gp: clamp(currency.gp),
+        pp: clamp(currency.pp),
+      },
+      updatedAt: Date.now(),
+    })
+  },
+})
+
 // ── Rest mechanics ───────────────────────────────────────────────────────────
 
 // CON modifier from base score + racial bonus: floor((score - 10) / 2).

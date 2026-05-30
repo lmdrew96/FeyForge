@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -20,6 +20,7 @@ import {
   getProficiencyBonus,
 } from "@/lib/character/constants"
 import type { Ability, Skill } from "@/lib/character/constants"
+import { getDarkvisionRange } from "@/lib/character/character-data"
 import { useDiceStore, rollExpression } from "@/lib/dice-store"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
@@ -322,7 +323,126 @@ function RestPanel({ char }: { char: CharDoc }) {
   )
 }
 
+// Three clickable pips for one death-save track. Clicking pip i sets the count
+// to i+1; clicking the last filled pip again clears it (toggle down).
+function DeathSavePips({ count, color, label, onSet }: {
+  count: number
+  color: string
+  label: string
+  onSet: (n: number) => void
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {[0, 1, 2].map((i) => {
+        const filled = i < count
+        return (
+          <button
+            key={i}
+            onClick={() => onSet(count === i + 1 ? i : i + 1)}
+            className="w-4 h-4 rounded-full transition-transform active:scale-90 hover:opacity-80"
+            style={{
+              background: filled ? color : "transparent",
+              border: `1.5px solid ${filled ? color : "var(--scene-border)"}`,
+            }}
+            title={`${label} ${i + 1}`}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+// Death-saves cell for the combat strip — editable success/failure pips.
+function DeathSavesBox({ char }: { char: CharDoc }) {
+  const doSet = useMutation(api.characters.setDeathSaves)
+  const set = (successes: number, failures: number) => {
+    doSet({ id: char._id, successes, failures }).catch(() => toast.error("Failed to update death saves."))
+  }
+  return (
+    <div
+      className="flex flex-col items-center justify-center rounded-lg p-3 text-center"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+        Death Saves
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold w-3" style={{ color: "#22c55e" }}>✓</span>
+          <DeathSavePips
+            count={char.deathSaves.successes}
+            color="#22c55e"
+            label="Success"
+            onSet={(n) => set(n, char.deathSaves.failures)}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold w-3" style={{ color: "#ef4444" }}>✗</span>
+          <DeathSavePips
+            count={char.deathSaves.failures}
+            color="#ef4444"
+            label="Failure"
+            onSet={(n) => set(char.deathSaves.successes, n)}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+const COINS = ["cp", "sp", "ep", "gp", "pp"] as const
+type Coin = (typeof COINS)[number]
+
+// Editable coin purse. Each field is uncontrolled (defaultValue) and commits on
+// blur/Enter; the key forces a reset when the server value changes elsewhere
+// (e.g. another device). Values clamp to non-negative integers server-side too.
+function CurrencyEditor({ char }: { char: CharDoc }) {
+  const doSet = useMutation(api.characters.setCurrency)
+
+  const commit = (coin: Coin, raw: string) => {
+    const parsed = Math.floor(Number(raw))
+    const value = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+    if (value === char.currency[coin]) return
+    doSet({ id: char._id, currency: { ...char.currency, [coin]: value } }).catch(() =>
+      toast.error("Failed to update currency.")
+    )
+  }
+
+  return (
+    <div
+      className="rounded-xl p-4 grid grid-cols-5 gap-3 text-center"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      {COINS.map((coin) => (
+        <div key={coin}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>
+            {coin}
+          </div>
+          <input
+            key={`${coin}-${char.currency[coin]}`}
+            type="number"
+            min={0}
+            inputMode="numeric"
+            defaultValue={char.currency[coin]}
+            onBlur={(e) => commit(coin, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+            }}
+            className="w-full text-lg font-bold text-center bg-transparent outline-none rounded-md py-1 transition-colors"
+            style={{
+              fontFamily: "var(--font-cinzel)",
+              color: "var(--scene-text-primary)",
+              border: "1px solid var(--scene-border)",
+            }}
+            aria-label={`${coin} currency`}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function CustomPropertiesSection({ characterId }: { characterId: Id<"characters"> }) {
   const allProps = useQuery(api.characters.listAllProperties)
@@ -507,6 +627,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const raceName = char.subrace ? `${char.subrace} ${char.race}` : char.race
   const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
   const hitDie = char.hitDice[0]?.diceSize ?? 8
+  const darkvision = getDarkvisionRange(char.race, char.subrace)
 
   return (
     <AppShell>
@@ -603,7 +724,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           <StatBox label="Prof Bonus" value={formatModifier(profBonus)} />
           <StatBox label="Passive Perc" value={passivePerception} />
           <StatBox label="Hit Dice" value={`${char.level}d${hitDie}`} />
-          <StatBox label="Death Saves" value={`${char.deathSaves.successes}S / ${char.deathSaves.failures}F`} />
+          <DeathSavesBox char={char} />
           {char.inspiration && <StatBox label="Inspiration" value="✦" />}
         </div>
 
@@ -677,6 +798,15 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
                   <span className="text-sm" style={{ color: "var(--scene-text-primary)" }}>Speed</span>
                 </div>
                 <span className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>{char.speed} ft</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="h-3.5 w-3.5" style={{ color: "var(--scene-text-muted)" }} />
+                  <span className="text-sm" style={{ color: "var(--scene-text-primary)" }}>Darkvision</span>
+                </div>
+                <span className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+                  {darkvision > 0 ? `${darkvision} ft` : "—"}
+                </span>
               </div>
             </div>
 
@@ -804,19 +934,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
             Currency
           </h2>
-          <div
-            className="rounded-xl p-4 grid grid-cols-5 gap-3 text-center"
-            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
-          >
-            {(["cp", "sp", "ep", "gp", "pp"] as const).map((coin) => (
-              <div key={coin}>
-                <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>{coin}</div>
-                <div className="text-lg font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
-                  {char.currency[coin]}
-                </div>
-              </div>
-            ))}
-          </div>
+          <CurrencyEditor char={char} />
         </section>
 
         {/* Custom Properties */}
