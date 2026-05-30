@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -187,6 +187,101 @@ function HpEditor({ char }: { char: CharDoc }) {
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+function RestPanel({ char }: { char: CharDoc }) {
+  const doSpendHitDie = useMutation(api.characters.spendHitDie)
+  const doLongRest = useMutation(api.characters.longRest)
+  const [resting, setResting] = useState(false)
+
+  const totalRemaining = char.hitDice.reduce((sum, d) => sum + (d.total - d.used), 0)
+  const atFullHp = char.hitPoints.current >= char.hitPoints.max
+
+  const handleSpend = async (diceSize: number) => {
+    try {
+      const res = await doSpendHitDie({ id: char._id, diceSize })
+      const modStr = res.conMod >= 0 ? `+${res.conMod}` : `${res.conMod}`
+      toast.success(`d${res.diceSize}: rolled ${res.roll} ${modStr} CON → +${res.healed} HP`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't spend hit die.")
+    }
+  }
+
+  const handleLongRest = async () => {
+    if (!confirm("Take a long rest? Restores HP, spell slots, and ~half your hit dice.")) return
+    setResting(true)
+    try {
+      await doLongRest({ id: char._id })
+      toast.success("Long rest complete — fully restored.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't complete long rest.")
+    } finally {
+      setResting(false)
+    }
+  }
+
+  return (
+    <div
+      className="rounded-xl p-4 h-full"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="flex items-center gap-1.5 mb-3">
+        <Moon className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
+        <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+          Rest
+        </span>
+        <span className="ml-auto text-xs" style={{ color: "var(--scene-text-muted)" }}>
+          {totalRemaining} hit {totalRemaining === 1 ? "die" : "dice"} left
+        </span>
+      </div>
+
+      {/* Short rest: spend hit dice, one pool of die sizes at a time */}
+      <p className="text-xs mb-2" style={{ color: "var(--scene-text-muted)" }}>
+        Short rest — spend a hit die to heal
+      </p>
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {char.hitDice.length === 0 && (
+          <span className="text-xs" style={{ color: "var(--scene-text-muted)", opacity: 0.6 }}>
+            No hit dice on this sheet.
+          </span>
+        )}
+        {char.hitDice.map((pool) => {
+          const remaining = pool.total - pool.used
+          const disabled = remaining <= 0 || atFullHp
+          return (
+            <button
+              key={pool.diceSize}
+              onClick={() => handleSpend(pool.diceSize)}
+              disabled={disabled}
+              className="px-3 py-1.5 rounded text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-30"
+              style={{
+                background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)",
+                color: "var(--scene-accent)",
+                border: "1px solid color-mix(in srgb, var(--scene-accent) 32%, transparent)",
+              }}
+              title={atFullHp ? "Already at full HP" : `Spend a d${pool.diceSize} (${remaining} left)`}
+            >
+              d{pool.diceSize}
+              <span className="ml-1 text-xs tabular-nums" style={{ opacity: 0.7 }}>
+                {remaining}/{pool.total}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Long rest */}
+      <button
+        onClick={handleLongRest}
+        disabled={resting}
+        className="w-full inline-flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+        style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+      >
+        <Moon className="h-4 w-4" />
+        {resting ? "Resting…" : "Long Rest"}
+      </button>
     </div>
   )
 }
@@ -456,9 +551,10 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* HP */}
-        <div className="mb-6">
+        {/* HP + Rest */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <HpEditor char={char} />
+          <RestPanel char={char} />
         </div>
 
         {/* Combat stats strip */}

@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import type { Doc } from "./_generated/dataModel"
 
 const baseAbilitiesValidator = v.object({
   strength: v.number(),
@@ -229,6 +230,104 @@ export const updateHp = mutation({
     const newCurrent = Math.max(0, Math.min(character.hitPoints.max, character.hitPoints.current + args.delta))
     await ctx.db.patch(args.id, {
       hitPoints: { ...character.hitPoints, current: newCurrent },
+      updatedAt: Date.now(),
+    })
+  },
+})
+
+// ── Rest mechanics ───────────────────────────────────────────────────────────
+
+// CON modifier from base score + racial bonus: floor((score - 10) / 2).
+function conModifier(character: Doc<"characters">): number {
+  const score =
+    character.baseAbilities.constitution +
+    (character.racialBonuses?.constitution ?? 0)
+  return Math.floor((score - 10) / 2)
+}
+
+// Short rest: spend ONE hit die from a chosen pool (by die size). Rolls the die
+// server-side, adds the CON modifier (min 1 HP per die per 2024 RAW), heals up to
+// max, and marks the die used. Returns what was rolled so the UI can surface it.
+export const spendHitDie = mutation({
+  args: { id: v.id("characters"), diceSize: v.number() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const character = await ctx.db.get(args.id)
+    if (!character || character.userId !== identity.tokenIdentifier) {
+      throw new Error("Character not found")
+    }
+
+    const poolIndex = character.hitDice.findIndex(
+      (d) => d.diceSize === args.diceSize
+    )
+    if (poolIndex === -1) throw new Error("No such hit die pool")
+    const pool = character.hitDice[poolIndex]
+    if (pool.used >= pool.total) throw new Error("No hit dice of that size remain")
+
+    const roll = Math.floor(Math.random() * args.diceSize) + 1
+    const healed = Math.max(1, roll + conModifier(character))
+    const newCurrent = Math.min(
+      character.hitPoints.max,
+      character.hitPoints.current + healed
+    )
+
+    const hitDice = character.hitDice.map((d, i) =>
+      i === poolIndex ? { ...d, used: d.used + 1 } : d
+    )
+
+    await ctx.db.patch(args.id, {
+      hitPoints: { ...character.hitPoints, current: newCurrent },
+      hitDice,
+      updatedAt: Date.now(),
+    })
+
+    return { roll, conMod: conModifier(character), healed, diceSize: args.diceSize }
+  },
+})
+
+// Long rest: restore HP to max, clear temp HP, reset all spell slots, reset death
+// saves, and regain spent hit dice up to half the character's total (min 1).
+export const longRest = mutation({
+  args: { id: v.id("characters") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const character = await ctx.db.get(args.id)
+    if (!character || character.userId !== identity.tokenIdentifier) {
+      throw new Error("Character not found")
+    }
+
+    const totalDice = character.hitDice.reduce((sum, d) => sum + d.total, 0)
+    let toRegain = Math.max(1, Math.floor(totalDice / 2))
+
+    // Distribute regained dice across pools (largest die first is conventional).
+    const pools = character.hitDice
+      .map((d, i) => ({ d, i }))
+      .sort((a, b) => b.d.diceSize - a.d.diceSize)
+    const hitDice = character.hitDice.map((d) => ({ ...d }))
+    for (const { i } of pools) {
+      if (toRegain <= 0) break
+      const recoverable = Math.min(hitDice[i].used, toRegain)
+      hitDice[i].used -= recoverable
+      toRegain -= recoverable
+    }
+
+    const spellcasting = character.spellcasting
+      ? {
+          ...character.spellcasting,
+          spellSlots: character.spellcasting.spellSlots.map((s) => ({
+            ...s,
+            used: 0,
+          })),
+        }
+      : undefined
+
+    await ctx.db.patch(args.id, {
+      hitPoints: { ...character.hitPoints, current: character.hitPoints.max, temp: 0 },
+      hitDice,
+      deathSaves: { successes: 0, failures: 0 },
+      ...(spellcasting ? { spellcasting } : {}),
       updatedAt: Date.now(),
     })
   },
