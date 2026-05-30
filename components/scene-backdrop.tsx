@@ -20,7 +20,7 @@ function mulberry32(seed: number): () => number {
   }
 }
 
-const MOTE_COUNT = 18
+const MOTE_COUNT = 24
 const rand = mulberry32(0x5eed)
 const MOTES = Array.from({ length: MOTE_COUNT }, (_, i) => ({
   i,
@@ -35,6 +35,7 @@ export function SceneBackdrop() {
       <div className="scene-backdrop__glow" />
       <div className="scene-backdrop__vignette" />
       <div className="scene-backdrop__grain" />
+      <div className="scene-backdrop__texture" />
       <div className="scene-backdrop__motes">
         {MOTES.map((m) => (
           <span

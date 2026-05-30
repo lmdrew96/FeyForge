@@ -638,8 +638,11 @@
 .scene-mote {
   position: absolute;
   border-radius: 50%;
+  /* Per-mote color — defaults to the scene's particle; nth-child rules below
+     tint a subset for multi-color scenes (feywild, underdark, forest fireflies). */
+  --mote-c: var(--scene-particle);
   /* Soft glowing mote via radial-gradient (GPU-cheap — no animated blur). */
-  background: radial-gradient(circle, var(--scene-particle) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--mote-c) 0%, transparent 70%);
   box-shadow: var(--mote-glow);
   opacity: 0;
   transition: --scene-particle 600ms ease;
@@ -696,18 +699,19 @@ body[data-scene="dungeon"] .scene-backdrop {
 /* Tavern — warm, chaotic, alive: embers rising from the hearth */
 body[data-scene="tavern"] .scene-backdrop {
   --mote-anim: mote-rise; --mote-base-dur: 6s;
-  --mote-glow: 0 0 6px var(--scene-particle);
+  --mote-glow: 0 0 6px var(--mote-c);
   --motes-opacity: 0.7; --glow-x: 50%; --glow-y: 88%; --grain-opacity: 0.045;
 }
-/* Forest — dappled, breathing: drifting pollen */
+/* Forest — dappled, breathing: drifting pollen + gold fireflies (see nth-child) */
 body[data-scene="forest"] .scene-backdrop {
   --mote-anim: float-particle; --mote-base-dur: 12s;
-  --motes-opacity: 0.55; --glow-y: 10%; --grain-opacity: 0.045;
+  --mote-glow: 0 0 7px var(--mote-c);
+  --motes-opacity: 0.6; --glow-y: 10%; --grain-opacity: 0.045;
 }
 /* Underdark — void, alien, bioluminescent: glowing spores rising */
 body[data-scene="underdark"] .scene-backdrop {
   --mote-anim: mote-rise; --mote-base-dur: 13s;
-  --mote-glow: 0 0 9px var(--scene-particle);
+  --mote-glow: 0 0 9px var(--mote-c);
   --motes-opacity: 0.75; --glow-y: 60%; --glow-size: 60% 60%; --grain-opacity: 0.03;
 }
 /* Castle — imposing, cold stone: slow dust falling in light */
@@ -723,33 +727,108 @@ body[data-scene="coastal"] .scene-backdrop {
 /* Infernal — scorched, suffocating, red: fast embers rising from below */
 body[data-scene="infernal"] .scene-backdrop {
   --mote-anim: mote-rise; --mote-base-dur: 4.5s;
-  --mote-glow: 0 0 8px var(--scene-particle);
+  --mote-glow: 0 0 8px var(--mote-c);
   --motes-opacity: 0.8; --glow-x: 50%; --glow-y: 100%; --glow-size: 90% 60%; --grain-opacity: 0.05;
 }
 /* Celestial — radiant, impossibly bright: twinkling stars */
 body[data-scene="celestial"] .scene-backdrop {
   --mote-anim: mote-twinkle; --mote-base-dur: 5s;
-  --mote-glow: 0 0 7px var(--scene-particle);
+  --mote-glow: 0 0 7px var(--mote-c);
   --motes-opacity: 0.95; --glow-y: 8%; --glow-size: 95% 60%; --grain-opacity: 0.02;
 }
-/* Shadowfell — ashen, grief-heavy, still: very slow falling ash */
+/* Shadowfell — ashen, grief-heavy: steady falling ash, like grey snow */
 body[data-scene="shadowfell"] .scene-backdrop {
-  --mote-anim: mote-fall; --mote-base-dur: 19s;
-  --motes-opacity: 0.35; --glow-y: 10%; --grain-opacity: 0.07;
+  --mote-anim: ash-fall; --mote-base-dur: 9s;
+  --motes-opacity: 0.55; --glow-y: 10%; --grain-opacity: 0.07;
 }
 /* Feywild — saturated, shifting, alive: swirling sparkles */
 body[data-scene="feywild"] .scene-backdrop {
   --mote-anim: mote-swirl; --mote-base-dur: 9s;
-  --mote-glow: 0 0 7px var(--scene-particle);
+  --mote-glow: 0 0 7px var(--mote-c);
   --motes-opacity: 0.7; --glow-y: 25%; --glow-size: 80% 70%; --grain-opacity: 0.03;
 }
 
+/* ── Multi-color motes ─────────────────────────────────────────────────────
+   Tint a subset of motes per scene so fields read richer than one flat hue. */
+/* Feywild — magenta base + teal + fresh bright green */
+body[data-scene="feywild"] .scene-mote:nth-child(3n)   { --mote-c: #2ad6c4; } /* teal */
+body[data-scene="feywild"] .scene-mote:nth-child(3n+1) { --mote-c: #7dff5e; } /* bright green */
+/* Underdark — cyan spores with occasional warm orange */
+body[data-scene="underdark"] .scene-mote:nth-child(4n) { --mote-c: #ff8a3d; }
+/* Forest — green pollen + warm gold fireflies that blink instead of drift */
+body[data-scene="forest"] .scene-mote:nth-child(5n) {
+  --mote-c: #ffd66e;
+  animation-name: mote-twinkle;
+  animation-duration: calc(3s + var(--i, 0) * 0.4s);
+}
+
+/* ── Scene textures (the dedicated texture layer, above grain, below motes) ── */
+.scene-backdrop__texture { opacity: 0; }
+
+/* Castle & Dungeon — stone-block masonry: mortar grid + faint course highlight,
+   kept low-opacity so it reads as wall texture, not wallpaper. */
+body[data-scene="castle"] .scene-backdrop__texture,
+body[data-scene="dungeon"] .scene-backdrop__texture {
+  opacity: 0.5;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 33px),
+    repeating-linear-gradient(0deg, transparent 0 31px, var(--mortar) 31px 33px),
+    repeating-linear-gradient(90deg, transparent 0 61px, var(--mortar) 61px 63px);
+}
+body[data-scene="castle"] .scene-backdrop__texture {
+  --mortar: rgba(40, 34, 18, 0.55); /* warm gold-stone */
+}
+body[data-scene="dungeon"] .scene-backdrop__texture {
+  --mortar: rgba(12, 14, 22, 0.6); /* cold blue-grey */
+  opacity: 0.45;
+}
+
+/* Coastal — slow drifting fog banks low on the screen */
+body[data-scene="coastal"] .scene-backdrop__texture {
+  opacity: 0.55;
+  background-image:
+    radial-gradient(ellipse 50% 28% at 20% 72%, rgba(180, 205, 220, 0.18), transparent 70%),
+    radial-gradient(ellipse 55% 24% at 70% 82%, rgba(160, 190, 210, 0.16), transparent 70%),
+    radial-gradient(ellipse 45% 30% at 50% 94%, rgba(200, 215, 225, 0.14), transparent 70%);
+  animation: fog-drift 42s ease-in-out infinite alternate;
+}
+
+/* Forest — soft dappled canopy light shifting overhead */
+body[data-scene="forest"] .scene-backdrop__texture {
+  opacity: 0.5;
+  background-image:
+    radial-gradient(circle 90px at 25% 18%, rgba(180, 220, 120, 0.12), transparent 70%),
+    radial-gradient(circle 70px at 60% 32%, rgba(220, 230, 150, 0.1), transparent 70%),
+    radial-gradient(circle 110px at 80% 14%, rgba(160, 210, 110, 0.1), transparent 70%);
+  animation: dapple-drift 16s ease-in-out infinite alternate;
+}
+
+/* ── Texture / precipitation keyframes ─────────────────────────────────────── */
+@keyframes ash-fall {
+  0%   { transform: translateY(-40px) translateX(0);    opacity: 0; }
+  10%  {                                                 opacity: 0.6; }
+  90%  {                                                 opacity: 0.55; }
+  100% { transform: translateY(240px) translateX(-18px); opacity: 0; }
+}
+@keyframes fog-drift {
+  0%   { transform: translateX(-4%) scale(1.05); }
+  100% { transform: translateX(4%) translateY(-2%) scale(1.12); }
+}
+@keyframes dapple-drift {
+  0%   { transform: translate(0, 0) scale(1);       opacity: 0.5; }
+  50%  {                                            opacity: 0.62; }
+  100% { transform: translate(3%, 2%) scale(1.08);  opacity: 0.4; }
+}
+
 /* Respect reduced-motion: freeze all drift; keep a faint static mote field
-   plus the static glow/vignette/grain so depth & texture remain. */
+   plus the static glow/vignette/grain/texture so depth & texture remain. */
 @media (prefers-reduced-motion: reduce) {
   .scene-mote {
     animation: none !important;
     opacity: 0.28;
+  }
+  .scene-backdrop__texture {
+    animation: none !important;
   }
   .scene-backdrop__glow,
   .scene-backdrop__motes,
