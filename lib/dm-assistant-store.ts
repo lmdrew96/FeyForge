@@ -50,6 +50,10 @@ interface DMAssistantStore {
   // Sync conversation to DB (call after streaming completes)
   syncConversation: (conversationId: string) => Promise<void>
 
+  // Replace a conversation's messages and persist in one step (used after a
+  // streamed exchange completes). Derives the title from the first user message.
+  commitMessages: (conversationId: string, messages: Message[]) => Promise<void>
+
   // Getters
   getConversation: (id: string) => Conversation | undefined
   getActiveConversation: () => Conversation | undefined
@@ -76,29 +80,35 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
 
     createConversation: async (campaignId: string, title?: string) => {
       const displayTitle = title || "New Chat"
-      const conversation: Conversation = {
-        id: generateId(),
-        campaignId,
-        title: displayTitle,
-        messages: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      set((state) => ({
-        conversations: [conversation, ...state.conversations],
-        activeConversationId: conversation.id,
-      }))
+      const now = new Date().toISOString()
+      // Persist first so the conversation id is the real Convex document id.
+      // (syncing later requires a valid Id<"dmConversations">, not a client id.)
+      let id = generateId()
       try {
-        await convex.mutation(api.dmConversations.create, {
+        const convexId = await convex.mutation(api.dmConversations.create, {
           campaignId: campaignId as Id<"campaigns">,
           title: displayTitle,
         })
+        id = convexId as unknown as string
       } catch (error) {
         const message = getErrorMessage(error, "Failed to save conversation")
         if (!isAuthError(message)) {
           toast.error(message)
         }
+        // Fall back to a local-only id so the chat still works this session.
       }
+      const conversation: Conversation = {
+        id,
+        campaignId,
+        title: displayTitle,
+        messages: [],
+        createdAt: now,
+        updatedAt: now,
+      }
+      set((state) => ({
+        conversations: [conversation, ...state.conversations],
+        activeConversationId: conversation.id,
+      }))
       return conversation
     },
 
@@ -206,6 +216,39 @@ export const useDMAssistantStore = create<DMAssistantStore>()(
         })
       } catch (error) {
         const message = getErrorMessage(error, "Failed to sync conversation")
+        if (!isAuthError(message)) {
+          toast.error(message)
+        }
+      }
+    },
+
+    commitMessages: async (conversationId: string, messages: Message[]) => {
+      const now = new Date().toISOString()
+      set((state) => ({
+        conversations: state.conversations.map((c) => {
+          if (c.id !== conversationId) return c
+          let title = c.title
+          if (title === "New Chat") {
+            const firstUser = messages.find((m) => m.role === "user")
+            if (firstUser) {
+              title =
+                firstUser.content.slice(0, 50) +
+                (firstUser.content.length > 50 ? "..." : "")
+            }
+          }
+          return { ...c, title, messages, updatedAt: now }
+        }),
+      }))
+      const conversation = get().conversations.find((c) => c.id === conversationId)
+      if (!conversation) return
+      try {
+        await convex.mutation(api.dmConversations.update, {
+          id: conversationId as Id<"dmConversations">,
+          title: conversation.title,
+          messages: conversation.messages,
+        })
+      } catch (error) {
+        const message = getErrorMessage(error, "Failed to save conversation")
         if (!isAuthError(message)) {
           toast.error(message)
         }
