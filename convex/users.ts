@@ -1,5 +1,79 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import type { Id } from "./_generated/dataModel"
+import type { MutationCtx, QueryCtx } from "./_generated/server"
+
+// ── Active campaign (server-side, cross-device) ──────────────────────────────
+// The "active campaign" is the one the user is currently working in. Storing it
+// on the user record (rather than only client-side) lets it follow the DM/player
+// across devices and gives the live-session machinery a single source of truth.
+
+// Resolves the user's active campaign, validated against current membership.
+// Read-only (safe in queries). Falls back to a DM membership, else the most
+// recent membership, else null. Does not persist — mutation-context callers that
+// want to self-heal should follow up with setActiveCampaignForUser.
+export async function resolveActiveCampaignId(
+  ctx: QueryCtx | MutationCtx,
+  userId: string
+): Promise<Id<"campaigns"> | null> {
+  const memberships = await ctx.db
+    .query("campaignMembers")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .collect()
+  if (memberships.length === 0) return null
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", userId))
+    .unique()
+
+  // Honor the stored choice if it's still a campaign the user belongs to.
+  if (user?.activeCampaignId) {
+    const stillMember = memberships.some((m) => m.campaignId === user.activeCampaignId)
+    if (stillMember) return user.activeCampaignId
+  }
+
+  // Fallback: prefer a DM membership, else the most recent membership.
+  const dm = memberships.find((m) => m.role === "dm")
+  const chosen = dm ?? memberships[memberships.length - 1]
+  return chosen.campaignId
+}
+
+// Persists the user's active campaign. No-ops if the user record doesn't exist
+// yet or the value is unchanged.
+export async function setActiveCampaignForUser(
+  ctx: MutationCtx,
+  userId: string,
+  campaignId: Id<"campaigns">
+): Promise<void> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", userId))
+    .unique()
+  if (user && user.activeCampaignId !== campaignId) {
+    await ctx.db.patch(user._id, { activeCampaignId: campaignId })
+  }
+}
+
+// Player/DM picks their current campaign. Only campaigns the user belongs to are
+// allowed, so this can't be used to point at someone else's campaign.
+export const setActiveCampaign = mutation({
+  args: { campaignId: v.id("campaigns") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const member = await ctx.db
+      .query("campaignMembers")
+      .withIndex("by_campaignId_and_userId", (q) =>
+        q.eq("campaignId", args.campaignId).eq("userId", identity.tokenIdentifier)
+      )
+      .first()
+    if (!member) throw new Error("Not a member of this campaign")
+
+    await setActiveCampaignForUser(ctx, identity.tokenIdentifier, args.campaignId)
+  },
+})
 
 export const getMe = query({
   args: {},

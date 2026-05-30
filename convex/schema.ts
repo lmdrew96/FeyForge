@@ -509,6 +509,9 @@ export default defineSchema({
     premiumSince: v.optional(v.number()),
     premiumExpiresAt: v.optional(v.number()),
     role: v.optional(v.union(v.literal("admin"), v.literal("user"))),
+    // The campaign this user is currently working in. Server-side source of
+    // truth so the active campaign follows the DM/player across devices.
+    activeCampaignId: v.optional(v.id("campaigns")),
   })
     .index("by_clerkId", ["clerkId"])
     .index("by_clerkUserId", ["clerkUserId"])

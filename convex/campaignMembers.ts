@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Doc, Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
+import { resolveActiveCampaignId, setActiveCampaignForUser } from "./users"
 
 // ── Join code generation ────────────────────────────────────────────────────
 // Charset excludes ambiguous glyphs (0/O, 1/I/L) so codes are easy to read aloud.
@@ -72,8 +73,28 @@ export const getMyCampaignContext = query({
       .collect()
     if (memberships.length === 0) return null
 
-    // Prefer the campaign that currently has a live session (most-recently started
-    // if the user belongs to several with active sessions).
+    // The user's active campaign is the primary context. resolveActiveCampaignId
+    // guarantees a returned id is one the user belongs to.
+    const activeId = await resolveActiveCampaignId(ctx, identity.tokenIdentifier)
+    const activeMembership = activeId
+      ? memberships.find((m) => m.campaignId === activeId) ?? null
+      : null
+
+    // Prefer a live session in the active campaign.
+    if (activeMembership) {
+      const session = await ctx.db
+        .query("partySessions")
+        .withIndex("by_campaignId_and_isActive", (q) =>
+          q.eq("campaignId", activeMembership.campaignId).eq("isActive", true)
+        )
+        .first()
+      if (session) {
+        return { campaignId: activeMembership.campaignId, role: activeMembership.role, session }
+      }
+    }
+
+    // Otherwise surface a live session in any other campaign the user belongs to
+    // (covers a stale active campaign while a session is live elsewhere).
     let live: {
       campaignId: Id<"campaigns">
       role: "dm" | "player"
@@ -87,17 +108,18 @@ export const getMyCampaignContext = query({
           q.eq("campaignId", m.campaignId).eq("isActive", true)
         )
         .first()
-      if (active && (!live || (live.session && active.startedAt > live.session.startedAt))) {
+      if (active && (!live || active.startedAt > live.session.startedAt)) {
         live = { campaignId: m.campaignId, role: m.role, session: active }
       }
     }
 
-    if (live) {
-      return { campaignId: live.campaignId, role: live.role, session: live.session }
-    }
+    if (live) return live
 
-    // No live session anywhere — fall back to the DM membership (so the DM lands on
-    // the "ready to start" view), else the most recent membership.
+    // No live session anywhere — land on the active campaign (so a DM sees the
+    // "ready to start" view for the campaign they actually selected).
+    if (activeMembership) {
+      return { campaignId: activeMembership.campaignId, role: activeMembership.role, session: null }
+    }
     const dm = memberships.find((m) => m.role === "dm")
     const chosen = dm ?? memberships[memberships.length - 1]
     return { campaignId: chosen.campaignId, role: chosen.role, session: null }
@@ -204,6 +226,10 @@ export const joinByCode = mutation({
 
     // Associate the character with this campaign so it shows in the roster.
     await ctx.db.patch(args.characterId, { campaignId: campaign._id })
+
+    // The campaign you just joined becomes your active one, so the session view
+    // resolves to it instead of a stale prior campaign.
+    await setActiveCampaignForUser(ctx, identity.tokenIdentifier, campaign._id)
 
     // If a session is live, register the player in it now (mirrors joinSession).
     const activeSession = await ctx.db

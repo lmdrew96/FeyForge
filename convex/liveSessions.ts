@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
 import { ensureCampaignSetup } from "./campaignMembers"
+import { resolveActiveCampaignId, setActiveCampaignForUser } from "./users"
 
 export const getActiveSession = query({
   args: { campaignId: v.id("campaigns") },
@@ -25,34 +26,54 @@ export const listBroadcasts = query({
   },
 })
 
-// Idempotent — gets or creates the DM's default campaign and an active session.
-// Called once on mount by DM tools that need a live session context.
+// Idempotent — gets or creates the DM's active campaign and an active session.
+// Called once on mount by DM tools that need a live session context. Runs the
+// session in the DM's *active* campaign (the one they selected/invited from), so
+// the campaign players join matches the campaign the session lands in.
 export const setupDMSession = mutation({
   args: {},
   handler: async (ctx): Promise<{ campaignId: Id<"campaigns">; sessionId: Id<"partySessions"> }> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
-    // Get or create default campaign
-    let existing = await ctx.db
-      .query("campaigns")
-      .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
-      .first()
+    // Resolve the campaign the DM is currently working in.
+    let campaignId = await resolveActiveCampaignId(ctx, identity.tokenIdentifier)
 
-    let campaignId: Id<"campaigns">
-    if (existing) {
-      campaignId = existing._id
-    } else {
-      campaignId = await ctx.db.insert("campaigns", {
-        userId: identity.tokenIdentifier,
-        name: "My Campaign",
-        isActive: true,
-        updatedAt: Date.now(),
-      })
+    // A live session must run in a campaign the DM owns. If the resolved campaign
+    // isn't one they DM (player-only, or none yet), fall back to a get-or-create
+    // owned campaign.
+    let ownsResolved = false
+    if (campaignId) {
+      const membership = await ctx.db
+        .query("campaignMembers")
+        .withIndex("by_campaignId_and_userId", (q) =>
+          q.eq("campaignId", campaignId as Id<"campaigns">).eq("userId", identity.tokenIdentifier)
+        )
+        .first()
+      ownsResolved = membership?.role === "dm"
+    }
+
+    if (!campaignId || !ownsResolved) {
+      const existing = await ctx.db
+        .query("campaigns")
+        .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
+        .first()
+      campaignId = existing
+        ? existing._id
+        : await ctx.db.insert("campaigns", {
+            userId: identity.tokenIdentifier,
+            name: "My Campaign",
+            isActive: true,
+            updatedAt: Date.now(),
+          })
     }
 
     // Ensure the DM membership + invite code exist (covers pre-membership campaigns too).
     await ensureCampaignSetup(ctx, campaignId, identity.tokenIdentifier)
+
+    // Self-heal: persist the campaign we're actually running so the invite button
+    // and player-side resolution agree on the active campaign.
+    await setActiveCampaignForUser(ctx, identity.tokenIdentifier, campaignId)
 
     // Get or create active session
     const activeSession = await ctx.db
@@ -84,7 +105,9 @@ export const startSession = mutation({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
-    // End any existing active session
+    // Reuse the active session if one already exists for this campaign. Ending +
+    // recreating would orphan the partyMembers already joined under it, forcing
+    // players to re-pick their character.
     const existing = await ctx.db
       .query("partySessions")
       .withIndex("by_campaignId_and_isActive", (q) =>
@@ -92,9 +115,7 @@ export const startSession = mutation({
       )
       .first()
 
-    if (existing) {
-      await ctx.db.patch(existing._id, { isActive: false, endedAt: Date.now() })
-    }
+    if (existing) return existing._id
 
     return await ctx.db.insert("partySessions", {
       campaignId: args.campaignId,

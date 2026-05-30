@@ -17,6 +17,26 @@ export const list = query({
   },
 })
 
+// Single campaign by id, gated to members (so the invite dialog can resolve a
+// campaign's name + join code from a live-session context that only has the id).
+export const get = query({
+  args: { campaignId: v.id("campaigns") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const member = await ctx.db
+      .query("campaignMembers")
+      .withIndex("by_campaignId_and_userId", (q) =>
+        q.eq("campaignId", args.campaignId).eq("userId", identity.tokenIdentifier)
+      )
+      .first()
+    if (!member) return null
+
+    return await ctx.db.get(args.campaignId)
+  },
+})
+
 export const create = mutation({
   args: {
     name: v.string(),

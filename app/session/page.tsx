@@ -10,9 +10,10 @@ import { CLASS_COLORS } from "@/lib/character/constants"
 import { cn } from "@/lib/utils"
 import {
   Sparkles, Play, Square, Radio, Users, Clock, Heart, X,
-  ChevronUp, ChevronDown, Shield, Trash2, Package, ScrollText,
+  ChevronUp, ChevronDown, Shield, Trash2, Package, ScrollText, UserPlus,
 } from "lucide-react"
 import { toast } from "sonner"
+import { InvitePlayersDialog } from "@/components/invite-players-dialog"
 import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-panel"
 import { DMCombatTracker, PlayerCombatView } from "@/components/session/combat-tracker"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
@@ -807,6 +808,7 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
   const [broadcastBody, setBroadcastBody] = useState("")
   const [broadcastType, setBroadcastType] = useState<"npc" | "location" | "custom">("custom")
   const [sending, setSending] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   const currentScene = SCENES.find((s) => s.id === activeScene)
 
@@ -849,10 +851,17 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
           <h1 className="text-2xl font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>DM Conductor</h1>
           {currentScene && currentScene.id !== "" && <p className="text-sm mt-0.5" style={{ color: "var(--scene-text-muted)" }}>{currentScene.label} — {currentScene.desc}</p>}
         </div>
-        <button onClick={handleEndSession} className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
-          <Square className="h-3.5 w-3.5" />End Session
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setInviteOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
+            <UserPlus className="h-3.5 w-3.5" />Invite Players
+          </button>
+          <button onClick={handleEndSession} className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
+            <Square className="h-3.5 w-3.5" />End Session
+          </button>
+        </div>
       </div>
+
+      <InvitePlayersDialog campaignId={campaignId} open={inviteOpen} onOpenChange={setInviteOpen} />
 
       <section>
         <div className="flex items-center justify-between mb-3">

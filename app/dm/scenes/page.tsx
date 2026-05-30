@@ -7,8 +7,9 @@ import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { SCENES, buildSceneVars, applySceneToBody } from "@/lib/scenes"
 import type { CustomPalette } from "@/lib/scenes"
-import { Trash2, X, Check } from "lucide-react"
+import { Trash2, X, Check, UserPlus } from "lucide-react"
 import type { Doc } from "@/convex/_generated/dataModel"
+import { InvitePlayersDialog } from "@/components/invite-players-dialog"
 
 const DEFAULT_PALETTE: CustomPalette = {
   bg: "#111118",
@@ -230,6 +231,7 @@ export default function ScenesPage() {
   const [campaignId, setCampaignId] = useState<Id<"campaigns"> | null>(null)
   const [palette, setPalette] = useState<CustomPalette>(DEFAULT_PALETTE)
   const [builderName, setBuilderName] = useState("")
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   const setupDMSession = useMutation(api.liveSessions.setupDMSession)
   const doActivateScene = useMutation(api.liveSessions.activateScene)
@@ -307,20 +309,35 @@ export default function ScenesPage() {
               Activate a scene to transform the UI for everyone at the table. 600ms crossfade.
             </p>
           </div>
-          {activeScene && (
-            <button
-              onClick={handleToggleTime}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-80 shrink-0"
-              style={{
-                background: sceneTime === "day" ? "rgba(255,220,80,0.15)" : "rgba(100,80,180,0.15)",
-                border: `1px solid ${sceneTime === "day" ? "rgba(255,200,40,0.4)" : "rgba(120,100,200,0.4)"}`,
-                color: sceneTime === "day" ? "#e8c020" : "#9b8ec4",
-              }}
-            >
-              {sceneTime === "day" ? "☀ Day" : "☾ Night"}
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {campaignId && (
+              <button
+                onClick={() => setInviteOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-80"
+                style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+              >
+                <UserPlus className="h-3.5 w-3.5" />Invite Players
+              </button>
+            )}
+            {activeScene && (
+              <button
+                onClick={handleToggleTime}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-80"
+                style={{
+                  background: sceneTime === "day" ? "rgba(255,220,80,0.15)" : "rgba(100,80,180,0.15)",
+                  border: `1px solid ${sceneTime === "day" ? "rgba(255,200,40,0.4)" : "rgba(120,100,200,0.4)"}`,
+                  color: sceneTime === "day" ? "#e8c020" : "#9b8ec4",
+                }}
+              >
+                {sceneTime === "day" ? "☀ Day" : "☾ Night"}
+              </button>
+            )}
+          </div>
         </div>
+
+        {campaignId && (
+          <InvitePlayersDialog campaignId={campaignId} open={inviteOpen} onOpenChange={setInviteOpen} />
+        )}
 
         {/* Preset scenes */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">

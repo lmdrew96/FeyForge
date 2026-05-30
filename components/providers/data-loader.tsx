@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { useUser } from "@clerk/nextjs"
 import { api } from "@/convex/_generated/api"
-import type { Doc } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
+import { useCampaignStore } from "@/lib/campaign-store"
 import { useNPCStore } from "@/lib/npc-store"
 import { useSessionStore } from "@/lib/session-store"
 import { useCombatStore } from "@/lib/combat-store"
@@ -138,6 +139,42 @@ export function DataLoader() {
   useEffect(() => {
     if (isSignedIn) upsertUser()
   }, [isSignedIn, upsertUser])
+
+  // ── Active campaign: server is the cross-device source of truth ──────────────
+  const me = useQuery(api.users.getMe, skip)
+  const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
+  const setActiveCampaign = useCampaignStore((s) => s.setActiveCampaign)
+  const persistActiveCampaign = useMutation(api.users.setActiveCampaign)
+  const hydratedRef = useRef(false)
+  // The value we know the server holds (hydrated from it or last pushed to it).
+  // Guards write-through so adopting the server value never bounces back as a
+  // spurious push — the failure mode when two devices diverge.
+  const syncedRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (me === undefined) return
+    const serverVal = me?.activeCampaignId ?? null
+
+    if (!hydratedRef.current) {
+      hydratedRef.current = true
+      if (serverVal) {
+        // Server wins on load: a campaign picked on another device shows up here.
+        syncedRef.current = serverVal
+        if (serverVal !== activeCampaignId) setActiveCampaign(serverVal)
+      } else if (activeCampaignId) {
+        // No server value yet — migrate this device's local selection up.
+        syncedRef.current = activeCampaignId
+        persistActiveCampaign({ campaignId: activeCampaignId as Id<"campaigns"> }).catch(() => {})
+      }
+      return
+    }
+
+    // After hydration, push genuine local selection changes to the server.
+    if (activeCampaignId && activeCampaignId !== syncedRef.current && activeCampaignId !== serverVal) {
+      syncedRef.current = activeCampaignId
+      persistActiveCampaign({ campaignId: activeCampaignId as Id<"campaigns"> }).catch(() => {})
+    }
+  }, [me, activeCampaignId, setActiveCampaign, persistActiveCampaign])
 
   const convexNPCs = useQuery(api.npcs.list, skip)
   const convexSessions = useQuery(api.sessions.listSessions, skip)
