@@ -10,6 +10,9 @@ export default defineSchema({
     updatedAt: v.number(),
     // Shareable invite code (e.g. "FEY-7K2Q") players use to join the campaign.
     joinCode: v.optional(v.string()),
+    // D&D ruleset edition. Optional for campaigns created before the flag —
+    // read through resolveEdition() (lib/editions.ts), which defaults to 2024.
+    edition: v.optional(v.union(v.literal("2014"), v.literal("2024"))),
   })
     .index("by_userId", ["userId"])
     .index("by_joinCode", ["joinCode"]),

@@ -31,13 +31,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { type Edition, EDITIONS, DEFAULT_EDITION, EDITION_LABELS, EDITION_DESCRIPTIONS, resolveEdition } from "@/lib/editions"
 
 type CampaignDraft = {
   name: string
   description: string
+  edition: Edition
 }
 
-const EMPTY_DRAFT: CampaignDraft = { name: "", description: "" }
+const EMPTY_DRAFT: CampaignDraft = { name: "", description: "", edition: DEFAULT_EDITION }
 
 export default function CampaignsPage() {
   const campaigns = useQuery(api.campaigns.list)
@@ -64,9 +66,9 @@ export default function CampaignsPage() {
     setFormOpen(true)
   }
 
-  const openEdit = (id: Id<"campaigns">, name: string, description?: string) => {
+  const openEdit = (id: Id<"campaigns">, name: string, description?: string, edition?: string) => {
     setEditingId(id)
-    setDraft({ name, description: description ?? "" })
+    setDraft({ name, description: description ?? "", edition: resolveEdition(edition) })
     setFormOpen(true)
   }
 
@@ -80,10 +82,10 @@ export default function CampaignsPage() {
     try {
       const description = draft.description.trim() || undefined
       if (editingId) {
-        await updateCampaign({ id: editingId, name, description })
+        await updateCampaign({ id: editingId, name, description, edition: draft.edition })
         toast.success("Campaign updated.")
       } else {
-        const newId = await createCampaign({ name, description, isActive: true })
+        const newId = await createCampaign({ name, description, isActive: true, edition: draft.edition })
         setActiveCampaign(newId)
         toast.success("Campaign created.")
       }
@@ -225,6 +227,13 @@ export default function CampaignsPage() {
                             Active
                           </span>
                         )}
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full"
+                          style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+                          title="D&D ruleset for this campaign"
+                        >
+                          {EDITION_LABELS[resolveEdition(campaign.edition)]}
+                        </span>
                       </div>
                       {campaign.description && (
                         <p
@@ -261,7 +270,7 @@ export default function CampaignsPage() {
                         Invite
                       </button>
                       <button
-                        onClick={() => openEdit(campaign._id, campaign.name, campaign.description)}
+                        onClick={() => openEdit(campaign._id, campaign.name, campaign.description, campaign.edition)}
                         className="p-1.5 rounded transition-opacity hover:opacity-80"
                         style={{ color: "var(--scene-text-muted)" }}
                         title="Rename campaign"
@@ -321,6 +330,33 @@ export default function CampaignsPage() {
                 placeholder="A short premise, the party's quest, or your DM notes."
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Ruleset</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {EDITIONS.map((ed) => {
+                  const active = draft.edition === ed
+                  return (
+                    <button
+                      key={ed}
+                      type="button"
+                      onClick={() => setDraft((d) => ({ ...d, edition: ed }))}
+                      className="rounded-md px-3 py-2 text-left transition-opacity hover:opacity-90"
+                      style={{
+                        background: active ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)" : "var(--scene-surface)",
+                        border: `1px solid ${active ? "color-mix(in srgb, var(--scene-accent) 45%, transparent)" : "var(--scene-border)"}`,
+                      }}
+                    >
+                      <div className="text-sm font-medium" style={{ color: active ? "var(--scene-accent)" : "var(--scene-text-primary)" }}>
+                        {EDITION_LABELS[ed]}
+                      </div>
+                      <div className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
+                        {EDITION_DESCRIPTIONS[ed]}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
           <DialogFooter>

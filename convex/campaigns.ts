@@ -2,6 +2,8 @@ import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import { ensureCampaignSetup } from "./campaignMembers"
 
+const editionValidator = v.union(v.literal("2014"), v.literal("2024"))
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -20,6 +22,7 @@ export const create = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    edition: v.optional(editionValidator),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
@@ -29,6 +32,7 @@ export const create = mutation({
       name: args.name,
       description: args.description,
       isActive: args.isActive ?? false,
+      edition: args.edition ?? "2024",
       updatedAt: Date.now(),
     })
     // Owner becomes the campaign's DM member; campaign gets an invite code.
@@ -43,6 +47,7 @@ export const update = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    edition: v.optional(editionValidator),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
