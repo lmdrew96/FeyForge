@@ -74,6 +74,21 @@ function crSortValue(cr: string): number {
   return Number(cr) || 0
 }
 
+// Creature sizes in their natural (smallest→largest) order.
+const SIZE_ORDER = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
+
+// Magic-item rarity in ascending order; unknown rarities sort last.
+const RARITY_ORDER = ["common", "uncommon", "rare", "very rare", "legendary", "artifact"]
+function rarityRank(rarity: string): number {
+  const i = RARITY_ORDER.indexOf((rarity ?? "").toLowerCase())
+  return i === -1 ? RARITY_ORDER.length : i
+}
+
+// A spell's dnd_class is a comma-joined string ("Bard, Cleric, Wizard").
+function spellClasses(s: Open5eSpell): string[] {
+  return (s.dnd_class ?? "").split(",").map((c) => c.trim()).filter(Boolean)
+}
+
 // ── Shared bits ──────────────────────────────────────────────────────────────
 
 function BookmarkStar({ active, onClick, size = 16 }: { active: boolean; onClick: (e: React.MouseEvent) => void; size?: number }) {
@@ -276,8 +291,15 @@ export default function CodexPage() {
 
   // Per-category filters
   const [spellLevel, setSpellLevel] = useState<string>("all")
+  const [spellClass, setSpellClass] = useState<string>("all")
+  const [spellSchool, setSpellSchool] = useState<string>("all")
   const [monsterCr, setMonsterCr] = useState<string>("all")
+  const [monsterType, setMonsterType] = useState<string>("all")
+  const [monsterSize, setMonsterSize] = useState<string>("all")
   const [itemRarity, setItemRarity] = useState<string>("all")
+  const [itemType, setItemType] = useState<string>("all")
+  // Sort key — "name" everywhere, plus a category-natural option (level/cr/rarity).
+  const [sortBy, setSortBy] = useState<string>("name")
 
   // Search is transient — don't carry a stale query in from a previous visit
   // (the store persists to localStorage).
@@ -332,22 +354,86 @@ export default function CodexPage() {
 
   const rarityOptions = useMemo(() => {
     if (category !== "magicitems") return []
-    return Array.from(new Set((list as Open5eMagicItem[]).map((i) => i.rarity).filter(Boolean))).sort()
+    return Array.from(new Set((list as Open5eMagicItem[]).map((i) => i.rarity).filter(Boolean)))
+      .sort((a, b) => rarityRank(a) - rarityRank(b))
+  }, [category, list])
+
+  const spellClassOptions = useMemo(() => {
+    if (category !== "spells") return []
+    const set = new Set<string>()
+    for (const s of list as Open5eSpell[]) for (const c of spellClasses(s)) set.add(c)
+    return Array.from(set).sort()
+  }, [category, list])
+
+  const spellSchoolOptions = useMemo(() => {
+    if (category !== "spells") return []
+    return Array.from(new Set((list as Open5eSpell[]).map((s) => s.school).filter(Boolean))).sort()
+  }, [category, list])
+
+  const monsterTypeOptions = useMemo(() => {
+    if (category !== "monsters") return []
+    return Array.from(new Set((list as Open5eMonster[]).map((m) => m.type).filter(Boolean))).sort()
+  }, [category, list])
+
+  const monsterSizeOptions = useMemo(() => {
+    if (category !== "monsters") return []
+    const present = new Set((list as Open5eMonster[]).map((m) => m.size).filter(Boolean))
+    return SIZE_ORDER.filter((s) => present.has(s))
+  }, [category, list])
+
+  const itemTypeOptions = useMemo(() => {
+    if (category !== "magicitems") return []
+    return Array.from(new Set((list as Open5eMagicItem[]).map((i) => i.type).filter(Boolean))).sort()
   }, [category, list])
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return list
+    const result = list
       .filter((e) => (q ? e.name.toLowerCase().includes(q) : true))
       .filter((e) => (bookmarkedOnly ? isBookmarked(e.slug) : true))
       .filter((e) => {
-        if (category === "spells" && spellLevel !== "all") return String((e as Open5eSpell).level_int) === spellLevel
-        if (category === "monsters" && monsterCr !== "all") return (e as Open5eMonster).challenge_rating === monsterCr
-        if (category === "magicitems" && itemRarity !== "all") return (e as Open5eMagicItem).rarity === itemRarity
+        // Every active filter must match (AND / narrowing).
+        if (category === "spells") {
+          const s = e as Open5eSpell
+          if (spellLevel !== "all" && String(s.level_int) !== spellLevel) return false
+          if (spellClass !== "all" && !spellClasses(s).some((c) => c.toLowerCase() === spellClass.toLowerCase())) return false
+          if (spellSchool !== "all" && s.school !== spellSchool) return false
+        }
+        if (category === "monsters") {
+          const m = e as Open5eMonster
+          if (monsterCr !== "all" && m.challenge_rating !== monsterCr) return false
+          if (monsterType !== "all" && m.type !== monsterType) return false
+          if (monsterSize !== "all" && m.size !== monsterSize) return false
+        }
+        if (category === "magicitems") {
+          const it = e as Open5eMagicItem
+          if (itemRarity !== "all" && it.rarity !== itemRarity) return false
+          if (itemType !== "all" && it.type !== itemType) return false
+        }
         return true
       })
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [list, searchQuery, bookmarkedOnly, isBookmarked, category, spellLevel, monsterCr, itemRarity])
+
+    const byName = (a: Entry, b: Entry) => a.name.localeCompare(b.name)
+    result.sort((a, b) => {
+      if (sortBy === "level" && category === "spells") {
+        const d = (a as Open5eSpell).level_int - (b as Open5eSpell).level_int
+        return d !== 0 ? d : byName(a, b)
+      }
+      if (sortBy === "cr" && category === "monsters") {
+        const d = crSortValue((a as Open5eMonster).challenge_rating) - crSortValue((b as Open5eMonster).challenge_rating)
+        return d !== 0 ? d : byName(a, b)
+      }
+      if (sortBy === "rarity" && category === "magicitems") {
+        const d = rarityRank((a as Open5eMagicItem).rarity) - rarityRank((b as Open5eMagicItem).rarity)
+        return d !== 0 ? d : byName(a, b)
+      }
+      return byName(a, b)
+    })
+    return result
+  }, [
+    list, searchQuery, bookmarkedOnly, isBookmarked, category, sortBy,
+    spellLevel, spellClass, spellSchool, monsterCr, monsterType, monsterSize, itemRarity, itemType,
+  ])
 
   const selected = useMemo(
     () => (selectedSlug ? list.find((e) => e.slug === selectedSlug) ?? null : null),
@@ -360,8 +446,14 @@ export default function CodexPage() {
     setBookmarkedOnly(false)
     clearSearch()
     setSpellLevel("all")
+    setSpellClass("all")
+    setSpellSchool("all")
     setMonsterCr("all")
+    setMonsterType("all")
+    setMonsterSize("all")
     setItemRarity("all")
+    setItemType("all")
+    setSortBy("name")
   }
 
   return (
@@ -420,27 +512,71 @@ export default function CodexPage() {
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-2 mb-3">
               {category === "spells" && (
-                <FilterSelect value={spellLevel} onChange={setSpellLevel} label="Level">
-                  <option value="all">All levels</option>
-                  {Array.from({ length: 10 }, (_, i) => (
-                    <option key={i} value={String(i)}>{spellLevelLabel(i)}</option>
-                  ))}
-                </FilterSelect>
+                <>
+                  <FilterSelect value={spellLevel} onChange={setSpellLevel} label="Level">
+                    <option value="all">All levels</option>
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <option key={i} value={String(i)}>{spellLevelLabel(i)}</option>
+                    ))}
+                  </FilterSelect>
+                  <FilterSelect value={spellClass} onChange={setSpellClass} label="Class">
+                    <option value="all">All classes</option>
+                    {spellClassOptions.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </FilterSelect>
+                  <FilterSelect value={spellSchool} onChange={setSpellSchool} label="School">
+                    <option value="all">All schools</option>
+                    {spellSchoolOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </FilterSelect>
+                </>
               )}
               {category === "monsters" && (
-                <FilterSelect value={monsterCr} onChange={setMonsterCr} label="CR">
-                  <option value="all">All CRs</option>
-                  {crOptions.map((cr) => (
-                    <option key={cr} value={cr}>CR {cr}</option>
-                  ))}
-                </FilterSelect>
+                <>
+                  <FilterSelect value={monsterCr} onChange={setMonsterCr} label="CR">
+                    <option value="all">All CRs</option>
+                    {crOptions.map((cr) => (
+                      <option key={cr} value={cr}>CR {cr}</option>
+                    ))}
+                  </FilterSelect>
+                  <FilterSelect value={monsterType} onChange={setMonsterType} label="Type">
+                    <option value="all">All types</option>
+                    {monsterTypeOptions.map((t) => (
+                      <option key={t} value={t} className="capitalize">{t}</option>
+                    ))}
+                  </FilterSelect>
+                  <FilterSelect value={monsterSize} onChange={setMonsterSize} label="Size">
+                    <option value="all">All sizes</option>
+                    {monsterSizeOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </FilterSelect>
+                </>
               )}
               {category === "magicitems" && (
-                <FilterSelect value={itemRarity} onChange={setItemRarity} label="Rarity">
-                  <option value="all">All rarities</option>
-                  {rarityOptions.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
+                <>
+                  <FilterSelect value={itemRarity} onChange={setItemRarity} label="Rarity">
+                    <option value="all">All rarities</option>
+                    {rarityOptions.map((r) => (
+                      <option key={r} value={r} className="capitalize">{r}</option>
+                    ))}
+                  </FilterSelect>
+                  <FilterSelect value={itemType} onChange={setItemType} label="Type">
+                    <option value="all">All types</option>
+                    {itemTypeOptions.map((t) => (
+                      <option key={t} value={t} className="capitalize">{t}</option>
+                    ))}
+                  </FilterSelect>
+                </>
+              )}
+              {category !== "conditions" && (
+                <FilterSelect value={sortBy} onChange={setSortBy} label="Sort by">
+                  <option value="name">Sort: Name</option>
+                  {category === "spells" && <option value="level">Sort: Level</option>}
+                  {category === "monsters" && <option value="cr">Sort: CR</option>}
+                  {category === "magicitems" && <option value="rarity">Sort: Rarity</option>}
                 </FilterSelect>
               )}
               <button
