@@ -194,7 +194,7 @@ function MonsterDetail({ m }: { m: Open5eMonster }) {
       </div>
 
       {/* Ability scores */}
-      <div className="grid grid-cols-6 gap-1.5 py-2">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 py-2">
         {ABILITIES.map((a) => {
           const score = m[a]
           return (

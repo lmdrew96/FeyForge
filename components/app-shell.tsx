@@ -22,6 +22,8 @@ import {
   Music,
   Shield,
   Settings,
+  Menu,
+  X,
 } from "lucide-react"
 import { useState } from "react"
 import { useQuery } from "convex/react"
@@ -67,6 +69,7 @@ const navItems: NavItem[] = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [dmOpen, setDmOpen] = useState(pathname.startsWith("/dm"))
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const me = useQuery(api.users.getMe)
   const isAdmin = me?.role === "admin"
 
@@ -211,29 +214,92 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile top bar */}
       <div
-        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-12"
+        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-2 h-12"
         style={{
           background: "var(--scene-surface)",
           borderBottom: "1px solid var(--scene-border)",
         }}
       >
-        <span
-          className="text-base font-bold tracking-widest uppercase"
-          style={{ fontFamily: "var(--font-display)", color: "var(--scene-accent)" }}
-        >
-          FeyForge
-        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open menu"
+            className="p-2 rounded-md hover:bg-[var(--scene-bg)]"
+            style={{ color: "var(--scene-text-muted)" }}
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <span
+            className="text-base font-bold tracking-widest uppercase"
+            style={{ fontFamily: "var(--font-display)", color: "var(--scene-accent)" }}
+          >
+            FeyForge
+          </span>
+        </div>
         <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
       </div>
 
+      {/* Mobile nav drawer — full parity with the desktop sidebar */}
+      <div
+        className={cn(
+          "md:hidden fixed inset-0 z-[60] transition-opacity duration-200",
+          drawerOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+        )}
+      >
+        <div className="absolute inset-0 bg-black/50" onClick={() => setDrawerOpen(false)} />
+        <aside
+          className={cn(
+            "absolute inset-y-0 left-0 w-72 max-w-[82vw] flex flex-col transition-transform duration-200",
+            drawerOpen ? "translate-x-0" : "-translate-x-full",
+          )}
+          style={{ background: "var(--scene-surface)", borderRight: "1px solid var(--scene-border)" }}
+        >
+          <div className="flex items-center justify-between px-4 h-12 shrink-0" style={{ borderBottom: "1px solid var(--scene-border)" }}>
+            <span className="text-base font-bold tracking-widest uppercase" style={{ fontFamily: "var(--font-display)", color: "var(--scene-accent)" }}>
+              FeyForge
+            </span>
+            <button onClick={() => setDrawerOpen(false)} aria-label="Close menu" className="p-2 rounded-md hover:bg-[var(--scene-bg)]" style={{ color: "var(--scene-text-muted)" }}>
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+            {navItems.map((item) =>
+              item.children ? (
+                <div key={item.href} className="pt-2">
+                  <div className="px-3 pb-1 text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)", opacity: 0.7 }}>
+                    {item.label}
+                  </div>
+                  {item.children.map((child) => (
+                    <DrawerLink key={child.href} href={child.href} icon={child.icon} label={child.label} active={isActive(child.href)} onNavigate={() => setDrawerOpen(false)} />
+                  ))}
+                </div>
+              ) : (
+                <DrawerLink key={item.href} href={item.href} icon={item.icon} label={item.label} active={isActive(item.href)} onNavigate={() => setDrawerOpen(false)} />
+              ),
+            )}
+            {isAdmin && (
+              <DrawerLink href="/admin/review" icon={Shield} label="Admin" active={isActive("/admin")} onNavigate={() => setDrawerOpen(false)} />
+            )}
+          </nav>
+
+          <div className="px-4 py-3 shrink-0 flex items-center justify-between" style={{ borderTop: "1px solid var(--scene-border)" }}>
+            <ThemeToggle />
+            <Link href="/account" onClick={() => setDrawerOpen(false)} className="text-xs hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+              Account
+            </Link>
+          </div>
+        </aside>
+      </div>
+
       {/* Main content */}
-      <main className="relative z-10 flex-1 overflow-y-auto md:pt-0 pt-12 pb-14 md:pb-0">
+      <main className="relative z-10 flex-1 overflow-y-auto md:pt-0 pt-12 pb-[calc(3.5rem_+_env(safe-area-inset-bottom))] md:pb-0">
         {children}
       </main>
 
       {/* Mobile bottom nav */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around h-14"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around min-h-14 pb-[env(safe-area-inset-bottom)]"
         style={{
           background: "var(--scene-surface)",
           borderTop: "1px solid var(--scene-border)",
@@ -262,5 +328,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
     </div>
+  )
+}
+
+function DrawerLink({
+  href,
+  icon: Icon,
+  label,
+  active,
+  onNavigate,
+}: {
+  href: string
+  icon: React.ElementType
+  label: string
+  active: boolean
+  onNavigate: () => void
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm hover:bg-[var(--scene-bg)]"
+      style={{
+        color: active ? "var(--scene-accent)" : "var(--scene-text-muted)",
+        background: active ? "var(--scene-bg)" : undefined,
+      }}
+    >
+      <Icon className="w-4 h-4 shrink-0" />
+      {label}
+    </Link>
   )
 }

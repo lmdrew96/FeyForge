@@ -673,7 +673,7 @@ function CurrencyEditor({ char }: { char: CharDoc }) {
 
   return (
     <div
-      className="rounded-xl p-4 grid grid-cols-5 gap-3 text-center"
+      className="rounded-xl p-4 grid grid-cols-3 sm:grid-cols-5 gap-3 text-center"
       style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
     >
       {COINS.map((coin) => (

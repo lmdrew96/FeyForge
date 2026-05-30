@@ -813,7 +813,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
           </div>
           {ABILITY_KEYS.some(a => assignments[a] !== 0) && (
             <div
-              className="grid grid-cols-6 gap-1 pt-2.5 border-t"
+              className="grid grid-cols-3 sm:grid-cols-6 gap-1 pt-2.5 border-t"
               style={{ borderColor: "var(--scene-border)" }}
             >
               {ABILITY_KEYS.map(a => {

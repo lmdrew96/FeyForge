@@ -297,7 +297,7 @@ export default function ScenesPage() {
   return (
     <AppShell>
       <div className="p-6 max-w-5xl mx-auto">
-        <div className="mb-8 flex items-start justify-between gap-4">
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1
               className="text-2xl font-bold mb-2"

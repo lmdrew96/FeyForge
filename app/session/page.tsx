@@ -842,7 +842,7 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--scene-accent)" }} />

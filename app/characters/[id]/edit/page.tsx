@@ -678,7 +678,7 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
         </FieldGroup>
 
         <FieldGroup title="Currency">
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
             {(["cp", "sp", "ep", "gp", "pp"] as const).map((coin) => (
               <div key={coin} className="space-y-2">
                 <Label htmlFor={`char-${coin}`} className="uppercase text-xs">
