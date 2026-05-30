@@ -48,20 +48,31 @@ pnpm install
 
 ### Environment Variables
 
+Copy `.env.example` to `.env.local` and fill in the values.
+
 | Variable | Description | Required |
 |---|---|---|
-| `NEXT_PUBLIC_CONVEX_URL` | Convex deployment URL | Yes |
+| `NEXT_PUBLIC_CONVEX_URL` | Convex deployment URL (set by `npx convex dev`) | Yes |
+| `CONVEX_DEPLOYMENT` | Convex deployment id (set by `npx convex dev`) | Yes |
+| `NEXT_PUBLIC_CONVEX_SITE_URL` | Convex HTTP actions endpoint | Yes |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (client-side) | Yes |
 | `CLERK_SECRET_KEY` | Clerk secret key (server-side) | Yes |
-| `RESEND_API_KEY` | Resend API key for email | Yes |
-| `EMAIL_FROM` | Sender address for transactional email | Yes |
-| `KOFI_VERIFICATION_TOKEN` | Ko-fi webhook verification token (premium) | Yes |
+| `ANTHROPIC_API_KEY` | Anthropic key — powers **all** AI features (character build/name/backstory/traits/optimize, creation assistant). Without it every AI route returns 500. | Yes |
 | `R2_ACCOUNT_ID` | Cloudflare account ID for R2 | Yes |
 | `R2_ACCESS_KEY_ID` | R2 access key | Yes |
 | `R2_SECRET_ACCESS_KEY` | R2 secret key | Yes |
 | `R2_BUCKET_NAME` | R2 bucket name for audio storage | Yes |
 | `R2_PUBLIC_URL` | Public base URL for R2 bucket | Yes |
+| `RESEND_API_KEY` | Resend API key for email | Yes |
+| `EMAIL_FROM` | Sender address for transactional email | Yes |
+| `KOFI_VERIFICATION_TOKEN` | Ko-fi webhook verification token (premium) | Yes |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | Clerk sign-in route (default `/login`) | No |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | Clerk sign-up route (default `/signup`) | No |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | Post-sign-in redirect (default `/dashboard`) | No |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | Post-sign-up redirect (default `/dashboard`) | No |
+| `SEED_SECRET` | Shared secret guarding the library seed script | No |
 
-Clerk also requires `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` set automatically via the Clerk dashboard integration, and Convex requires `CONVEX_DEPLOYMENT` (set by `npx convex dev`).
+> **Deploying:** these must be set in your hosting provider (e.g. Vercel) too, not just `.env.local`. A missing `ANTHROPIC_API_KEY` in production is a common cause of AI features failing while everything else works.
 
 ### Running Locally
 
