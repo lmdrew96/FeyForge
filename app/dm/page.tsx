@@ -1,9 +1,10 @@
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { Users, Map, Bot, ScrollText, Globe } from "lucide-react"
+import { Users, Map, Bot, ScrollText, Globe, Swords } from "lucide-react"
 
 const tools = [
   { href: "/dm/npcs", icon: Users, label: "NPCs", desc: "Manage your NPC roster" },
+  { href: "/dm/encounters", icon: Swords, label: "Encounters", desc: "CR → XP difficulty calculator" },
   { href: "/dm/scenes", icon: Map, label: "Scenes", desc: "Preview and switch scenes" },
   { href: "/dm/assistant", icon: Bot, label: "AI Assistant", desc: "Claude-powered DM help" },
   { href: "/dm/wiki", icon: ScrollText, label: "Campaign Wiki", desc: "World lore and notes" },
