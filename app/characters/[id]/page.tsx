@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -21,6 +21,8 @@ import {
 } from "@/lib/character/constants"
 import type { Ability, Skill } from "@/lib/character/constants"
 import { getDarkvisionRange } from "@/lib/character/character-data"
+import { getXPProgress, getXPForLevel, getLevelFromXP, getXPToNextLevel } from "@/lib/character/experience"
+import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting } from "@/lib/character/leveling"
 import { useDiceStore, rollExpression } from "@/lib/dice-store"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
@@ -390,6 +392,265 @@ function DeathSavesBox({ char }: { char: CharDoc }) {
   )
 }
 
+// Add a hit die to the pool matching the class die size (or create the pool).
+function incrementHitDice(hitDice: CharDoc["hitDice"], dieSize: number): CharDoc["hitDice"] {
+  if (hitDice.some((d) => d.diceSize === dieSize)) {
+    return hitDice.map((d) => (d.diceSize === dieSize ? { ...d, total: d.total + 1 } : d))
+  }
+  return [...hitDice, { diceSize: dieSize, total: 1, used: 0 }]
+}
+
+// Level-up modal. Bumps level, gains HP (average or rolled), adds a hit die,
+// rescales caster slots + DC/attack (see lib/character/leveling.ts). New class
+// features are a guided manual step (add via Custom Properties below).
+function LevelUpDialog({
+  char,
+  hitDie,
+  conMod,
+  spellAbilityMod,
+  onClose,
+}: {
+  char: CharDoc
+  hitDie: number
+  conMod: number
+  spellAbilityMod: number
+  onClose: () => void
+}) {
+  const doUpdate = useMutation(api.characters.update)
+  const [hpMode, setHpMode] = useState<"average" | "roll">("average")
+  const [rolled, setRolled] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const newLevel = Math.min(20, char.level + 1)
+  const classId = char.characterClass.toLowerCase()
+  const casterType = getCasterType(classId)
+
+  const rollHp = () => {
+    setRolled(Math.floor(Math.random() * hitDie) + 1)
+    setHpMode("roll")
+  }
+  const hpRoll = hpMode === "roll" ? rolled ?? avgHitDieRoll(hitDie) : undefined
+  const hpGain = hpGainForLevel(hitDie, conMod, hpRoll)
+
+  const oldProf = getProficiencyBonus(char.level)
+  const newProf = getProficiencyBonus(newLevel)
+  const profChanged = newProf !== oldProf
+
+  const handleConfirm = async () => {
+    setSaving(true)
+    try {
+      const newHitPoints = {
+        ...char.hitPoints,
+        max: char.hitPoints.max + hpGain,
+        current: char.hitPoints.current + hpGain,
+      }
+      const spellcasting = char.spellcasting
+        ? recomputeSpellcasting(char.spellcasting, classId, newLevel, spellAbilityMod)
+        : undefined
+      await doUpdate({
+        id: char._id,
+        level: newLevel,
+        experiencePoints: Math.max(char.experiencePoints, getXPForLevel(newLevel)),
+        hitPoints: newHitPoints,
+        hitDice: incrementHitDice(char.hitDice, hitDie),
+        ...(spellcasting ? { spellcasting } : {}),
+      })
+      toast.success(`Leveled up to ${newLevel}! +${hpGain} HP.`)
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't level up.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
+      <div
+        className="rounded-xl p-5 w-full max-w-md max-h-[85vh] overflow-y-auto"
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <ChevronsUp className="h-5 w-5" style={{ color: "var(--scene-accent)" }} />
+            <h2 className="text-lg font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+              Level {char.level} → {newLevel}
+            </h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* HP gain */}
+        <div className="mb-4">
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>Hit Points</div>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={() => setHpMode("average")}
+              className="flex-1 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-90"
+              style={{
+                background: hpMode === "average" ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)" : "var(--scene-bg)",
+                color: hpMode === "average" ? "var(--scene-accent)" : "var(--scene-text-primary)",
+                border: `1px solid ${hpMode === "average" ? "color-mix(in srgb, var(--scene-accent) 40%, transparent)" : "var(--scene-border)"}`,
+              }}
+            >
+              Average ({avgHitDieRoll(hitDie)})
+            </button>
+            <button
+              onClick={rollHp}
+              className="flex-1 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-90"
+              style={{
+                background: hpMode === "roll" ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)" : "var(--scene-bg)",
+                color: hpMode === "roll" ? "var(--scene-accent)" : "var(--scene-text-primary)",
+                border: `1px solid ${hpMode === "roll" ? "color-mix(in srgb, var(--scene-accent) 40%, transparent)" : "var(--scene-border)"}`,
+              }}
+            >
+              {hpMode === "roll" && rolled ? `Rolled ${rolled}` : `Roll d${hitDie}`}
+            </button>
+          </div>
+          <p className="text-sm" style={{ color: "var(--scene-text-primary)" }}>
+            Max HP <span className="font-bold" style={{ color: "var(--scene-accent)" }}>+{hpGain}</span>
+            <span style={{ color: "var(--scene-text-muted)" }}> ({hpRoll ?? avgHitDieRoll(hitDie)} {conMod >= 0 ? "+" : "−"} {Math.abs(conMod)} CON, min 1) → {char.hitPoints.max + hpGain}</span>
+          </p>
+        </div>
+
+        {/* Other gains */}
+        <ul className="space-y-1.5 mb-4 text-sm" style={{ color: "var(--scene-text-primary)" }}>
+          <li>• A d{hitDie} hit die added (now {char.hitDice.reduce((n, d) => n + d.total, 0) + 1} total)</li>
+          {profChanged && (
+            <li>• Proficiency bonus +{oldProf} → <span style={{ color: "var(--scene-accent)" }}>+{newProf}</span> (saves, skills, attacks rescale)</li>
+          )}
+          {(casterType === "full" || casterType === "half") && char.spellcasting && (
+            <li>• Spell slots updated for level {newLevel}{profChanged ? "; spell save DC & attack rescaled" : ""}</li>
+          )}
+          {casterType === "pact" && (
+            <li style={{ color: "var(--scene-text-muted)" }}>• Warlock Pact Magic — adjust slots manually (DC/attack {profChanged ? "rescaled" : "unchanged"})</li>
+          )}
+        </ul>
+
+        {/* Features reminder */}
+        <p className="text-xs rounded-lg p-3 mb-4" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}>
+          New class features at this level aren&apos;t added automatically — add them as Custom Properties below the sheet (check your class for level {newLevel}).
+        </p>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+            style={{ background: "var(--scene-border)", color: "var(--scene-text-primary)" }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={saving}
+            className="flex-1 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+            style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+          >
+            {saving ? "Leveling…" : `Level up to ${newLevel}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Experience bar + Add XP + Level Up entry point.
+function ExperienceCard({ char, conMod, spellAbilityMod, hitDie }: { char: CharDoc; conMod: number; spellAbilityMod: number; hitDie: number }) {
+  const doUpdate = useMutation(api.characters.update)
+  const [levelUpOpen, setLevelUpOpen] = useState(false)
+  const [addingXp, setAddingXp] = useState(false)
+  const [xpInput, setXpInput] = useState("")
+
+  const xp = char.experiencePoints
+  const progress = getXPProgress(xp)
+  const toNext = getXPToNextLevel(xp)
+  const atMax = char.level >= 20
+  const xpReady = !atMax && getLevelFromXP(xp) > char.level
+
+  const handleAddXp = async () => {
+    const amount = Math.floor(Number(xpInput))
+    if (!Number.isFinite(amount) || amount === 0) {
+      setAddingXp(false)
+      setXpInput("")
+      return
+    }
+    try {
+      const newXP = Math.max(0, xp + amount)
+      await doUpdate({ id: char._id, experiencePoints: newXP })
+      if (getLevelFromXP(newXP) > char.level) toast.success("XP added — ready to level up!")
+      else toast.success(`${amount > 0 ? "+" : ""}${amount.toLocaleString()} XP`)
+    } catch {
+      toast.error("Couldn't update XP.")
+    } finally {
+      setAddingXp(false)
+      setXpInput("")
+    }
+  }
+
+  return (
+    <div className="rounded-xl p-4 mb-6" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+      <div className="flex items-center gap-1.5 mb-2">
+        <ChevronsUp className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
+        <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>Experience</span>
+        <span className="ml-auto text-xs" style={{ color: "var(--scene-text-muted)" }}>
+          {atMax ? "Max level" : `${xp.toLocaleString()} XP · ${toNext.toLocaleString()} to level ${char.level + 1}`}
+        </span>
+      </div>
+      <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: "var(--scene-border)" }}>
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${atMax ? 100 : progress}%`, background: "var(--scene-accent)" }} />
+      </div>
+
+      {addingXp ? (
+        <div className="flex gap-2">
+          <input
+            autoFocus
+            type="number"
+            value={xpInput}
+            onChange={(e) => setXpInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddXp(); if (e.key === "Escape") { setAddingXp(false); setXpInput("") } }}
+            placeholder="XP to add (e.g. 500)"
+            className="flex-1 px-3 py-1.5 rounded-md text-sm bg-transparent outline-none"
+            style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          />
+          <button onClick={handleAddXp} className="px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-80" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>Add</button>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setAddingXp(true)}
+            disabled={atMax}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+            style={{ background: "var(--scene-border)", color: "var(--scene-text-primary)" }}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add XP
+          </button>
+          <button
+            onClick={() => setLevelUpOpen(true)}
+            disabled={atMax}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+            style={
+              xpReady
+                ? { background: "var(--scene-accent)", color: "var(--scene-bg)" }
+                : { background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)", color: "var(--scene-accent)", border: "1px solid color-mix(in srgb, var(--scene-accent) 32%, transparent)" }
+            }
+            title={atMax ? "Already level 20" : xpReady ? "Your XP supports a higher level" : "Milestone level up"}
+          >
+            <ChevronsUp className="h-3.5 w-3.5" /> {atMax ? "Level 20" : "Level Up"}
+          </button>
+        </div>
+      )}
+
+      {levelUpOpen && (
+        <LevelUpDialog char={char} hitDie={hitDie} conMod={conMod} spellAbilityMod={spellAbilityMod} onClose={() => setLevelUpOpen(false)} />
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const COINS = ["cp", "sp", "ep", "gp", "pp"] as const
@@ -709,6 +970,14 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
         </div>
+
+        {/* Experience + Level Up */}
+        <ExperienceCard
+          char={char}
+          conMod={mods.constitution}
+          spellAbilityMod={char.spellcasting ? mods[char.spellcasting.ability as Ability] : 0}
+          hitDie={hitDie}
+        />
 
         {/* HP + Rest */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
