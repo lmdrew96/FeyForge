@@ -27,6 +27,7 @@ import type * as partyInventory from "../partyInventory.js";
 import type * as sessionNotes from "../sessionNotes.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
+import type * as wiki from "../wiki.js";
 import type * as world from "../world.js";
 
 import type {
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   sessionNotes: typeof sessionNotes;
   sessions: typeof sessions;
   users: typeof users;
+  wiki: typeof wiki;
   world: typeof world;
 }>;
 

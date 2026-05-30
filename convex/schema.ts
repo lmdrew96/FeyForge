@@ -276,6 +276,9 @@ export default defineSchema({
       type: v.string(),
       id: v.string(),
     }))),
+    // Whether players in the campaign can see this entry. Undefined/false = DM-only.
+    // Mirrors the reveal convention used by mapPins and sessionBroadcasts.
+    isRevealed: v.optional(v.boolean()),
     updatedAt: v.number(),
   })
     .index("by_userId", ["userId"])
