@@ -755,41 +755,36 @@ body[data-scene="feywild"] .scene-mote:nth-child(3n)   { --mote-c: #2ad6c4; } /*
 body[data-scene="feywild"] .scene-mote:nth-child(3n+1) { --mote-c: #7dff5e; } /* bright green */
 /* Underdark — cyan spores with occasional warm orange */
 body[data-scene="underdark"] .scene-mote:nth-child(4n) { --mote-c: #ff8a3d; }
-/* Forest — green pollen + warm gold fireflies that blink instead of drift */
-body[data-scene="forest"] .scene-mote:nth-child(5n) {
+/* Forest — green pollen + plentiful warm gold fireflies that blink */
+body[data-scene="forest"] .scene-mote:nth-child(3n) {
   --mote-c: #ffd66e;
   animation-name: mote-twinkle;
-  animation-duration: calc(3s + var(--i, 0) * 0.4s);
+  animation-duration: calc(2.6s + var(--i, 0) * 0.35s);
 }
 
 /* ── Scene textures (the dedicated texture layer, above grain, below motes) ── */
 .scene-backdrop__texture { opacity: 0; }
 
-/* Castle & Dungeon — stone-block masonry: mortar grid + faint course highlight,
-   kept low-opacity so it reads as wall texture, not wallpaper. */
-body[data-scene="castle"] .scene-backdrop__texture,
-body[data-scene="dungeon"] .scene-backdrop__texture {
-  opacity: 0.5;
-  background-image:
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 33px),
-    repeating-linear-gradient(0deg, transparent 0 31px, var(--mortar) 31px 33px),
-    repeating-linear-gradient(90deg, transparent 0 61px, var(--mortar) 61px 63px);
-}
+/* Castle & Dungeon — stone masonry in true running-bond (offset courses).
+   Drawn as a tiny SVG pattern: pure CSS gradients can't confine vertical mortar
+   to alternate courses, but SVG can. Mortar kept faint via stroke-opacity. */
 body[data-scene="castle"] .scene-backdrop__texture {
-  --mortar: rgba(40, 34, 18, 0.55); /* warm gold-stone */
+  opacity: 0.6;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cg fill='none' stroke='%237a6a3a' stroke-opacity='0.45' stroke-width='2'%3E%3Cpath d='M0 1H64M0 33H64'/%3E%3Cpath d='M1 1V33'/%3E%3Cpath d='M33 33V65'/%3E%3C/g%3E%3C/svg%3E");
 }
 body[data-scene="dungeon"] .scene-backdrop__texture {
-  --mortar: rgba(12, 14, 22, 0.6); /* cold blue-grey */
-  opacity: 0.45;
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cg fill='none' stroke='%234a5470' stroke-opacity='0.4' stroke-width='2'%3E%3Cpath d='M0 1H64M0 33H64'/%3E%3Cpath d='M1 1V33'/%3E%3Cpath d='M33 33V65'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 /* Coastal — slow drifting fog banks low on the screen */
 body[data-scene="coastal"] .scene-backdrop__texture {
-  opacity: 0.55;
+  opacity: 0.85;
   background-image:
-    radial-gradient(ellipse 50% 28% at 20% 72%, rgba(180, 205, 220, 0.18), transparent 70%),
-    radial-gradient(ellipse 55% 24% at 70% 82%, rgba(160, 190, 210, 0.16), transparent 70%),
-    radial-gradient(ellipse 45% 30% at 50% 94%, rgba(200, 215, 225, 0.14), transparent 70%);
+    radial-gradient(ellipse 62% 38% at 18% 68%, rgba(185, 208, 222, 0.30), transparent 72%),
+    radial-gradient(ellipse 68% 34% at 72% 80%, rgba(165, 193, 212, 0.28), transparent 72%),
+    radial-gradient(ellipse 58% 40% at 48% 95%, rgba(205, 218, 228, 0.26), transparent 72%),
+    radial-gradient(ellipse 80% 30% at 50% 108%, rgba(200, 215, 228, 0.24), transparent 70%);
   animation: fog-drift 42s ease-in-out infinite alternate;
 }
 
