@@ -280,10 +280,90 @@ export const adjustHp = mutation({
     amount: v.number(),
   },
   handler: async (ctx, args) => {
-    await patchCombatant(ctx, args.sessionId, args.combatantId, (c) => ({
-      ...c,
-      hitPoints: applyHpDelta(c.hitPoints, args.amount),
-    }))
+    const { combat } = await requireCombatDm(ctx, args.sessionId)
+    const target = combat.combatants.find((c) => c.id === args.combatantId)
+
+    const next = combat.combatants.map((c) =>
+      c.id === args.combatantId
+        ? { ...c, hitPoints: applyHpDelta(c.hitPoints, args.amount) }
+        : c
+    )
+    await ctx.db.patch(combat._id, {
+      combatants: next,
+      updatedAt: Date.now(),
+    })
+
+    // If a concentrating combatant took damage, surface the CON save DC so the DM
+    // can call for it: DC 10 or half the damage taken, whichever is higher.
+    if (
+      target &&
+      args.amount < 0 &&
+      target.conditions.some((x) => x.toLowerCase() === "concentrating")
+    ) {
+      const damage = Math.abs(args.amount)
+      return {
+        concentrationDC: Math.max(10, Math.floor(damage / 2)),
+        name: target.name,
+      }
+    }
+    return null
+  },
+})
+
+// Roll a death save server-side and apply 5e rules:
+//   nat 20 → regain 1 HP (conscious, clear saves); nat 1 → two failures;
+//   10–19 → one success; 2–9 → one failure. 3 successes = stable, 3 = dead.
+// Returns the roll + resulting outcome so the DM gets a clear toast.
+export const rollDeathSave = mutation({
+  args: { sessionId: v.id("partySessions"), combatantId: v.string() },
+  handler: async (ctx, args) => {
+    const { combat } = await requireCombatDm(ctx, args.sessionId)
+    const target = combat.combatants.find((c) => c.id === args.combatantId)
+    if (!target) throw new Error("Combatant not found")
+
+    const roll = Math.floor(Math.random() * 20) + 1
+    const prev = target.deathSaves ?? { successes: 0, failures: 0 }
+    let successes = prev.successes
+    let failures = prev.failures
+    let revived = false
+    let outcome: "success" | "failure" | "stable" | "dead" | "revived"
+
+    if (roll === 20) {
+      // Pop back up at 1 HP, conscious, saves cleared.
+      successes = 0
+      failures = 0
+      revived = true
+      outcome = "revived"
+    } else if (roll === 1) {
+      failures = Math.min(3, failures + 2)
+      outcome = failures >= 3 ? "dead" : "failure"
+    } else if (roll >= 10) {
+      successes = Math.min(3, successes + 1)
+      outcome = successes >= 3 ? "stable" : "success"
+    } else {
+      failures = Math.min(3, failures + 1)
+      outcome = failures >= 3 ? "dead" : "failure"
+    }
+
+    // On stabilize, saves reset (creature is stable at 0 HP, no longer rolling).
+    const clearedSaves = outcome === "stable"
+
+    const next = combat.combatants.map((c) =>
+      c.id === args.combatantId
+        ? {
+            ...c,
+            hitPoints: revived
+              ? { ...c.hitPoints, current: 1 }
+              : c.hitPoints,
+            deathSaves: clearedSaves || revived
+              ? { successes: 0, failures: 0 }
+              : { successes, failures },
+          }
+        : c
+    )
+    await ctx.db.patch(combat._id, { combatants: next, updatedAt: Date.now() })
+
+    return { roll, outcome, successes, failures, name: target.name }
   },
 })
 

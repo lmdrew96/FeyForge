@@ -20,19 +20,21 @@ import {
 
 type SessionId = Id<"partySessions">
 
-// 14 core conditions (exhaustion is a level track, handled elsewhere).
+// 14 core conditions + Concentrating (a spell-tracking flag, not a true
+// condition — surfaced here so the DM can flag it and get a CON-save prompt on
+// damage). Exhaustion is a level track, handled elsewhere.
 const CONDITIONS = [
-  "Blinded", "Charmed", "Deafened", "Frightened", "Grappled",
+  "Blinded", "Charmed", "Concentrating", "Deafened", "Frightened", "Grappled",
   "Incapacitated", "Invisible", "Paralyzed", "Petrified",
   "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious",
 ]
 
 const CONDITION_COLORS: Record<string, string> = {
-  Blinded: "#6b7280", Charmed: "#ec4899", Deafened: "#6b7280",
-  Frightened: "#f59e0b", Grappled: "#8b5cf6", Incapacitated: "#ef4444",
-  Invisible: "#a1a1aa", Paralyzed: "#ef4444", Petrified: "#78716c",
-  Poisoned: "#22c55e", Prone: "#94a3b8", Restrained: "#8b5cf6",
-  Stunned: "#ef4444", Unconscious: "#1f2937",
+  Blinded: "#6b7280", Charmed: "#ec4899", Concentrating: "#7b68c8",
+  Deafened: "#6b7280", Frightened: "#f59e0b", Grappled: "#8b5cf6",
+  Incapacitated: "#ef4444", Invisible: "#a1a1aa", Paralyzed: "#ef4444",
+  Petrified: "#78716c", Poisoned: "#22c55e", Prone: "#94a3b8",
+  Restrained: "#8b5cf6", Stunned: "#ef4444", Unconscious: "#1f2937",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -59,6 +61,37 @@ export function DMCombatTracker({ sessionId }: { sessionId: SessionId }) {
   const doToggleCondition = useMutation(api.liveCombat.toggleCondition)
   const doSetInitiative = useMutation(api.liveCombat.setInitiative)
   const doSetDeathSaves = useMutation(api.liveCombat.setDeathSaves)
+  const doRollDeathSave = useMutation(api.liveCombat.rollDeathSave)
+
+  // Apply HP damage/heal; if a concentrating combatant was hit, prompt the save.
+  const handleAdjustHp = async (combatantId: string, amount: number) => {
+    try {
+      const res = await doAdjustHp({ sessionId, combatantId, amount })
+      if (res?.concentrationDC) {
+        toast.warning(`${res.name}: concentration save — DC ${res.concentrationDC}`)
+      }
+    } catch {
+      toast.error("Failed to update HP.")
+    }
+  }
+
+  const handleRollDeathSave = async (combatantId: string) => {
+    try {
+      const res = await doRollDeathSave({ sessionId, combatantId })
+      const tail =
+        res.outcome === "revived"
+          ? "natural 20 — back up at 1 HP!"
+          : res.outcome === "dead"
+            ? "and falls — that's 3 failures."
+            : res.outcome === "stable"
+              ? "— stabilized (3 successes)."
+              : `(${res.successes}✓ / ${res.failures}✗)`
+      const fn = res.outcome === "dead" ? toast.error : res.outcome === "revived" || res.outcome === "stable" ? toast.success : toast.message
+      fn(`${res.name} rolled ${res.roll} ${tail}`)
+    } catch {
+      toast.error("Failed to roll death save.")
+    }
+  }
 
   const [monsterName, setMonsterName] = useState("")
   const [monsterHp, setMonsterHp] = useState("")
@@ -305,6 +338,14 @@ export function DMCombatTracker({ sessionId }: { sessionId: SessionId }) {
                           }).catch(() => {})
                         }
                       />
+                      <button
+                        onClick={() => handleRollDeathSave(c.id)}
+                        className="ml-auto text-xs px-2 py-1 rounded font-medium transition-opacity hover:opacity-80"
+                        style={{ background: "color-mix(in srgb, #ef4444 14%, transparent)", color: "#ef4444", border: "1px solid color-mix(in srgb, #ef4444 32%, transparent)" }}
+                        title="Roll a death saving throw (nat 20 revives, nat 1 = two failures)"
+                      >
+                        Roll save
+                      </button>
                     </div>
                   )}
                 </div>
@@ -312,10 +353,10 @@ export function DMCombatTracker({ sessionId }: { sessionId: SessionId }) {
                 {/* HP controls */}
                 {hp && (
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <HpButton label="−5" color="#ef4444" onClick={() => doAdjustHp({ sessionId, combatantId: c.id, amount: -5 }).catch(() => {})} />
-                    <HpButton label="−1" color="#ef4444" onClick={() => doAdjustHp({ sessionId, combatantId: c.id, amount: -1 }).catch(() => {})} />
-                    <HpButton label="+1" color="var(--scene-accent)" onClick={() => doAdjustHp({ sessionId, combatantId: c.id, amount: 1 }).catch(() => {})} />
-                    <HpButton label="+5" color="var(--scene-accent)" onClick={() => doAdjustHp({ sessionId, combatantId: c.id, amount: 5 }).catch(() => {})} />
+                    <HpButton label="−5" color="#ef4444" onClick={() => handleAdjustHp(c.id, -5)} />
+                    <HpButton label="−1" color="#ef4444" onClick={() => handleAdjustHp(c.id, -1)} />
+                    <HpButton label="+1" color="var(--scene-accent)" onClick={() => handleAdjustHp(c.id, 1)} />
+                    <HpButton label="+5" color="var(--scene-accent)" onClick={() => handleAdjustHp(c.id, 5)} />
                   </div>
                 )}
 

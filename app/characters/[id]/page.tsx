@@ -20,6 +20,7 @@ import {
   getProficiencyBonus,
 } from "@/lib/character/constants"
 import type { Ability, Skill } from "@/lib/character/constants"
+import { useDiceStore, rollExpression } from "@/lib/dice-store"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
 
@@ -63,12 +64,9 @@ function computeStats(char: CharDoc) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function StatBox({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return (
-    <div
-      className="flex flex-col items-center justify-center rounded-lg p-3 text-center"
-      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
-    >
+function StatBox({ label, value, sub, onClick }: { label: string; value: string | number; sub?: string; onClick?: () => void }) {
+  const inner = (
+    <>
       <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>
         {label}
       </div>
@@ -76,15 +74,37 @@ function StatBox({ label, value, sub }: { label: string; value: string | number;
         {value}
       </div>
       {sub && <div className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>{sub}</div>}
+    </>
+  )
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        className="flex flex-col items-center justify-center rounded-lg p-3 text-center w-full transition-transform active:scale-95 hover:opacity-90"
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        title={`Roll ${label}`}
+      >
+        {inner}
+      </button>
+    )
+  }
+  return (
+    <div
+      className="flex flex-col items-center justify-center rounded-lg p-3 text-center"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      {inner}
     </div>
   )
 }
 
-function AbilityBlock({ ability, total, mod }: { ability: Ability; total: number; mod: number }) {
+function AbilityBlock({ ability, total, mod, onRoll }: { ability: Ability; total: number; mod: number; onRoll: () => void }) {
   return (
-    <div
-      className="flex flex-col items-center rounded-lg py-3 px-2"
+    <button
+      onClick={onRoll}
+      className="flex flex-col items-center rounded-lg py-3 px-2 w-full transition-transform active:scale-95 hover:opacity-90"
       style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+      title={`Roll ${ABILITY_ABBREVIATIONS[ability]} check`}
     >
       <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>
         {ABILITY_ABBREVIATIONS[ability]}
@@ -103,8 +123,24 @@ function AbilityBlock({ ability, total, mod }: { ability: Ability; total: number
       <div className="text-sm font-semibold" style={{ color: "var(--scene-accent)" }}>
         {formatModifier(mod)}
       </div>
-    </div>
+    </button>
   )
+}
+
+// Shared roll-from-sheet hook: rolls 1d20 + the given modifier through the dice
+// engine, drops it into the shared history, and toasts the result. Rolls
+// normally (no adv/dis) — the dice page is where advantage is chosen.
+function useSheetRoll() {
+  const addRoll = useDiceStore((s) => s.addRoll)
+  return (label: string, mod: number) => {
+    const sign = mod >= 0 ? "+" : "-"
+    const result = rollExpression(`1d20${sign}${Math.abs(mod)}`, { label })
+    if (!result) return
+    addRoll(result)
+    const face = result.terms[0]?.rolls[0]
+    const flair = face === 20 ? " — nat 20!" : face === 1 ? " — nat 1" : ""
+    toast.success(`${label}: ${result.total}${flair}`)
+  }
 }
 
 function ProfDot({ level }: { level: "none" | "proficient" | "expert" }) {
@@ -466,6 +502,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   }
 
   const { totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative, unarmoredAC } = computeStats(char)
+  const roll = useSheetRoll()
   const raceName = char.subrace ? `${char.subrace} ${char.race}` : char.race
   const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
   const hitDie = char.hitDice[0]?.diceSize ?? 8
@@ -560,7 +597,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
         {/* Combat stats strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <StatBox label="Armor Class" value={unarmoredAC} sub="unarmored" />
-          <StatBox label="Initiative" value={formatModifier(initiative)} />
+          <StatBox label="Initiative" value={formatModifier(initiative)} onClick={() => roll("Initiative", initiative)} />
           <StatBox label="Speed" value={`${char.speed} ft`} />
           <StatBox label="Prof Bonus" value={formatModifier(profBonus)} />
           <StatBox label="Passive Perc" value={passivePerception} />
@@ -576,7 +613,13 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           </h2>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             {ABILITIES.map((ability) => (
-              <AbilityBlock key={ability} ability={ability} total={totalAbilities[ability]} mod={mods[ability]} />
+              <AbilityBlock
+                key={ability}
+                ability={ability}
+                total={totalAbilities[ability]}
+                mod={mods[ability]}
+                onRoll={() => roll(`${ABILITY_ABBREVIATIONS[ability]} check`, mods[ability])}
+              />
             ))}
           </div>
         </section>
@@ -591,10 +634,12 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               {ABILITIES.map((ability, i) => {
                 const isProficient = char.savingThrowProficiencies.includes(ability)
                 return (
-                  <div
+                  <button
                     key={ability}
-                    className="flex items-center gap-3 px-4 py-2.5"
+                    onClick={() => roll(`${ABILITY_ABBREVIATIONS[ability]} save`, saveMods[ability])}
+                    className="flex items-center gap-3 px-4 py-2.5 w-full text-left transition-opacity hover:opacity-80"
                     style={{ borderBottom: i < ABILITIES.length - 1 ? "1px solid var(--scene-border)" : "none" }}
+                    title={`Roll ${ABILITY_ABBREVIATIONS[ability]} save`}
                   >
                     <ProfDot level={isProficient ? "proficient" : "none"} />
                     <span className="text-sm flex-1" style={{ color: "var(--scene-text-primary)" }}>
@@ -606,7 +651,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
                     >
                       {formatModifier(saveMods[ability])}
                     </span>
-                  </div>
+                  </button>
                 )
               })}
             </div>
@@ -675,15 +720,17 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
                 const isLastInLeftCol = i === half - 1
                 const isLastInRightCol = i === arr.length - 1
                 return (
-                  <div
+                  <button
                     key={skill}
-                    className="flex items-center gap-3 px-4 py-2"
+                    onClick={() => roll(SKILL_DISPLAY_NAMES[skill], skillMods[skill])}
+                    className="flex items-center gap-3 px-4 py-2 w-full text-left transition-opacity hover:opacity-80"
                     style={{
                       borderBottom: (!isRightCol && !isLastInLeftCol) || (isRightCol && !isLastInRightCol)
                         ? "1px solid var(--scene-border)"
                         : "none",
                       borderRight: !isRightCol ? "1px solid var(--scene-border)" : "none",
                     }}
+                    title={`Roll ${SKILL_DISPLAY_NAMES[skill]}`}
                   >
                     <ProfDot level={level} />
                     <span className="text-sm flex-1" style={{ color: "var(--scene-text-primary)" }}>
@@ -698,7 +745,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
                     >
                       {formatModifier(skillMods[skill])}
                     </span>
-                  </div>
+                  </button>
                 )
               })}
             </div>
