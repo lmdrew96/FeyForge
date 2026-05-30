@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { Play, Pause, Music, Filter, Plus, X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -325,6 +325,28 @@ function TrackReviewCard({
 
   const isMusic = track.type === "music"
   const canApproveAmbience = selectedTags.length > 0
+
+  // Load the track's already-assigned variant slots so an approved music track
+  // shows what it was assigned to (the slots state otherwise starts blank).
+  const trackStems = useQuery(
+    api.audio.listStemsForTrack,
+    isMusic ? { trackId: track._id } : "skip",
+  )
+  const stemsHydratedRef = useRef(false)
+  useEffect(() => {
+    if (stemsHydratedRef.current || !trackStems || trackStems.length === 0) return
+    stemsHydratedRef.current = true
+    setSlots(
+      trackStems.map((stem) => ({
+        id: Math.random().toString(36).slice(2),
+        sceneName: stem.sceneName,
+        mode: stem.mode,
+        instrument: stem.instrument,
+        intensity: String(stem.intensity),
+      })),
+    )
+    setSlotErrors(trackStems.map(() => ({})))
+  }, [trackStems])
 
   // ── Stem slot handlers ──────────────────────────────────────────────────────
 

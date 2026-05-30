@@ -879,6 +879,19 @@ export const getMusicStem = query({
   },
 })
 
+// All variant slots assigned to a given music track, ordered by intensity.
+// Lets the admin review card show what an approved track was assigned to.
+export const listStemsForTrack = query({
+  args: { trackId: v.id("audioTracks") },
+  handler: async (ctx, args) => {
+    const stems = await ctx.db
+      .query("musicStems")
+      .withIndex("by_trackId", (q) => q.eq("trackId", args.trackId))
+      .collect()
+    return stems.sort((a, b) => a.sortOrder - b.sortOrder)
+  },
+})
+
 // Check whether a (campaignId, scene, mode, instrument, intensity) slot is already taken.
 // excludeStemId lets updateMusicStem skip self-collision.
 async function isSlotTaken(

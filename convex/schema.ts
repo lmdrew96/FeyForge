@@ -618,7 +618,9 @@ export default defineSchema({
     // Used to query global (non-campaign-scoped) stems by scene+mode
     .index("by_sceneName_mode_and_campaignId", ["sceneName", "mode", "campaignId"])
     // Used by getInstrumentVariants to fetch all variants of one instrument
-    .index("by_scene_mode_instrument", ["sceneName", "mode", "instrument"]),
+    .index("by_scene_mode_instrument", ["sceneName", "mode", "instrument"])
+    // Used by the admin review card to show a track's assigned variant slots
+    .index("by_trackId", ["trackId"]),
 
   // Live combat / initiative tracker, scoped to a live party session. The DM owns
   // all writes; players subscribe read-only and see a filtered view (own HP exact,
