@@ -613,4 +613,44 @@ export default defineSchema({
     .index("by_sceneName_mode_and_campaignId", ["sceneName", "mode", "campaignId"])
     // Used by getInstrumentVariants to fetch all variants of one instrument
     .index("by_scene_mode_instrument", ["sceneName", "mode", "instrument"]),
+
+  // Live combat / initiative tracker, scoped to a live party session. The DM owns
+  // all writes; players subscribe read-only and see a filtered view (own HP exact,
+  // monster HP as a health band). One active row per session at a time.
+  liveCombat: defineTable({
+    sessionId: v.id("partySessions"),
+    campaignId: v.id("campaigns"),
+    dmUserId: v.string(),
+    isActive: v.boolean(),
+    round: v.number(),
+    // Index into combatants[] (initiative order) whose turn it currently is.
+    activeIndex: v.number(),
+    combatants: v.array(
+      v.object({
+        id: v.string(), // client-generated stable id
+        name: v.string(),
+        type: v.union(v.literal("pc"), v.literal("npc"), v.literal("monster")),
+        initiative: v.number(),
+        initiativeBonus: v.number(), // tiebreaker (usually Dex mod)
+        armorClass: v.number(),
+        hitPoints: v.object({
+          current: v.number(),
+          max: v.number(),
+          temp: v.number(),
+        }),
+        conditions: v.array(v.string()),
+        deathSaves: v.optional(
+          v.object({ successes: v.number(), failures: v.number() })
+        ),
+        // For PCs: links to the character + owning user so players see their own
+        // exact HP and the row can mirror the live character sheet.
+        characterId: v.optional(v.id("characters")),
+        userId: v.optional(v.string()),
+      })
+    ),
+    startedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_sessionId", ["sessionId"])
+    .index("by_sessionId_and_isActive", ["sessionId", "isActive"]),
 })

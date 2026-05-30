@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-panel"
+import { DMCombatTracker, PlayerCombatView } from "@/components/session/combat-tracker"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -746,6 +747,8 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
 
       <MyCharacterPanel sessionId={sessionId} member={myMember} />
 
+      <PlayerCombatView sessionId={sessionId} />
+
       <PlayerAudioReceiver sessionId={sessionId} campaignId={campaignId} />
 
       <div className="rounded-xl p-6 text-center" style={{ background: "color-mix(in srgb, var(--scene-accent) 6%, var(--scene-surface))", border: "1px solid color-mix(in srgb, var(--scene-accent) 20%, var(--scene-border))" }}>
@@ -878,6 +881,8 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
           ))}
         </div>
       </section>
+
+      <DMCombatTracker sessionId={sessionId} />
 
       <DMAudioPanel sessionId={sessionId} />
 

@@ -19,6 +19,7 @@ import type * as crons from "../crons.js";
 import type * as dmConversations from "../dmConversations.js";
 import type * as encounters from "../encounters.js";
 import type * as libraryShare from "../libraryShare.js";
+import type * as liveCombat from "../liveCombat.js";
 import type * as liveSessions from "../liveSessions.js";
 import type * as migrations from "../migrations.js";
 import type * as npcs from "../npcs.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   dmConversations: typeof dmConversations;
   encounters: typeof encounters;
   libraryShare: typeof libraryShare;
+  liveCombat: typeof liveCombat;
   liveSessions: typeof liveSessions;
   migrations: typeof migrations;
   npcs: typeof npcs;
