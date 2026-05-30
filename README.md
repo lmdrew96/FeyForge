@@ -1,21 +1,27 @@
 # FeyForge - D&D Campaign Manager
 
-A comprehensive D&D 5e campaign management tool built with Next.js and Convex, featuring character creation, combat tracking, live party sessions, AI-powered DM assistance, and synchronized ambient audio.
+A comprehensive D&D 5e campaign management tool built with Next.js and Convex, featuring character creation, combat tracking, live party sessions, AI-assisted character and NPC building, and synchronized ambient audio.
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://feyforge.adhdesigns.dev)
 
 ## Features
 
 - **Character Management** — Full D&D 5e character sheets with stats, spellcasting, equipment, and conditions
-- **Combat Tracker** — Initiative order, HP tracking, conditions, and saved encounters
-- **DM Assistant** — AI-powered chat for rules questions, encounter building, and loot generation
-- **Session Management** — Log sessions, track plot threads, objectives, and XP
+- **AI-Assisted Character Building** — Claude-powered name, backstory, traits, build suggestions, and optimization during character creation
+- **Combat Tracker** — Initiative order, HP tracking, conditions, and saved encounters (live in party sessions and via the encounter builder)
+- **Session Management** — Log sessions, track plot threads, objectives, and XP, with AI-generated prep, recaps, and summaries
 - **Live Party Sessions** — Real-time shared sessions where players join and DMs broadcast scenes
 - **Campaign Web** — Interactive node graph for mapping NPC/location/faction relationships
 - **Audio Engine** — Synchronized adaptive music with sample-perfect stem sync (Web Audio API), layered ambience, explore/combat/victory modes, and Ko-fi premium tracks
-- **Codex** — Browse spells, monsters, and items from the Open5e API
+- **Codex** — Browse spells, monsters, magic items, and conditions from the Open5e SRD, with class/level/school/type/CR filters, sorting, and bookmarks
 - **NPC Generator** — Create and manage NPCs with full stat blocks and AI assistance
-- **Dice Roller** — Full-featured dice roller with history and saved rolls
+- **Dice Roller** — Dice-expression roller (e.g. `1d8+3d6`) with history and saved rolls
+
+### Planned
+
+Scaffolded but not yet shipped — these routes currently render placeholders:
+
+- **DM Assistant** — AI chat for rules questions, encounter building, and loot generation
 - **World Map** — Interactive map with location pins and fog of war
 - **Campaign Wiki** — Document lore, factions, and locations
 
@@ -86,11 +92,7 @@ pnpm dev
 
 ### Database
 
-Convex handles schema and migrations automatically. No manual migration step is needed — push schema changes with:
-
-```bash
-pnpm db:push
-```
+Convex handles schema and migrations automatically. Schema changes are pushed when you run `npx convex dev` (development) or `npx convex deploy` (production) — there is no separate migration step.
 
 ## Schema Overview
 
@@ -163,10 +165,9 @@ Files land in the admin review queue as `pending`. Approve and assign stem inten
 | `pnpm lint:fix` | Run ESLint with auto-fix |
 | `pnpm format` | Format all files with Prettier |
 | `pnpm format:check` | Check formatting without writing |
-| `pnpm db:push` | Push Convex schema changes |
-| `pnpm db:studio` | Open Drizzle Studio (local Convex inspector) |
-| `pnpm db:generate` | Generate Convex types |
 | `pnpm upload` | Bulk-upload audio files to R2 + Convex review queue |
+
+> Convex schema/types are managed by `npx convex dev` / `npx convex deploy`, not a separate script.
 
 ## Deployment
 
