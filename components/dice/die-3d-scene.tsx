@@ -23,6 +23,9 @@ export interface SceneDie {
 interface DiceSceneProps {
   dice: SceneDie[]
   rolling: boolean
+  /** Show the floating value on each die. False for a single die with no
+   *  modifier, where the big total above already shows that exact number. */
+  showNumbers: boolean
 }
 
 // ── Floating-number textures ──────────────────────────────────────────────────
@@ -187,6 +190,7 @@ class DiceRenderer {
   private raf = 0
   private lastTime = 0
   private rolling = false
+  private showNumbers = true
   private settleUntil = 0
   private disposed = false
 
@@ -211,8 +215,9 @@ class DiceRenderer {
     this.scene.add(fill)
   }
 
-  setDice(list: SceneDie[]): void {
+  setDice(list: SceneDie[], showNumbers: boolean): void {
     this.clearDice()
+    this.showNumbers = showNumbers
     const n = list.length
     this.cols = Math.min(n, MAX_COLS) || 1
     this.rows = Math.ceil(n / this.cols) || 1
@@ -226,7 +231,7 @@ class DiceRenderer {
         ((this.rows - 1) / 2 - row) * CELL,
         0,
       )
-      obj.sprite.visible = !this.rolling
+      obj.sprite.visible = this.showNumbers && !this.rolling
       this.scene.add(obj.group)
       this.dice.push(obj)
     })
@@ -242,7 +247,7 @@ class DiceRenderer {
       this.start()
     } else {
       this.settleUntil = performance.now() + SETTLE_MS
-      for (const d of this.dice) d.sprite.visible = true
+      for (const d of this.dice) d.sprite.visible = this.showNumbers
       this.start() // run the loop out to ease everything to rest
     }
   }
@@ -328,7 +333,7 @@ class DiceRenderer {
 
 // ── React wrapper ─────────────────────────────────────────────────────────────
 
-export function DiceScene({ dice, rolling }: DiceSceneProps) {
+export function DiceScene({ dice, rolling, showNumbers }: DiceSceneProps) {
   // WebGL can't render on the server, so paint the lightweight CSS dice until the
   // canvas mounts (also covers a WebGL-less / context-creation-failed environment).
   const [mounted, setMounted] = useState(false)
@@ -387,9 +392,9 @@ export function DiceScene({ dice, rolling }: DiceSceneProps) {
   // Feed dice → renderer (rebuilds meshes). fontTick forces a texture refresh
   // after the brand font loads.
   useEffect(() => {
-    rendererRef.current?.setDice(dice)
+    rendererRef.current?.setDice(dice, showNumbers)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dice, fontTick])
+  }, [dice, showNumbers, fontTick])
 
   // Feed rolling state → renderer (drives the tumble / settle).
   useEffect(() => {
@@ -405,7 +410,12 @@ export function DiceScene({ dice, rolling }: DiceSceneProps) {
     return (
       <div className="flex items-center justify-center gap-3 flex-wrap">
         {dice.map((d, i) => (
-          <Die key={i} sides={d.sides} value={d.value} dimmed={d.dropped} />
+          <Die
+            key={i}
+            sides={d.sides}
+            value={showNumbers ? d.value : undefined}
+            dimmed={d.dropped}
+          />
         ))}
       </div>
     )

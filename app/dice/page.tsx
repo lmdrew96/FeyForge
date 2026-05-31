@@ -249,7 +249,13 @@ export default function DicePage() {
                   compact number list for big handfuls (8d6 etc.). */}
               {showShapes ? (
                 <div>
-                  <DiceScene dice={diceList} rolling={isRolling} />
+                  <DiceScene
+                    dice={diceList}
+                    rolling={isRolling}
+                    showNumbers={
+                      diceList.length > 1 || currentResult.modifier !== 0
+                    }
+                  />
                   {currentResult.modifier !== 0 && (
                     <div
                       className="text-2xl font-bold mt-1"

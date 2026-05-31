@@ -33,52 +33,6 @@ const CLIP: Record<Shape, string | null> = {
   d20: "polygon(50% 3%, 95% 27%, 95% 73%, 50% 97%, 5% 73%, 5% 27%)",
 }
 
-// Internal facet lines (0..100 space) that imply each polyhedron's edges — this
-// is what reads as "3D" rather than a flat colored polygon.
-const FACETS: Record<Shape, number[][]> = {
-  d4: [
-    [50, 4, 50, 63],
-    [96, 92, 50, 63],
-    [4, 92, 50, 63],
-  ],
-  d6: [
-    [16, 30, 50, 14],
-    [50, 14, 84, 30],
-    [84, 30, 50, 46],
-    [50, 46, 16, 30],
-    [50, 46, 50, 92],
-  ],
-  d8: [
-    [50, 2, 50, 98],
-    [4, 50, 96, 50],
-  ],
-  d10: [
-    [50, 52, 50, 3],
-    [50, 52, 88, 40],
-    [50, 52, 70, 97],
-    [50, 52, 30, 97],
-    [50, 52, 12, 40],
-  ],
-  d12: [
-    [50, 54, 50, 2],
-    [50, 54, 98, 38],
-    [50, 54, 80, 96],
-    [50, 54, 20, 96],
-    [50, 54, 2, 38],
-  ],
-  d20: [
-    [50, 50, 50, 3],
-    [50, 50, 95, 27],
-    [50, 50, 95, 73],
-    [50, 50, 50, 97],
-    [50, 50, 5, 73],
-    [50, 50, 5, 27],
-    [38, 44, 62, 44],
-    [62, 44, 50, 64],
-    [50, 64, 38, 44],
-  ],
-}
-
 // Where the face value sits — pointed dice read better with the number nudged
 // down toward the wider part of the silhouette.
 const NUMBER_Y: Record<Shape, string> = {
@@ -152,7 +106,7 @@ export function Die({
         <D6Cube size={size} light={light} die={die} dark={dark} edge={edge} />
       ) : (
         <>
-          {/* silhouette + shading */}
+          {/* silhouette + shading — a clean colored gem, no internal lines */}
           <span
             aria-hidden
             style={{
@@ -164,33 +118,6 @@ export function Die({
               filter: "drop-shadow(0 2px 3px var(--scene-shadow))",
             }}
           />
-          {/* facet lines */}
-          <svg
-            aria-hidden
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              overflow: "visible",
-            }}
-          >
-            {FACETS[shape].map((l, i) => (
-              <line
-                key={i}
-                x1={l[0]}
-                y1={l[1]}
-                x2={l[2]}
-                y2={l[3]}
-                stroke={edge}
-                strokeWidth={1.4}
-                strokeLinecap="round"
-                opacity={0.55}
-              />
-            ))}
-          </svg>
           {/* face value */}
           {value !== undefined && (
             <span
