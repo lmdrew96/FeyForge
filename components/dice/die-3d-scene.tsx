@@ -117,7 +117,7 @@ function buildDie(die: SceneDie, seed: number): DieObject {
     emissive: new THREE.Color(glow ?? "#000000"),
     emissiveIntensity: glow ? 0.55 : 0,
     transparent: die.dropped,
-    opacity: die.dropped ? 0.32 : 1,
+    opacity: die.dropped ? 0.5 : 1,
   })
 
   const scale = unitScale * DIE_RADIUS
@@ -127,7 +127,7 @@ function buildDie(die: SceneDie, seed: number): DieObject {
   const lineMaterial = new THREE.LineBasicMaterial({
     color: 0x000000,
     transparent: true,
-    opacity: die.dropped ? 0.12 : 0.28,
+    opacity: die.dropped ? 0.18 : 0.28,
   })
   const lines = new THREE.LineSegments(edges, lineMaterial)
   mesh.add(lines) // inherits the mesh's scale + tumble
@@ -138,7 +138,7 @@ function buildDie(die: SceneDie, seed: number): DieObject {
     transparent: true,
     depthTest: false,
     depthWrite: false,
-    opacity: die.dropped ? 0.4 : 1,
+    opacity: die.dropped ? 0.62 : 1,
   })
   const sprite = new THREE.Sprite(spriteMaterial)
   sprite.position.set(0, 0, DIE_RADIUS + 0.05)

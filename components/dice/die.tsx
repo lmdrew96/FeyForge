@@ -96,7 +96,7 @@ export function Die({
         width: size,
         height: size,
         flex: "0 0 auto",
-        opacity: dimmed ? 0.4 : 1,
+        opacity: dimmed ? 0.55 : 1,
         animationDelay: rolling && !isCube ? `${index * 45}ms` : undefined,
         filter: ringColor ? `drop-shadow(0 0 6px ${ringColor})` : undefined,
         perspective: isCube ? size * 3 : undefined,

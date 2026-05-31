@@ -32,6 +32,9 @@ components/.DS_Store
 # Local audio working directory (stems, GarageBand projects, exports — never commit)
 feyforge-audio/
 
+# Azgaar world-map exports (.map + large PNGs) — host on R2, never commit
+maps/
+
 # IDE
 .idea/
 

@@ -884,7 +884,7 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
               onClick={handleToggleTime}
               className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-opacity hover:opacity-80"
               style={{
-                background: sceneTime === "day" ? "rgba(255,220,80,0.15)" : "rgba(100,80,180,0.15)",
+                background: sceneTime === "day" ? "rgba(255,220,80,0.3)" : "rgba(100,80,180,0.3)",
                 border: `1px solid ${sceneTime === "day" ? "rgba(255,200,40,0.4)" : "rgba(120,100,200,0.4)"}`,
                 color: sceneTime === "day" ? "#e8c020" : "#9b8ec4",
               }}
