@@ -157,28 +157,3 @@ export interface NewPlotThread {
   relatedLocations?: string[] | null
   resolvedAt?: Date | null
 }
-
-export interface MapLocation {
-  id: string
-  userId: string
-  campaignId: string | null
-  name: string
-  type: string
-  description: string
-  notes: string
-  x: number
-  y: number
-  visited: boolean
-  createdAt: Date
-}
-
-export interface NewMapLocation {
-  campaignId?: string | null
-  name: string
-  type: string
-  description: string
-  notes: string
-  x: number
-  y: number
-  visited?: boolean
-}

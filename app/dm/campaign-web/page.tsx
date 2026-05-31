@@ -133,7 +133,7 @@ export default function CampaignWebPage() {
   const webNodes = useQuery(api.campaignWeb.listNodes, campaignId ? { campaignId } : "skip")
   const webEdges = useQuery(api.campaignWeb.listEdges, campaignId ? { campaignId } : "skip")
   const npcs = useQuery(api.npcs.list)
-  const locations = useQuery(api.world.list)
+  const locations = useQuery(api.worldMap.listLocations, campaignId ? { campaignId } : "skip")
 
   useEffect(() => {
     setupDMSession()

@@ -10,9 +10,7 @@ import { useNPCStore } from "@/lib/npc-store"
 import { useSessionStore } from "@/lib/session-store"
 import { useCombatStore } from "@/lib/combat-store"
 import { useDMAssistantStore } from "@/lib/dm-assistant-store"
-import { useWorldStore } from "@/lib/world-store"
 import type { NPC } from "@/lib/npc-store"
-import type { MapLocation } from "@/lib/world-store"
 import type { SavedEncounter, Combatant } from "@/lib/combat-store"
 import type { Conversation, Message } from "@/lib/dm-assistant-store"
 
@@ -113,22 +111,6 @@ function toConversation(doc: Doc<"dmConversations">): Conversation {
   }
 }
 
-function toLocation(doc: Doc<"mapLocations">): MapLocation {
-  return {
-    id: doc._id as unknown as string,
-    userId: doc.userId,
-    campaignId: doc.campaignId ? (doc.campaignId as unknown as string) : null,
-    name: doc.name,
-    type: doc.type,
-    description: doc.description,
-    notes: doc.notes,
-    x: doc.x,
-    y: doc.y,
-    visited: doc.visited,
-    createdAt: new Date(doc._creationTime),
-  }
-}
-
 // ── DataLoader component ──────────────────────────────────────────────────────
 
 export function DataLoader() {
@@ -181,14 +163,12 @@ export function DataLoader() {
   const convexPlotThreads = useQuery(api.sessions.listPlotThreads, skip)
   const convexEncounters = useQuery(api.encounters.list, skip)
   const convexConversations = useQuery(api.dmConversations.list, skip)
-  const convexLocations = useQuery(api.world.list, skip)
 
   const setNPCs = useNPCStore((s) => s.setNPCs)
   const setSessions = useSessionStore((s) => s.setSessions)
   const setPlotThreads = useSessionStore((s) => s.setPlotThreads)
   const setSavedEncounters = useCombatStore((s) => s.setSavedEncounters)
   const setConversations = useDMAssistantStore((s) => s.setConversations)
-  const setLocations = useWorldStore((s) => s.setLocations)
 
   useEffect(() => {
     if (convexNPCs !== undefined) setNPCs(convexNPCs.map(toNPC))
@@ -209,10 +189,6 @@ export function DataLoader() {
   useEffect(() => {
     if (convexConversations !== undefined) setConversations(convexConversations.map(toConversation))
   }, [convexConversations, setConversations])
-
-  useEffect(() => {
-    if (convexLocations !== undefined) setLocations(convexLocations.map(toLocation))
-  }, [convexLocations, setLocations])
 
   return null
 }

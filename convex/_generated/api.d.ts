@@ -28,7 +28,7 @@ import type * as sessionNotes from "../sessionNotes.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
 import type * as wiki from "../wiki.js";
-import type * as world from "../world.js";
+import type * as worldMap from "../worldMap.js";
 
 import type {
   ApiFromModules,
@@ -57,7 +57,7 @@ declare const fullApi: ApiFromModules<{
   sessions: typeof sessions;
   users: typeof users;
   wiki: typeof wiki;
-  world: typeof world;
+  worldMap: typeof worldMap;
 }>;
 
 /**

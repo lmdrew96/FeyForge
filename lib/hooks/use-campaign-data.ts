@@ -5,7 +5,6 @@ import { api } from "@/convex/_generated/api"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { useNPCStore } from "@/lib/npc-store"
 import { useSessionStore } from "@/lib/session-store"
-import { useWorldStore } from "@/lib/world-store"
 
 export function useActiveCampaignId() {
   return useCampaignStore((s) => s.activeCampaignId)
@@ -34,10 +33,4 @@ export function useCampaignPlotThreads() {
   const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
   const allPlotThreads = useSessionStore((s) => s.plotThreads)
   return allPlotThreads.filter((thread) => thread.campaignId === activeCampaignId)
-}
-
-export function useCampaignLocations() {
-  const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
-  const allLocations = useWorldStore((s) => s.locations)
-  return allLocations.filter((loc) => loc.campaignId === activeCampaignId)
 }

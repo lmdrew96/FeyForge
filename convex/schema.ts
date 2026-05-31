@@ -284,46 +284,54 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_campaignId", ["campaignId"]),
 
+  // World map images. A campaign owns at most one active map (campaignId set);
+  // presets are global templates (campaignId undefined, source = "preset").
+  // Adopting a preset clones its row + locations into the campaign (see
+  // worldMap.adoptPreset) so reveal state stays per-campaign.
   worldMaps: defineTable({
-    userId: v.string(),
-    campaignId: v.id("campaigns"),
-    name: v.string(),
-    imageUrl: v.optional(v.string()),
-    fogOfWarEnabled: v.optional(v.boolean()),
-    fogMask: v.optional(v.any()),
-    updatedAt: v.number(),
-  })
-    .index("by_userId", ["userId"])
-    .index("by_campaignId", ["campaignId"]),
-
-  mapPins: defineTable({
-    userId: v.string(),
-    campaignId: v.id("campaigns"),
-    mapId: v.optional(v.id("worldMaps")),
-    wikiEntryId: v.optional(v.id("wikiEntries")),
-    name: v.string(),
-    description: v.optional(v.string()),
-    x: v.number(),
-    y: v.number(),
-    type: v.optional(v.string()),
-    isRevealed: v.optional(v.boolean()),
-    notes: v.optional(v.string()),
-  })
-    .index("by_campaignId", ["campaignId"])
-    .index("by_mapId", ["mapId"]),
-
-  mapLocations: defineTable({
-    userId: v.string(),
     campaignId: v.optional(v.id("campaigns")),
     name: v.string(),
-    type: v.string(),
-    description: v.string(),
-    notes: v.string(),
-    x: v.number(),
-    y: v.number(),
-    visited: v.boolean(),
+    imageStorageKey: v.string(), // R2 key; public URL = `${NEXT_PUBLIC_R2_PUBLIC_URL}/${key}`
+    width: v.number(), // px (Azgaar info.width)
+    height: v.number(), // px (Azgaar info.height)
+    scaleMilesPerPx: v.optional(v.number()), // for future travel/distance
+    source: v.union(
+      v.literal("preset"),
+      v.literal("import"),
+      v.literal("upload"),
+    ),
+    isPremiumPreset: v.optional(v.boolean()),
+    // Set on preset rows; lets a campaign map remember which preset it came from.
+    presetSourceId: v.optional(v.id("worldMaps")),
+    createdBy: v.optional(v.string()), // userId of the admin/DM who made it
+    updatedAt: v.number(),
   })
-    .index("by_userId", ["userId"])
+    .index("by_campaignId", ["campaignId"])
+    .index("by_source", ["source"]),
+
+  // Pins on a world map. The reveal/fog + drill-down + campaign-web system all
+  // hang off these. DM sees all; players see only revealed (see worldMap.listLocations).
+  mapLocations: defineTable({
+    worldMapId: v.optional(v.id("worldMaps")),
+    campaignId: v.optional(v.id("campaigns")),
+    type: v.union(
+      v.literal("settlement"),
+      v.literal("poi"),
+      v.literal("natural"),
+      v.literal("water"),
+      v.literal("region"),
+    ),
+    name: v.string(),
+    x: v.number(), // normalized 0–100
+    y: v.number(), // normalized 0–100
+    revealed: v.boolean(), // DM-toggleable; drives fog for players
+    dmNotes: v.optional(v.string()), // private to DM
+    playerNotes: v.optional(v.string()), // shown to players once revealed
+    drillDownMapId: v.optional(v.id("worldMaps")), // local map (e.g. Watabou city)
+    campaignNodeId: v.optional(v.string()), // React Flow / Story Web node link
+    createdBy: v.optional(v.string()),
+  })
+    .index("by_worldMap", ["worldMapId"])
     .index("by_campaignId", ["campaignId"]),
 
   savedEncounters: defineTable({
