@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server"
 import type { MutationCtx } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { v } from "convex/values"
+import { getMembership, getMembershipBySession, isAdmin } from "./lib/auth"
 
 function isValidIntensityRank(intensityRank: number): boolean {
   return Number.isInteger(intensityRank) && intensityRank >= 1 && intensityRank <= 5
@@ -49,7 +50,9 @@ export const listAudioTracks = query({
       return true
     })
 
-    if (!args.includeUnapproved) {
+    // Only admins may list unapproved/rejected tracks (the review UI). Everyone
+    // else — even with includeUnapproved set — sees only publicly-visible tracks.
+    if (!args.includeUnapproved || !(await isAdmin(ctx))) {
       tracks = tracks.filter(isPubliclyVisible)
     }
 
@@ -71,6 +74,9 @@ export const getSceneAudio = query({
     sceneName: v.string(),
   },
   handler: async (ctx, args) => {
+    // Campaign-scoped audio config — members only.
+    const m = await getMembership(ctx, args.campaignId)
+    if (!m) return null
     return await ctx.db
       .query("campaignSceneAudio")
       .withIndex("by_campaignId_and_sceneName", (q) =>
@@ -83,13 +89,19 @@ export const getSceneAudio = query({
 export const getSessionAudio = query({
   args: { sessionId: v.id("partySessions") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.sessionId)
+    // Returns the full party-session doc (audio sync state) — members only.
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) return null
+    return m.session
   },
 })
 
 export const listSceneAudio = query({
   args: { campaignId: v.id("campaigns") },
   handler: async (ctx, args) => {
+    // Campaign-scoped audio config — members only.
+    const m = await getMembership(ctx, args.campaignId)
+    if (!m) return []
     return await ctx.db
       .query("campaignSceneAudio")
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))

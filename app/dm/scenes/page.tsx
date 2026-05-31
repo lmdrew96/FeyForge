@@ -239,6 +239,13 @@ export default function ScenesPage() {
   const doCreateScene = useMutation(api.campaignScenes.create)
   const doRemoveScene = useMutation(api.campaignScenes.remove)
 
+  // Role for the active campaign. Players reach DM tools only via a manual URL
+  // (the nav hides them); don't invoke setupDMSession for a non-DM — the server
+  // now refuses to create-and-flip their active campaign, and this avoids a
+  // perpetual loading state.
+  const context = useQuery(api.campaignMembers.getMyCampaignContext)
+  const playerBlocked = context !== undefined && context !== null && context.role !== "dm"
+
   const activeSession = useQuery(
     api.liveSessions.getActiveSession,
     campaignId ? { campaignId } : "skip"
@@ -249,14 +256,15 @@ export default function ScenesPage() {
   )
 
   useEffect(() => {
+    if (context === undefined) return // role still resolving
+    if (context && context.role !== "dm") return // player — DM tools only
     setupDMSession()
       .then(({ campaignId: cid, sessionId: sid }) => {
         setCampaignId(cid)
         setSessionId(sid)
       })
       .catch(console.error)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [context])
 
   const activeScene = (activeSession?.activeScene ?? "") as string
   const activeScenePalette = activeSession?.activeScenePalette ?? null
@@ -292,6 +300,24 @@ export default function ScenesPage() {
 
   const updatePalette = (key: keyof CustomPalette, value: string) => {
     setPalette(prev => ({ ...prev, [key]: value }))
+  }
+
+  if (playerBlocked) {
+    return (
+      <AppShell>
+        <div className="p-8 max-w-2xl mx-auto text-center">
+          <h1
+            className="text-2xl font-bold mb-2"
+            style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+          >
+            DM tools
+          </h1>
+          <p style={{ color: "var(--scene-text-muted)" }}>
+            The Scene Manager is for the campaign&apos;s DM. You&apos;re a player in your active campaign.
+          </p>
+        </div>
+      </AppShell>
+    )
   }
 
   return (

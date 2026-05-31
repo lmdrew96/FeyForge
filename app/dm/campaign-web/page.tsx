@@ -135,15 +135,23 @@ export default function CampaignWebPage() {
   const npcs = useQuery(api.npcs.list)
   const locations = useQuery(api.worldMap.listLocations, campaignId ? { campaignId } : "skip")
 
+  // Role for the active campaign. Players reach DM tools only via a manual URL
+  // (the nav hides them); don't invoke setupDMSession for a non-DM — the server
+  // now refuses to create-and-flip their active campaign, and this avoids a
+  // perpetual loading state.
+  const context = useQuery(api.campaignMembers.getMyCampaignContext)
+  const playerBlocked = context !== undefined && context !== null && context.role !== "dm"
+
   useEffect(() => {
+    if (context === undefined) return // role still resolving
+    if (context && context.role !== "dm") return // player — DM tools only
     setupDMSession()
       .then(({ campaignId: cid, sessionId: sid }) => {
         setCampaignId(cid)
         setSessionId(sid)
       })
       .catch(console.error)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [context])
 
   // Map Convex nodes → RF nodes
   const rfNodes: Node[] = useMemo(() => {
@@ -292,6 +300,24 @@ export default function CampaignWebPage() {
   )
 
   const tabs: EntityType[] = ["npc", "location", "faction", "plot_hook"]
+
+  if (playerBlocked) {
+    return (
+      <AppShell>
+        <div className="p-8 max-w-2xl mx-auto text-center">
+          <h1
+            className="text-2xl font-bold mb-2"
+            style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+          >
+            DM tools
+          </h1>
+          <p style={{ color: "var(--scene-text-muted)" }}>
+            The Story Web is for the campaign&apos;s DM. You&apos;re a player in your active campaign.
+          </p>
+        </div>
+      </AppShell>
+    )
+  }
 
   return (
     <AppShell>

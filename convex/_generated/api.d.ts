@@ -18,6 +18,7 @@ import type * as characters from "../characters.js";
 import type * as crons from "../crons.js";
 import type * as dmConversations from "../dmConversations.js";
 import type * as encounters from "../encounters.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as libraryShare from "../libraryShare.js";
 import type * as liveCombat from "../liveCombat.js";
 import type * as liveSessions from "../liveSessions.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   dmConversations: typeof dmConversations;
   encounters: typeof encounters;
+  "lib/auth": typeof lib_auth;
   libraryShare: typeof libraryShare;
   liveCombat: typeof liveCombat;
   liveSessions: typeof liveSessions;

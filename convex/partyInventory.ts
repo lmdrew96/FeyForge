@@ -1,9 +1,13 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { getMembershipBySession } from "./lib/auth"
 
 export const list = query({
   args: { sessionId: v.id("partySessions") },
   handler: async (ctx, args) => {
+    // Session-scoped read — members of the session's campaign only.
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) return []
     const items = await ctx.db
       .query("partyInventory")
       .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))

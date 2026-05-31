@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { isAdmin } from "./lib/auth"
 
 // ── Review Comments (auth-based, no token needed) ──────────────────────────
 
@@ -45,6 +46,8 @@ export const addReviewComment = mutation({
 export const listAllReviewComments = query({
   args: {},
   handler: async (ctx) => {
+    // Cross-user review board — admin-only (the audio review tool).
+    if (!(await isAdmin(ctx))) return []
     return await ctx.db.query("libraryReviewComments").take(500)
   },
 })

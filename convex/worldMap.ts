@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
-import type { MutationCtx, QueryCtx } from "./_generated/server"
+import type { MutationCtx } from "./_generated/server"
+import { getMembership, requireDm as requireCampaignDm } from "./lib/auth"
 
 // ── World Map: campaign-scoped, Player/DM-gated ──────────────────────────────
 // Per docs/specs/feyforge-world-map-spec.md. Mirrors the wiki.ts Player/DM
@@ -20,24 +21,11 @@ const locationType = v.union(
   v.literal("region"),
 )
 
-async function getMembership(ctx: QueryCtx | MutationCtx, campaignId: Id<"campaigns">) {
-  const identity = await ctx.auth.getUserIdentity()
-  if (!identity) return null
-  const member = await ctx.db
-    .query("campaignMembers")
-    .withIndex("by_campaignId_and_userId", (q) =>
-      q.eq("campaignId", campaignId).eq("userId", identity.tokenIdentifier)
-    )
-    .first()
-  return member ? { member, userId: identity.tokenIdentifier } : null
-}
-
-// Throws unless the caller is the DM of this campaign; returns their userId.
-async function requireDm(ctx: MutationCtx, campaignId: Id<"campaigns">): Promise<string> {
-  const m = await getMembership(ctx, campaignId)
-  if (!m || m.member.role !== "dm") throw new Error("Only the DM can edit the world map")
-  return m.userId
-}
+// Membership/role helpers live in ./lib/auth (shared with wiki, liveSessions,
+// etc.). World-map writes are DM-only; this local alias supplies the world-map
+// error message so every call site stays unchanged.
+const requireDm = (ctx: MutationCtx, campaignId: Id<"campaigns">) =>
+  requireCampaignDm(ctx, campaignId, "Only the DM can edit the world map")
 
 // ── Map (one active map per campaign) ────────────────────────────────────────
 

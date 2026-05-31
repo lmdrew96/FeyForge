@@ -3,10 +3,14 @@ import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
 import { ensureCampaignSetup } from "./campaignMembers"
 import { resolveActiveCampaignId, setActiveCampaignForUser } from "./users"
+import { getMembership, getMembershipBySession, requireDm } from "./lib/auth"
 
 export const getActiveSession = query({
   args: { campaignId: v.id("campaigns") },
   handler: async (ctx, args) => {
+    // Campaign-scoped read — members only.
+    const m = await getMembership(ctx, args.campaignId)
+    if (!m) return null
     return await ctx.db
       .query("partySessions")
       .withIndex("by_campaignId_and_isActive", (q) =>
@@ -18,6 +22,9 @@ export const getActiveSession = query({
 export const listBroadcasts = query({
   args: { sessionId: v.id("partySessions") },
   handler: async (ctx, args) => {
+    // Session-scoped read — members of the session's campaign only.
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) return []
     return await ctx.db
       .query("sessionBroadcasts")
       .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
@@ -35,75 +42,95 @@ export const setupDMSession = mutation({
   handler: async (ctx): Promise<{ campaignId: Id<"campaigns">; sessionId: Id<"partySessions"> }> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    const userId = identity.tokenIdentifier
 
-    // Resolve the campaign the DM is currently working in.
-    let campaignId = await resolveActiveCampaignId(ctx, identity.tokenIdentifier)
+    // Resolve the campaign the caller is currently working in.
+    let campaignId = await resolveActiveCampaignId(ctx, userId)
 
-    // A live session must run in a campaign the DM owns. If the resolved campaign
-    // isn't one they DM (player-only, or none yet), fall back to a get-or-create
-    // owned campaign.
+    // A live session must run in a campaign the caller DMs. If the resolved
+    // campaign isn't one they DM, fall back to one they own.
     let ownsResolved = false
     if (campaignId) {
       const membership = await ctx.db
         .query("campaignMembers")
         .withIndex("by_campaignId_and_userId", (q) =>
-          q.eq("campaignId", campaignId as Id<"campaigns">).eq("userId", identity.tokenIdentifier)
+          q.eq("campaignId", campaignId as Id<"campaigns">).eq("userId", userId)
         )
         .first()
       ownsResolved = membership?.role === "dm"
     }
 
-    if (!campaignId || !ownsResolved) {
-      const existing = await ctx.db
+    if (!ownsResolved) {
+      const owned = await ctx.db
         .query("campaigns")
-        .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
         .first()
-      campaignId = existing
-        ? existing._id
-        : await ctx.db.insert("campaigns", {
-            userId: identity.tokenIdentifier,
-            name: "My Campaign",
-            isActive: true,
-            updatedAt: Date.now(),
-          })
+
+      if (owned) {
+        campaignId = owned._id
+      } else {
+        // No owned campaign. Only auto-create for a genuinely new user (zero
+        // memberships) — that's real first-time-DM onboarding. A user who is
+        // already a member somewhere (e.g. a player in someone else's campaign)
+        // must create a campaign explicitly: we never create a phantom campaign
+        // and flip their active campaign to it as a side effect of landing on a
+        // DM tool. (This was the v0.52.0-era active-campaign-flip bug.)
+        const memberships = await ctx.db
+          .query("campaignMembers")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .take(1)
+        if (memberships.length > 0) {
+          throw new Error(
+            "You don't have a campaign to DM yet. Create one from the Campaigns page first."
+          )
+        }
+        campaignId = await ctx.db.insert("campaigns", {
+          userId,
+          name: "My Campaign",
+          isActive: true,
+          updatedAt: Date.now(),
+        })
+      }
     }
 
+    // campaignId is guaranteed set past this point (resolved-and-owned, owned, or created).
+    const resolvedCampaignId = campaignId as Id<"campaigns">
+
     // Ensure the DM membership + invite code exist (covers pre-membership campaigns too).
-    await ensureCampaignSetup(ctx, campaignId, identity.tokenIdentifier)
+    await ensureCampaignSetup(ctx, resolvedCampaignId, userId)
 
     // Self-heal: persist the campaign we're actually running so the invite button
     // and player-side resolution agree on the active campaign.
-    await setActiveCampaignForUser(ctx, identity.tokenIdentifier, campaignId)
+    await setActiveCampaignForUser(ctx, userId, resolvedCampaignId)
 
     // Get or create active session
     const activeSession = await ctx.db
       .query("partySessions")
       .withIndex("by_campaignId_and_isActive", (q) =>
-        q.eq("campaignId", campaignId).eq("isActive", true)
+        q.eq("campaignId", resolvedCampaignId).eq("isActive", true)
       )
       .first()
 
     if (activeSession) {
-      return { campaignId, sessionId: activeSession._id }
+      return { campaignId: resolvedCampaignId, sessionId: activeSession._id }
     }
 
     const sessionId = await ctx.db.insert("partySessions", {
-      campaignId,
-      dmUserId: identity.tokenIdentifier,
+      campaignId: resolvedCampaignId,
+      dmUserId: userId,
       activeScene: "",
       isActive: true,
       startedAt: Date.now(),
     })
 
-    return { campaignId, sessionId }
+    return { campaignId: resolvedCampaignId, sessionId }
   },
 })
 
 export const startSession = mutation({
   args: { campaignId: v.id("campaigns") },
   handler: async (ctx, args): Promise<Id<"partySessions">> => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error("Not authenticated")
+    const userId = await requireDm(ctx, args.campaignId, "Only the DM can start a session")
 
     // Reuse the active session if one already exists for this campaign. Ending +
     // recreating would orphan the partyMembers already joined under it, forcing
@@ -119,7 +146,7 @@ export const startSession = mutation({
 
     return await ctx.db.insert("partySessions", {
       campaignId: args.campaignId,
-      dmUserId: identity.tokenIdentifier,
+      dmUserId: userId,
       activeScene: "",
       isActive: true,
       startedAt: Date.now(),
@@ -222,6 +249,9 @@ export const getMyPartyMember = query({
 export const getPartyMembers = query({
   args: { sessionId: v.id("partySessions") },
   handler: async (ctx, args) => {
+    // Resolves full character sheets — members of the session's campaign only.
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) return []
     const members = await ctx.db
       .query("partyMembers")
       .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
@@ -242,16 +272,20 @@ export const joinSession = mutation({
     characterId: v.id("characters"),
   },
   handler: async (ctx, args): Promise<Id<"partyMembers">> => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error("Not authenticated")
+    // Only a member of the session's campaign may register in its live session.
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) throw new Error("Not a member of this campaign")
+    const { session, userId } = m
+    if (!session.isActive) throw new Error("Session not active")
 
-    const session = await ctx.db.get(args.sessionId)
-    if (!session || !session.isActive) throw new Error("Session not active")
+    // The character must belong to the joining user (matches joinByCode).
+    const character = await ctx.db.get(args.characterId)
+    if (!character || character.userId !== userId) throw new Error("Character not found")
 
     const existing = await ctx.db
       .query("partyMembers")
       .withIndex("by_sessionId_and_userId", (q) =>
-        q.eq("sessionId", args.sessionId).eq("userId", identity.tokenIdentifier)
+        q.eq("sessionId", args.sessionId).eq("userId", userId)
       )
       .first()
 
@@ -263,7 +297,7 @@ export const joinSession = mutation({
     return await ctx.db.insert("partyMembers", {
       sessionId: args.sessionId,
       campaignId: session.campaignId,
-      userId: identity.tokenIdentifier,
+      userId,
       characterId: args.characterId,
       joinedAt: Date.now(),
       conditions: [],

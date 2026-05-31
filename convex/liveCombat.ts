@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Doc, Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
+import { getMembershipBySession } from "./lib/auth"
 
 // ── Types & validators ────────────────────────────────────────────────────────
 
@@ -102,8 +103,11 @@ function clampIndex(index: number, length: number): number {
 export const getCombat = query({
   args: { sessionId: v.id("partySessions") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return null
+    // Members only — the combat row carries exact PC HP, so a non-member must
+    // not be able to read it by passing a session id.
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) return null
+    const { userId } = m
 
     const combat = await ctx.db
       .query("liveCombat")
@@ -113,7 +117,7 @@ export const getCombat = query({
       .first()
     if (!combat) return null
 
-    const isDM = combat.dmUserId === identity.tokenIdentifier
+    const isDM = combat.dmUserId === userId
 
     // The combat row's HP snapshot is the source of truth during combat: the DM
     // drives it via the combat mutations (snapshot-at-start, like most initiative
@@ -133,7 +137,7 @@ export const getCombat = query({
         deathSaves: c.deathSaves,
         characterId: c.characterId,
         isActive: index === combat.activeIndex,
-        isMine: c.userId === identity.tokenIdentifier,
+        isMine: c.userId === userId,
       }
       const showExact = isDM || c.type === "pc"
       if (showExact) {

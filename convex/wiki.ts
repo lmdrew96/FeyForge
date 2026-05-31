@@ -1,30 +1,14 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
-import type { MutationCtx, QueryCtx } from "./_generated/server"
+import type { MutationCtx } from "./_generated/server"
+import { getMembership, requireDm } from "./lib/auth"
 
-// ── Per-campaign role helpers ────────────────────────────────────────────────
 // The wiki is gated by the caller's role in the *specific* campaign, never a
-// global mode — a user can be DM of one campaign and a player in another.
-
-async function getMembership(ctx: QueryCtx | MutationCtx, campaignId: Id<"campaigns">) {
-  const identity = await ctx.auth.getUserIdentity()
-  if (!identity) return null
-  const member = await ctx.db
-    .query("campaignMembers")
-    .withIndex("by_campaignId_and_userId", (q) =>
-      q.eq("campaignId", campaignId).eq("userId", identity.tokenIdentifier)
-    )
-    .first()
-  return member ? { member, userId: identity.tokenIdentifier } : null
-}
-
-// Throws unless the caller is the DM of this campaign; returns their userId.
-async function requireWikiDm(ctx: MutationCtx, campaignId: Id<"campaigns">): Promise<string> {
-  const m = await getMembership(ctx, campaignId)
-  if (!m || m.member.role !== "dm") throw new Error("Only the DM can edit the campaign wiki")
-  return m.userId
-}
+// global mode — a user can be DM of one campaign and a player in another. The
+// membership/role helpers live in ./lib/auth (shared with worldMap, etc.).
+const requireWikiDm = (ctx: MutationCtx, campaignId: Id<"campaigns">) =>
+  requireDm(ctx, campaignId, "Only the DM can edit the campaign wiki")
 
 // ── Reads ────────────────────────────────────────────────────────────────────
 // DM sees every entry; players see only revealed ones. Non-members see nothing.

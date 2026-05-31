@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { requireDm } from "./lib/auth"
 
 export const list = query({
   args: { campaignId: v.id("campaigns") },
@@ -32,8 +33,8 @@ export const create = mutation({
     highlight: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) throw new Error("Not authenticated")
+    // Scenes are DM tooling — only the campaign's DM may create them.
+    const userId = await requireDm(ctx, args.campaignId, "Only the DM can add scenes")
     return await ctx.db.insert("campaignScenes", {
       campaignId: args.campaignId,
       name: args.name,
@@ -41,7 +42,7 @@ export const create = mutation({
       surface: args.surface,
       accent: args.accent,
       highlight: args.highlight,
-      createdBy: identity.tokenIdentifier,
+      createdBy: userId,
       createdAt: Date.now(),
     })
   },
