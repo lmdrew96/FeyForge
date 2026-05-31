@@ -600,8 +600,40 @@ export function useAudioEngine(state: AudioEngineState, enabled: boolean) {
     mounted.current = true
     audioContext.current = new AudioContext()
 
+    // Mobile browsers (notably iOS Safari) create an AudioContext in the
+    // "suspended" state and only allow the FIRST resume() to succeed from inside
+    // a user-gesture handler. Every resume() in this engine otherwise runs from
+    // an effect after a Convex round-trip — never within a gesture — so on
+    // mobile the context stays locked: the DM hears nothing while a desktop tab
+    // on the same session (lenient autoplay) plays the audio, i.e. the phone
+    // "acts like a remote." Bless the context on the first interaction anywhere
+    // on the page — resume it and kick a one-sample silent buffer to fully
+    // unlock iOS. Once unlocked, later programmatic resume()/suspend() calls
+    // work without a gesture. (Howler auto-unlocks its own context separately.)
+    const unlockAudio = () => {
+      const ctx = audioContext.current
+      if (!ctx) return
+      if (ctx.state === "suspended") ctx.resume().catch(() => {})
+      try {
+        const source = ctx.createBufferSource()
+        source.buffer = ctx.createBuffer(1, 1, 22050)
+        source.connect(ctx.destination)
+        source.start(0)
+      } catch { /* unlock kick failed — the resume() above is what matters */ }
+      removeUnlockListeners()
+    }
+    const removeUnlockListeners = () => {
+      document.removeEventListener("touchend", unlockAudio)
+      document.removeEventListener("pointerdown", unlockAudio)
+      document.removeEventListener("click", unlockAudio)
+    }
+    document.addEventListener("touchend", unlockAudio, { passive: true })
+    document.addEventListener("pointerdown", unlockAudio, { passive: true })
+    document.addEventListener("click", unlockAudio, { passive: true })
+
     return () => {
       mounted.current = false
+      removeUnlockListeners()
 
       instrumentNodes.current.forEach((node) => {
         try { node.source?.stop() } catch { /* already stopped */ }
