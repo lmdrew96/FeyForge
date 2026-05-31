@@ -7,7 +7,7 @@ import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { useAudioEngine, resolveVariants, type MusicStem } from "@/hooks/use-audio-engine"
 import {
   Waves, Volume2, ChevronDown, ChevronUp,
-  Radio, WifiOff, Pause, Play,
+  Radio, WifiOff, Pause, Play, X,
 } from "lucide-react"
 
 type SessionId = Id<"partySessions">
@@ -231,6 +231,64 @@ function AmbienceLayerMixer({
   )
 }
 
+// ── iOS silent-switch hint ────────────────────────────────────────────────────
+// iOS mutes Web Audio (our music stems) when the hardware ring/silent switch is
+// set to silent — regular video/<audio> is unaffected, so it reads as "works on
+// desktop, dead on iPhone." No web API can override the switch, so the honest
+// fix is to tell the user. Shown once on iOS, then dismissed for good.
+
+const IOS_AUDIO_HINT_KEY = "feyforge-ios-audio-hint-dismissed"
+
+function useIsIOS() {
+  const [isIOS, setIsIOS] = useState(false)
+  useEffect(() => {
+    const ua = navigator.userAgent
+    // Covers iPhone/iPod/iPad (incl. iOS Chrome via "CriOS"/"iPhone" in UA) and
+    // iPadOS 13+ which masquerades as desktop Safari ("MacIntel" + touch).
+    setIsIOS(
+      /iP(hone|od|ad)/.test(ua) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    )
+  }, [])
+  return isIOS
+}
+
+function IOSAudioHint() {
+  const isIOS = useIsIOS()
+  // Default hidden so it never flashes before we've read localStorage / detected.
+  const [dismissed, setDismissed] = useState(true)
+  useEffect(() => {
+    setDismissed(localStorage.getItem(IOS_AUDIO_HINT_KEY) === "1")
+  }, [])
+
+  if (!isIOS || dismissed) return null
+
+  const dismiss = () => {
+    try { localStorage.setItem(IOS_AUDIO_HINT_KEY, "1") } catch { /* private mode */ }
+    setDismissed(true)
+  }
+
+  return (
+    <div
+      className="flex items-start gap-2 rounded-lg px-3 py-2"
+      style={{
+        background: "color-mix(in srgb, var(--scene-highlight) 12%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--scene-highlight) 30%, transparent)",
+      }}
+    >
+      <Volume2 size={13} className="mt-0.5 shrink-0" style={{ color: "var(--scene-highlight)" }} />
+      <p className="text-[11px] leading-snug flex-1" style={{ color: "var(--scene-text-muted)" }}>
+        No sound on iPhone? Flip the side{" "}
+        <span style={{ color: "var(--scene-text-primary)" }}>ring/silent switch</span> on — iOS
+        mutes in-browser music when the phone is set to silent.
+      </p>
+      <button onClick={dismiss} className="shrink-0 transition-opacity hover:opacity-70" style={{ color: "var(--scene-text-muted)" }} aria-label="Dismiss hint">
+        <X size={12} />
+      </button>
+    </div>
+  )
+}
+
 // ── DM Audio Panel ────────────────────────────────────────────────────────────
 
 export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
@@ -422,6 +480,8 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
           className="rounded-xl p-4 space-y-4"
           style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
         >
+          <IOSAudioHint />
+
           {/* Music zone */}
           <div className="space-y-2">
             {/* Mode strip */}
@@ -736,6 +796,8 @@ export function PlayerAudioReceiver({ sessionId, campaignId }: { sessionId: Sess
           </button>
         )}
       </div>
+
+      <IOSAudioHint />
 
       {consentGiven && synced && (
         <div>
