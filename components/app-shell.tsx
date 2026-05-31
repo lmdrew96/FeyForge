@@ -22,8 +22,9 @@ import {
   Settings,
   Menu,
   X,
+  Check,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -125,6 +126,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
         </div>
+
+        {/* Active campaign switcher */}
+        <CampaignSwitcher />
 
         {/* Nav links */}
         <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
@@ -286,6 +290,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
+          {/* Active campaign switcher */}
+          <CampaignSwitcher onSelect={() => setDrawerOpen(false)} />
+
           <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
             {navItems.map((item) =>
               item.children ? (
@@ -350,6 +357,103 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         ))}
       </nav>
+    </div>
+  )
+}
+
+// Active-campaign switcher for the nav. Lists every campaign the user belongs
+// to (owned + joined) and flips the active one on select. Switching the active
+// campaign also re-resolves the player/DM nav (via getMyRole), so this is how a
+// user moves between a campaign they run and one they play in. The data-loader
+// write-through persists the local selection to the server for cross-device.
+function CampaignSwitcher({ onSelect }: { onSelect?: () => void }) {
+  const campaigns = useQuery(api.campaignMembers.listMyCampaigns)
+  const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
+  const setActiveCampaign = useCampaignStore((s) => s.setActiveCampaign)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onDocClick)
+    return () => document.removeEventListener("mousedown", onDocClick)
+  }, [open])
+
+  // No campaigns yet — nothing to switch between. The Campaigns page handles
+  // creation, so the switcher simply doesn't render.
+  if (!campaigns || campaigns.length === 0) return null
+
+  // activeCampaignId may be null on first load or point at a campaign no longer
+  // in the list (deleted/left); fall back to a label rather than rendering blank.
+  const active = campaigns.find((c) => c.campaignId === activeCampaignId) ?? null
+
+  const handleSelect = (id: string) => {
+    setActiveCampaign(id)
+    setOpen(false)
+    onSelect?.()
+  }
+
+  return (
+    <div
+      ref={ref}
+      className="relative px-3 py-3"
+      style={{ borderBottom: "1px solid var(--scene-border)" }}
+    >
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm transition-colors hover:opacity-90"
+        style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+      >
+        <BookMarked className="w-4 h-4 shrink-0" style={{ color: "var(--scene-accent)" }} />
+        <span className="flex-1 text-left truncate" style={{ color: "var(--scene-text-primary)" }}>
+          {active ? active.name : "Select campaign"}
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--scene-text-muted)" }} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute left-3 right-3 mt-1 z-50 rounded-md overflow-y-auto max-h-72 shadow-lg"
+          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        >
+          {campaigns.map((c) => {
+            const isActive = c.campaignId === activeCampaignId
+            return (
+              <button
+                key={c.campaignId}
+                onClick={() => handleSelect(c.campaignId)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-[var(--scene-bg)]"
+                style={{ background: isActive ? "var(--scene-bg)" : undefined }}
+              >
+                <span
+                  className="flex-1 truncate"
+                  style={{ color: isActive ? "var(--scene-accent)" : "var(--scene-text-primary)" }}
+                >
+                  {c.name}
+                </span>
+                <span
+                  className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0"
+                  style={{
+                    background:
+                      c.role === "dm"
+                        ? "color-mix(in srgb, var(--scene-accent) 18%, transparent)"
+                        : "var(--scene-border)",
+                    color: c.role === "dm" ? "var(--scene-accent)" : "var(--scene-text-muted)",
+                  }}
+                >
+                  {c.role === "dm" ? "DM" : "Player"}
+                </span>
+                {isActive && (
+                  <Check className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--scene-accent)" }} />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

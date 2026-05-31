@@ -142,6 +142,38 @@ export const getMyRole = query({
   },
 })
 
+// All campaigns the current user belongs to, with their per-campaign role —
+// powers the nav campaign switcher. Membership-based, so it includes both
+// campaigns the user owns (they are the "dm" member) and ones they joined as a
+// player. Sorted by name for a stable, scannable list.
+export const listMyCampaigns = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const memberships = await ctx.db
+      .query("campaignMembers")
+      .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
+      .take(100)
+
+    const resolved = await Promise.all(
+      memberships.map(async (m) => {
+        const campaign = await ctx.db.get(m.campaignId)
+        if (!campaign) return null
+        return { campaignId: m.campaignId, name: campaign.name, role: m.role }
+      })
+    )
+
+    return resolved
+      .filter(
+        (c): c is { campaignId: Id<"campaigns">; name: string; role: "dm" | "player" } =>
+          c !== null
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+  },
+})
+
 // ── Invite flow ──────────────────────────────────────────────────────────────
 // Minimal public-facing lookup for the join landing page. Auth required so we
 // never expose campaign existence to anonymous probing.
