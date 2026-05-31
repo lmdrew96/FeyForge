@@ -330,6 +330,10 @@ export default defineSchema({
     drillDownMapId: v.optional(v.id("worldMaps")), // local map (e.g. Watabou city)
     campaignNodeId: v.optional(v.string()), // React Flow / Story Web node link
     createdBy: v.optional(v.string()),
+    // Seed-time importance (capitals > POIs > towns, scaled by population). On
+    // preset rows it caps the stored pool at 100 and weights adoptPreset's
+    // per-campaign random pin selection. Absent on hand-placed pins.
+    prominence: v.optional(v.number()),
   })
     .index("by_worldMap", ["worldMapId"])
     .index("by_campaignId", ["campaignId"]),

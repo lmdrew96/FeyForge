@@ -163,10 +163,6 @@ function MapSetup({
   isDM: boolean
   canCreateMaps: boolean
 }) {
-  const presets = useQuery(api.worldMap.listPresets, {})
-  const adoptPreset = useMutation(api.worldMap.adoptPreset)
-  const [adopting, setAdopting] = useState<WorldMapId | null>(null)
-
   if (!isDM) {
     return (
       <CenteredCard
@@ -175,18 +171,6 @@ function MapSetup({
         body="Your DM hasn't set up the world map for this campaign yet."
       />
     )
-  }
-
-  const handleAdopt = async (presetId: WorldMapId) => {
-    setAdopting(presetId)
-    try {
-      await adoptPreset({ campaignId, presetId })
-      toast.success("Map added to your campaign.")
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't load that map.")
-    } finally {
-      setAdopting(null)
-    }
   }
 
   return (
@@ -203,10 +187,131 @@ function MapSetup({
           Choose a starter map, or upload your own to begin charting your world.
         </p>
       </div>
+      <MapChooser campaignId={campaignId} canCreateMaps={canCreateMaps} />
+    </div>
+  )
+}
 
+// Pin-density tiers. `limit` is the max pins adoptPreset samples for the
+// campaign; must mirror FREE_MAX_PINS in convex/worldMap.ts (free ≤ 40; the
+// larger two are premium). Actual count is random-per-campaign, up to limit.
+const DENSITY_TIERS: {
+  key: string
+  label: string
+  sub: string
+  limit: number
+  premium: boolean
+}[] = [
+  { key: "handful", label: "A handful", sub: "up to ~10", limit: 10, premium: false },
+  { key: "several", label: "Several", sub: "up to ~20", limit: 20, premium: false },
+  { key: "many", label: "Many", sub: "up to ~40", limit: 40, premium: false },
+  { key: "bunch", label: "A bunch", sub: "up to ~75", limit: 75, premium: true },
+  { key: "mega", label: "Mega campaign", sub: "up to ~100", limit: 100, premium: true },
+]
+
+// Shared map chooser: upload (premium/admin) + the starter-preset grid. Used for
+// first-time setup (empty state) AND the in-workspace "Change map" modal — both
+// adoptPreset and setCampaignMap replace any existing campaign map (they clear it
+// + its pins first), so the same UI serves "pick first" and "switch later".
+// Picking a preset is a two-step: choose the map, then the pin density.
+function MapChooser({
+  campaignId,
+  canCreateMaps,
+  onDone,
+}: {
+  campaignId: CampaignId
+  canCreateMaps: boolean
+  onDone?: () => void
+}) {
+  const presets = useQuery(api.worldMap.listPresets, {})
+  const adoptPreset = useMutation(api.worldMap.adoptPreset)
+  const [adopting, setAdopting] = useState(false)
+  // When set, we're on the density step for this preset.
+  const [densityFor, setDensityFor] = useState<{ id: WorldMapId; name: string } | null>(null)
+
+  const handleAdopt = async (presetId: WorldMapId, limit: number) => {
+    setAdopting(true)
+    try {
+      await adoptPreset({ campaignId, presetId, limit })
+      toast.success("Map added to your campaign.")
+      setDensityFor(null)
+      onDone?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't load that map.")
+    } finally {
+      setAdopting(false)
+    }
+  }
+
+  // Step 2 — pin density for the chosen preset.
+  if (densityFor) {
+    return (
+      <div>
+        <button
+          onClick={() => setDensityFor(null)}
+          disabled={adopting}
+          className="mb-3 flex items-center gap-1 text-xs font-medium disabled:opacity-60"
+          style={{ color: "var(--scene-text-muted)" }}
+        >
+          <X className="h-3.5 w-3.5" />
+          Back to maps
+        </button>
+        <h3
+          className="text-base font-bold"
+          style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+        >
+          How many locations on {densityFor.name}?
+        </h3>
+        <p className="mb-4 mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+          Pins are chosen at random for your campaign, weighted toward capitals and
+          landmarks — so your world is unique. You can reveal them to players over time.
+        </p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {DENSITY_TIERS.map((tier) => {
+            const locked = tier.premium && !canCreateMaps
+            return (
+              <button
+                key={tier.key}
+                onClick={() =>
+                  locked
+                    ? toast.error("Larger maps are a premium feature.")
+                    : handleAdopt(densityFor.id, tier.limit)
+                }
+                disabled={adopting}
+                aria-disabled={locked}
+                className="flex items-center justify-between gap-2 rounded-lg px-4 py-3 text-left transition-transform hover:scale-[1.01] disabled:opacity-60"
+                style={{
+                  background: "var(--scene-surface)",
+                  border: "1px solid var(--scene-border)",
+                  opacity: locked ? 0.6 : 1,
+                }}
+              >
+                <span>
+                  <span
+                    className="block text-sm font-semibold"
+                    style={{ color: "var(--scene-text-primary)" }}
+                  >
+                    {tier.label}
+                  </span>
+                  <span className="block text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                    {tier.sub} pins
+                  </span>
+                </span>
+                {locked && <Crown className="h-4 w-4 shrink-0" style={{ color: "var(--scene-accent)" }} />}
+                {adopting && <Loader2 className="h-4 w-4 shrink-0 animate-spin" />}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
       {/* Upload (premium/admin) */}
       {canCreateMaps ? (
-        <MapUploader campaignId={campaignId} />
+        <MapUploader campaignId={campaignId} onDone={onDone} />
       ) : (
         <div
           className="mb-6 flex items-center gap-3 rounded-xl p-4"
@@ -247,9 +352,8 @@ function MapSetup({
           {presets.map((preset) => (
             <button
               key={preset._id}
-              onClick={() => handleAdopt(preset._id)}
-              disabled={adopting !== null}
-              className="group relative overflow-hidden rounded-lg text-left transition-transform hover:scale-[1.02] disabled:opacity-60"
+              onClick={() => setDensityFor({ id: preset._id, name: preset.name })}
+              className="group relative overflow-hidden rounded-lg text-left transition-transform hover:scale-[1.02]"
               style={{ border: "1px solid var(--scene-border)" }}
             >
               <div className="aspect-video w-full" style={{ background: "var(--scene-bg)" }}>
@@ -270,21 +374,16 @@ function MapSetup({
                   <Crown className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--scene-accent)" }} />
                 )}
               </div>
-              {adopting === preset._id && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <Loader2 className="h-6 w-6 animate-spin text-white" />
-                </div>
-              )}
             </button>
           ))}
         </div>
       )}
-    </div>
+    </>
   )
 }
 
 // Handles file → dimensions → presign → R2 PUT → setCampaignMap.
-function MapUploader({ campaignId }: { campaignId: CampaignId }) {
+function MapUploader({ campaignId, onDone }: { campaignId: CampaignId; onDone?: () => void }) {
   const setCampaignMap = useMutation(api.worldMap.setCampaignMap)
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -338,6 +437,7 @@ function MapUploader({ campaignId }: { campaignId: CampaignId }) {
         height: h,
       })
       toast.success("Map uploaded.")
+      onDone?.()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed.")
     } finally {
@@ -611,7 +711,7 @@ function MapWorkspace({
                 <Crown className="h-4 w-4" />
               </ToolbarButton>
             )}
-            {canCreateMaps && <ChangeMapButton campaignId={campaignId} />}
+            <ChangeMapButton campaignId={campaignId} canCreateMaps={canCreateMaps} />
           </div>
         )}
       </div>
@@ -786,12 +886,19 @@ function MapWorkspace({
   )
 }
 
-function ChangeMapButton({ campaignId }: { campaignId: CampaignId }) {
+function ChangeMapButton({
+  campaignId,
+  canCreateMaps,
+}: {
+  campaignId: CampaignId
+  canCreateMaps: boolean
+}) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <ToolbarButton onClick={() => setOpen(true)} title="Replace the map image">
+      <ToolbarButton onClick={() => setOpen(true)} title="Switch to a different map">
         <ImageIcon className="h-4 w-4" />
+        <span className="hidden sm:inline">Change map</span>
       </ToolbarButton>
       {open && (
         <Modal onClose={() => setOpen(false)}>
@@ -799,12 +906,17 @@ function ChangeMapButton({ campaignId }: { campaignId: CampaignId }) {
             className="mb-1 text-lg font-bold"
             style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
           >
-            Replace Map
+            Change Map
           </h2>
           <p className="mb-4 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-            Uploading a new image replaces the current map. Existing pins are cleared.
+            Picking a starter map{canCreateMaps ? " or uploading a new image" : ""} replaces the
+            current map. Existing pins are cleared.
           </p>
-          <MapUploader campaignId={campaignId} />
+          <MapChooser
+            campaignId={campaignId}
+            canCreateMaps={canCreateMaps}
+            onDone={() => setOpen(false)}
+          />
           <SecondaryButton onClick={() => setOpen(false)}>
             <X className="h-4 w-4" />
             Close

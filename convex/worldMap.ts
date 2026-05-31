@@ -27,6 +27,33 @@ const locationType = v.union(
 const requireDm = (ctx: MutationCtx, campaignId: Id<"campaigns">) =>
   requireCampaignDm(ctx, campaignId, "Only the DM can edit the world map")
 
+// Pin-density caps. Free tier tops out at MANY; "a bunch"/"mega" are premium.
+// Hard ceiling MAX_PINS so a preset never floods a campaign (or the DM map).
+const FREE_MAX_PINS = 40
+const MAX_PINS = 100
+
+// Deterministic per-campaign pin selection. We seed a tiny PRNG from
+// campaignId+presetId so a given campaign always gets the SAME world (re-adopt
+// is reproducible, and bumping density only ADDS pins), while different
+// campaigns get different subsets of the same preset.
+function seedFromString(s: string): number {
+  let h = 1779033703 ^ s.length
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(h ^ s.charCodeAt(i), 3432918353)
+    h = (h << 13) | (h >>> 19)
+  }
+  return h >>> 0
+}
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
 // ── Map (one active map per campaign) ────────────────────────────────────────
 
 export const getMap = query({
@@ -118,16 +145,36 @@ export const listPresets = query({
   },
 })
 
-// Adopt a preset into a campaign: clone the map row + all its locations so the
-// campaign gets independent, all-hidden reveal state. DM-only. Replaces any
-// existing campaign map (one active map per campaign).
+// Adopt a preset into a campaign: clone the map row + a per-campaign random
+// subset of its locations (campaign gets independent, all-hidden reveal state).
+// DM-only. Replaces any existing campaign map (one active map per campaign).
+// `limit` is the pin-density cap: free tier ≤ FREE_MAX_PINS; larger needs premium.
 export const adoptPreset = mutation({
-  args: { campaignId: v.id("campaigns"), presetId: v.id("worldMaps") },
+  args: {
+    campaignId: v.id("campaigns"),
+    presetId: v.id("worldMaps"),
+    limit: v.optional(v.number()),
+  },
   handler: async (ctx, args): Promise<Id<"worldMaps">> => {
     const userId = await requireDm(ctx, args.campaignId)
 
     const preset = await ctx.db.get(args.presetId)
     if (!preset || preset.source !== "preset") throw new Error("Preset not found")
+
+    // Resolve the density cap, then gate the premium tiers server-side (the UI
+    // hides them too, but never trust the client for entitlement).
+    const limit = Math.max(1, Math.min(MAX_PINS, Math.round(args.limit ?? FREE_MAX_PINS)))
+    if (limit > FREE_MAX_PINS) {
+      const identity = await ctx.auth.getUserIdentity()
+      const user = identity
+        ? await ctx.db
+            .query("users")
+            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+            .unique()
+        : null
+      const isPremium = !!user && (user.isPremium || user.role === "admin")
+      if (!isPremium) throw new Error("Larger maps are a premium feature.")
+    }
 
     // Remove any current campaign map + its locations first.
     const existingMaps = await ctx.db
@@ -157,12 +204,26 @@ export const adoptPreset = mutation({
       updatedAt: Date.now(),
     })
 
-    // Clone the preset's locations, hidden by default.
+    // Pick which pins this campaign gets: weighted-random without replacement
+    // (Efraimidis–Spirakis: key = u^(1/weight), keep the largest), weight =
+    // prominence so capitals/POIs are favored but the set still varies per
+    // campaign. Seeded by campaignId+presetId → reproducible, and a bigger
+    // `limit` is a superset of a smaller one (bumping density adds pins).
     const presetLocations = await ctx.db
       .query("mapLocations")
       .withIndex("by_worldMap", (q) => q.eq("worldMapId", preset._id))
       .collect()
-    for (const loc of presetLocations) {
+    const rng = mulberry32(seedFromString(`${args.campaignId}:${args.presetId}`))
+    const chosen = presetLocations
+      .map((loc) => {
+        const weight = Math.max(loc.prominence ?? 1, 0.0001)
+        return { loc, key: Math.pow(rng(), 1 / weight) }
+      })
+      .sort((a, b) => b.key - a.key)
+      .slice(0, limit)
+      .map((entry) => entry.loc)
+
+    for (const loc of chosen) {
       await ctx.db.insert("mapLocations", {
         worldMapId: newMapId,
         campaignId: args.campaignId,
@@ -173,6 +234,7 @@ export const adoptPreset = mutation({
         revealed: false,
         dmNotes: loc.dmNotes,
         playerNotes: loc.playerNotes,
+        prominence: loc.prominence,
         createdBy: userId,
       })
     }
@@ -238,6 +300,88 @@ export const saveAsPreset = mutation({
     }
 
     return presetId
+  },
+})
+
+// Seed (or re-seed) a global preset from a parsed Azgaar export. Called by
+// scripts/seed-presets.ts — uses SEED_SECRET instead of Clerk auth (CLI scripts
+// can't do headless Clerk auth; same pattern as audio.createAudioTrackBulk).
+// The image is already in R2 by the time this runs; we store the key only.
+// UPSERT by imageStorageKey: if this preset already exists it's deleted (row +
+// its locations) and rebuilt, so re-running the script retunes presets in place.
+// Already-adopted campaigns are independent clones and are unaffected.
+export const seedPreset = mutation({
+  args: {
+    seedSecret: v.string(),
+    name: v.string(),
+    imageStorageKey: v.string(),
+    width: v.number(),
+    height: v.number(),
+    scaleMilesPerPx: v.optional(v.number()),
+    isPremiumPreset: v.optional(v.boolean()),
+    locations: v.array(
+      v.object({
+        type: locationType,
+        name: v.string(),
+        x: v.number(),
+        y: v.number(),
+        dmNotes: v.optional(v.string()),
+        prominence: v.optional(v.number()),
+      }),
+    ),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ mapId: Id<"worldMaps">; replaced: boolean; locationCount: number }> => {
+    if (args.seedSecret !== process.env.SEED_SECRET) throw new Error("Unauthorized")
+
+    // Upsert by imageStorageKey — drop any existing preset (row + locations).
+    const presets = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_source", (q) => q.eq("source", "preset"))
+      .collect()
+    const existing = presets.find((m) => m.imageStorageKey === args.imageStorageKey)
+    if (existing) {
+      const oldLocs = await ctx.db
+        .query("mapLocations")
+        .withIndex("by_worldMap", (q) => q.eq("worldMapId", existing._id))
+        .collect()
+      for (const loc of oldLocs) await ctx.db.delete(loc._id)
+      await ctx.db.delete(existing._id)
+    }
+
+    const mapId = await ctx.db.insert("worldMaps", {
+      campaignId: undefined,
+      name: args.name,
+      imageStorageKey: args.imageStorageKey,
+      width: args.width,
+      height: args.height,
+      scaleMilesPerPx: args.scaleMilesPerPx,
+      source: "preset",
+      isPremiumPreset: args.isPremiumPreset ?? false,
+      createdBy: "seed-script",
+      updatedAt: Date.now(),
+    })
+
+    // Locations are template pins: always hidden (revealed:false) — adoptPreset
+    // clones a per-campaign subset and reveal state is decided by each DM.
+    for (const loc of args.locations) {
+      await ctx.db.insert("mapLocations", {
+        worldMapId: mapId,
+        campaignId: undefined,
+        type: loc.type,
+        name: loc.name,
+        x: loc.x,
+        y: loc.y,
+        revealed: false,
+        dmNotes: loc.dmNotes,
+        prominence: loc.prominence,
+        createdBy: "seed-script",
+      })
+    }
+
+    return { mapId, replaced: existing !== undefined, locationCount: args.locations.length }
   },
 })
 
