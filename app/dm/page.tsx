@@ -6,7 +6,7 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useCampaignStore } from "@/lib/campaign-store"
-import { Users, Map, Bot, ScrollText, Globe, Swords, Network, Music } from "lucide-react"
+import { Users, Bot, ScrollText, Globe, Swords, Network } from "lucide-react"
 
 type Tool = { href: string; icon: React.ElementType; label: string; desc: string }
 
@@ -15,8 +15,6 @@ const DM_TOOLS: Tool[] = [
   { href: "/sessions", icon: ScrollText, label: "Sessions", desc: "Session logs, plot threads, and XP" },
   { href: "/dm/encounters", icon: Swords, label: "Encounters", desc: "CR → XP difficulty calculator" },
   { href: "/dm/campaign-web", icon: Network, label: "Story Web", desc: "Map NPC, location, and faction ties" },
-  { href: "/dm/scenes", icon: Map, label: "Scenes", desc: "Preview and switch scenes" },
-  { href: "/dm/library", icon: Music, label: "Audio Library", desc: "Curate scene music and ambience" },
   { href: "/dm/assistant", icon: Bot, label: "AI Assistant", desc: "Claude-powered DM help" },
   { href: "/dm/wiki", icon: ScrollText, label: "Campaign Wiki", desc: "World lore and notes" },
   { href: "/dm/world-map", icon: Globe, label: "World Map", desc: "Locations and regions" },
