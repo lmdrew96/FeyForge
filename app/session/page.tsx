@@ -97,7 +97,7 @@ type TabId = "live" | "notes" | "inventory"
 
 function SessionTabs({ tab, setTab }: { tab: TabId; setTab: (t: TabId) => void }) {
   return (
-    <div className="flex gap-1 mb-6 p-1 rounded-lg" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+    <div className="flex gap-1 mb-6 p-1 rounded-lg max-w-lg" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
       {([
         { id: "live" as TabId, label: "Live", icon: Sparkles },
         { id: "notes" as TabId, label: "Notes", icon: ScrollText },
@@ -746,12 +746,18 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
         <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-accent)" }}>Session Live</span>
       </div>
 
+      {/* Desktop dashboard: character + combat + audio on the left, scene + broadcasts on the right.
+          Under grid-cols-1 (mobile) the columns render in DOM order, preserving the stack. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="space-y-6">
       <MyCharacterPanel sessionId={sessionId} member={myMember} />
 
       <PlayerCombatView sessionId={sessionId} />
 
       <PlayerAudioReceiver sessionId={sessionId} campaignId={campaignId} />
+      </div>
 
+      <div className="space-y-6">
       <div className="rounded-xl p-6 text-center" style={{ background: "color-mix(in srgb, var(--scene-accent) 6%, var(--scene-surface))", border: "1px solid color-mix(in srgb, var(--scene-accent) 20%, var(--scene-border))" }}>
         {activeScene ? (
           <>
@@ -787,6 +793,8 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
           </div>
         </section>
       )}
+      </div>
+      </div>
 
       <PartyRail sessionId={sessionId} />
 
@@ -863,6 +871,11 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
 
       <InvitePlayersDialog campaignId={campaignId} open={inviteOpen} onOpenChange={setInviteOpen} />
 
+      {/* Desktop dashboard: scene + combat on the left, audio + comms on the right.
+          Under grid-cols-1 (mobile) the columns render in DOM order, preserving the stack. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="space-y-6">
+
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>Active Scene</h2>
@@ -880,7 +893,7 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
             </button>
           )}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">
           {SCENES.map((scene) => (
             <button key={scene.id} onClick={() => handleSetScene(scene.id)} className="rounded-lg p-3 text-left transition-all hover:opacity-90"
               style={{ background: "var(--scene-surface)", border: `1px solid ${activeScene === scene.id ? "var(--scene-accent)" : "var(--scene-border)"}`, boxShadow: activeScene === scene.id ? "0 0 10px var(--scene-accent-glow)" : "none" }}>
@@ -892,7 +905,9 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
       </section>
 
       <DMCombatTracker sessionId={sessionId} />
+      </div>
 
+      <div className="space-y-6">
       <DMAudioPanel sessionId={sessionId} />
 
       <section>
@@ -930,6 +945,8 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
           </div>
         </section>
       )}
+      </div>
+      </div>
 
       <PartyRail sessionId={sessionId} />
     </div>
@@ -987,6 +1004,11 @@ export default function SessionPage() {
     !isDM && session ? { sessionId: session._id } : "skip"
   )
 
+  // Widen to a dashboard only when the live tab is actually showing the
+  // Conductor/Receiver. JoinView, DMReadyView, PlayerWaiting and the loading
+  // skeleton stay narrow so their single-column content doesn't sprawl.
+  const wide = tab === "live" && !!session && (isDM || !!myPartyMember)
+
   if (context === undefined) {
     return (
       <AppShell>
@@ -999,7 +1021,7 @@ export default function SessionPage() {
 
   return (
     <AppShell>
-      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+      <div className={cn("p-4 sm:p-6 mx-auto w-full", wide ? "max-w-3xl lg:max-w-6xl" : "max-w-3xl")}>
         {context === null ? (
           <PlayerWaiting />
         ) : isDM ? (
