@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
-import type { MutationCtx } from "./_generated/server"
+import type { MutationCtx, QueryCtx } from "./_generated/server"
 
 // Throws unless the authenticated user owns the campaign. Campaign web editing is
 // DM tooling, so it's gated to the campaign owner.
@@ -12,6 +12,21 @@ async function requireCampaignOwner(
 ): Promise<void> {
   const campaign = await ctx.db.get(campaignId)
   if (!campaign || campaign.userId !== userId) throw new Error("Campaign not found")
+}
+
+// True if the caller is a member of the campaign (any role). The reads below are
+// DM tooling but membership-gating (not owner-gating) keeps the door open for
+// future co-DMs while closing cross-campaign reads by non-members.
+async function isCampaignMember(ctx: QueryCtx, campaignId: Id<"campaigns">): Promise<boolean> {
+  const identity = await ctx.auth.getUserIdentity()
+  if (!identity) return false
+  const member = await ctx.db
+    .query("campaignMembers")
+    .withIndex("by_campaignId_and_userId", (q) =>
+      q.eq("campaignId", campaignId).eq("userId", identity.tokenIdentifier)
+    )
+    .first()
+  return member !== null
 }
 
 const entityTypeValidator = v.union(
@@ -25,6 +40,7 @@ const entityTypeValidator = v.union(
 export const listNodes = query({
   args: { campaignId: v.id("campaigns") },
   handler: async (ctx, args) => {
+    if (!(await isCampaignMember(ctx, args.campaignId))) return []
     const nodes = await ctx.db
       .query("campaignWebNodes")
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
@@ -54,6 +70,7 @@ export const listNodes = query({
 export const listEdges = query({
   args: { campaignId: v.id("campaigns") },
   handler: async (ctx, args) => {
+    if (!(await isCampaignMember(ctx, args.campaignId))) return []
     return await ctx.db
       .query("campaignWebEdges")
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))

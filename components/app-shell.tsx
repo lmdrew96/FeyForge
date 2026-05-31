@@ -25,10 +25,12 @@ import {
   Menu,
   X,
 } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { cn } from "@/lib/utils"
+import { useCampaignStore } from "@/lib/campaign-store"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { SceneBackdrop } from "@/components/scene-backdrop"
 
@@ -40,31 +42,45 @@ type NavItem = {
   children?: NavChild[]
 }
 
-const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Campaigns", href: "/campaigns", icon: BookMarked },
-  { label: "Characters", href: "/characters", icon: UserSquare2 },
-  { label: "Live Session", href: "/session", icon: Sparkles },
-  {
-    label: "DM Tools",
-    href: "/dm",
-    icon: Swords,
-    children: [
-      { label: "NPCs", href: "/dm/npcs", icon: Users },
-      { label: "Sessions", href: "/sessions", icon: ScrollText },
-      { label: "Encounters", href: "/dm/encounters", icon: Swords },
-      { label: "Story Web", href: "/dm/campaign-web", icon: Network },
-      { label: "Scenes", href: "/dm/scenes", icon: Map },
-      { label: "Audio Library", href: "/dm/library", icon: Music },
-      { label: "Assistant", href: "/dm/assistant", icon: Bot },
-      { label: "Wiki", href: "/dm/wiki", icon: ScrollText },
-      { label: "World Map", href: "/dm/world-map", icon: Globe },
-    ],
-  },
-  { label: "Codex", href: "/codex", icon: BookOpen },
-  { label: "Dice", href: "/dice", icon: Dices },
-  { label: "Settings", href: "/settings", icon: Settings },
+// Full DM toolset — shown to DMs, and to anyone without an explicit player role
+// in their active campaign (solo users, no active campaign, legacy member-less
+// campaigns). Pages still gate their own writes; this is nav coherence only.
+const DM_CHILDREN: NavChild[] = [
+  { label: "NPCs", href: "/dm/npcs", icon: Users },
+  { label: "Sessions", href: "/sessions", icon: ScrollText },
+  { label: "Encounters", href: "/dm/encounters", icon: Swords },
+  { label: "Story Web", href: "/dm/campaign-web", icon: Network },
+  { label: "Scenes", href: "/dm/scenes", icon: Map },
+  { label: "Audio Library", href: "/dm/library", icon: Music },
+  { label: "Assistant", href: "/dm/assistant", icon: Bot },
+  { label: "Wiki", href: "/dm/wiki", icon: ScrollText },
+  { label: "World Map", href: "/dm/world-map", icon: Globe },
 ]
+
+// Players (explicit player role in the active campaign) see only the shared,
+// DM-revealed surfaces.
+const PLAYER_CHILDREN: NavChild[] = [
+  { label: "Wiki", href: "/dm/wiki", icon: ScrollText },
+  { label: "World Map", href: "/dm/world-map", icon: Globe },
+]
+
+function buildNavItems(isPlayer: boolean): NavItem[] {
+  return [
+    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Campaigns", href: "/campaigns", icon: BookMarked },
+    { label: "Characters", href: "/characters", icon: UserSquare2 },
+    { label: "Live Session", href: "/session", icon: Sparkles },
+    {
+      label: isPlayer ? "Campaign" : "DM Tools",
+      href: "/dm",
+      icon: Swords,
+      children: isPlayer ? PLAYER_CHILDREN : DM_CHILDREN,
+    },
+    { label: "Codex", href: "/codex", icon: BookOpen },
+    { label: "Dice", href: "/dice", icon: Dices },
+    { label: "Settings", href: "/settings", icon: Settings },
+  ]
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -72,6 +88,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const me = useQuery(api.users.getMe)
   const isAdmin = me?.role === "admin"
+
+  // Role in the active campaign drives whether the nav shows the full DM
+  // toolset or the slimmed player "Campaign" section. Only an explicit player
+  // role slims the nav — DM, no role, or no active campaign keep full tools.
+  const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
+  const role = useQuery(
+    api.campaignMembers.getMyRole,
+    activeCampaignId ? { campaignId: activeCampaignId as Id<"campaigns"> } : "skip",
+  )
+  const isPlayer = role === "player"
+  const navItems = useMemo(() => buildNavItems(isPlayer), [isPlayer])
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href)

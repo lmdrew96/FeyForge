@@ -6,6 +6,14 @@ export const list = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
+    // Scenes are DM tooling — only campaign members may read them.
+    const member = await ctx.db
+      .query("campaignMembers")
+      .withIndex("by_campaignId_and_userId", (q) =>
+        q.eq("campaignId", args.campaignId).eq("userId", identity.tokenIdentifier)
+      )
+      .first()
+    if (!member) return []
     return await ctx.db
       .query("campaignScenes")
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
