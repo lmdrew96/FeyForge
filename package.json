@@ -1,6 +1,6 @@
 {
   "name": "feyforge",
-  "version": "0.55.0",
+  "version": "0.56.0",
   "private": true,
   "scripts": {
     "build": "next build",
@@ -76,6 +76,7 @@
     "swr": "^2.3.8",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
+    "three": "0.184.0",
     "use-sync-external-store": "^1.4.0",
     "zod": "3.25.76",
     "zustand": "5.0.9"
@@ -87,6 +88,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "0.184.1",
     "dotenv": "^17.2.3",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.1",

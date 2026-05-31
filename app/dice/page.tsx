@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useEffect, useRef, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { toast } from "sonner"
 import { Dices, Plus, Trash2, X, History } from "lucide-react"
@@ -13,6 +13,7 @@ import {
   type DiceRollResult,
 } from "@/lib/dice-store"
 import { Die } from "@/components/dice/die"
+import { DiceScene } from "@/components/dice/die-3d-scene"
 
 const QUICK_DICE = [4, 6, 8, 10, 12, 20, 100]
 
@@ -137,12 +138,26 @@ export default function DicePage() {
   const flag = currentResult ? critFlag(currentResult) : null
 
   // Flatten every die (kept + dropped) for shape rendering + the perf gate.
-  const diceList = currentResult
-    ? currentResult.terms.flatMap((term) => [
-        ...term.rolls.map((r) => ({ sides: term.sides, value: r, dropped: false })),
-        ...term.dropped.map((r) => ({ sides: term.sides, value: r, dropped: true })),
-      ])
-    : []
+  // Memoized on the result id so the array reference stays stable across unrelated
+  // re-renders (typing, toggles) — otherwise the 3D scene would rebuild every key.
+  const diceList = useMemo(
+    () =>
+      currentResult
+        ? currentResult.terms.flatMap((term) => [
+            ...term.rolls.map((r) => ({
+              sides: term.sides,
+              value: r,
+              dropped: false,
+            })),
+            ...term.dropped.map((r) => ({
+              sides: term.sides,
+              value: r,
+              dropped: true,
+            })),
+          ])
+        : [],
+    [currentResult],
+  )
   // Render individual dice shapes only for a sane count; big handfuls (e.g. 8d6,
   // up to MAX_DICE=100) fall back to the compact number list to avoid jank.
   const showShapes = diceList.length > 0 && diceList.length <= 12
@@ -233,27 +248,11 @@ export default function DicePage() {
               {/* Per-die breakdown — rendered as shapes for small rolls, or a
                   compact number list for big handfuls (8d6 etc.). */}
               {showShapes ? (
-                <div className="flex items-center justify-center gap-3 flex-wrap">
-                  {diceList.map((d, i) => (
-                    <Die
-                      key={i}
-                      sides={d.sides}
-                      value={d.value}
-                      rolling={isRolling}
-                      dimmed={d.dropped}
-                      index={i}
-                      highlight={
-                        d.sides === 20 && d.value === 20
-                          ? "nat20"
-                          : d.sides === 20 && d.value === 1
-                            ? "nat1"
-                            : null
-                      }
-                    />
-                  ))}
+                <div>
+                  <DiceScene dice={diceList} rolling={isRolling} />
                   {currentResult.modifier !== 0 && (
-                    <span
-                      className="text-2xl font-bold self-center"
+                    <div
+                      className="text-2xl font-bold mt-1"
                       style={{
                         fontFamily: "var(--font-cinzel)",
                         color: "var(--scene-text-muted)",
@@ -261,7 +260,7 @@ export default function DicePage() {
                     >
                       {currentResult.modifier > 0 ? "+" : "−"}
                       {Math.abs(currentResult.modifier)}
-                    </span>
+                    </div>
                   )}
                 </div>
               ) : (
