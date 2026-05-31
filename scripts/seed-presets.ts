@@ -40,6 +40,13 @@ dotenv.config({ path: ".env.local" })
 // subset down to the DM's chosen density tier; 100 is the largest ("mega") tier.
 const MAX_PINS = 100
 
+// Keep the stored pool settlement-leaning (most fantasy maps have more towns than
+// landmarks): POIs are capped at this share of the pool, the rest is settlements
+// (capitals + top towns). POI sampling weight (POI_PROMINENCE) sits among towns so
+// per-campaign tiers also lean toward settlements rather than landmarks.
+const POI_POOL_SHARE = 1 / 3
+const POI_PROMINENCE = 1.2
+
 // Tier limits the seed report previews — must mirror DENSITY_TIERS in the UI and
 // FREE_MAX_PINS in convex/worldMap.ts (free ≤ 40; "a bunch"/"mega" are premium).
 const PREVIEW_TIERS: { label: string; limit: number }[] = [
@@ -269,16 +276,21 @@ function parseMap(text: string): ParsedMap {
         x: clampPct((m.x / width) * 100),
         y: clampPct((m.y / height) * 100),
         dmNotes: legend.length > 0 ? legend : undefined,
-        prominence: 2,
+        prominence: POI_PROMINENCE,
       }
     })
 
-  // Cap the stored pool at MAX_PINS by prominence (capitals + all POIs + top
-  // towns to fill). adoptPreset samples a per-campaign subset from this pool.
+  // Build the stored pool, settlement-leaning: cap POIs at POI_POOL_SHARE of
+  // MAX_PINS (preferring those with legend notes), then fill the rest with the
+  // top settlements by prominence (capitals first, then towns by population).
   const candidates = settlements.length + pois.length
-  const pool = [...settlements, ...pois]
+  const keptPois = [...pois]
+    .sort((a, b) => (b.dmNotes ? 1 : 0) - (a.dmNotes ? 1 : 0))
+    .slice(0, Math.floor(MAX_PINS * POI_POOL_SHARE))
+  const keptSettlements = [...settlements]
     .sort((a, b) => b.prominence - a.prominence)
-    .slice(0, MAX_PINS)
+    .slice(0, MAX_PINS - keptPois.length)
+  const pool = [...keptSettlements, ...keptPois]
 
   return {
     width,
@@ -364,7 +376,9 @@ async function main(): Promise<void> {
   }
 
   console.log(`\nFound ${mapFiles.length} .map file(s) in ${MAPS_DIR}/`)
-  console.log(`Pool cap: ${MAX_PINS} pins/preset (capitals + all POIs + top towns by population)`)
+  console.log(
+    `Pool cap: ${MAX_PINS} pins/preset (settlement-leaning: POIs ≤ ${Math.round(POI_POOL_SHARE * 100)}%, rest = capitals + top towns)`,
+  )
   console.log(dryRun ? "Mode: DRY RUN (no R2 uploads, no DB writes)\n" : "Mode: LIVE\n")
 
   let seeded = 0

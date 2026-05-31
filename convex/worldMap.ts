@@ -138,10 +138,14 @@ export const listPresets = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
-    return await ctx.db
+    // Only GLOBAL presets (campaignId undefined). Adopted campaign maps also carry
+    // source:"preset" (so reveal-cloning works), so without this filter a campaign's
+    // own map shows up as a duplicate "preset" in the picker.
+    const presets = await ctx.db
       .query("worldMaps")
       .withIndex("by_source", (q) => q.eq("source", "preset"))
       .collect()
+    return presets.filter((m) => m.campaignId === undefined)
   },
 })
 
@@ -158,8 +162,12 @@ export const adoptPreset = mutation({
   handler: async (ctx, args): Promise<Id<"worldMaps">> => {
     const userId = await requireDm(ctx, args.campaignId)
 
+    // Must be a GLOBAL preset — never a campaign-scoped map (adopting one onto
+    // itself would delete its own locations before the clone reads them → 0 pins).
     const preset = await ctx.db.get(args.presetId)
-    if (!preset || preset.source !== "preset") throw new Error("Preset not found")
+    if (!preset || preset.source !== "preset" || preset.campaignId !== undefined) {
+      throw new Error("Preset not found")
+    }
 
     // Resolve the density cap, then gate the premium tiers server-side (the UI
     // hides them too, but never trust the client for entitlement).
