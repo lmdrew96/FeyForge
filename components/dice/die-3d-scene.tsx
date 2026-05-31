@@ -393,7 +393,6 @@ export function DiceScene({ dice, rolling, showNumbers }: DiceSceneProps) {
   // after the brand font loads.
   useEffect(() => {
     rendererRef.current?.setDice(dice, showNumbers)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dice, showNumbers, fontTick])
 
   // Feed rolling state → renderer (drives the tumble / settle).
