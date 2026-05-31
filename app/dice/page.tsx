@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { toast } from "sonner"
 import { Dices, Plus, Trash2, X, History } from "lucide-react"
@@ -12,6 +12,7 @@ import {
   type RollMode,
   type DiceRollResult,
 } from "@/lib/dice-store"
+import { Die } from "@/components/dice/die"
 
 const QUICK_DICE = [4, 6, 8, 10, 12, 20, 100]
 
@@ -45,11 +46,24 @@ export default function DicePage() {
     setRollMode,
     crit,
     setCrit,
+    isRolling,
+    setIsRolling,
   } = useDiceStore()
 
   const [expression, setExpression] = useState("")
   const [saveName, setSaveName] = useState("")
   const [showSaveForm, setShowSaveForm] = useState(false)
+
+  // Tumble timer — dice animate for ~500ms, then settle to their faces and the
+  // total reveals. Cleared on re-roll and unmount so a fast clicker never leaves
+  // a stuck animation.
+  const rollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (rollTimer.current) clearTimeout(rollTimer.current)
+    },
+    [],
+  )
 
   const isExpressionValid =
     expression.trim() === "" || parseDiceExpression(expression) !== null
@@ -59,7 +73,27 @@ export default function DicePage() {
       toast.error(`Couldn't parse "${source}" — try something like 1d20+5 or 2d6`)
       return
     }
-    addRoll(result)
+    addRoll(result) // also sets currentResult
+    // Honor reduced-motion: skip the tumble entirely so dice + total appear at
+    // their final values immediately. isRolling drives JS-side hiding, so the
+    // CSS media query alone can't cover this — we have to branch here too.
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (prefersReduced) {
+      setIsRolling(false)
+      return
+    }
+    setIsRolling(true)
+    if (rollTimer.current) clearTimeout(rollTimer.current)
+    rollTimer.current = setTimeout(() => setIsRolling(false), 500)
+  }
+
+  // Re-displaying a past roll from history should never tumble.
+  const showFromHistory = (roll: DiceRollResult) => {
+    if (rollTimer.current) clearTimeout(rollTimer.current)
+    setIsRolling(false)
+    setCurrentResult(roll)
   }
 
   const handleRollExpression = () => {
@@ -101,6 +135,17 @@ export default function DicePage() {
   }
 
   const flag = currentResult ? critFlag(currentResult) : null
+
+  // Flatten every die (kept + dropped) for shape rendering + the perf gate.
+  const diceList = currentResult
+    ? currentResult.terms.flatMap((term) => [
+        ...term.rolls.map((r) => ({ sides: term.sides, value: r, dropped: false })),
+        ...term.dropped.map((r) => ({ sides: term.sides, value: r, dropped: true })),
+      ])
+    : []
+  // Render individual dice shapes only for a sane count; big handfuls (e.g. 8d6,
+  // up to MAX_DICE=100) fall back to the compact number list to avoid jank.
+  const showShapes = diceList.length > 0 && diceList.length <= 12
 
   return (
     <AppShell>
@@ -151,10 +196,12 @@ export default function DicePage() {
               </div>
 
               <div
-                className="font-bold leading-none mb-3"
+                key={currentResult.id}
+                className={`font-bold leading-none mb-3${isRolling ? "" : " dice-total-in"}`}
                 style={{
                   fontFamily: "var(--font-cinzel)",
                   fontSize: "4rem",
+                  visibility: isRolling ? "hidden" : "visible",
                   color:
                     flag === "nat20"
                       ? "var(--scene-accent)"
@@ -183,48 +230,83 @@ export default function DicePage() {
                 </div>
               )}
 
-              {/* Per-die breakdown */}
-              <div
-                className="flex items-center justify-center gap-2 flex-wrap text-sm font-mono"
-                style={{ color: "var(--scene-text-muted)" }}
-              >
-                {currentResult.terms.map((term, ti) => (
-                  <span key={ti} className="flex items-center gap-1">
-                    {ti > 0 && <span>+</span>}
-                    <span>
-                      {term.rolls.map((r, ri) => (
-                        <span key={ri}>
-                          {ri > 0 && ", "}
-                          <span
-                            style={{
-                              color:
-                                term.sides === 20 && r === 20
-                                  ? "var(--scene-accent)"
-                                  : term.sides === 20 && r === 1
-                                    ? "#ef4444"
-                                    : "var(--scene-text-primary)",
-                            }}
-                          >
-                            {r}
-                          </span>
-                        </span>
-                      ))}
+              {/* Per-die breakdown — rendered as shapes for small rolls, or a
+                  compact number list for big handfuls (8d6 etc.). */}
+              {showShapes ? (
+                <div className="flex items-center justify-center gap-3 flex-wrap">
+                  {diceList.map((d, i) => (
+                    <Die
+                      key={i}
+                      sides={d.sides}
+                      value={d.value}
+                      rolling={isRolling}
+                      dimmed={d.dropped}
+                      index={i}
+                      highlight={
+                        d.sides === 20 && d.value === 20
+                          ? "nat20"
+                          : d.sides === 20 && d.value === 1
+                            ? "nat1"
+                            : null
+                      }
+                    />
+                  ))}
+                  {currentResult.modifier !== 0 && (
+                    <span
+                      className="text-2xl font-bold self-center"
+                      style={{
+                        fontFamily: "var(--font-cinzel)",
+                        color: "var(--scene-text-muted)",
+                      }}
+                    >
+                      {currentResult.modifier > 0 ? "+" : "−"}
+                      {Math.abs(currentResult.modifier)}
                     </span>
-                    <span style={{ opacity: 0.6 }}>(d{term.sides})</span>
-                    {term.dropped.length > 0 && (
-                      <span style={{ opacity: 0.4 }}>
-                        [dropped {term.dropped.join(", ")}]
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="flex items-center justify-center gap-2 flex-wrap text-sm font-mono"
+                  style={{ color: "var(--scene-text-muted)" }}
+                >
+                  {currentResult.terms.map((term, ti) => (
+                    <span key={ti} className="flex items-center gap-1">
+                      {ti > 0 && <span>+</span>}
+                      <span>
+                        {term.rolls.map((r, ri) => (
+                          <Fragment key={ri}>
+                            {ri > 0 && ", "}
+                            <span
+                              style={{
+                                color:
+                                  term.sides === 20 && r === 20
+                                    ? "var(--scene-accent)"
+                                    : term.sides === 20 && r === 1
+                                      ? "#ef4444"
+                                      : "var(--scene-text-primary)",
+                              }}
+                            >
+                              {r}
+                            </span>
+                          </Fragment>
+                        ))}
                       </span>
-                    )}
-                  </span>
-                ))}
-                {currentResult.modifier !== 0 && (
-                  <span style={{ color: "var(--scene-text-primary)" }}>
-                    {currentResult.modifier > 0 ? "+" : "−"}
-                    {Math.abs(currentResult.modifier)}
-                  </span>
-                )}
-              </div>
+                      <span style={{ opacity: 0.6 }}>(d{term.sides})</span>
+                      {term.dropped.length > 0 && (
+                        <span style={{ opacity: 0.4 }}>
+                          [dropped {term.dropped.join(", ")}]
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                  {currentResult.modifier !== 0 && (
+                    <span style={{ color: "var(--scene-text-primary)" }}>
+                      {currentResult.modifier > 0 ? "+" : "−"}
+                      {Math.abs(currentResult.modifier)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <p style={{ color: "var(--scene-text-muted)" }}>
@@ -276,15 +358,23 @@ export default function DicePage() {
             <button
               key={sides}
               onClick={() => handleQuickDie(sides)}
-              className="flex-1 min-w-[60px] py-4 rounded-lg text-lg font-bold transition-transform active:scale-95"
+              className="flex-1 min-w-[60px] flex flex-col items-center gap-1.5 py-3 rounded-lg transition-transform active:scale-95"
               style={{
                 background: "var(--scene-surface)",
                 border: "1px solid var(--scene-border)",
-                color: "var(--scene-text-primary)",
-                fontFamily: "var(--font-cinzel)",
               }}
+              aria-label={`Roll d${sides}`}
             >
-              d{sides}
+              <Die sides={sides} size={34} />
+              <span
+                className="text-xs font-bold"
+                style={{
+                  fontFamily: "var(--font-cinzel)",
+                  color: "var(--scene-text-muted)",
+                }}
+              >
+                d{sides}
+              </span>
             </button>
           ))}
         </div>
@@ -450,7 +540,7 @@ export default function DicePage() {
               {rollHistory.map((roll) => (
                 <button
                   key={roll.id}
-                  onClick={() => setCurrentResult(roll)}
+                  onClick={() => showFromHistory(roll)}
                   className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-left transition-colors"
                   style={{
                     background: "var(--scene-surface)",

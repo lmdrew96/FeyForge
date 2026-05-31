@@ -546,6 +546,67 @@
   }
 }
 
+/* Dice tumble — a die shakes/rotates while rolling, then settles flat. The
+   .dice-rolling element hides its face value until the animation ends (handled
+   in the Die component via the same `rolling` flag). */
+@keyframes dice-tumble {
+  0% {
+    transform: rotate(0deg) scale(0.92);
+  }
+  25% {
+    transform: rotate(-18deg) translateY(-4px) scale(1.06);
+  }
+  50% {
+    transform: rotate(14deg) translateY(2px) scale(0.98);
+  }
+  75% {
+    transform: rotate(-8deg) translateY(-2px) scale(1.03);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+.dice-rolling {
+  animation: dice-tumble 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: center;
+}
+
+/* The d6 tumbles as a real 3D cube while rolling (the rest of the motion is the
+   2D tumble above). Settles back to its flat face when the roll ends. */
+@keyframes dice-cube-tumble {
+  0% {
+    transform: rotateX(0deg) rotateY(0deg);
+  }
+  100% {
+    transform: rotateX(372deg) rotateY(396deg);
+  }
+}
+
+.dice-cube-rolling {
+  animation: dice-cube-tumble 0.5s ease-out both;
+}
+
+/* Total reveal — a quick scale-in once the dice settle. */
+@keyframes dice-total-in {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.dice-total-in {
+  animation: dice-total-in 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 .particle {
   position: absolute;
   border-radius: 50%;
@@ -846,6 +907,12 @@ body[data-scene="forest"] .scene-backdrop__texture {
   .scene-backdrop__motes,
   .scene-mote {
     transition: none;
+  }
+  /* Dice land instantly at their final face — no tumble, fully legible. */
+  .dice-rolling,
+  .dice-cube-rolling,
+  .dice-total-in {
+    animation: none !important;
   }
 }
 
