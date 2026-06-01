@@ -30,6 +30,8 @@ import * as dotenv from "dotenv"
 import * as fs from "fs"
 import * as path from "path"
 import { S3Client, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
+// Relative (not "@/…") — tsx doesn't resolve tsconfig path aliases here.
+import { htmlToMarkdown } from "../lib/html-to-markdown"
 
 dotenv.config({ path: ".env.local" })
 
@@ -269,7 +271,9 @@ function parseMap(text: string): ParsedMap {
       const note = noteById.get(`marker${m.i}`)
       const named = !!note?.name?.trim()
       if (named) poiNamed++
-      const legend = note?.legend ? sanitizeText(note.legend.trim()) : ""
+      // Azgaar legends are HTML; convert to clean Markdown at seed time so new
+      // imports store readable notes (display also normalizes legacy HTML).
+      const legend = note?.legend ? htmlToMarkdown(sanitizeText(note.legend.trim())) : ""
       return {
         type: "poi" as const,
         name: sanitizeText(named ? note!.name.trim() : titleCase(String(m.type ?? ""))),

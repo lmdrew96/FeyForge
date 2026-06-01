@@ -14,6 +14,8 @@ import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { cn } from "@/lib/utils"
+import { htmlToMarkdown } from "@/lib/html-to-markdown"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { toast } from "sonner"
 import { FogOverlay } from "./fog-overlay"
 import {
@@ -1062,6 +1064,9 @@ function MapWorkspace({
               className="w-full resize-y rounded-md px-3 py-2 text-sm outline-none"
               style={fieldStyle}
             />
+            <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+              Markdown supported — **bold**, *italic*, - lists, [links](url).
+            </p>
             <div className="flex items-center gap-2 pt-1">
               <PrimaryButton onClick={handleSave} disabled={saving || !draft.name.trim()}>
                 <Save className="h-4 w-4" />
@@ -1414,6 +1419,12 @@ function LocationDetail({
 }) {
   const meta = TYPE_META[(loc.type as LocationType) ?? "settlement"] ?? TYPE_META.settlement
   const Icon = meta.icon
+  // Notes render as Markdown (the shared, sanitized renderer). htmlToMarkdown
+  // also cleans the raw HTML the Azgaar seed pipeline leaves in dmNotes — links
+  // survive, the <iframe>/<div> soup doesn't. Gate on the NORMALIZED value so an
+  // HTML-only legend (e.g. just an embed) doesn't leave an empty header block.
+  const playerMd = htmlToMarkdown(loc.playerNotes)
+  const dmMd = htmlToMarkdown(loc.dmNotes)
   return (
     <div>
       <div className="flex items-start justify-between gap-3">
@@ -1439,10 +1450,8 @@ function LocationDetail({
         )}
       </div>
 
-      {loc.playerNotes?.trim() && (
-        <p className="mt-3 whitespace-pre-wrap text-sm" style={{ color: "var(--scene-text-primary)" }}>
-          {loc.playerNotes}
-        </p>
+      {playerMd && (
+        <MarkdownRenderer variant="scene" content={playerMd} className="mt-3 text-sm" />
       )}
 
       {loc.drillDownMapId && (
@@ -1454,11 +1463,17 @@ function LocationDetail({
         </div>
       )}
 
-      {isDM && loc.dmNotes?.trim() && (
+      {isDM && dmMd && (
         <div className="mt-3 rounded-md p-2.5" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
           <p className="mb-1 text-[10px] uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>DM notes</p>
-          <p className="whitespace-pre-wrap text-sm" style={{ color: "var(--scene-text-primary)" }}>{loc.dmNotes}</p>
+          <MarkdownRenderer variant="scene" content={dmMd} className="text-sm" />
         </div>
+      )}
+
+      {isDM && !playerMd && !dmMd && (
+        <p className="mt-3 text-sm italic" style={{ color: "var(--scene-text-muted)" }}>
+          No description yet — Edit to add one.
+        </p>
       )}
 
       {isDM && (
