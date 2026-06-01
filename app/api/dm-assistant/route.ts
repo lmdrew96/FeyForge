@@ -1,8 +1,7 @@
 import { consumeStream, convertToModelMessages, streamText, type UIMessage } from "ai"
 import { NextResponse } from "next/server"
-import { auth } from "@clerk/nextjs/server"
-import { rateLimit } from "@/lib/rate-limit"
 import { AI_MODEL } from "@/lib/ai"
+import { guardAi } from "@/lib/ai-guard"
 
 export const maxDuration = 60
 
@@ -26,17 +25,9 @@ You have access to the D&D 5e SRD content. When discussing mechanics, spells, mo
 Format your responses with markdown for readability. Use headers, bullet points, and bold text where appropriate.`
 
 export async function POST(req: Request) {
+  const guard = await guardAi()
+  if (!guard.ok) return guard.res
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { success } = rateLimit(userId)
-    if (!success) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } })
-    }
-
     const { messages, context }: { messages: UIMessage[]; context?: string } = await req.json()
 
     const systemPrompt = context ? `${DM_SYSTEM_PROMPT}\n\nCurrent Campaign Context:\n${context}` : DM_SYSTEM_PROMPT

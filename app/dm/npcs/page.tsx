@@ -8,6 +8,7 @@ import { AppShell } from "@/components/app-shell"
 import { useActiveCampaign } from "@/lib/hooks/use-campaign-data"
 import { ALIGNMENTS } from "@/lib/character/constants"
 import { toast } from "sonner"
+import { postAi } from "@/lib/ai-client"
 import Link from "next/link"
 import { Plus, Sparkles, Loader2, Pencil, Trash2, Users, BookMarked } from "lucide-react"
 import {
@@ -181,20 +182,15 @@ export default function NpcsPage() {
   const handleGenerate = async () => {
     setGenerating(true)
     try {
-      const res = await fetch("/api/npc/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: draft.notes || undefined,
-          location: draft.location || undefined,
-          occupation: draft.occupation || undefined,
-          race: draft.race || undefined,
-        }),
+      const data = await postAi<{ npc?: NpcGenerated }>("/api/npc/generate", {
+        prompt: draft.notes || undefined,
+        location: draft.location || undefined,
+        occupation: draft.occupation || undefined,
+        race: draft.race || undefined,
       })
-      if (!res.ok) throw new Error("Failed to generate NPC")
-      const data = (await res.json()) as { npc?: NpcGenerated }
-      if (!data.npc) throw new Error("No NPC returned")
-      setDraft((prev) => draftFromGenerated(data.npc!, prev))
+      const npc = data.npc
+      if (!npc) throw new Error("No NPC returned")
+      setDraft((prev) => draftFromGenerated(npc, prev))
       toast.success("AI-generated NPC ready to review.")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't generate NPC.")

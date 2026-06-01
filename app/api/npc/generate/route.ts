@@ -1,9 +1,8 @@
 import { generateObject } from "ai"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { auth } from "@clerk/nextjs/server"
-import { rateLimit } from "@/lib/rate-limit"
 import { AI_MODEL } from "@/lib/ai"
+import { guardAi, refundAi } from "@/lib/ai-guard"
 
 const npcSchema = z.object({
   name: z.string().describe("A fitting fantasy name for the NPC"),
@@ -22,16 +21,9 @@ const npcSchema = z.object({
 })
 
 export async function POST(req: Request) {
+  const guard = await guardAi()
+  if (!guard.ok) return guard.res
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { success } = rateLimit(userId)
-    if (!success) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } })
-    }
 
     const { prompt, location, occupation, race } = await req.json()
 
@@ -52,6 +44,7 @@ ${race ? `The NPC's race is: ${race}` : ""}`
 
     return NextResponse.json({ npc: object })
   } catch (error) {
+    await refundAi(guard.token)
     console.error("[FeyForge] NPC generation error:", error)
     return NextResponse.json({ error: "Failed to generate NPC" }, { status: 500 })
   }

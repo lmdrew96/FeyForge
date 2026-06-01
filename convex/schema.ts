@@ -540,10 +540,24 @@ export default defineSchema({
     // The campaign this user is currently working in. Server-side source of
     // truth so the active campaign follows the DM/player across devices.
     activeCampaignId: v.optional(v.id("campaigns")),
+    // IANA tz used for the AI daily-quota reset boundary (e.g. "America/New_York").
+    // Unset ⇒ DEFAULT_AI_TIMEZONE. Plumbed for a future Settings picker; nothing
+    // sets it yet, so the reset defaults to the app tz.
+    timezone: v.optional(v.string()),
   })
     .index("by_clerkId", ["clerkId"])
     .index("by_clerkUserId", ["clerkUserId"])
     .index("by_isPremium", ["isPremium"]),
+
+  // Per-user daily AI generation counter (durable quota — the in-memory
+  // lib/rate-limit is only a per-process anti-burst guard). One row per
+  // (user, day); `day` is YYYY-MM-DD in the user's tz so the reset is humane,
+  // not UTC-midnight mid-session. consume()/refund()/getUsage in convex/aiUsage.ts.
+  aiUsage: defineTable({
+    clerkId: v.string(), // tokenIdentifier — matches users.getMe's lookup key
+    day: v.string(), // "YYYY-MM-DD" in the user's tz
+    count: v.number(),
+  }).index("by_clerkId_and_day", ["clerkId", "day"]),
 
   libraryReviewComments: defineTable({
     userId: v.string(),          // tokenIdentifier (clerkId) of the reviewer

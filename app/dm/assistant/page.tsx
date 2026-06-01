@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api"
 import { AppShell } from "@/components/app-shell"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import { useCampaignStore } from "@/lib/campaign-store"
 import {
   useDMAssistantStore,
@@ -359,6 +360,23 @@ function ChatPanel({
     id: conversation.id,
     messages: initialMessages,
     transport: new DefaultChatTransport({ api: "/api/dm-assistant" }),
+    // The premium AI guard rejects (429/503/401) BEFORE the stream starts, so the
+    // error surfaces here rather than mid-stream. Substring-match the body since
+    // the SDK doesn't hand us a parsed payload.
+    onError: (err) => {
+      const raw = err?.message ?? ""
+      let msg = "The DM Assistant hit a snag — try again."
+      if (raw.includes("quota_exceeded")) {
+        msg = raw.includes('"isPremium":true')
+          ? "You've used today's AI generations — resets tomorrow."
+          : "You've used your free AI generations for today. Upgrade for 50/day."
+      } else if (raw.includes("ai_unavailable")) {
+        msg = "AI is briefly unavailable — try again in a moment."
+      } else if (raw.includes("Unauthorized")) {
+        msg = "Please sign in to use the DM Assistant."
+      }
+      toast.error(msg)
+    },
   })
 
   // Persist once per completed streamed turn (not on initial mount).

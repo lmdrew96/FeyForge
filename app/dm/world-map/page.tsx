@@ -16,6 +16,7 @@ import { useCampaignStore } from "@/lib/campaign-store"
 import { cn } from "@/lib/utils"
 import { htmlToMarkdown } from "@/lib/html-to-markdown"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import { postAi, AiError } from "@/lib/ai-client"
 import { toast } from "sonner"
 import { FogOverlay } from "./fog-overlay"
 import {
@@ -53,6 +54,7 @@ import {
   Paintbrush,
   Eraser,
   Check,
+  Sparkles,
 } from "lucide-react"
 
 type WorldMap = Doc<"worldMaps">
@@ -646,6 +648,38 @@ function MapWorkspace({
   const [draft, setDraft] = useState<LocationDraft>(emptyDraft())
   const [pendingCoords, setPendingCoords] = useState<{ x: number; y: number } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
+
+  // Today's AI quota (premium 50 / free 3) for the "✨ Generate details" button.
+  const aiUsage = useQuery(api.aiUsage.getUsage)
+
+  // AI: flesh out the pin's player + DM notes into the draft for review (never
+  // saved silently). Confirms before clobbering notes the DM already wrote.
+  const handleGenerateLocation = async () => {
+    if (!draft.name.trim()) {
+      toast.error("Name the location first, then generate.")
+      return
+    }
+    if (
+      (draft.playerNotes.trim() || draft.dmNotes.trim()) &&
+      !confirm("Replace the current notes with AI-generated ones?")
+    ) {
+      return
+    }
+    setGenerating(true)
+    try {
+      const result = await postAi<{ playerNotes: string; dmNotes: string; remaining: number }>(
+        "/api/world-map/generate-location",
+        { name: draft.name.trim(), type: draft.type, mapName: map.name },
+      )
+      setDraft((d) => ({ ...d, playerNotes: result.playerNotes, dmNotes: result.dmNotes }))
+      toast.success(`Details generated — ${result.remaining} left today.`)
+    } catch (err) {
+      toast.error(err instanceof AiError ? err.message : "Couldn't generate details.")
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const selected = useMemo(
     () => (selectedId ? locations.find((l) => l._id === selectedId) ?? null : null),
@@ -1048,6 +1082,39 @@ function MapWorkspace({
                 <option key={t} value={t}>{TYPE_META[t].label}</option>
               ))}
             </select>
+
+            {/* AI fill (premium 50/day · free 3/day). Fills the notes below for
+                review — never saved without the DM hitting Save. */}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={handleGenerateLocation}
+                disabled={generating || !draft.name.trim() || aiUsage?.remaining === 0}
+                className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+                  color: "var(--scene-accent)",
+                  border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
+                }}
+                title={
+                  aiUsage?.remaining === 0
+                    ? "Daily AI limit reached"
+                    : "Generate player + DM notes with AI"
+                }
+              >
+                {generating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {generating ? "Generating…" : "Generate details"}
+              </button>
+              {aiUsage && (
+                <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  {aiUsage.remaining}/{aiUsage.cap} AI today
+                </span>
+              )}
+            </div>
+
             <textarea
               value={draft.playerNotes}
               onChange={(e) => setDraft({ ...draft, playerNotes: e.target.value })}

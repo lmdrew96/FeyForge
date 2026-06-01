@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ArrowLeft, Loader2, Sparkles, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import { postAi } from "@/lib/ai-client"
 
 type SessionDoc = Doc<"gameSessions">
 
@@ -195,17 +196,11 @@ export default function SessionDetailPage({
             (t.status === "active" || t.status === "in-progress"),
         )
         .map((t) => ({ title: t.title, status: t.status }))
-      const res = await fetch("/api/session/generate-prep", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          summary: previousSession?.summary ?? "",
-          plotThreads: activeThreads,
-          sessionNumber: previousSession?.number ?? session.number - 1,
-        }),
+      const data = await postAi<{ prepNotes?: string }>("/api/session/generate-prep", {
+        summary: previousSession?.summary ?? "",
+        plotThreads: activeThreads,
+        sessionNumber: previousSession?.number ?? session.number - 1,
       })
-      if (!res.ok) throw new Error("Failed to generate prep notes")
-      const data = (await res.json()) as { prepNotes?: string }
       if (data.prepNotes) setField("prepNotes", data.prepNotes)
       toast.success("Prep notes drafted.")
     } catch (err) {
@@ -221,18 +216,12 @@ export default function SessionDetailPage({
       const notes = [
         draft.prepNotes && { type: "prep", content: draft.prepNotes },
       ].filter(Boolean) as { type: string; content: string }[]
-      const res = await fetch("/api/session/generate-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          notes,
-          highlights: linesToArray(draft.highlights),
-          sessionNumber: draft.number,
-          title: draft.title,
-        }),
+      const data = await postAi<{ summary?: string }>("/api/session/generate-summary", {
+        notes,
+        highlights: linesToArray(draft.highlights),
+        sessionNumber: draft.number,
+        title: draft.title,
       })
-      if (!res.ok) throw new Error("Failed to generate summary")
-      const data = (await res.json()) as { summary?: string }
       if (data.summary) setField("summary", data.summary)
       toast.success("Summary drafted.")
     } catch (err) {
@@ -245,18 +234,12 @@ export default function SessionDetailPage({
   const handleGenerateRecap = async () => {
     setGeneratingRecap(true)
     try {
-      const res = await fetch("/api/session/generate-recap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          summary: draft.summary,
-          highlights: linesToArray(draft.highlights),
-          sessionNumber: draft.number,
-          title: draft.title,
-        }),
+      const data = await postAi<{ recap?: string }>("/api/session/generate-recap", {
+        summary: draft.summary,
+        highlights: linesToArray(draft.highlights),
+        sessionNumber: draft.number,
+        title: draft.title,
       })
-      if (!res.ok) throw new Error("Failed to generate recap")
-      const data = (await res.json()) as { recap?: string }
       if (data.recap) setField("playerRecap", data.recap)
       toast.success("Player recap drafted.")
     } catch (err) {

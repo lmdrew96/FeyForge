@@ -1,22 +1,14 @@
 import { generateText } from "ai"
 import { NextResponse } from "next/server"
-import { auth } from "@clerk/nextjs/server"
-import { rateLimit } from "@/lib/rate-limit"
 import { AI_MODEL } from "@/lib/ai"
+import { guardAi, refundAi } from "@/lib/ai-guard"
 
 export const maxDuration = 60
 
 export async function POST(req: Request) {
+  const guard = await guardAi()
+  if (!guard.ok) return guard.res
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { success } = rateLimit(userId)
-    if (!success) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } })
-    }
 
     const { notes, highlights, sessionNumber, title } = await req.json()
 
@@ -45,6 +37,7 @@ Create a summary that:
 
     return NextResponse.json({ summary: text.trim() })
   } catch (error) {
+    await refundAi(guard.token)
     console.error("[FeyForge] Session summary generation error:", error)
     return NextResponse.json({ error: "Failed to generate session summary" }, { status: 500 })
   }
