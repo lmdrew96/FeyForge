@@ -109,6 +109,92 @@ export const setCampaignMap = mutation({
   },
 })
 
+// Premium import: replace the campaign map with a DM's OWN Azgaar world, pins
+// included. The browser parses the .map (dodging Vercel's 4.5MB body cap) and
+// sends the already-normalized locations here. Premium/admin only — enforced
+// server-side, mirroring the upload route + adoptPreset's tier gate.
+export const setCampaignMapWithPins = mutation({
+  args: {
+    campaignId: v.id("campaigns"),
+    name: v.optional(v.string()),
+    imageStorageKey: v.string(),
+    width: v.number(),
+    height: v.number(),
+    scaleMilesPerPx: v.optional(v.number()),
+    locations: v.array(
+      v.object({
+        type: locationType,
+        name: v.string(),
+        x: v.number(),
+        y: v.number(),
+        dmNotes: v.optional(v.string()),
+        drillDownUrl: v.optional(v.string()),
+        prominence: v.optional(v.number()),
+      }),
+    ),
+  },
+  handler: async (ctx, args): Promise<Id<"worldMaps">> => {
+    const userId = await requireDm(ctx, args.campaignId)
+
+    const identity = await ctx.auth.getUserIdentity()
+    const user = identity
+      ? await ctx.db
+          .query("users")
+          .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
+          .unique()
+      : null
+    const isPremium = !!user && (user.isPremium || user.role === "admin")
+    if (!isPremium) throw new Error("Importing your own world is a premium feature.")
+
+    // Replace any existing campaign map + its locations (one active map per campaign).
+    const existingMaps = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .collect()
+    for (const m of existingMaps) {
+      const locs = await ctx.db
+        .query("mapLocations")
+        .withIndex("by_worldMap", (q) => q.eq("worldMapId", m._id))
+        .collect()
+      for (const loc of locs) await ctx.db.delete(loc._id)
+      await ctx.db.delete(m._id)
+    }
+
+    const newMapId = await ctx.db.insert("worldMaps", {
+      campaignId: args.campaignId,
+      name: args.name ?? "World Map",
+      imageStorageKey: args.imageStorageKey,
+      width: args.width,
+      height: args.height,
+      scaleMilesPerPx: args.scaleMilesPerPx,
+      source: "import",
+      createdBy: userId,
+      updatedAt: Date.now(),
+    })
+
+    // Hard-cap server-side (the client trims too, but never trust it) so an import
+    // can't flood the campaign — or the DM map — past the render ceiling.
+    const capped = args.locations.slice(0, MAX_PINS)
+    for (const loc of capped) {
+      await ctx.db.insert("mapLocations", {
+        worldMapId: newMapId,
+        campaignId: args.campaignId,
+        type: loc.type,
+        name: loc.name,
+        x: loc.x,
+        y: loc.y,
+        revealed: false,
+        dmNotes: loc.dmNotes,
+        drillDownUrl: loc.drillDownUrl,
+        prominence: loc.prominence,
+        createdBy: userId,
+      })
+    }
+
+    return newMapId
+  },
+})
+
 // Update only the campaign map's metadata (name, scale) without replacing it.
 export const updateCampaignMap = mutation({
   args: {

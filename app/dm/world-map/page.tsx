@@ -18,6 +18,7 @@ import { htmlToMarkdown } from "@/lib/html-to-markdown"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { postAi, AiError } from "@/lib/ai-client"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
+import { parseMap, curateForImport } from "@/lib/worldMap/azgaar-map"
 import { toast } from "sonner"
 import { FogOverlay } from "./fog-overlay"
 import {
@@ -56,6 +57,8 @@ import {
   Eraser,
   Check,
   Sparkles,
+  Wand2,
+  FileText,
 } from "lucide-react"
 
 type WorldMap = Doc<"worldMaps">
@@ -335,9 +338,12 @@ function MapChooser({
 
   return (
     <>
-      {/* Upload (premium/admin) */}
+      {/* Premium/admin: guided-create + import-with-pins, then plain image upload. */}
       {canCreateMaps ? (
-        <MapUploader campaignId={campaignId} onDone={onDone} />
+        <>
+          <AzgaarWorldBuilder campaignId={campaignId} onDone={onDone} />
+          <MapUploader campaignId={campaignId} onDone={onDone} />
+        </>
       ) : (
         <div
           className="mb-6 flex items-center gap-3 rounded-xl p-4"
@@ -503,9 +509,209 @@ function MapUploader({ campaignId, onDone }: { campaignId: CampaignId; onDone?: 
         )}
       </button>
       <p className="mt-2 text-center text-xs" style={{ color: "var(--scene-text-muted)" }}>
-        Generate a world in Azgaar&apos;s Fantasy Map Generator, export a PNG, and drop it here.
+        Image only — no pins. Use <span style={{ color: "var(--scene-accent)" }}>Build your own world</span> above to import an Azgaar world with locations.
       </p>
     </div>
+  )
+}
+
+const AZGAAR_URL = "https://azgaar.github.io/Fantasy-Map-Generator/"
+
+// Guided-create + import-with-pins (premium). The DM designs a world in Azgaar's
+// live generator, exports the .map + a PNG, and drops both here: we parse the .map
+// IN THE BROWSER (dodging Vercel's 4.5MB body cap — only the small parsed JSON
+// goes to Convex), upload the image to R2, and create the campaign map + its pins
+// (settlements get Watabou MFCG city drill-downs for free, same parser as presets).
+function AzgaarWorldBuilder({ campaignId, onDone }: { campaignId: CampaignId; onDone?: () => void }) {
+  const importMap = useMutation(api.worldMap.setCampaignMapWithPins)
+  const [mapFile, setMapFile] = useState<File | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState<string | null>(null)
+  const mapInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+
+  const handleImport = async () => {
+    if (!mapFile || !imageFile) {
+      toast.error("Add both your .map file and the map image.")
+      return
+    }
+    setBusy(true)
+    try {
+      setStatus("Reading your world…")
+      const text = await mapFile.text()
+      let parsed
+      try {
+        parsed = parseMap(text)
+      } catch {
+        throw new Error("Couldn't read that .map — export it from Azgaar (Menu → Save → .map).")
+      }
+      const locations = curateForImport(parsed)
+      // Valid header but no pins ⇒ likely an unrecognized Azgaar version. Bail
+      // BEFORE the upload/mutation so we never destructively replace the DM's
+      // current map with an empty world.
+      if (locations.length === 0) {
+        throw new Error(
+          "Read your map but found no towns or points of interest. Make sure you exported a full Azgaar world (Menu → Save → .map).",
+        )
+      }
+
+      setStatus("Uploading the map image…")
+      const presign = await fetch("/api/world-map/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: imageFile.type }),
+      })
+      if (!presign.ok) {
+        const { error } = await presign.json().catch(() => ({ error: "Upload failed" }))
+        throw new Error(error)
+      }
+      const { uploadUrl, key } = await presign.json()
+      const put = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": imageFile.type },
+        body: imageFile,
+      })
+      if (!put.ok) throw new Error("Upload to storage failed.")
+
+      setStatus("Placing your pins…")
+      const name = mapFile.name.replace(/\.[^.]+$/, "") || "My World"
+      await importMap({
+        campaignId,
+        name,
+        imageStorageKey: key,
+        width: parsed.width,
+        height: parsed.height,
+        scaleMilesPerPx: parsed.scaleMilesPerPx,
+        locations,
+      })
+      toast.success(`Imported “${name}” — ${locations.length} location${locations.length === 1 ? "" : "s"} placed.`)
+      onDone?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Import failed.")
+    } finally {
+      setBusy(false)
+      setStatus(null)
+    }
+  }
+
+  return (
+    <div
+      className="mb-6 rounded-xl p-4"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="flex items-center gap-2">
+        <Wand2 className="h-5 w-5 shrink-0" style={{ color: "var(--scene-accent)" }} />
+        <h3 className="text-sm font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+          Build your own world
+        </h3>
+      </div>
+      <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+        Design a world in Azgaar&apos;s free generator, then bring it in here — towns, landmarks,
+        and city maps come across automatically.
+      </p>
+
+      {/* Step 1 — design in Azgaar */}
+      <a
+        href={AZGAAR_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+        style={{
+          background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+          color: "var(--scene-accent)",
+          border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
+        }}
+      >
+        <ExternalLink className="h-4 w-4" />
+        Open Azgaar&apos;s Map Generator
+      </a>
+      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>
+        In Azgaar: shape your world, then <strong>Menu → Save → Map file (.map)</strong> and{" "}
+        <strong>Export → PNG</strong>. Export both from the <em>same</em> world, then drop them below.
+      </p>
+
+      {/* Step 2 — the two files */}
+      <input
+        ref={mapInputRef}
+        type="file"
+        accept=".map"
+        className="hidden"
+        onChange={(e) => setMapFile(e.target.files?.[0] ?? null)}
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+      />
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <FilePickButton
+          icon={FileText}
+          label={mapFile ? mapFile.name : "Choose .map file"}
+          chosen={!!mapFile}
+          onClick={() => mapInputRef.current?.click()}
+          disabled={busy}
+        />
+        <FilePickButton
+          icon={ImageIcon}
+          label={imageFile ? imageFile.name : "Choose map image"}
+          chosen={!!imageFile}
+          onClick={() => imageInputRef.current?.click()}
+          disabled={busy}
+        />
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <PrimaryButton onClick={handleImport} disabled={busy || !mapFile || !imageFile}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          {busy ? "Importing…" : "Import world"}
+        </PrimaryButton>
+        {status && (
+          <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+            {status}
+          </span>
+        )}
+      </div>
+      <p className="mt-2 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+        Up to 100 locations are kept (the most prominent), so your world stays fast to render.
+      </p>
+    </div>
+  )
+}
+
+function FilePickButton({
+  icon: Icon,
+  label,
+  chosen,
+  onClick,
+  disabled,
+}: {
+  icon: typeof FileText
+  label: string
+  chosen: boolean
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-left text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
+      style={{
+        borderColor: chosen ? "var(--scene-accent)" : "var(--scene-border)",
+        color: "var(--scene-text-primary)",
+      }}
+    >
+      {chosen ? (
+        <Check className="h-4 w-4 shrink-0" style={{ color: "var(--scene-accent)" }} />
+      ) : (
+        <Icon className="h-4 w-4 shrink-0" style={{ color: "var(--scene-text-muted)" }} />
+      )}
+      <span className="truncate">{label}</span>
+    </button>
   )
 }
 
