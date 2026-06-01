@@ -634,19 +634,23 @@ export default function CodexPage() {
                   )}
                   <div className="max-h-[70vh] overflow-y-auto">
                     {filtered.map((entry, i) => (
-                      <button
+                      // Row is a div with two sibling buttons (select + bookmark);
+                      // a button can't nest a button (hydration error).
+                      <div
                         key={entry.slug}
-                        onClick={() => setSelectedSlug(entry.slug)}
-                        className="flex items-center gap-3 px-4 py-2.5 w-full text-left transition-opacity hover:opacity-80"
+                        className="flex items-center gap-3 px-4 py-2.5"
                         style={{
                           borderBottom: i < filtered.length - 1 ? "1px solid var(--scene-border)" : "none",
                           background: entry.slug === selectedSlug ? "color-mix(in srgb, var(--scene-accent) 10%, transparent)" : "transparent",
                         }}
                       >
-                        <div className="flex-1 min-w-0">
+                        <button
+                          onClick={() => setSelectedSlug(entry.slug)}
+                          className="flex-1 min-w-0 text-left transition-opacity hover:opacity-80"
+                        >
                           <p className="text-sm font-medium truncate" style={{ color: "var(--scene-text-primary)" }}>{entry.name}</p>
                           <p className="text-xs truncate" style={{ color: "var(--scene-text-muted)" }}>{rowSubtitle(category, entry)}</p>
-                        </div>
+                        </button>
                         <BookmarkStar
                           active={isBookmarked(entry.slug)}
                           onClick={(e) => {
@@ -654,7 +658,7 @@ export default function CodexPage() {
                             toggleBookmark(entry)
                           }}
                         />
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
