@@ -30,6 +30,12 @@ import {
   type DiceRollResult,
 } from "@/lib/dice-store"
 import { DiceScene, type SceneDie } from "@/components/dice/die-3d-scene"
+import {
+  computeArmorClass,
+  equippedArmor,
+  rowToItem,
+} from "@/lib/character/sheet-items"
+import { AttacksSection, InventorySection } from "./inventory"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
 
@@ -66,9 +72,10 @@ function computeStats(char: CharDoc) {
 
   const passivePerception = 10 + skillMods.perception
   const initiative = mods.dexterity
-  const unarmoredAC = 10 + mods.dexterity
 
-  return { totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative, unarmoredAC }
+  // AC is computed at the page level from equipped armor (see computeArmorClass),
+  // since it needs the character's item properties, which load separately.
+  return { totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -154,17 +161,18 @@ function useSheetRoll() {
     [],
   )
 
-  const roll = (label: string, mod: number) => {
-    const sign = mod >= 0 ? "+" : "-"
-    const result = rollExpression(`1d20${sign}${Math.abs(mod)}`, { label, mode })
-    if (!result) return
+  // Shared tail for every sheet roll: record it, surface the dice card, toast,
+  // and (unless reduced-motion) run the brief tumble. Nat-20/nat-1 flair only
+  // applies to d20 rolls, so damage rolls (a damage die first) never mis-flair.
+  const surface = (result: DiceRollResult) => {
     addRoll(result)
     setLastRoll(result)
+    const isD20 = result.terms[0]?.sides === 20
     const face = result.terms[0]?.rolls[0]
-    const flair = face === 20 ? " — nat 20!" : face === 1 ? " — nat 1" : ""
-    toast.success(`${label}: ${result.total}${flair}`)
+    const flair =
+      isD20 && face === 20 ? " — nat 20!" : isD20 && face === 1 ? " — nat 1" : ""
+    toast.success(`${result.label ?? "Roll"}: ${result.total}${flair}`)
 
-    // Honor reduced-motion: show the settled dice immediately, no tumble.
     const prefersReduced =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -177,7 +185,38 @@ function useSheetRoll() {
     rollTimer.current = setTimeout(() => setRolling(false), 500)
   }
 
-  return { roll, mode, setMode, lastRoll, rolling, dismiss: () => setLastRoll(null) }
+  // d20 check/save/attack roll — applies the advantage/disadvantage toggle.
+  const roll = (label: string, mod: number) => {
+    const sign = mod >= 0 ? "+" : "-"
+    const result = rollExpression(`1d20${sign}${Math.abs(mod)}`, { label, mode })
+    if (!result) return
+    surface(result)
+  }
+
+  // Arbitrary expression (e.g. weapon damage "1d8+3"). Damage isn't adv/dis, so
+  // this never passes mode; crit doubles the dice (the engine handles it).
+  const rollExpr = (
+    label: string,
+    expression: string,
+    opts?: { crit?: boolean },
+  ) => {
+    const result = rollExpression(expression, { label, crit: opts?.crit })
+    if (!result) {
+      toast.error(`Couldn't roll "${expression}".`)
+      return
+    }
+    surface(result)
+  }
+
+  return {
+    roll,
+    rollExpr,
+    mode,
+    setMode,
+    lastRoll,
+    rolling,
+    dismiss: () => setLastRoll(null),
+  }
 }
 
 // Sticky advantage/disadvantage selector for every roll made from the sheet.
@@ -919,8 +958,10 @@ function CustomPropertiesSection({ characterId }: { characterId: Id<"characters"
   const [description, setDescription] = useState("")
   const [adding, setAdding] = useState(false)
 
+  // Only freeform "custom" rows belong here — structured items (type "item")
+  // render in the Inventory section, not as custom properties.
   const props = (allProps ?? [])
-    .filter((p) => p.characterId === characterId)
+    .filter((p) => p.characterId === characterId && p.type === "custom")
     .sort((a, b) => a.orderIndex - b.orderIndex)
 
   const handleAdd = async () => {
@@ -1061,7 +1102,8 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const { id } = use(params)
   const char = useQuery(api.characters.get, { id: id as Id<"characters"> })
   // Hooks must run on every render — call before any early return (Rules of Hooks).
-  const { roll, mode, setMode, lastRoll, rolling, dismiss } = useSheetRoll()
+  const { roll, rollExpr, mode, setMode, lastRoll, rolling, dismiss } = useSheetRoll()
+  const allProps = useQuery(api.characters.listAllProperties)
 
   if (char === undefined) {
     return (
@@ -1088,11 +1130,27 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     )
   }
 
-  const { totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative, unarmoredAC } = computeStats(char)
+  const { totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative } = computeStats(char)
   const raceName = char.subrace ? `${char.subrace} ${char.race}` : char.race
   const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
   const hitDie = char.hitDice[0]?.diceSize ?? 8
   const darkvision = getDarkvisionRange(char.race, char.subrace)
+
+  // Inventory: this character's property rows, mapped to flat items the
+  // calculators understand. Drives real AC + the Attacks section.
+  const myProps = (allProps ?? [])
+    .filter((p) => p.characterId === char._id)
+    .sort((a, b) => a.orderIndex - b.orderIndex)
+  const items = myProps.filter((p) => p.type === "item").map(rowToItem)
+  const equippedWeapons = items.filter(
+    (i) => i.active && i.equipped && i.category === "weapon",
+  )
+  // Pass RAW ability scores — computeArmorClass derives the DEX modifier itself.
+  const armorClass = computeArmorClass(char.level, totalAbilities, items)
+  const armorName = equippedArmor(items)?.name
+  const nextOrder = myProps.length
+    ? Math.max(...myProps.map((p) => p.orderIndex)) + 1
+    : 0
 
   return (
     <AppShell>
@@ -1197,7 +1255,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
 
         {/* Combat stats strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <StatBox label="Armor Class" value={unarmoredAC} sub="unarmored" />
+          <StatBox label="Armor Class" value={armorClass} sub={armorName ?? "unarmored"} />
           <StatBox label="Initiative" value={formatModifier(initiative)} onClick={() => roll("Initiative", initiative)} />
           <StatBox label="Speed" value={`${char.speed} ft`} />
           <StatBox label="Prof Bonus" value={formatModifier(profBonus)} />
@@ -1206,6 +1264,16 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           <DeathSavesBox char={char} />
           {char.inspiration && <StatBox label="Inspiration" value="✦" />}
         </div>
+
+        {/* Attacks — derived from equipped weapons in the Inventory below */}
+        <AttacksSection
+          level={char.level}
+          weaponProficiencies={char.weaponProficiencies}
+          abilities={totalAbilities}
+          weapons={equippedWeapons}
+          roll={roll}
+          rollExpr={rollExpr}
+        />
 
         {/* Ability Scores */}
         <section className="mb-6">
@@ -1415,6 +1483,9 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           </h2>
           <CurrencyEditor char={char} />
         </section>
+
+        {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}
+        <InventorySection characterId={char._id} items={items} nextOrder={nextOrder} />
 
         {/* Custom Properties */}
         <CustomPropertiesSection characterId={char._id} />
