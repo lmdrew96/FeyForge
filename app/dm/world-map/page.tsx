@@ -14,6 +14,7 @@ import { AppShell } from "@/components/app-shell"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { FogOverlay } from "./fog-overlay"
 import {
   Globe,
   Plus,
@@ -38,6 +39,7 @@ import {
   Loader2,
   Crown,
   Map as MapIcon,
+  CloudFog,
 } from "lucide-react"
 
 type WorldMap = Doc<"worldMaps">
@@ -67,6 +69,12 @@ const TYPE_META: Record<
 
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 6
+
+// Fog clearing radius defaults + slider bounds (% of the map's shorter side).
+// Mirror FOG_MIN_RADIUS/FOG_MAX_RADIUS in convex/worldMap.ts (server re-clamps).
+const DEFAULT_FOG_RADIUS = 10
+const FOG_MIN_RADIUS = 5
+const FOG_MAX_RADIUS = 30
 
 type LocationDraft = {
   name: string
@@ -505,6 +513,20 @@ function MapWorkspace({
   const removeLocation = useMutation(api.worldMap.removeLocation)
   const setRevealed = useMutation(api.worldMap.setRevealed)
   const saveAsPreset = useMutation(api.worldMap.saveAsPreset)
+  const setFogSettings = useMutation(api.worldMap.setFogSettings)
+
+  // Fog of war. The map row carries fogEnabled + fogRevealRadius; the DM can also
+  // toggle a client-only "preview" to see the player's fogged view over their own
+  // map (DM otherwise always sees the full map).
+  const [fogPreview, setFogPreview] = useState(false)
+  const fogRadius = map.fogRevealRadius ?? DEFAULT_FOG_RADIUS
+  // Players (non-DM) hold only revealed pins; the DM preview must mimic that.
+  const fogPins = useMemo(
+    () => locations.filter((l) => l.revealed).map((l) => ({ x: l.x, y: l.y })),
+    [locations],
+  )
+  // Show fog to players whenever the DM enabled it; show it to the DM only in preview.
+  const showFog = (map.fogEnabled ?? false) && (!isDM || fogPreview)
 
   // View transform
   const [zoom, setZoom] = useState(1)
@@ -672,6 +694,22 @@ function MapWorkspace({
     }
   }
 
+  const handleToggleFog = async () => {
+    const next = !(map.fogEnabled ?? false)
+    try {
+      await setFogSettings({ campaignId, fogEnabled: next })
+      toast.success(next ? "Fog of war on — players see only explored areas." : "Fog of war off.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update fog.")
+    }
+  }
+
+  const handleFogRadius = (radius: number) => {
+    setFogSettings({ campaignId, fogRevealRadius: radius }).catch((err) =>
+      toast.error(err instanceof Error ? err.message : "Couldn't update fog radius."),
+    )
+  }
+
   const cancelMode = () => {
     setPlacing(false)
     setMovingId(null)
@@ -706,6 +744,14 @@ function MapWorkspace({
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">{placing ? "Placing…" : "Add"}</span>
             </ToolbarButton>
+            <FogControl
+              fogEnabled={map.fogEnabled ?? false}
+              fogRadius={fogRadius}
+              previewing={fogPreview}
+              onToggleFog={handleToggleFog}
+              onRadius={handleFogRadius}
+              onTogglePreview={() => setFogPreview((p) => !p)}
+            />
             {isAdmin && (
               <ToolbarButton onClick={handleSaveAsPreset} title="Publish as a starter map for all users">
                 <Crown className="h-4 w-4" />
@@ -748,6 +794,15 @@ function MapWorkspace({
                 alt={map.name}
                 draggable={false}
                 className="block max-h-[calc(100dvh-7rem)] max-w-full lg:max-h-[calc(100vh-7rem)]"
+              />
+              {/* Fog of war: shroud over the map with soft clearings around
+                  revealed pins. Above the image, below the pins, same box. */}
+              <FogOverlay
+                enabled={showFog}
+                width={map.width}
+                height={map.height}
+                revealed={fogPins}
+                radiusPct={fogRadius}
               />
               {locations.map((loc) => (
                 <LocationMarker
@@ -881,6 +936,104 @@ function MapWorkspace({
             </div>
           </div>
         </Modal>
+      )}
+    </div>
+  )
+}
+
+// Fog-of-war control: a toolbar button that opens a small popover with the
+// on/off toggle, the clearing-radius slider, and a "preview player view" toggle
+// so the DM can see exactly what their players see.
+function FogControl({
+  fogEnabled,
+  fogRadius,
+  previewing,
+  onToggleFog,
+  onRadius,
+  onTogglePreview,
+}: {
+  fogEnabled: boolean
+  fogRadius: number
+  previewing: boolean
+  onToggleFog: () => void
+  onRadius: (radius: number) => void
+  onTogglePreview: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <ToolbarButton onClick={() => setOpen((o) => !o)} active={fogEnabled} title="Fog of war">
+        <CloudFog className="h-4 w-4" />
+        <span className="hidden sm:inline">Fog</span>
+      </ToolbarButton>
+      {open && (
+        <>
+          {/* Click-away backdrop. */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl p-4 shadow-2xl"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className="text-sm font-bold"
+                style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+              >
+                Fog of War
+              </span>
+              <button
+                onClick={onToggleFog}
+                role="switch"
+                aria-checked={fogEnabled}
+                aria-label="Toggle fog of war"
+                className="relative h-5 w-9 shrink-0 rounded-full transition-colors"
+                style={{ background: fogEnabled ? "var(--scene-accent)" : "var(--scene-border)" }}
+              >
+                <span
+                  className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform"
+                  style={{ transform: fogEnabled ? "translateX(18px)" : "translateX(2px)" }}
+                />
+              </button>
+            </div>
+            <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+              Players see only explored areas. Revealing a pin clears the fog around it.
+            </p>
+
+            <div className={cn("mt-4 space-y-3", !fogEnabled && "pointer-events-none opacity-50")}>
+              <label className="block">
+                <span className="mb-1 flex items-center justify-between text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  <span>Clearing size</span>
+                  <span>{Math.round(fogRadius)}%</span>
+                </span>
+                <input
+                  type="range"
+                  min={FOG_MIN_RADIUS}
+                  max={FOG_MAX_RADIUS}
+                  step={1}
+                  value={fogRadius}
+                  disabled={!fogEnabled}
+                  onChange={(e) => onRadius(Number(e.target.value))}
+                  className="w-full cursor-pointer"
+                  style={{ accentColor: "var(--scene-accent)" }}
+                />
+              </label>
+
+              <button
+                onClick={onTogglePreview}
+                disabled={!fogEnabled}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{
+                  background: previewing ? "var(--scene-accent)" : "var(--scene-bg)",
+                  color: previewing ? "#fff" : "var(--scene-text-primary)",
+                  border: `1px solid ${previewing ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                }}
+              >
+                {previewing ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {previewing ? "Exit player preview" : "Preview player view"}
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

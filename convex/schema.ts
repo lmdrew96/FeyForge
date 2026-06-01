@@ -304,6 +304,13 @@ export default defineSchema({
     // Set on preset rows; lets a campaign map remember which preset it came from.
     presetSourceId: v.optional(v.id("worldMaps")),
     createdBy: v.optional(v.string()), // userId of the admin/DM who made it
+    // Fog of war (player view only; DM always sees the full map). Both optional ⇒
+    // undefined = fog off, so existing campaigns are unaffected until a DM opts in.
+    // Auto fog: the map is shrouded for players and each REVEALED pin clears a soft
+    // radius (fogRevealRadius, % of the map's shorter side) around it. See
+    // app/dm/world-map/fog-overlay.tsx + worldMap.setFogSettings.
+    fogEnabled: v.optional(v.boolean()),
+    fogRevealRadius: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_campaignId", ["campaignId"])

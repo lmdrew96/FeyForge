@@ -130,6 +130,39 @@ export const updateCampaignMap = mutation({
   },
 })
 
+// Fog of war settings on the campaign map. DM-only. Affects the player view only
+// (DM always sees the full map). fogEnabled toggles the shroud; fogRevealRadius
+// is the clearing radius as a % of the map's shorter side. Radius is clamped to
+// FOG_MIN_RADIUS–FOG_MAX_RADIUS so a clearing is never too tight to read the
+// settlement under it. Auto-clearings track the existing per-pin reveal state, so
+// there's no new reveal primitive here — see worldMap.setRevealed.
+const FOG_MIN_RADIUS = 5
+const FOG_MAX_RADIUS = 30
+export const setFogSettings = mutation({
+  args: {
+    campaignId: v.id("campaigns"),
+    fogEnabled: v.optional(v.boolean()),
+    fogRevealRadius: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireDm(ctx, args.campaignId)
+    const map = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .first()
+    if (!map) throw new Error("No map to update")
+    const patch: Record<string, unknown> = { updatedAt: Date.now() }
+    if (args.fogEnabled !== undefined) patch.fogEnabled = args.fogEnabled
+    if (args.fogRevealRadius !== undefined) {
+      patch.fogRevealRadius = Math.max(
+        FOG_MIN_RADIUS,
+        Math.min(FOG_MAX_RADIUS, args.fogRevealRadius),
+      )
+    }
+    await ctx.db.patch(map._id, patch)
+  },
+})
+
 // ── Presets (global templates) ───────────────────────────────────────────────
 // Readable by any authenticated user so the free-tier picker can list them.
 
