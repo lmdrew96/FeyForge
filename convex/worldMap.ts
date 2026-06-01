@@ -302,8 +302,9 @@ export const adoptPreset = mutation({
         revealed: false,
         dmNotes: loc.dmNotes,
         playerNotes: loc.playerNotes,
-        // Carry the preset pin's local map so free-tier drill-down works.
+        // Carry the preset pin's local map + MFCG city link so free-tier drill-down works.
         drillDownImageKey: loc.drillDownImageKey,
+        drillDownUrl: loc.drillDownUrl,
         prominence: loc.prominence,
         createdBy: userId,
       })
@@ -365,8 +366,9 @@ export const saveAsPreset = mutation({
         revealed: false,
         dmNotes: loc.dmNotes,
         playerNotes: loc.playerNotes,
-        // Preserve local maps when promoting a campaign map to a curated preset.
+        // Preserve local maps + MFCG city links when promoting a campaign map to a preset.
         drillDownImageKey: loc.drillDownImageKey,
+        drillDownUrl: loc.drillDownUrl,
         createdBy: identity.tokenIdentifier,
       })
     }
@@ -399,6 +401,7 @@ export const seedPreset = mutation({
         y: v.number(),
         dmNotes: v.optional(v.string()),
         drillDownImageKey: v.optional(v.string()),
+        drillDownUrl: v.optional(v.string()),
         prominence: v.optional(v.number()),
       }),
     ),
@@ -450,6 +453,7 @@ export const seedPreset = mutation({
         revealed: false,
         dmNotes: loc.dmNotes,
         drillDownImageKey: loc.drillDownImageKey,
+        drillDownUrl: loc.drillDownUrl,
         prominence: loc.prominence,
         createdBy: "seed-script",
       })

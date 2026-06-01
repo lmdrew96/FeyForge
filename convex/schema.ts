@@ -347,6 +347,12 @@ export default defineSchema({
     // campaign-scoped map would collide with the one-map-per-campaign invariant.
     // Rides through listLocations to players on revealed pins (not in the dmNotes strip).
     drillDownImageKey: v.optional(v.string()),
+    // External Watabou MFCG iframe URL, computed at import time from the burg's
+    // Azgaar data (see lib/worldMap/mfcgLink.ts). Settlements only. The detail
+    // viewer resolves drillDownImageKey (DM's custom upload) FIRST, then this.
+    // Per docs/specs/feyforge-drilldown-spec.md — we frame Watabou's live tool,
+    // never host his rendered output.
+    drillDownUrl: v.optional(v.string()),
     campaignNodeId: v.optional(v.string()), // React Flow / Story Web node link
     createdBy: v.optional(v.string()),
     // Seed-time importance (capitals > POIs > towns, scaled by population). On

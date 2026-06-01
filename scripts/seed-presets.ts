@@ -32,6 +32,7 @@ import * as path from "path"
 import { S3Client, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
 // Relative (not "@/…") — tsx doesn't resolve tsconfig path aliases here.
 import { htmlToMarkdown } from "../lib/html-to-markdown"
+import { buildMfcgUrl } from "../lib/worldMap/mfcgLink"
 
 dotenv.config({ path: ".env.local" })
 
@@ -98,11 +99,20 @@ const r2 = new S3Client({
 
 // ── .map parsing ────────────────────────────────────────────────────────────
 type Burg = {
+  i?: number
   x: number
   y: number
   name?: string
   capital?: number
   population?: number
+  port?: number | null
+  citadel?: number
+  plaza?: number
+  walls?: number
+  shanty?: number
+  temple?: number
+  MFCG?: number | null
+  link?: string | null
 }
 type Marker = { type?: string; x: number; y: number; cell?: number; i: number }
 type Note = { id: string; name: string; legend: string }
@@ -112,6 +122,7 @@ type SeedLocation = {
   x: number
   y: number
   dmNotes?: string
+  drillDownUrl?: string // MFCG city iframe URL (settlements only)
   prominence: number
 }
 type ParsedMap = {
@@ -125,6 +136,7 @@ type ParsedMap = {
     storedTowns: number
     storedPois: number
     poiNamed: number
+    storedCityLinks: number // settlements with an MFCG drill-down URL
   }
 }
 
@@ -178,11 +190,14 @@ function sampleByProminence(pool: SeedLocation[], limit: number, seed: string): 
 function parseMap(text: string): ParsedMap {
   const lines = text.split("\n")
 
-  // Header (pipe-delimited): width @ idx4, height @ idx5.
+  // Header (pipe-delimited): seed @ idx3, width @ idx4, height @ idx5.
+  // (version|note|date|seed|width|height|…)
   const header = lines[0].split("|")
   const width = Number(header[4])
   const height = Number(header[5])
   if (!width || !height) throw new Error("Could not read width/height from .map header")
+  // Map seed feeds the per-burg MFCG seed (`${mapSeed}${burgId}`, FMG formula).
+  const mapSeed = header[3] || "0"
 
   // Settings (pipe-delimited): distanceUnit @ idx0, distanceScale @ idx1.
   // Azgaar's distanceScale IS units-per-pixel (confirmed against the FMG wiki).
@@ -246,16 +261,38 @@ function parseMap(text: string): ParsedMap {
     1,
     ...realBurgs.map((b) => Number(b.population)).filter((n) => Number.isFinite(n) && n > 0),
   )
-  const settlements: SeedLocation[] = realBurgs.map((b) => {
+  const settlements: SeedLocation[] = realBurgs.map((b, idx) => {
     const pop = Number(b.population)
-    const popNorm = Number.isFinite(pop) && pop > 0 ? Math.min(1, pop / maxPop) : 0
+    const popThousands = Number.isFinite(pop) && pop > 0 ? pop : 0
+    const popNorm = popThousands > 0 ? Math.min(1, popThousands / maxPop) : 0
     const isCapital = b.capital === 1
+    const cleanName = sanitizeText(b.name!.trim())
     return {
       type: "settlement" as const,
-      name: sanitizeText(b.name!.trim()),
+      name: cleanName,
       x: clampPct((b.x / width) * 100),
       y: clampPct((b.y / height) * 100),
       prominence: Math.round(((isCapital ? 3 : 1) + 0.9 * popNorm) * 1000) / 1000,
+      // Watabou MFCG city drill-down. Use the sanitized name (a lone surrogate
+      // would make encodeURIComponent throw). burg.i drives the seed; fall back
+      // to the array position if Azgaar ever omits it.
+      drillDownUrl: buildMfcgUrl(
+        {
+          i: typeof b.i === "number" ? b.i : idx,
+          name: cleanName,
+          population: popThousands,
+          capital: b.capital,
+          port: b.port,
+          citadel: b.citadel,
+          plaza: b.plaza,
+          walls: b.walls,
+          shanty: b.shanty,
+          temple: b.temple,
+          MFCG: b.MFCG,
+          link: b.link,
+        },
+        mapSeed,
+      ),
     }
   })
 
@@ -307,6 +344,7 @@ function parseMap(text: string): ParsedMap {
       storedTowns: pool.filter((l) => l.type === "settlement" && l.prominence < 3).length,
       storedPois: pool.filter((l) => l.type === "poi").length,
       poiNamed: Math.min(poiNamed, pool.filter((l) => l.type === "poi").length),
+      storedCityLinks: pool.filter((l) => l.type === "settlement" && !!l.drillDownUrl).length,
     },
   }
 }
@@ -410,7 +448,7 @@ async function main(): Promise<void> {
       const summary =
         `pool ${parsed.locations.length} of ${stats.candidates} ` +
         `(${stats.storedCapitals} capitals, ${stats.storedTowns} towns, ${stats.storedPois} POIs · ` +
-        `${stats.poiNamed} POIs named) — ${scaleStr}`
+        `${stats.poiNamed} POIs named · ${stats.storedCityLinks} city links) — ${scaleStr}`
 
       if (dryRun) {
         console.log(`→ ${summary}`)

@@ -610,7 +610,7 @@ function DrillDownUploader({
         </button>
       )}
       <p className="mt-1 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
-        Players see it in a lightbox once this pin is revealed. Try Watabou&apos;s city/dungeon generators.
+        Players see it in a lightbox once revealed. Use this for dungeons/POIs, or to override a settlement&apos;s auto city map with your own image.
       </p>
     </div>
   )
@@ -1612,6 +1612,11 @@ function LocationDetail({
   const meta = TYPE_META[(loc.type as LocationType) ?? "settlement"] ?? TYPE_META.settlement
   const Icon = meta.icon
   const [lightbox, setLightbox] = useState(false)
+  const [cityOpen, setCityOpen] = useState(false)
+  // Drill-down resolution (per spec): a DM's uploaded image overrides everything;
+  // else a settlement's auto MFCG city map; else nothing (POIs have no auto map).
+  const hasImage = !!loc.drillDownImageKey
+  const hasCity = !hasImage && loc.type === "settlement" && !!loc.drillDownUrl
   // Notes render as Markdown (the shared, sanitized renderer). htmlToMarkdown
   // also cleans the raw HTML the Azgaar seed pipeline leaves in dmNotes — links
   // survive, the <iframe>/<div> soup doesn't. Gate on the NORMALIZED value so an
@@ -1647,10 +1652,10 @@ function LocationDetail({
         <MarkdownRenderer variant="scene" content={playerMd} className="mt-3 text-sm" />
       )}
 
-      {loc.drillDownImageKey && (
+      {(hasImage || hasCity) && (
         <button
           type="button"
-          onClick={() => setLightbox(true)}
+          onClick={() => (hasImage ? setLightbox(true) : setCityOpen(true))}
           className="mt-3 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
           style={{
             background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
@@ -1659,7 +1664,7 @@ function LocationDetail({
           }}
         >
           <MapIcon className="h-3.5 w-3.5" />
-          View local map
+          {hasImage ? "View local map" : "View city map"}
         </button>
       )}
 
@@ -1669,6 +1674,10 @@ function LocationDetail({
           title={loc.name}
           onClose={() => setLightbox(false)}
         />
+      )}
+
+      {cityOpen && loc.drillDownUrl && (
+        <MfcgViewer url={loc.drillDownUrl} title={loc.name} onClose={() => setCityOpen(false)} />
       )}
 
       {isDM && dmMd && (
@@ -1803,6 +1812,95 @@ function LocalMapLightbox({
           onClick={(e) => e.stopPropagation()}
           className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
         />
+      </div>
+    </div>
+  )
+}
+
+// Settlement drill-down: Watabou MFCG framed in-app (his live site, his servers —
+// we never host his output; see docs/specs/feyforge-drilldown-spec.md). Keyed on
+// the URL so each pin gets a fresh iframe (avoids MFCG's multi-city stale-state
+// bug). A CSP block may never fire onError, so an 8s load-timeout flips to the
+// always-available external link; the "Open in new tab" header link is the final
+// escape hatch even if a block renders inside the frame.
+function MfcgViewer({ url, title, onClose }: { url: string; title: string; onClose: () => void }) {
+  const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  useEffect(() => {
+    if (loaded) return
+    const t = setTimeout(() => setFailed(true), 8000)
+    return () => clearTimeout(t)
+  }, [loaded])
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black/85" role="dialog" aria-modal="true">
+      <div className="flex items-center justify-between gap-3 p-3">
+        <span className="truncate text-sm font-medium text-white/90" style={{ fontFamily: "var(--font-cinzel)" }}>
+          {title} — city map
+        </span>
+        <div className="flex items-center gap-2">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open in new tab
+          </a>
+          <button onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-white/90 hover:bg-white/10">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="relative flex-1">
+        {failed ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <p className="text-sm text-white/80">Couldn&apos;t embed the city map here.</p>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium"
+              style={{ background: "var(--scene-accent)", color: "#fff" }}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open city map
+            </a>
+          </div>
+        ) : (
+          <iframe
+            key={url}
+            src={url}
+            title={`${title} — city map`}
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+            onError={() => setFailed(true)}
+            className="h-full w-full border-0 bg-white"
+          />
+        )}
+      </div>
+
+      <div className="p-2 text-center text-[11px] text-white/50">
+        City maps by{" "}
+        <a
+          href="https://watabou.github.io/city-generator/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-white/80"
+        >
+          Watabou&apos;s Medieval Fantasy City Generator
+        </a>
       </div>
     </div>
   )
