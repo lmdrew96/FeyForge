@@ -163,6 +163,33 @@ export const setFogSettings = mutation({
   },
 })
 
+// Manual fog brush (Phase 2). DM-only. Stores the painted-open mask on the
+// campaign map row; it ships to every member via getMap, so cap the length
+// (a well-formed 64×36 base64 bitmask is ~384 chars) to stop a client bug from
+// parking a huge blob that fans out to all players. Empty string clears it.
+const FOG_MASK_MAX_LEN = 1024
+export const paintFog = mutation({
+  args: {
+    campaignId: v.id("campaigns"),
+    fogMask: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireDm(ctx, args.campaignId)
+    if (args.fogMask.length > FOG_MASK_MAX_LEN) {
+      throw new Error("Fog mask too large")
+    }
+    const map = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .first()
+    if (!map) throw new Error("No map to update")
+    await ctx.db.patch(map._id, {
+      fogMask: args.fogMask === "" ? undefined : args.fogMask,
+      updatedAt: Date.now(),
+    })
+  },
+})
+
 // ── Presets (global templates) ───────────────────────────────────────────────
 // Readable by any authenticated user so the free-tier picker can list them.
 

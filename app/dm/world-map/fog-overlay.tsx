@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useId, useMemo, useState } from "react"
+import { FOG_GRID_COLS, FOG_GRID_ROWS, maskRunsFromCells } from "./fog-mask"
 
 // ── Fog of war overlay (player view) ─────────────────────────────────────────
 // Renders a mystical shroud over the world map with a soft clearing punched out
@@ -25,6 +26,7 @@ export function FogOverlay({
   height,
   revealed,
   radiusPct,
+  paintedCells,
   reducedMotion,
 }: {
   enabled: boolean
@@ -32,6 +34,9 @@ export function FogOverlay({
   height: number
   revealed: FogPin[]
   radiusPct: number
+  // Manually painted-open cells (DM fog brush), unioned with the per-pin
+  // clearings below as additional holes in the same mask.
+  paintedCells?: boolean[]
   reducedMotion?: boolean
 }) {
   // Detect prefers-reduced-motion ourselves unless the caller forces it. Freezes
@@ -51,6 +56,18 @@ export function FogOverlay({
     const r = (radiusPct / 100) * Math.min(width, height)
     return Math.max(r, 1)
   }, [radiusPct, width, height])
+
+  // Painted-open cells → merged run-rects (cheap even when fully painted).
+  const paintRuns = useMemo(
+    () => (paintedCells && paintedCells.length ? maskRunsFromCells(paintedCells, width, height) : []),
+    [paintedCells, width, height],
+  )
+  // Soft edge for painted regions, scaled to one cell so it reads like the pin
+  // torchlight rather than hard squares.
+  const paintBlur = useMemo(() => Math.max((width / FOG_GRID_COLS) * 0.6, 1), [width])
+  // Fully round each run-rect's ends: a single-cell dab becomes a circle, a
+  // horizontal run becomes a stadium — so the brush reads round, not square.
+  const cellCorner = useMemo(() => height / FOG_GRID_ROWS / 2, [height])
 
   if (!enabled || width <= 0 || height <= 0) return null
 
@@ -77,6 +94,12 @@ export function FogOverlay({
             <stop offset="100%" stopColor="#fff" />
           </radialGradient>
 
+          {/* Soft falloff for painted regions — one cell wide so the brush edge
+              feathers like the torchlight instead of reading as hard squares. */}
+          <filter id={`${maskId}-paint`} x="-5%" y="-5%" width="110%" height="110%">
+            <feGaussianBlur stdDeviation={paintBlur} />
+          </filter>
+
           <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width={width} height={height}>
             {/* White = fog shows; black = hole (fog hidden). */}
             <rect x="0" y="0" width={width} height={height} fill="#fff" />
@@ -87,6 +110,26 @@ export function FogOverlay({
                 <circle key={i} cx={cx} cy={cy} r={radius} fill={`url(#${maskId}-hole)`} />
               )
             })}
+            {/* Manually painted-open cells: blurred black run-rects. Drawn LAST,
+                on top of the pin circles, so painted-open always wins — a pin's
+                soft white falloff ring can never re-fog terrain the DM painted
+                (union of holes, never subtract). */}
+            {paintRuns.length > 0 && (
+              <g filter={`url(#${maskId}-paint)`}>
+                {paintRuns.map((r, i) => (
+                  <rect
+                    key={i}
+                    x={r.x}
+                    y={r.y}
+                    width={r.w}
+                    height={r.h}
+                    rx={cellCorner}
+                    ry={cellCorner}
+                    fill="#000"
+                  />
+                ))}
+              </g>
+            )}
           </mask>
 
           {/* Subtle drifting mist texture inside the fog fill. */}

@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -15,6 +16,13 @@ import { useCampaignStore } from "@/lib/campaign-store"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { FogOverlay } from "./fog-overlay"
+import {
+  decodeFogMask,
+  encodeFogMask,
+  emptyMask,
+  isMaskEmpty,
+  paintBrush,
+} from "./fog-mask"
 import {
   Globe,
   Plus,
@@ -40,6 +48,9 @@ import {
   Crown,
   Map as MapIcon,
   CloudFog,
+  Paintbrush,
+  Eraser,
+  Check,
 } from "lucide-react"
 
 type WorldMap = Doc<"worldMaps">
@@ -514,6 +525,7 @@ function MapWorkspace({
   const setRevealed = useMutation(api.worldMap.setRevealed)
   const saveAsPreset = useMutation(api.worldMap.saveAsPreset)
   const setFogSettings = useMutation(api.worldMap.setFogSettings)
+  const paintFog = useMutation(api.worldMap.paintFog)
 
   // Fog of war. The map row carries fogEnabled + fogRevealRadius; the DM can also
   // toggle a client-only "preview" to see the player's fogged view over their own
@@ -525,8 +537,97 @@ function MapWorkspace({
     () => locations.filter((l) => l.revealed).map((l) => ({ x: l.x, y: l.y })),
     [locations],
   )
-  // Show fog to players whenever the DM enabled it; show it to the DM only in preview.
-  const showFog = (map.fogEnabled ?? false) && (!isDM || fogPreview)
+
+  // ── Manual fog brush (Phase 2) ─────────────────────────────────────────────
+  // The painted-open mask is a 64×36 boolean grid. We keep a local optimistic
+  // copy (maskCells) and debounce-flush it to paintFog; the server value reaches
+  // every member via getMap. latestCellsRef holds the freshest array so a fast
+  // drag chains dabs synchronously (before React re-renders) and the flush reads
+  // the latest. pendingRef + paintMode gate the resync so an in-flight server
+  // echo can't clobber a stroke mid-paint.
+  const [paintMode, setPaintMode] = useState<"off" | "paint" | "erase">("off")
+  const [brushSize, setBrushSize] = useState(2)
+  const [maskCells, setMaskCells] = useState<boolean[]>(() => decodeFogMask(map.fogMask))
+  const latestCellsRef = useRef<boolean[]>(maskCells)
+  const pendingRef = useRef(false)
+  const paintingRef = useRef(false)
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const painting = paintMode !== "off" && isDM
+
+  // Keep the chaining ref in sync with whatever's current (paint or server).
+  useEffect(() => {
+    latestCellsRef.current = maskCells
+  }, [maskCells])
+
+  // Resync from the server only when we hold no unsaved edits AND aren't mid
+  // paint-session — otherwise a stale echo would drop dabs / flicker.
+  useEffect(() => {
+    if (pendingRef.current || paintMode !== "off") return
+    setMaskCells(decodeFogMask(map.fogMask))
+  }, [map.fogMask, paintMode])
+
+  // Flush the latest mask to the server (empty mask → "" clears the field).
+  const flushFog = () => {
+    if (flushTimer.current) {
+      clearTimeout(flushTimer.current)
+      flushTimer.current = null
+    }
+    const cells = latestCellsRef.current
+    paintFog({ campaignId, fogMask: isMaskEmpty(cells) ? "" : encodeFogMask(cells) })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't save fog."))
+      .finally(() => {
+        pendingRef.current = false
+      })
+  }
+  const scheduleFlush = () => {
+    if (flushTimer.current) clearTimeout(flushTimer.current)
+    flushTimer.current = setTimeout(flushFog, 400)
+  }
+  useEffect(
+    () => () => {
+      if (flushTimer.current) clearTimeout(flushTimer.current)
+    },
+    [],
+  )
+
+  // Stamp the brush at a screen point (paint = open, erase = re-fog).
+  const applyBrushAt = (clientX: number, clientY: number) => {
+    const coords = screenToPercent(clientX, clientY)
+    if (!coords) return
+    const next = paintBrush(
+      latestCellsRef.current,
+      coords.x,
+      coords.y,
+      brushSize,
+      paintMode === "paint",
+    )
+    latestCellsRef.current = next
+    setMaskCells(next)
+    pendingRef.current = true
+    scheduleFlush()
+  }
+
+  const startPaint = () => {
+    setPlacing(false)
+    setMovingId(null)
+    setPaintMode("paint")
+  }
+  const stopPaint = () => {
+    setPaintMode("off")
+    if (pendingRef.current) flushFog()
+  }
+  const clearPaint = () => {
+    const empty = emptyMask()
+    latestCellsRef.current = empty
+    setMaskCells(empty)
+    pendingRef.current = true
+    flushFog()
+  }
+
+  // Show fog to players whenever the DM enabled it; show it to the DM in preview
+  // OR while painting (so the brush strokes are visible as they clear the shroud).
+  const showFog = (map.fogEnabled ?? false) && (!isDM || fogPreview || painting)
 
   // View transform
   const [zoom, setZoom] = useState(1)
@@ -571,12 +672,23 @@ function MapWorkspace({
   }
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (painting) {
+      // Start a paint stroke — capture so a drag off the image still tracks.
+      paintingRef.current = true
+      ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+      applyBrushAt(e.clientX, e.clientY)
+      return
+    }
     if ((placing || movingId) && isDM) return // placement click, not a pan
     dragState.current = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y, moved: false }
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
   }
 
   const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (paintingRef.current) {
+      applyBrushAt(e.clientX, e.clientY)
+      return
+    }
     const d = dragState.current
     if (!d) return
     const dx = e.clientX - d.sx
@@ -715,7 +827,7 @@ function MapWorkspace({
     setMovingId(null)
   }
 
-  const activeMode = (placing || movingId !== null) && isDM
+  const activeMode = (placing || movingId !== null || painting) && isDM
 
   return (
     <div className="flex h-[100dvh] flex-col lg:h-screen">
@@ -740,7 +852,14 @@ function MapWorkspace({
         </div>
         {isDM && (
           <div className="flex shrink-0 items-center gap-2">
-            <ToolbarButton onClick={() => setPlacing((p) => !p)} active={placing} title="Add a location">
+            <ToolbarButton
+              onClick={() => {
+                setPaintMode("off")
+                setPlacing((p) => !p)
+              }}
+              active={placing}
+              title="Add a location"
+            >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">{placing ? "Placing…" : "Add"}</span>
             </ToolbarButton>
@@ -748,9 +867,11 @@ function MapWorkspace({
               fogEnabled={map.fogEnabled ?? false}
               fogRadius={fogRadius}
               previewing={fogPreview}
+              painting={painting}
               onToggleFog={handleToggleFog}
               onRadius={handleFogRadius}
               onTogglePreview={() => setFogPreview((p) => !p)}
+              onStartPaint={startPaint}
             />
             {isAdmin && (
               <ToolbarButton onClick={handleSaveAsPreset} title="Publish as a starter map for all users">
@@ -774,6 +895,11 @@ function MapWorkspace({
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={(e) => {
+              if (paintingRef.current) {
+                paintingRef.current = false
+                if (pendingRef.current) flushFog()
+                return
+              }
               handleViewportClick(e)
               endPointer()
             }}
@@ -803,6 +929,7 @@ function MapWorkspace({
                 height={map.height}
                 revealed={fogPins}
                 radiusPct={fogRadius}
+                paintedCells={maskCells}
               />
               {locations.map((loc) => (
                 <LocationMarker
@@ -830,7 +957,7 @@ function MapWorkspace({
             </ZoomButton>
           </div>
 
-          {activeMode && (
+          {(placing || movingId !== null) && isDM && (
             <div
               className="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-3 rounded-full px-4 py-1.5 text-xs font-medium shadow-lg"
               style={{ background: "var(--scene-accent)", color: "#fff" }}
@@ -840,6 +967,17 @@ function MapWorkspace({
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
+          )}
+
+          {painting && (
+            <PaintBar
+              mode={paintMode === "erase" ? "erase" : "paint"}
+              brushSize={brushSize}
+              onMode={setPaintMode}
+              onBrushSize={setBrushSize}
+              onClear={clearPaint}
+              onDone={stopPaint}
+            />
           )}
         </div>
 
@@ -948,21 +1086,25 @@ function FogControl({
   fogEnabled,
   fogRadius,
   previewing,
+  painting,
   onToggleFog,
   onRadius,
   onTogglePreview,
+  onStartPaint,
 }: {
   fogEnabled: boolean
   fogRadius: number
   previewing: boolean
+  painting: boolean
   onToggleFog: () => void
   onRadius: (radius: number) => void
   onTogglePreview: () => void
+  onStartPaint: () => void
 }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
-      <ToolbarButton onClick={() => setOpen((o) => !o)} active={fogEnabled} title="Fog of war">
+      <ToolbarButton onClick={() => setOpen((o) => !o)} active={fogEnabled || painting} title="Fog of war">
         <CloudFog className="h-4 w-4" />
         <span className="hidden sm:inline">Fog</span>
       </ToolbarButton>
@@ -1031,11 +1173,128 @@ function FogControl({
                 {previewing ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 {previewing ? "Exit player preview" : "Preview player view"}
               </button>
+
+              {/* Manual brush: clear (or re-fog) terrain with no pin on it. */}
+              <button
+                onClick={() => {
+                  onStartPaint()
+                  setOpen(false)
+                }}
+                disabled={!fogEnabled}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{
+                  background: painting ? "var(--scene-accent)" : "var(--scene-bg)",
+                  color: painting ? "#fff" : "var(--scene-text-primary)",
+                  border: `1px solid ${painting ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                }}
+              >
+                <Paintbrush className="h-3.5 w-3.5" />
+                Paint fog
+              </button>
+              <p className="text-[11px] leading-snug" style={{ color: "var(--scene-text-muted)" }}>
+                Brush open coastlines, roads, or wilderness the party has seen — no pin required.
+              </p>
             </div>
           </div>
         </>
       )}
     </div>
+  )
+}
+
+// Floating toolbar shown while the DM is painting fog: paint/erase, brush size,
+// clear-all, and done. Pointer events on the map do the actual painting.
+function PaintBar({
+  mode,
+  brushSize,
+  onMode,
+  onBrushSize,
+  onClear,
+  onDone,
+}: {
+  mode: "paint" | "erase"
+  brushSize: number
+  onMode: (m: "paint" | "erase") => void
+  onBrushSize: (n: number) => void
+  onClear: () => void
+  onDone: () => void
+}) {
+  return (
+    <div
+      className="absolute left-1/2 top-4 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-xl px-3 py-2 shadow-2xl"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="flex items-center gap-1">
+        <PaintSegment active={mode === "paint"} onClick={() => onMode("paint")}>
+          <Paintbrush className="h-3.5 w-3.5" />
+          Clear
+        </PaintSegment>
+        <PaintSegment active={mode === "erase"} onClick={() => onMode("erase")}>
+          <Eraser className="h-3.5 w-3.5" />
+          Re-fog
+        </PaintSegment>
+      </div>
+
+      <label className="flex items-center gap-1.5 px-1">
+        <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+          Brush
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={5}
+          step={1}
+          value={brushSize}
+          onChange={(e) => onBrushSize(Number(e.target.value))}
+          className="w-20 cursor-pointer"
+          style={{ accentColor: "var(--scene-accent)" }}
+          aria-label="Brush size"
+        />
+      </label>
+
+      <button
+        onClick={onClear}
+        className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+        style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+        title="Re-fog the whole map (clear all painting)"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Clear all</span>
+      </button>
+
+      <button
+        onClick={onDone}
+        className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90"
+        style={{ background: "var(--scene-accent)", color: "#fff" }}
+      >
+        <Check className="h-3.5 w-3.5" />
+        Done
+      </button>
+    </div>
+  )
+}
+
+function PaintSegment({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors"
+      style={{
+        background: active ? "var(--scene-accent)" : "var(--scene-bg)",
+        color: active ? "#fff" : "var(--scene-text-muted)",
+        border: `1px solid ${active ? "var(--scene-accent)" : "var(--scene-border)"}`,
+      }}
+    >
+      {children}
+    </button>
   )
 }
 

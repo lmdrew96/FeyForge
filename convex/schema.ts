@@ -311,6 +311,12 @@ export default defineSchema({
     // app/dm/world-map/fog-overlay.tsx + worldMap.setFogSettings.
     fogEnabled: v.optional(v.boolean()),
     fogRevealRadius: v.optional(v.number()),
+    // Manual fog brush (Phase 2): a base64-encoded boolean bitmask over a fixed
+    // 64×36 grid marking cells the DM has painted permanently OPEN, decoupled
+    // from pins. undefined = nothing painted. Unioned with the per-pin auto
+    // clearings in FogOverlay (paint never un-reveals a pin). See
+    // app/dm/world-map/fog-mask.ts for the encoding + worldMap.paintFog.
+    fogMask: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index("by_campaignId", ["campaignId"])
