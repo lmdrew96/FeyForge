@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { htmlToMarkdown } from "@/lib/html-to-markdown"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { postAi, AiError } from "@/lib/ai-client"
+import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import { toast } from "sonner"
 import { FogOverlay } from "./fog-overlay"
 import {
@@ -778,9 +779,29 @@ function MapWorkspace({
     }
     setGenerating(true)
     try {
+      // Map-aware context: the pin's neighborhood so the AI grounds the place in
+      // its surroundings. Self coords come from the pending click (new pin) or the
+      // pin being edited; exclude the pin itself from its own neighbor list.
+      const selfLoc = selectedId ? locations.find((l) => l._id === selectedId) : null
+      const selfCoords =
+        editorMode === "edit"
+          ? selfLoc
+            ? { x: selfLoc.x, y: selfLoc.y }
+            : null
+          : pendingCoords
+      const surroundings = selfCoords
+        ? computeSurroundings(
+            selfCoords,
+            editorMode === "edit" && selectedId
+              ? locations.filter((l) => l._id !== selectedId)
+              : locations,
+            map,
+          )
+        : undefined
+
       const result = await postAi<{ playerNotes: string; dmNotes: string; remaining: number }>(
         "/api/world-map/generate-location",
-        { name: draft.name.trim(), type: draft.type, mapName: map.name },
+        { name: draft.name.trim(), type: draft.type, mapName: map.name, surroundings },
       )
       setDraft((d) => ({ ...d, playerNotes: result.playerNotes, dmNotes: result.dmNotes }))
       toast.success(`Details generated — ${result.remaining} left today.`)

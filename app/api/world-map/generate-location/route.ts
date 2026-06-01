@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { guardAi, refundAi } from "@/lib/ai-guard"
 import { AI_MODEL } from "@/lib/ai"
+import { formatSurroundings, type Surroundings } from "@/lib/worldMap/surroundings"
 
 // Premium AI: flesh out a world-map pin into player-facing + DM-secret notes.
 // Output is Markdown (renders through the shared MarkdownRenderer). Turns an
@@ -38,11 +39,12 @@ export async function POST(req: Request) {
   if (!guard.ok) return guard.res
 
   try {
-    const { name, type, mapName, edition } = (await req.json()) as {
+    const { name, type, mapName, edition, surroundings } = (await req.json()) as {
       name?: string
       type?: string
       mapName?: string
       edition?: string
+      surroundings?: Surroundings
     }
     if (!name?.trim()) {
       // Don't burn the credit on a malformed request.
@@ -58,7 +60,7 @@ Be vivid and usable at the table, not generic. Keep it concise. Use Markdown for
 
     const prompt = `Location name: "${name.trim()}"
 Type: ${type ?? "settlement"} — ${guidance}
-${mapName ? `World/map: "${mapName}"` : ""}
+${mapName ? `World/map: "${mapName}"` : ""}${formatSurroundings(surroundings)}
 
 Write the player-facing description and the DM-only notes for this location.`
 
