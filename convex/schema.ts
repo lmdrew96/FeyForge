@@ -340,7 +340,13 @@ export default defineSchema({
     revealed: v.boolean(), // DM-toggleable; drives fog for players
     dmNotes: v.optional(v.string()), // private to DM
     playerNotes: v.optional(v.string()), // shown to players once revealed
-    drillDownMapId: v.optional(v.id("worldMaps")), // local map (e.g. Watabou city)
+    drillDownMapId: v.optional(v.id("worldMaps")), // reserved: full nested map (unused; superseded by drillDownImageKey)
+    // Drill-down "launchpad": an R2 image key for a local map (Watabou city/dungeon
+    // PNG) shown in a lightbox when the pin is opened. A plain image, not a nested
+    // worldMaps row — the spec wants a launchpad, not nested pins, and a nested
+    // campaign-scoped map would collide with the one-map-per-campaign invariant.
+    // Rides through listLocations to players on revealed pins (not in the dmNotes strip).
+    drillDownImageKey: v.optional(v.string()),
     campaignNodeId: v.optional(v.string()), // React Flow / Story Web node link
     createdBy: v.optional(v.string()),
     // Seed-time importance (capitals > POIs > towns, scaled by population). On

@@ -96,6 +96,7 @@ type LocationDraft = {
   type: LocationType
   playerNotes: string
   dmNotes: string
+  drillDownImageKey: string // R2 key for the pin's local "launchpad" map ("" = none)
 }
 
 const emptyDraft = (): LocationDraft => ({
@@ -103,6 +104,7 @@ const emptyDraft = (): LocationDraft => ({
   type: "settlement",
   playerNotes: "",
   dmNotes: "",
+  drillDownImageKey: "",
 })
 
 export default function WorldMapPage() {
@@ -506,6 +508,114 @@ function MapUploader({ campaignId, onDone }: { campaignId: CampaignId; onDone?: 
   )
 }
 
+// Local-map ("drill-down") image picker for the location editor. Reuses the same
+// premium-gated presign flow as MapUploader, but only resolves to an R2 key (no
+// dimensions / no campaign-map write) — the parent stores it on the pin's draft.
+// A revealed pin then shows this image in a lightbox (DM + players alike).
+function DrillDownUploader({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (key: string) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = async (file: File) => {
+    setUploading(true)
+    try {
+      const presign = await fetch("/api/world-map/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: file.type }),
+      })
+      if (!presign.ok) {
+        const { error } = await presign.json().catch(() => ({ error: "Upload failed" }))
+        throw new Error(error)
+      }
+      const { uploadUrl, key } = await presign.json()
+      const put = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      })
+      if (!put.ok) throw new Error("Upload to storage failed.")
+      onChange(key)
+      toast.success("Local map attached.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed.")
+    } finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ""
+    }
+  }
+
+  return (
+    <div>
+      <p className="mb-1.5 text-[10px] uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+        Local map
+      </p>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleFile(file)
+        }}
+      />
+      {value ? (
+        <div className="flex items-center gap-3 rounded-md p-2" style={fieldStyle}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={toImageUrl(value)}
+            alt="Local map preview"
+            className="h-12 w-12 shrink-0 rounded object-cover"
+            style={{ border: "1px solid var(--scene-border)" }}
+          />
+          <span className="flex-1 truncate text-xs" style={{ color: "var(--scene-text-muted)" }}>
+            City / dungeon map attached
+          </span>
+          <button
+            onClick={() => onChange("")}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:opacity-80"
+            style={{ color: "#dc2626" }}
+            type="button"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Remove
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed p-3 text-xs font-medium transition-colors hover:opacity-90 disabled:opacity-60"
+          style={{ borderColor: "var(--scene-border)", color: "var(--scene-text-primary)" }}
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Uploading…
+            </>
+          ) : (
+            <>
+              <ImageIcon className="h-4 w-4" style={{ color: "var(--scene-accent)" }} />
+              Attach a local map (city / dungeon image)
+            </>
+          )}
+        </button>
+      )}
+      <p className="mt-1 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+        Players see it in a lightbox once this pin is revealed. Try Watabou&apos;s city/dungeon generators.
+      </p>
+    </div>
+  )
+}
+
 // ── Workspace (campaign has a map) ────────────────────────────────────────────
 
 function MapWorkspace({
@@ -768,6 +878,7 @@ function MapWorkspace({
       type: (loc.type as LocationType) ?? "settlement",
       playerNotes: loc.playerNotes ?? "",
       dmNotes: loc.dmNotes ?? "",
+      drillDownImageKey: loc.drillDownImageKey ?? "",
     })
     setSelectedId(loc._id)
     setEditorMode("edit")
@@ -789,6 +900,7 @@ function MapWorkspace({
           y: pendingCoords.y,
           dmNotes: draft.dmNotes.trim() || undefined,
           playerNotes: draft.playerNotes.trim() || undefined,
+          drillDownImageKey: draft.drillDownImageKey || undefined,
         })
         setSelectedId(id)
         toast.success("Location placed.")
@@ -799,6 +911,8 @@ function MapWorkspace({
           name: draft.name.trim(),
           dmNotes: draft.dmNotes.trim() || undefined,
           playerNotes: draft.playerNotes.trim() || undefined,
+          // Always send (possibly "") so removing a local map clears it.
+          drillDownImageKey: draft.drillDownImageKey,
         })
         toast.success("Location updated.")
       }
@@ -1134,6 +1248,17 @@ function MapWorkspace({
             <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
               Markdown supported — **bold**, *italic*, - lists, [links](url).
             </p>
+
+            {/* Drill-down: a local map image (e.g. a Watabou city/dungeon) revealed
+                in a lightbox when this pin is opened. Authoring is premium/admin;
+                viewing works for everyone (incl. free DMs adopting curated presets). */}
+            {canCreateMaps && (
+              <DrillDownUploader
+                value={draft.drillDownImageKey}
+                onChange={(key) => setDraft((d) => ({ ...d, drillDownImageKey: key }))}
+              />
+            )}
+
             <div className="flex items-center gap-2 pt-1">
               <PrimaryButton onClick={handleSave} disabled={saving || !draft.name.trim()}>
                 <Save className="h-4 w-4" />
@@ -1486,6 +1611,7 @@ function LocationDetail({
 }) {
   const meta = TYPE_META[(loc.type as LocationType) ?? "settlement"] ?? TYPE_META.settlement
   const Icon = meta.icon
+  const [lightbox, setLightbox] = useState(false)
   // Notes render as Markdown (the shared, sanitized renderer). htmlToMarkdown
   // also cleans the raw HTML the Azgaar seed pipeline leaves in dmNotes — links
   // survive, the <iframe>/<div> soup doesn't. Gate on the NORMALIZED value so an
@@ -1521,13 +1647,28 @@ function LocationDetail({
         <MarkdownRenderer variant="scene" content={playerMd} className="mt-3 text-sm" />
       )}
 
-      {loc.drillDownMapId && (
-        <div className="mt-3">
-          <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: "var(--scene-accent)" }}>
-            <ExternalLink className="h-3.5 w-3.5" />
-            Has a local map
-          </span>
-        </div>
+      {loc.drillDownImageKey && (
+        <button
+          type="button"
+          onClick={() => setLightbox(true)}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+          style={{
+            background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+            color: "var(--scene-accent)",
+            border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
+          }}
+        >
+          <MapIcon className="h-3.5 w-3.5" />
+          View local map
+        </button>
+      )}
+
+      {lightbox && loc.drillDownImageKey && (
+        <LocalMapLightbox
+          imageKey={loc.drillDownImageKey}
+          title={loc.name}
+          onClose={() => setLightbox(false)}
+        />
       )}
 
       {isDM && dmMd && (
@@ -1601,6 +1742,67 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
         style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
       >
         {children}
+      </div>
+    </div>
+  )
+}
+
+// Full-screen lightbox for a pin's local "drill-down" map. Sits at z-[60] so it
+// rides above the editor Modal (z-50) and the detail panels. Image is shown
+// object-contain to fit any aspect; an "open full image" link lets the viewer
+// zoom in a browser tab for detailed city/dungeon maps. Used by DM + players.
+function LocalMapLightbox({
+  imageKey,
+  title,
+  onClose,
+}: {
+  imageKey: string
+  title: string
+  onClose: () => void
+}) {
+  // Close on Escape — this is a top-level overlay, so it owns the key handler.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black/85" role="dialog" aria-modal="true">
+      <div className="flex items-center justify-between gap-3 p-3">
+        <span className="truncate text-sm font-medium text-white/90" style={{ fontFamily: "var(--font-cinzel)" }}>
+          {title}
+        </span>
+        <div className="flex items-center gap-2">
+          <a
+            href={toImageUrl(imageKey)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open full image
+          </a>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md p-1.5 text-white/90 hover:bg-white/10"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+      {/* Click the backdrop (not the image) to dismiss. */}
+      <div className="flex flex-1 items-center justify-center overflow-auto p-4" onClick={onClose}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={toImageUrl(imageKey)}
+          alt={`Local map for ${title}`}
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+        />
       </div>
     </div>
   )

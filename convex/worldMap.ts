@@ -302,6 +302,8 @@ export const adoptPreset = mutation({
         revealed: false,
         dmNotes: loc.dmNotes,
         playerNotes: loc.playerNotes,
+        // Carry the preset pin's local map so free-tier drill-down works.
+        drillDownImageKey: loc.drillDownImageKey,
         prominence: loc.prominence,
         createdBy: userId,
       })
@@ -363,6 +365,8 @@ export const saveAsPreset = mutation({
         revealed: false,
         dmNotes: loc.dmNotes,
         playerNotes: loc.playerNotes,
+        // Preserve local maps when promoting a campaign map to a curated preset.
+        drillDownImageKey: loc.drillDownImageKey,
         createdBy: identity.tokenIdentifier,
       })
     }
@@ -394,6 +398,7 @@ export const seedPreset = mutation({
         x: v.number(),
         y: v.number(),
         dmNotes: v.optional(v.string()),
+        drillDownImageKey: v.optional(v.string()),
         prominence: v.optional(v.number()),
       }),
     ),
@@ -444,6 +449,7 @@ export const seedPreset = mutation({
         y: loc.y,
         revealed: false,
         dmNotes: loc.dmNotes,
+        drillDownImageKey: loc.drillDownImageKey,
         prominence: loc.prominence,
         createdBy: "seed-script",
       })
@@ -483,6 +489,7 @@ export const createLocation = mutation({
     y: v.number(),
     dmNotes: v.optional(v.string()),
     playerNotes: v.optional(v.string()),
+    drillDownImageKey: v.optional(v.string()),
     revealed: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<Id<"mapLocations">> => {
@@ -497,6 +504,8 @@ export const createLocation = mutation({
       revealed: args.revealed ?? false,
       dmNotes: args.dmNotes,
       playerNotes: args.playerNotes,
+      // Empty string ⇒ omit the field (don't store "").
+      drillDownImageKey: args.drillDownImageKey || undefined,
       createdBy: userId,
     })
   },
@@ -511,7 +520,7 @@ export const updateLocation = mutation({
     y: v.optional(v.number()),
     dmNotes: v.optional(v.string()),
     playerNotes: v.optional(v.string()),
-    drillDownMapId: v.optional(v.id("worldMaps")),
+    drillDownImageKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const loc = await ctx.db.get(args.locationId)
@@ -526,7 +535,10 @@ export const updateLocation = mutation({
     if (args.y !== undefined) patch.y = args.y
     if (args.dmNotes !== undefined) patch.dmNotes = args.dmNotes
     if (args.playerNotes !== undefined) patch.playerNotes = args.playerNotes
-    if (args.drillDownMapId !== undefined) patch.drillDownMapId = args.drillDownMapId
+    // Empty string clears the drill-down (patch undefined ⇒ Convex removes the field).
+    if (args.drillDownImageKey !== undefined) {
+      patch.drillDownImageKey = args.drillDownImageKey === "" ? undefined : args.drillDownImageKey
+    }
     await ctx.db.patch(args.locationId, patch)
   },
 })
