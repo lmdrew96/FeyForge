@@ -297,10 +297,41 @@ export default defineSchema({
     scaleMilesPerPx: v.optional(v.number()), // for future travel/distance
     source: v.union(
       v.literal("preset"),
+      // The premium "vibe" library (scripts/bake-presets.ts → seedPreset). A
+      // SEPARATE source value (not just isPremiumPreset:true) so the free
+      // starter grid — listPresets filters source==="preset" — can never leak a
+      // premium map even if a boolean filter regresses. adoptPreset clones a
+      // premium-preset into a campaign as source:"preset" (an adopted map is
+      // just a map); entitlement is enforced at adopt time, not by the clone.
+      v.literal("premium-preset"),
       v.literal("import"),
       v.literal("upload"),
     ),
     isPremiumPreset: v.optional(v.boolean()),
+    // Premium picker vibe tags (set only on source:"premium-preset" rows). The
+    // DM filters the library on these 4 axes; ~120 rows total so no index — the
+    // query scans by_source "premium-preset" and filters in memory. Literals
+    // mirror lib/worldMap/vibe.ts.
+    vibeShape: v.optional(
+      v.union(
+        v.literal("archipelago"),
+        v.literal("scattered"),
+        v.literal("continents"),
+        v.literal("pangaea"),
+      ),
+    ),
+    vibeClimate: v.optional(
+      v.union(
+        v.literal("frozen"),
+        v.literal("temperate"),
+        v.literal("arid"),
+        v.literal("tropical"),
+      ),
+    ),
+    vibeCivilization: v.optional(
+      v.union(v.literal("wild"), v.literal("settled"), v.literal("crowded")),
+    ),
+    vibeScale: v.optional(v.union(v.literal("region"), v.literal("world"))),
     // Set on preset rows; lets a campaign map remember which preset it came from.
     presetSourceId: v.optional(v.id("worldMaps")),
     createdBy: v.optional(v.string()), // userId of the admin/DM who made it
@@ -353,6 +384,34 @@ export default defineSchema({
     // Per docs/specs/feyforge-drilldown-spec.md — we frame Watabou's live tool,
     // never host his rendered output.
     drillDownUrl: v.optional(v.string()),
+    // POIs only: the game-meaningful Azgaar marker subtype (dungeon/ruin/monster/
+    // encounter/tavern/landmark), set at import from the marker type. Drives the
+    // SVG pin icon + which in-app action the pin offers. Mirrors PoiKind in
+    // lib/worldMap/azgaar-map.ts. Absent on settlements + hand-placed pins.
+    poiKind: v.optional(
+      v.union(
+        v.literal("dungeon"),
+        v.literal("ruin"),
+        v.literal("monster"),
+        v.literal("encounter"),
+        v.literal("tavern"),
+        v.literal("landmark"),
+      ),
+    ),
+    // Settlements only: the gazetteer block lifted from the Azgaar burg at import
+    // (population, coat-of-arms spec, owning realm + government, culture, amenity
+    // chips). Display-only and NOT secret — rides to players on revealed pins, like
+    // the city link. Mirrors TownMeta in lib/worldMap/azgaar-map.ts.
+    town: v.optional(
+      v.object({
+        population: v.optional(v.number()),
+        coa: v.optional(v.string()), // Armoria coat-of-arms JSON; rendered as <img> at view time
+        realm: v.optional(v.string()),
+        government: v.optional(v.string()),
+        culture: v.optional(v.string()),
+        features: v.optional(v.array(v.string())),
+      }),
+    ),
     campaignNodeId: v.optional(v.string()), // React Flow / Story Web node link
     createdBy: v.optional(v.string()),
     // Seed-time importance (capitals > POIs > towns, scaled by population). On

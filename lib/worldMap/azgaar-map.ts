@@ -29,14 +29,91 @@ export const PRESET_MAX_PINS = 100
 export const POI_POOL_SHARE = 1 / 3
 export const POI_PROMINENCE = 1.2
 
+// FeyForge POI subtypes — the ~25 Azgaar marker types collapsed into a handful of
+// game-meaningful kinds. Drives the pin icon (SVG, not Azgaar's emoji) and which
+// in-app action a pin offers (dungeon → drill-down map, encounter → AI/NPC, …).
+// Keep in sync with poiKind in convex/schema.ts + POI_KIND_META in the map page.
+export const POI_KINDS = ["dungeon", "ruin", "monster", "encounter", "tavern", "landmark"] as const
+export type PoiKind = (typeof POI_KINDS)[number]
+
+// Azgaar marker `type` → FeyForge PoiKind. Anything unmapped stays an untyped POI
+// (falls back to the generic pin) so a new Azgaar marker type never breaks import.
+const POI_KIND_FROM_MARKER: Record<string, PoiKind> = {
+  dungeons: "dungeon",
+  ruins: "ruin",
+  necropolises: "ruin",
+  "sea-monsters": "monster",
+  "lake-monsters": "monster",
+  "hill-monsters": "monster",
+  encounters: "encounter",
+  brigands: "encounter",
+  pirates: "encounter",
+  migration: "encounter",
+  inns: "tavern",
+  fairs: "tavern",
+  circuses: "tavern",
+  jousts: "tavern",
+  statues: "landmark",
+  lighthouses: "landmark",
+  bridges: "landmark",
+  libraries: "landmark",
+  volcanoes: "landmark",
+  waterfalls: "landmark",
+  "water-sources": "landmark",
+  "sacred-forests": "landmark",
+  "sacred-pineries": "landmark",
+  battlefields: "landmark",
+  canoes: "landmark",
+}
+
+// Hosts we trust to embed a per-pin drill-down (dungeon map / premade-NPC) in an
+// <iframe>. Azgaar itself emits these inside its marker legends. ALLOWLISTED so a
+// hand-edited or malicious .map can't inject an arbitrary iframe src into the app.
+const DRILLDOWN_HOSTS = new Set(["watabou.github.io", "deorum.vercel.app"])
+
+// Pull the first allowlisted https URL out of a marker legend's raw HTML — Azgaar
+// embeds a One Page Dungeon / encounter-NPC link as both an <iframe src> and an
+// <a href>. Prefer the iframe src (the canonical embed), else the first anchor.
+function extractDrillDownUrl(legendHtml: string): string | undefined {
+  const candidates: string[] = []
+  const iframe = legendHtml.match(/<iframe[^>]*\bsrc\s*=\s*["']([^"']+)["']/i)
+  if (iframe) candidates.push(iframe[1])
+  const hrefRe = /<a[^>]*\bhref\s*=\s*["']([^"']+)["']/gi
+  let m: RegExpExecArray | null
+  while ((m = hrefRe.exec(legendHtml))) candidates.push(m[1])
+  for (const raw of candidates) {
+    try {
+      const u = new URL(raw)
+      if (u.protocol === "https:" && DRILLDOWN_HOSTS.has(u.hostname)) return u.toString()
+    } catch {
+      // not a parseable absolute URL — skip
+    }
+  }
+  return undefined
+}
+
 export type ParsedLocation = {
   type: "settlement" | "poi"
   name: string
   x: number // normalized 0–100
   y: number // normalized 0–100
   dmNotes?: string
-  drillDownUrl?: string // MFCG city iframe URL (settlements only)
+  drillDownUrl?: string // MFCG city iframe URL (settlements); dungeon/NPC URL (POIs)
+  poiKind?: PoiKind // POIs only — the game-meaningful subtype (icon + action)
+  town?: TownMeta // settlements only — the gazetteer block (population, crest, realm…)
   prominence: number
+}
+
+// Settlement-only metadata lifted from the Azgaar burg (+ resolved state/culture).
+// Display-only and NOT secret — rides to players on revealed pins, like the city
+// link. Mirrors the `town` object in convex/schema.ts mapLocations.
+export type TownMeta = {
+  population?: number // real head count (Azgaar stores thousands)
+  coa?: string // Armoria coat-of-arms spec (compact JSON) — rendered as <img> at view time
+  realm?: string // owning state's fullName, e.g. "Kingdom of Bogen" (neutral state omitted)
+  government?: string // state government TYPE, e.g. "Monarchy" (Azgaar `form`)
+  culture?: string // culture/people name, e.g. "Yardish" (neutral/wildlands omitted)
+  features?: string[] // ["Capital","Port","Walled","Citadel","Temple","Market","Shantytown"]
 }
 
 export type ParsedMap = {
@@ -73,9 +150,16 @@ type Burg = {
   temple?: number
   MFCG?: number | null
   link?: string | null
+  state?: number // index into the states array (0 = neutral)
+  culture?: number // index into the cultures array (0 = wildlands)
+  coa?: unknown // Armoria coat-of-arms spec (object) or "custom"
 }
 type Marker = { type?: string; x: number; y: number; cell?: number; i: number }
 type Note = { id: string; name: string; legend: string }
+// Subsets of Azgaar's pack.states / pack.cultures (index 0 of each is the neutral
+// placeholder). Resolved by burg.state / burg.culture into the town gazetteer.
+type State = { i?: number; name?: string; fullName?: string; form?: string; removed?: boolean }
+type Culture = { i?: number; name?: string; removed?: boolean }
 
 const clampPct = (v: number): number => Math.round(Math.max(0, Math.min(100, v)) * 10000) / 10000
 
@@ -123,10 +207,13 @@ export function parseMap(text: string): ParsedMap {
     // Other units (leagues, versts, …) are ambiguous — leave undefined.
   }
 
-  // Detect the burgs / markers / notes arrays by element-key signature.
+  // Detect the burgs / markers / notes / states / cultures arrays by element-key
+  // signature (line indices shift with version + SVG size, so never key off them).
   let burgs: Burg[] = []
   let markers: Marker[] = []
   let notes: Note[] = []
+  let states: State[] = []
+  let cultures: Culture[] = []
   for (const ln of lines) {
     const t = ln.trimStart()
     if (!t.startsWith("[")) continue
@@ -137,9 +224,20 @@ export function parseMap(text: string): ParsedMap {
       continue
     }
     if (!isObjArray(arr)) continue
-    const sample = arr.find((e) => e && typeof e === "object" && !Array.isArray(e)) as
-      | Record<string, unknown>
-      | undefined
+    // Pick the RICHEST object as the signature sample: index 0 of states/cultures
+    // (and burgs) is a thin neutral/placeholder stub that lacks the keys we match
+    // on, so sampling the first object would mis-detect those arrays as nothing.
+    let sample: Record<string, unknown> | undefined
+    let sampleKeys = 0
+    for (const e of arr) {
+      if (e && typeof e === "object" && !Array.isArray(e)) {
+        const n = Object.keys(e).length
+        if (n > sampleKeys) {
+          sample = e as Record<string, unknown>
+          sampleKeys = n
+        }
+      }
+    }
     if (!sample) continue
     if (
       burgs.length === 0 &&
@@ -160,6 +258,59 @@ export function parseMap(text: string): ParsedMap {
       markers = arr as Marker[]
     } else if (notes.length === 0 && "legend" in sample && "id" in sample && "name" in sample) {
       notes = arr as Note[]
+    } else if (
+      // States: governments. `form`+`fullName`+`formName` together are unique —
+      // provinces carry fullName/formName but NOT `form`; cultures have neither.
+      states.length === 0 &&
+      "form" in sample &&
+      "fullName" in sample &&
+      "formName" in sample
+    ) {
+      states = arr as State[]
+    } else if (
+      // Cultures: `base`+`shield`+`code` appear on no other pack array.
+      cultures.length === 0 &&
+      "base" in sample &&
+      "shield" in sample &&
+      "code" in sample &&
+      !("form" in sample)
+    ) {
+      cultures = arr as Culture[]
+    }
+  }
+
+  // Resolve a burg's owning state (skip the neutral state at index 0 / name
+  // "Neutrals", and any removed state) into a display realm + government type.
+  const realmOf = (b: Burg): { realm?: string; government?: string } => {
+    const s = typeof b.state === "number" && b.state > 0 ? states[b.state] : undefined
+    if (!s || s.removed || !s.name || s.name === "Neutrals") return {}
+    return { realm: (s.fullName || s.name)?.trim() || undefined, government: s.form?.trim() || undefined }
+  }
+  // Resolve a burg's culture (skip neutral/wildlands at index 0 and removed ones).
+  const cultureOf = (b: Burg): string | undefined => {
+    const c = typeof b.culture === "number" && b.culture > 0 ? cultures[b.culture] : undefined
+    if (!c || c.removed || !c.name) return undefined
+    return sanitizeText(c.name.trim()) || undefined
+  }
+  // Burg amenity flags → display chips (Capital first, then the rest in read order).
+  const featuresOf = (b: Burg): string[] => {
+    const f: string[] = []
+    if (b.capital === 1) f.push("Capital")
+    if (b.port) f.push("Port")
+    if (b.walls) f.push("Walled")
+    if (b.citadel) f.push("Citadel")
+    if (b.temple) f.push("Temple")
+    if (b.plaza) f.push("Market")
+    if (b.shanty) f.push("Shantytown")
+    return f
+  }
+  // Coat of arms → compact JSON string (Armoria spec). Skip "custom"/non-objects.
+  const coaOf = (b: Burg): string | undefined => {
+    if (!b.coa || typeof b.coa !== "object" || Array.isArray(b.coa)) return undefined
+    try {
+      return JSON.stringify(b.coa)
+    } catch {
+      return undefined
     }
   }
 
@@ -179,11 +330,24 @@ export function parseMap(text: string): ParsedMap {
     const popNorm = popThousands > 0 ? Math.min(1, popThousands / maxPop) : 0
     const isCapital = b.capital === 1
     const cleanName = sanitizeText(b.name!.trim())
+    // Gazetteer block — only include keys that resolved (an all-empty town is omitted).
+    const { realm, government } = realmOf(b)
+    const culture = cultureOf(b)
+    const features = featuresOf(b)
+    const coa = coaOf(b)
+    const town: TownMeta = {}
+    if (popThousands > 0) town.population = Math.round(popThousands * 1000)
+    if (coa) town.coa = coa
+    if (realm) town.realm = realm
+    if (government) town.government = government
+    if (culture) town.culture = culture
+    if (features.length) town.features = features
     return {
       type: "settlement" as const,
       name: cleanName,
       x: clampPct((b.x / width) * 100),
       y: clampPct((b.y / height) * 100),
+      town: Object.keys(town).length > 0 ? town : undefined,
       prominence: Math.round(((isCapital ? 3 : 1) + 0.9 * popNorm) * 1000) / 1000,
       // Use the sanitized name (a lone surrogate makes encodeURIComponent throw).
       // burg.i drives the MFCG seed; fall back to array position if Azgaar omits it.
@@ -218,14 +382,21 @@ export function parseMap(text: string): ParsedMap {
       const note = noteById.get(`marker${m.i}`)
       const named = !!note?.name?.trim()
       if (named) poiNamedTotal++
-      // Azgaar legends are HTML; convert to clean Markdown at parse time.
-      const legend = note?.legend ? htmlToMarkdown(sanitizeText(note.legend.trim())) : ""
+      const rawLegend = note?.legend ? sanitizeText(note.legend.trim()) : ""
+      // Azgaar legends are HTML; convert to clean Markdown at parse time. The embed
+      // URL is extracted from the RAW HTML first (htmlToMarkdown drops <iframe>s).
+      const legend = rawLegend ? htmlToMarkdown(rawLegend) : ""
+      const drillDownUrl = rawLegend ? extractDrillDownUrl(rawLegend) : undefined
       return {
         type: "poi" as const,
         name: sanitizeText(named ? note!.name.trim() : titleCase(String(m.type ?? ""))),
         x: clampPct((m.x / width) * 100),
         y: clampPct((m.y / height) * 100),
         dmNotes: legend.length > 0 ? legend : undefined,
+        // A dungeon/encounter pin's drill-down is a DM secret — listLocations strips
+        // it from the player payload (unlike a settlement's city link).
+        drillDownUrl,
+        poiKind: POI_KIND_FROM_MARKER[String(m.type ?? "")],
         prominence: POI_PROMINENCE,
       }
     })

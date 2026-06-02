@@ -21,6 +21,46 @@ const locationType = v.union(
   v.literal("region"),
 )
 
+// POI subtype (mirrors PoiKind in lib/worldMap/azgaar-map.ts + the mapLocations
+// schema). Set at import from the Azgaar marker type; drives the pin icon + action.
+const poiKindV = v.union(
+  v.literal("dungeon"),
+  v.literal("ruin"),
+  v.literal("monster"),
+  v.literal("encounter"),
+  v.literal("tavern"),
+  v.literal("landmark"),
+)
+
+// Settlement gazetteer block (mirrors TownMeta in lib/worldMap/azgaar-map.ts + the
+// mapLocations schema). Display-only, non-secret; threaded through every pin-write
+// path. ⚠️ Must stay on BOTH location-array validators or a reseed/import THROWS.
+const townV = v.object({
+  population: v.optional(v.number()),
+  coa: v.optional(v.string()),
+  realm: v.optional(v.string()),
+  government: v.optional(v.string()),
+  culture: v.optional(v.string()),
+  features: v.optional(v.array(v.string())),
+})
+
+// Premium-picker vibe validators (mirror lib/worldMap/vibe.ts + the worldMaps
+// schema). Shared by seedPreset (writes them) and listPremiumPresets (filters).
+const vibeShapeV = v.union(
+  v.literal("archipelago"),
+  v.literal("scattered"),
+  v.literal("continents"),
+  v.literal("pangaea"),
+)
+const vibeClimateV = v.union(
+  v.literal("frozen"),
+  v.literal("temperate"),
+  v.literal("arid"),
+  v.literal("tropical"),
+)
+const vibeCivilizationV = v.union(v.literal("wild"), v.literal("settled"), v.literal("crowded"))
+const vibeScaleV = v.union(v.literal("region"), v.literal("world"))
+
 // Membership/role helpers live in ./lib/auth (shared with wiki, liveSessions,
 // etc.). World-map writes are DM-only; this local alias supplies the world-map
 // error message so every call site stays unchanged.
@@ -129,6 +169,8 @@ export const setCampaignMapWithPins = mutation({
         y: v.number(),
         dmNotes: v.optional(v.string()),
         drillDownUrl: v.optional(v.string()),
+        poiKind: v.optional(poiKindV),
+        town: v.optional(townV),
         prominence: v.optional(v.number()),
       }),
     ),
@@ -186,6 +228,8 @@ export const setCampaignMapWithPins = mutation({
         revealed: false,
         dmNotes: loc.dmNotes,
         drillDownUrl: loc.drillDownUrl,
+        poiKind: loc.poiKind,
+        town: loc.town,
         prominence: loc.prominence,
         createdBy: userId,
       })
@@ -295,6 +339,37 @@ export const listPresets = query({
   },
 })
 
+// The premium "vibe" library: global source:"premium-preset" rows, optionally
+// filtered by any of the 4 vibe axes (undefined = "any" on that axis). ~120 rows,
+// so we scan the by_source bucket and filter in memory (no vibe index). Listing
+// is open to any authenticated user (it's just template metadata + public R2
+// images); ADOPTION is the gated action (see adoptPreset). The picker renders
+// this only for premium/admin DMs.
+export const listPremiumPresets = query({
+  args: {
+    vibeShape: v.optional(vibeShapeV),
+    vibeClimate: v.optional(vibeClimateV),
+    vibeCivilization: v.optional(vibeCivilizationV),
+    vibeScale: v.optional(vibeScaleV),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+    const rows = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_source", (q) => q.eq("source", "premium-preset"))
+      .collect()
+    return rows.filter(
+      (m) =>
+        m.campaignId === undefined &&
+        (args.vibeShape === undefined || m.vibeShape === args.vibeShape) &&
+        (args.vibeClimate === undefined || m.vibeClimate === args.vibeClimate) &&
+        (args.vibeCivilization === undefined || m.vibeCivilization === args.vibeCivilization) &&
+        (args.vibeScale === undefined || m.vibeScale === args.vibeScale),
+    )
+  },
+})
+
 // Adopt a preset into a campaign: clone the map row + a per-campaign random
 // subset of its locations (campaign gets independent, all-hidden reveal state).
 // DM-only. Replaces any existing campaign map (one active map per campaign).
@@ -308,17 +383,26 @@ export const adoptPreset = mutation({
   handler: async (ctx, args): Promise<Id<"worldMaps">> => {
     const userId = await requireDm(ctx, args.campaignId)
 
-    // Must be a GLOBAL preset — never a campaign-scoped map (adopting one onto
-    // itself would delete its own locations before the clone reads them → 0 pins).
+    // Must be a GLOBAL preset (free OR premium-library) — never a campaign-scoped
+    // map (adopting one onto itself would delete its own locations before the
+    // clone reads them → 0 pins).
     const preset = await ctx.db.get(args.presetId)
-    if (!preset || preset.source !== "preset" || preset.campaignId !== undefined) {
+    if (
+      !preset ||
+      (preset.source !== "preset" && preset.source !== "premium-preset") ||
+      preset.campaignId !== undefined
+    ) {
       throw new Error("Preset not found")
     }
 
-    // Resolve the density cap, then gate the premium tiers server-side (the UI
-    // hides them too, but never trust the client for entitlement).
+    // Resolve the density cap, then gate server-side (the UI hides these too, but
+    // never trust the client for entitlement). TWO premium triggers:
+    //   1. a large density tier (> FREE_MAX_PINS), OR
+    //   2. a premium-library map — adopting one is itself a premium action, so
+    //      gate it even at ≤ FREE_MAX_PINS (the gate isn't only about pin count).
     const limit = Math.max(1, Math.min(MAX_PINS, Math.round(args.limit ?? FREE_MAX_PINS)))
-    if (limit > FREE_MAX_PINS) {
+    const needsPremium = limit > FREE_MAX_PINS || preset.source === "premium-preset"
+    if (needsPremium) {
       const identity = await ctx.auth.getUserIdentity()
       const user = identity
         ? await ctx.db
@@ -327,7 +411,13 @@ export const adoptPreset = mutation({
             .unique()
         : null
       const isPremium = !!user && (user.isPremium || user.role === "admin")
-      if (!isPremium) throw new Error("Larger maps are a premium feature.")
+      if (!isPremium) {
+        throw new Error(
+          preset.source === "premium-preset"
+            ? "Premium worlds are a premium feature."
+            : "Larger maps are a premium feature.",
+        )
+      }
     }
 
     // Remove any current campaign map + its locations first.
@@ -391,6 +481,8 @@ export const adoptPreset = mutation({
         // Carry the preset pin's local map + MFCG city link so free-tier drill-down works.
         drillDownImageKey: loc.drillDownImageKey,
         drillDownUrl: loc.drillDownUrl,
+        poiKind: loc.poiKind,
+        town: loc.town,
         prominence: loc.prominence,
         createdBy: userId,
       })
@@ -455,6 +547,8 @@ export const saveAsPreset = mutation({
         // Preserve local maps + MFCG city links when promoting a campaign map to a preset.
         drillDownImageKey: loc.drillDownImageKey,
         drillDownUrl: loc.drillDownUrl,
+        poiKind: loc.poiKind,
+        town: loc.town,
         createdBy: identity.tokenIdentifier,
       })
     }
@@ -479,6 +573,12 @@ export const seedPreset = mutation({
     height: v.number(),
     scaleMilesPerPx: v.optional(v.number()),
     isPremiumPreset: v.optional(v.boolean()),
+    // All 4 present ⇒ a premium-library map (source:"premium-preset"); absent ⇒
+    // a free starter preset (source:"preset"). See scripts/bake-presets.ts.
+    vibeShape: v.optional(vibeShapeV),
+    vibeClimate: v.optional(vibeClimateV),
+    vibeCivilization: v.optional(vibeCivilizationV),
+    vibeScale: v.optional(vibeScaleV),
     locations: v.array(
       v.object({
         type: locationType,
@@ -488,6 +588,8 @@ export const seedPreset = mutation({
         dmNotes: v.optional(v.string()),
         drillDownImageKey: v.optional(v.string()),
         drillDownUrl: v.optional(v.string()),
+        poiKind: v.optional(poiKindV),
+        town: v.optional(townV),
         prominence: v.optional(v.number()),
       }),
     ),
@@ -498,12 +600,25 @@ export const seedPreset = mutation({
   ): Promise<{ mapId: Id<"worldMaps">; replaced: boolean; locationCount: number }> => {
     if (args.seedSecret !== process.env.SEED_SECRET) throw new Error("Unauthorized")
 
-    // Upsert by imageStorageKey — drop any existing preset (row + locations).
-    const presets = await ctx.db
+    // A fully-tagged map seeds into the premium library; otherwise it's a free
+    // starter preset. The source determines BOTH which bucket we upsert into and
+    // which we write — they must match or a premium re-seed would scan "preset",
+    // find nothing, and orphan the old premium row.
+    const isPremiumLib = !!(
+      args.vibeShape &&
+      args.vibeClimate &&
+      args.vibeCivilization &&
+      args.vibeScale
+    )
+    const source = isPremiumLib ? "premium-preset" : "preset"
+
+    // Upsert by imageStorageKey WITHIN that source bucket — drop any existing row
+    // (+ its locations) so re-running the bake/seed retunes in place.
+    const sameSource = await ctx.db
       .query("worldMaps")
-      .withIndex("by_source", (q) => q.eq("source", "preset"))
+      .withIndex("by_source", (q) => q.eq("source", source))
       .collect()
-    const existing = presets.find((m) => m.imageStorageKey === args.imageStorageKey)
+    const existing = sameSource.find((m) => m.imageStorageKey === args.imageStorageKey)
     if (existing) {
       const oldLocs = await ctx.db
         .query("mapLocations")
@@ -520,8 +635,12 @@ export const seedPreset = mutation({
       width: args.width,
       height: args.height,
       scaleMilesPerPx: args.scaleMilesPerPx,
-      source: "preset",
-      isPremiumPreset: args.isPremiumPreset ?? false,
+      source,
+      isPremiumPreset: args.isPremiumPreset ?? isPremiumLib,
+      vibeShape: args.vibeShape,
+      vibeClimate: args.vibeClimate,
+      vibeCivilization: args.vibeCivilization,
+      vibeScale: args.vibeScale,
       createdBy: "seed-script",
       updatedAt: Date.now(),
     })
@@ -540,6 +659,8 @@ export const seedPreset = mutation({
         dmNotes: loc.dmNotes,
         drillDownImageKey: loc.drillDownImageKey,
         drillDownUrl: loc.drillDownUrl,
+        poiKind: loc.poiKind,
+        town: loc.town,
         prominence: loc.prominence,
         createdBy: "seed-script",
       })
@@ -562,9 +683,19 @@ export const listLocations = query({
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
       .collect()
     const visible = m.member.role === "dm" ? locations : locations.filter((l) => l.revealed === true)
-    // Players never receive dmNotes — strip server-side so it isn't on the wire.
+    // Players never receive dmNotes. They also don't get a POI's drillDownUrl: those
+    // are dungeon/encounter prep tools (the interior map IS the secret — revealing a
+    // pin says "a ruined keep stands here," not its room-by-room layout). A
+    // settlement's city link is NOT secret, so it rides through to players on reveal.
+    // ⚠️ The dungeon URL ALSO appears inside dmNotes ("See [One page dungeon](…)"),
+    // so the dmNotes strip is load-bearing for this secret too — never serve dmNotes
+    // to players, or the drill-down leaks back through the notes.
     const sanitized =
-      m.member.role === "dm" ? visible : visible.map(({ dmNotes: _dm, ...rest }) => rest)
+      m.member.role === "dm"
+        ? visible
+        : visible.map(({ dmNotes: _dm, ...rest }) =>
+            rest.type === "poi" ? (({ drillDownUrl: _d, ...keep }) => keep)(rest) : rest,
+          )
     return sanitized.sort((a, b) => a.name.localeCompare(b.name))
   },
 })

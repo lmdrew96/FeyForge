@@ -18,7 +18,15 @@ import { htmlToMarkdown } from "@/lib/html-to-markdown"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { postAi, AiError } from "@/lib/ai-client"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
-import { parseMap, curateForImport } from "@/lib/worldMap/azgaar-map"
+import { parseMap, curateForImport, type PoiKind } from "@/lib/worldMap/azgaar-map"
+import {
+  VIBE_AXES,
+  vibeSubtitle,
+  type VibeShape,
+  type VibeClimate,
+  type VibeCivilization,
+  type VibeScale,
+} from "@/lib/worldMap/vibe"
 import { toast } from "sonner"
 import { FogOverlay } from "./fog-overlay"
 import {
@@ -49,6 +57,11 @@ import {
   Waves,
   Landmark,
   Skull,
+  KeyRound,
+  PawPrint,
+  Swords,
+  Beer,
+  Flag,
   Loader2,
   Crown,
   Map as MapIcon,
@@ -75,16 +88,45 @@ const toImageUrl = (key: string): string =>
 const LOCATION_TYPES = ["settlement", "poi", "natural", "water", "region"] as const
 type LocationType = (typeof LOCATION_TYPES)[number]
 
-const TYPE_META: Record<
-  LocationType,
-  { label: string; color: string; icon: typeof MapPinIcon }
-> = {
+type PinMeta = { label: string; color: string; icon: typeof MapPinIcon }
+
+const TYPE_META: Record<LocationType, PinMeta> = {
   settlement: { label: "Settlement", color: "#dc2626", icon: Castle },
   poi: { label: "Point of Interest", color: "#7c3aed", icon: Skull },
   natural: { label: "Natural Feature", color: "#059669", icon: Trees },
   water: { label: "Body of Water", color: "#0891b2", icon: Waves },
   region: { label: "Region", color: "#ca8a04", icon: Landmark },
 }
+
+// POI subtypes (Azgaar markers) get their own SVG icon + color — no emojis. A pin
+// with a poiKind uses this; everything else falls back to TYPE_META. Mirrors
+// PoiKind in lib/worldMap/azgaar-map.ts.
+const POI_KIND_META: Record<PoiKind, PinMeta> = {
+  dungeon: { label: "Dungeon", color: "#7c3aed", icon: KeyRound },
+  ruin: { label: "Ruins", color: "#78716c", icon: Skull },
+  monster: { label: "Monster lair", color: "#be123c", icon: PawPrint },
+  encounter: { label: "Encounter", color: "#ea580c", icon: Swords },
+  tavern: { label: "Tavern", color: "#b45309", icon: Beer },
+  landmark: { label: "Landmark", color: "#0d9488", icon: Flag },
+}
+
+// Resolve a pin's visual: its POI subtype first, then its coarse location type.
+const metaFor = (loc: { type?: string; poiKind?: PoiKind | string }): PinMeta => {
+  if (loc.poiKind && loc.poiKind in POI_KIND_META) return POI_KIND_META[loc.poiKind as PoiKind]
+  return TYPE_META[(loc.type as LocationType) ?? "settlement"] ?? TYPE_META.settlement
+}
+
+// D&D settlement size band from real population (DMG-ish thresholds). Display label
+// for the settlement gazetteer — purely derived, not stored.
+const settlementSize = (pop: number): string =>
+  pop < 100 ? "Hamlet" : pop < 1000 ? "Village" : pop < 6000 ? "Town" : pop < 25000 ? "City" : "Metropolis"
+
+// Render a stored Azgaar coat-of-arms (compact JSON) via Armoria's live SVG API.
+// Host is hardcoded (the .map only feeds the spec, never the host) — same threat
+// model as the drill-down allowlist.
+const ARMORIA_BASE = "https://armoria.herokuapp.com"
+const armoriaUrl = (coaJson: string, size = 120): string =>
+  `${ARMORIA_BASE}/?size=${size}&format=svg&coa=${encodeURIComponent(coaJson)}`
 
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 6
@@ -238,6 +280,166 @@ const DENSITY_TIERS: {
   { key: "mega", label: "Mega campaign", sub: "up to ~100", limit: 100, premium: true },
 ]
 
+// Premium "vibe" map picker — the marquee premium feature. The DM filters the
+// baked library on 4 axes (no Azgaar vocabulary) and picks a finished, populated
+// world; selection flows into MapChooser's shared density step → adoptPreset
+// (which gates premium-preset adoption server-side). Only rendered for premium/
+// admin DMs. Built on convex/worldMap.listPremiumPresets + lib/worldMap/vibe.ts.
+type VibeFilter = {
+  vibeShape?: VibeShape
+  vibeClimate?: VibeClimate
+  vibeCivilization?: VibeCivilization
+  vibeScale?: VibeScale
+}
+
+function VibeChip({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full px-3 py-1 text-xs font-medium transition-colors"
+      style={{
+        background: selected ? "var(--scene-accent)" : "var(--scene-surface)",
+        color: selected ? "var(--scene-bg)" : "var(--scene-text-muted)",
+        border: "1px solid var(--scene-border)",
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function PremiumMapPicker({ onPick }: { onPick: (id: WorldMapId, name: string) => void }) {
+  const [filter, setFilter] = useState<VibeFilter>({})
+  const results = useQuery(api.worldMap.listPremiumPresets, filter)
+
+  const setAxis = (field: keyof VibeFilter, option: string | undefined) =>
+    setFilter((f) => ({ ...f, [field]: option }) as VibeFilter)
+
+  // Empty library (nothing seeded yet) → render nothing rather than a dead section.
+  // Once premium presets exist, the picker appears. An over-FILTERED empty result
+  // still shows (with a "fewer filters" hint) so the chips stay usable.
+  const hasFilter = Object.values(filter).some((v) => v !== undefined)
+  if (results !== undefined && results.length === 0 && !hasFilter) return null
+
+  return (
+    <div className="mb-6">
+      <div className="mb-1 flex items-center gap-2">
+        <Sparkles className="h-4 w-4" style={{ color: "var(--scene-accent)" }} />
+        <h2
+          className="text-sm font-semibold uppercase tracking-widest"
+          style={{ color: "var(--scene-text-muted)" }}
+        >
+          Premium worlds
+        </h2>
+      </div>
+      <p className="mb-3 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+        Pick a vibe — a finished, populated world appears. No map editor, no fuss.
+      </p>
+
+      <div className="mb-4 space-y-2.5">
+        {VIBE_AXES.map((axis) => {
+          const active = filter[axis.field]
+          return (
+            <div key={axis.field}>
+              <span
+                className="mb-1 block text-[11px] font-medium uppercase tracking-wide"
+                style={{ color: "var(--scene-text-muted)" }}
+              >
+                {axis.label}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <VibeChip
+                  label="Any"
+                  selected={active === undefined}
+                  onClick={() => setAxis(axis.field, undefined)}
+                />
+                {axis.options.map((opt) => (
+                  <VibeChip
+                    key={opt}
+                    label={(axis.labels as Record<string, string>)[opt]}
+                    selected={active === opt}
+                    onClick={() => setAxis(axis.field, active === opt ? undefined : opt)}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {results === undefined ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="aspect-video animate-pulse rounded-lg"
+              style={{ background: "var(--scene-surface)" }}
+            />
+          ))}
+        </div>
+      ) : results.length === 0 ? (
+        <div
+          className="rounded-xl p-6 text-center"
+          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        >
+          <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+            No premium worlds match these filters. Try fewer.
+          </p>
+        </div>
+      ) : (
+        <>
+          <p className="mb-2 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+            {results.length} world{results.length === 1 ? "" : "s"} match
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {results.map((r) => (
+              <button
+                key={r._id}
+                onClick={() => onPick(r._id, r.name)}
+                className="group relative overflow-hidden rounded-lg text-left transition-transform hover:scale-[1.02]"
+                style={{ border: "1px solid var(--scene-border)" }}
+              >
+                <div className="aspect-video w-full" style={{ background: "var(--scene-bg)" }}>
+                  <img
+                    src={toImageUrl(r.imageStorageKey)}
+                    alt={r.name}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="px-3 py-2" style={{ background: "var(--scene-surface)" }}>
+                  <span
+                    className="block truncate text-sm font-medium"
+                    style={{ color: "var(--scene-text-primary)" }}
+                  >
+                    {r.name}
+                  </span>
+                  {r.vibeCivilization && r.vibeScale && (
+                    <span
+                      className="block truncate text-[11px]"
+                      style={{ color: "var(--scene-text-muted)" }}
+                    >
+                      {vibeSubtitle({ civilization: r.vibeCivilization, scale: r.vibeScale })}
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // Shared map chooser: upload (premium/admin) + the starter-preset grid. Used for
 // first-time setup (empty state) AND the in-workspace "Change map" modal — both
 // adoptPreset and setCampaignMap replace any existing campaign map (they clear it
@@ -338,9 +540,11 @@ function MapChooser({
 
   return (
     <>
-      {/* Premium/admin: guided-create + import-with-pins, then plain image upload. */}
+      {/* Premium/admin: vibe picker (marquee), then guided-create + import, then
+          plain image upload. The picker hides itself when the library is empty. */}
       {canCreateMaps ? (
         <>
+          <PremiumMapPicker onPick={(id, name) => setDensityFor({ id, name })} />
           <AzgaarWorldBuilder campaignId={campaignId} onDone={onDone} />
           <MapUploader campaignId={campaignId} onDone={onDone} />
         </>
@@ -1778,7 +1982,8 @@ function LocationMarker({
   selected: boolean
   onSelect: () => void
 }) {
-  const meta = TYPE_META[(loc.type as LocationType) ?? "settlement"] ?? TYPE_META.settlement
+  const meta = metaFor(loc)
+  const Icon = meta.icon
   const hiddenFromPlayers = isDM && !loc.revealed
   return (
     <button
@@ -1797,13 +2002,27 @@ function LocationMarker({
       }}
     >
       <span className="relative block">
+        {/* Selection glow sits behind the pin (painted first ⇒ lower in stack). */}
+        {selected && (
+          <span
+            aria-hidden
+            className="absolute left-1/2 top-[1px] h-7 w-7 -translate-x-1/2 rounded-full"
+            style={{ background: meta.color, opacity: 0.3 }}
+          />
+        )}
+        {/* Filled teardrop in the kind's color… */}
         <MapPinIcon
-          className="h-7 w-7 drop-shadow-md"
+          className="h-8 w-8 drop-shadow-md"
           style={{
             color: meta.color,
-            fill: selected ? meta.color : "transparent",
+            fill: meta.color,
             opacity: hiddenFromPlayers ? 0.45 : 1,
           }}
+        />
+        {/* …with the kind's SVG glyph (white) in the bulb — no emojis. */}
+        <Icon
+          className="pointer-events-none absolute left-1/2 top-[5px] h-3.5 w-3.5 -translate-x-1/2"
+          style={{ color: "#fff", opacity: hiddenFromPlayers ? 0.55 : 1 }}
         />
         {hiddenFromPlayers && (
           <EyeOff className="absolute -right-1 -top-1 h-3 w-3" style={{ color: "var(--scene-text-muted)" }} />
@@ -1816,6 +2035,26 @@ function LocationMarker({
         </span>
       </span>
     </button>
+  )
+}
+
+// Town crest, rendered from the stored COA spec via Armoria. Hides itself if the
+// (third-party) render ever fails — never blocks the rest of the panel.
+function CoatOfArms({ coa, name }: { coa: string; name: string }) {
+  const [ok, setOk] = useState(true)
+  if (!ok) return null
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={armoriaUrl(coa)}
+      alt={`Coat of arms of ${name}`}
+      width={56}
+      height={56}
+      loading="lazy"
+      onError={() => setOk(false)}
+      className="h-14 w-14 shrink-0 rounded"
+      style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+    />
   )
 }
 
@@ -1836,14 +2075,25 @@ function LocationDetail({
   onDelete: () => void
   onReveal: () => void
 }) {
-  const meta = TYPE_META[(loc.type as LocationType) ?? "settlement"] ?? TYPE_META.settlement
+  const meta = metaFor(loc)
   const Icon = meta.icon
   const [lightbox, setLightbox] = useState(false)
   const [cityOpen, setCityOpen] = useState(false)
   // Drill-down resolution (per spec): a DM's uploaded image overrides everything;
-  // else a settlement's auto MFCG city map; else nothing (POIs have no auto map).
+  // else the pin's embedded Watabou map — a settlement's MFCG city, a dungeon's One
+  // Page Dungeon, or an encounter's premade-NPC view. POI drill-downs are DM-only
+  // (listLocations strips drillDownUrl from the player payload for type "poi").
   const hasImage = !!loc.drillDownImageKey
-  const hasCity = !hasImage && loc.type === "settlement" && !!loc.drillDownUrl
+  const hasEmbed = !hasImage && !!loc.drillDownUrl
+  // Label/title the drill-down by what it actually opens.
+  const embedLabel =
+    loc.poiKind === "dungeon"
+      ? "View dungeon map"
+      : loc.poiKind === "encounter"
+        ? "View encounter NPC"
+        : loc.type === "settlement"
+          ? "View city map"
+          : "View map"
   // Notes render as Markdown (the shared, sanitized renderer). htmlToMarkdown
   // also cleans the raw HTML the Azgaar seed pipeline leaves in dmNotes — links
   // survive, the <iframe>/<div> soup doesn't. Gate on the NORMALIZED value so an
@@ -1875,11 +2125,46 @@ function LocationDetail({
         )}
       </div>
 
+      {/* Settlement gazetteer (imported from the Azgaar burg): crest, size, realm, chips. */}
+      {loc.town && (
+        <div className="mt-3 flex gap-3">
+          {loc.town.coa && <CoatOfArms coa={loc.town.coa} name={loc.name} />}
+          <div className="min-w-0 flex-1">
+            {loc.town.population != null && (
+              <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
+                {settlementSize(loc.town.population)} · {loc.town.population.toLocaleString()} people
+              </p>
+            )}
+            {(loc.town.realm || loc.town.culture) && (
+              <p className="mt-0.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                {loc.town.realm}
+                {loc.town.realm && loc.town.government ? ` · ${loc.town.government}` : ""}
+                {loc.town.realm && loc.town.culture ? " · " : ""}
+                {loc.town.culture ? `${loc.town.culture} culture` : ""}
+              </p>
+            )}
+            {loc.town.features && loc.town.features.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {loc.town.features.map((f) => (
+                  <span
+                    key={f}
+                    className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                    style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+                  >
+                    {f}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {playerMd && (
         <MarkdownRenderer variant="scene" content={playerMd} className="mt-3 text-sm" />
       )}
 
-      {(hasImage || hasCity) && (
+      {(hasImage || hasEmbed) && (
         <button
           type="button"
           onClick={() => (hasImage ? setLightbox(true) : setCityOpen(true))}
@@ -1891,7 +2176,7 @@ function LocationDetail({
           }}
         >
           <MapIcon className="h-3.5 w-3.5" />
-          {hasImage ? "View local map" : "View city map"}
+          {hasImage ? "View local map" : embedLabel}
         </button>
       )}
 
