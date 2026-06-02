@@ -86,6 +86,25 @@ const vibeScaleV = v.union(v.literal("region"), v.literal("world"))
 const requireDm = (ctx: MutationCtx, campaignId: Id<"campaigns">) =>
   requireCampaignDm(ctx, campaignId, "Only the DM can edit the world map")
 
+// Wipe a campaign's ENTIRE map state before a replace (adopt / import / upload).
+// Delete locations by_campaignId — the SAME scope listLocations reads — NOT by the
+// old map's worldMapId, so a stray pin from any earlier state can never outlive a
+// map change (the delete scope now matches the read scope). Also drops every
+// worldMaps row for the campaign, guarding against a duplicate map row lingering.
+// Presets (campaignId undefined) are never touched.
+async function clearCampaignMap(ctx: MutationCtx, campaignId: Id<"campaigns">): Promise<void> {
+  const locs = await ctx.db
+    .query("mapLocations")
+    .withIndex("by_campaignId", (q) => q.eq("campaignId", campaignId))
+    .collect()
+  for (const loc of locs) await ctx.db.delete(loc._id)
+  const maps = await ctx.db
+    .query("worldMaps")
+    .withIndex("by_campaignId", (q) => q.eq("campaignId", campaignId))
+    .collect()
+  for (const m of maps) await ctx.db.delete(m._id)
+}
+
 // Pin-density caps. Free tier tops out at MANY; "a bunch"/"mega" are premium.
 // Hard ceiling MAX_PINS so a preset never floods a campaign (or the DM map).
 const FREE_MAX_PINS = 40
@@ -148,18 +167,7 @@ export const setCampaignMap = mutation({
   handler: async (ctx, args): Promise<Id<"worldMaps">> => {
     const userId = await requireDm(ctx, args.campaignId)
 
-    const existingMaps = await ctx.db
-      .query("worldMaps")
-      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
-      .collect()
-    for (const m of existingMaps) {
-      const locs = await ctx.db
-        .query("mapLocations")
-        .withIndex("by_worldMap", (q) => q.eq("worldMapId", m._id))
-        .collect()
-      for (const loc of locs) await ctx.db.delete(loc._id)
-      await ctx.db.delete(m._id)
-    }
+    await clearCampaignMap(ctx, args.campaignId)
 
     return await ctx.db.insert("worldMaps", {
       campaignId: args.campaignId,
@@ -216,18 +224,7 @@ export const setCampaignMapWithPins = mutation({
     if (!isPremium) throw new Error("Importing your own world is a premium feature.")
 
     // Replace any existing campaign map + its locations (one active map per campaign).
-    const existingMaps = await ctx.db
-      .query("worldMaps")
-      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
-      .collect()
-    for (const m of existingMaps) {
-      const locs = await ctx.db
-        .query("mapLocations")
-        .withIndex("by_worldMap", (q) => q.eq("worldMapId", m._id))
-        .collect()
-      for (const loc of locs) await ctx.db.delete(loc._id)
-      await ctx.db.delete(m._id)
-    }
+    await clearCampaignMap(ctx, args.campaignId)
 
     const newMapId = await ctx.db.insert("worldMaps", {
       campaignId: args.campaignId,
@@ -449,18 +446,7 @@ export const adoptPreset = mutation({
     }
 
     // Remove any current campaign map + its locations first.
-    const existingMaps = await ctx.db
-      .query("worldMaps")
-      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
-      .collect()
-    for (const m of existingMaps) {
-      const locs = await ctx.db
-        .query("mapLocations")
-        .withIndex("by_worldMap", (q) => q.eq("worldMapId", m._id))
-        .collect()
-      for (const loc of locs) await ctx.db.delete(loc._id)
-      await ctx.db.delete(m._id)
-    }
+    await clearCampaignMap(ctx, args.campaignId)
 
     // Clone the preset map row into the campaign.
     const newMapId = await ctx.db.insert("worldMaps", {
