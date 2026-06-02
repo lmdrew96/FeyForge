@@ -44,6 +44,25 @@ const townV = v.object({
   features: v.optional(v.array(v.string())),
 })
 
+// Named active world events (Azgaar zones). World-level, DM-only — getMap strips
+// it for non-DM members. Mirrors ZoneInfo in lib/worldMap/azgaar-map.ts.
+// An event's affected settlement — a full pin payload so the DM can mint a real
+// pin from it ("+ add to map"); a non-preset town exists nowhere else in Convex.
+const eventPlaceV = v.object({
+  name: v.string(),
+  x: v.number(),
+  y: v.number(),
+  drillDownUrl: v.optional(v.string()),
+  town: v.optional(townV),
+})
+const worldEventsV = v.array(
+  v.object({
+    name: v.string(),
+    type: v.string(),
+    places: v.optional(v.array(eventPlaceV)),
+  }),
+)
+
 // Premium-picker vibe validators (mirror lib/worldMap/vibe.ts + the worldMaps
 // schema). Shared by seedPreset (writes them) and listPremiumPresets (filters).
 const vibeShapeV = v.union(
@@ -101,10 +120,17 @@ export const getMap = query({
   handler: async (ctx, args) => {
     const m = await getMembership(ctx, args.campaignId)
     if (!m) return null
-    return await ctx.db
+    const map = await ctx.db
       .query("worldMaps")
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
       .first()
+    if (!map) return null
+    // World events are DM plot — strip them for players (a brewing invasion isn't
+    // common knowledge). Everything else on the row is player-safe (image, fog,
+    // scale). Set to undefined (not omit) so the return type stays a clean Doc and
+    // the array still never reaches the player's wire.
+    if (m.member.role !== "dm") return { ...map, worldEvents: undefined }
+    return map
   },
 })
 
@@ -174,6 +200,7 @@ export const setCampaignMapWithPins = mutation({
         prominence: v.optional(v.number()),
       }),
     ),
+    worldEvents: v.optional(worldEventsV),
   },
   handler: async (ctx, args): Promise<Id<"worldMaps">> => {
     const userId = await requireDm(ctx, args.campaignId)
@@ -210,6 +237,7 @@ export const setCampaignMapWithPins = mutation({
       height: args.height,
       scaleMilesPerPx: args.scaleMilesPerPx,
       source: "import",
+      worldEvents: args.worldEvents,
       createdBy: userId,
       updatedAt: Date.now(),
     })
@@ -444,6 +472,7 @@ export const adoptPreset = mutation({
       scaleMilesPerPx: preset.scaleMilesPerPx,
       source: "preset",
       presetSourceId: preset._id,
+      worldEvents: preset.worldEvents,
       createdBy: userId,
       updatedAt: Date.now(),
     })
@@ -525,6 +554,7 @@ export const saveAsPreset = mutation({
       scaleMilesPerPx: map.scaleMilesPerPx,
       source: "preset",
       isPremiumPreset: args.isPremiumPreset ?? false,
+      worldEvents: map.worldEvents,
       createdBy: identity.tokenIdentifier,
       updatedAt: Date.now(),
     })
@@ -593,6 +623,7 @@ export const seedPreset = mutation({
         prominence: v.optional(v.number()),
       }),
     ),
+    worldEvents: v.optional(worldEventsV),
   },
   handler: async (
     ctx,
@@ -641,6 +672,7 @@ export const seedPreset = mutation({
       vibeClimate: args.vibeClimate,
       vibeCivilization: args.vibeCivilization,
       vibeScale: args.vibeScale,
+      worldEvents: args.worldEvents,
       createdBy: "seed-script",
       updatedAt: Date.now(),
     })
@@ -711,6 +743,10 @@ export const createLocation = mutation({
     dmNotes: v.optional(v.string()),
     playerNotes: v.optional(v.string()),
     drillDownImageKey: v.optional(v.string()),
+    // Settlement extras — set when minting a pin from a World Event's affected town
+    // (the MFCG city link + gazetteer), so an added town is a first-class settlement.
+    drillDownUrl: v.optional(v.string()),
+    town: v.optional(townV),
     revealed: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<Id<"mapLocations">> => {
@@ -727,6 +763,8 @@ export const createLocation = mutation({
       playerNotes: args.playerNotes,
       // Empty string ⇒ omit the field (don't store "").
       drillDownImageKey: args.drillDownImageKey || undefined,
+      drillDownUrl: args.drillDownUrl,
+      town: args.town,
       createdBy: userId,
     })
   },

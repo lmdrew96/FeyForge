@@ -30,6 +30,7 @@ import {
   PRESET_MAX_PINS,
   POI_POOL_SHARE,
   type ParsedLocation,
+  type ZoneInfo,
 } from "../lib/worldMap/azgaar-map"
 import type {
   VibeShape,
@@ -163,6 +164,7 @@ async function seedPresetInConvex(args: {
   height: number
   scaleMilesPerPx?: number
   locations: ParsedLocation[]
+  worldEvents?: ZoneInfo[] // named active world events (Azgaar zones) → worldMaps row, DM-only
   // All 4 present ⇒ the mutation stores source:"premium-preset" + these tags;
   // absent ⇒ a free starter preset (source:"preset").
   vibeShape?: VibeShape
@@ -268,6 +270,7 @@ async function seedPremium(dryRun: boolean): Promise<void> {
         height: parsed.height,
         scaleMilesPerPx: parsed.scaleMilesPerPx,
         locations,
+        worldEvents: parsed.zones,
         vibeShape: e.vibeShape,
         vibeClimate: e.vibeClimate,
         vibeCivilization: e.vibeCivilization,
@@ -376,6 +379,7 @@ async function main(): Promise<void> {
         height: parsed.height,
         scaleMilesPerPx: parsed.scaleMilesPerPx,
         locations,
+        worldEvents: parsed.zones,
       })
 
       console.log(`${result.replaced ? "↻  updated" : "✓  seeded"} ${result.locationCount}-pin pool — ${summary}`)

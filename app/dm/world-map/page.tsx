@@ -18,7 +18,7 @@ import { htmlToMarkdown } from "@/lib/html-to-markdown"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { postAi, AiError } from "@/lib/ai-client"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
-import { parseMap, curateForImport, type PoiKind } from "@/lib/worldMap/azgaar-map"
+import { parseMap, curateForImport, type PoiKind, type EventPlace } from "@/lib/worldMap/azgaar-map"
 import {
   VIBE_AXES,
   vibeSubtitle,
@@ -62,6 +62,12 @@ import {
   Swords,
   Beer,
   Flag,
+  Church,
+  Flame,
+  Mountain,
+  Droplets,
+  Snowflake,
+  TriangleAlert,
   Loader2,
   Crown,
   Map as MapIcon,
@@ -128,8 +134,28 @@ const ARMORIA_BASE = "https://armoria.herokuapp.com"
 const armoriaUrl = (coaJson: string, size = 120): string =>
   `${ARMORIA_BASE}/?size=${size}&format=svg&coa=${encodeURIComponent(coaJson)}`
 
+// Azgaar "zone" (world event) type → SVG icon + color for the DM events panel.
+const ZONE_TYPE_META: Record<string, { color: string; icon: typeof MapPinIcon }> = {
+  Invasion: { color: "#b91c1c", icon: Swords },
+  Crusade: { color: "#b91c1c", icon: Swords },
+  Rebels: { color: "#ea580c", icon: Flag },
+  Proselytism: { color: "#7c3aed", icon: Church },
+  Disease: { color: "#65a30d", icon: Skull },
+  Eruption: { color: "#ea580c", icon: Flame },
+  Disaster: { color: "#d97706", icon: TriangleAlert },
+  Fault: { color: "#78716c", icon: Mountain },
+  Avalanche: { color: "#0891b2", icon: Snowflake },
+  Flood: { color: "#0284c7", icon: Droplets },
+  Tsunami: { color: "#0284c7", icon: Waves },
+}
+const zoneMeta = (type: string): { color: string; icon: typeof MapPinIcon } =>
+  ZONE_TYPE_META[type] ?? { color: "#6b7280", icon: TriangleAlert }
+
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 6
+// Soft render-perf ceiling — mirrors MAX_PINS in convex/worldMap.ts. Adding a World
+// Event's town past this is allowed (manual pins are uncapped) but warns the DM.
+const PIN_SOFT_CAP = 100
 
 // Fog clearing radius defaults + slider bounds (% of the map's shorter side).
 // Mirror FOG_MIN_RADIUS/FOG_MAX_RADIUS in convex/worldMap.ts (server re-clamps).
@@ -788,6 +814,7 @@ function AzgaarWorldBuilder({ campaignId, onDone }: { campaignId: CampaignId; on
         height: parsed.height,
         scaleMilesPerPx: parsed.scaleMilesPerPx,
         locations,
+        worldEvents: parsed.zones, // named active events → worldMaps row (DM-only)
       })
       toast.success(`Imported “${name}” — ${locations.length} location${locations.length === 1 ? "" : "s"} placed.`)
       onDone?.()
@@ -1408,6 +1435,63 @@ function MapWorkspace({
     setMovingId(null)
   }
 
+  // Center the view on a map coord (% of the rendered image). After scaling about
+  // the layer's center, a point d px from center sits d*zoom from center, so
+  // pan=-d*zoom brings it to the middle. No-op if the image isn't ready yet.
+  const centerOn = (x: number, y: number) => {
+    const img = imgRef.current
+    if (!img) return
+    const z = clampZoom(Math.max(zoom, 1.8))
+    const dx = ((x - 50) / 100) * img.offsetWidth
+    const dy = ((y - 50) / 100) * img.offsetHeight
+    setZoom(z)
+    setPan({ x: -dx * z, y: -dy * z })
+  }
+  // World Events panel: jump to an already-pinned town (select + center).
+  const jumpToLocation = (loc: MapLocation) => {
+    setSelectedId(loc._id)
+    centerOn(loc.x, loc.y)
+  }
+  // World Events panel: "+ add" an affected town that isn't on the map yet. Mints a
+  // full settlement pin from the event's stored payload (it exists nowhere else),
+  // then selects + centers it. If a matching pin already exists (name + near-exact
+  // coords — guards Azgaar's duplicate burg names), just jump there instead.
+  const addEventTown = async (place: EventPlace) => {
+    if (!map) return
+    const existing = locations.find(
+      (l) =>
+        l.type === "settlement" &&
+        l.name === place.name &&
+        Math.abs(l.x - place.x) < 0.5 &&
+        Math.abs(l.y - place.y) < 0.5,
+    )
+    if (existing) {
+      jumpToLocation(existing)
+      return
+    }
+    try {
+      const id = await createLocation({
+        campaignId,
+        worldMapId: map._id,
+        type: "settlement",
+        name: place.name,
+        x: place.x,
+        y: place.y,
+        drillDownUrl: place.drillDownUrl,
+        town: place.town,
+      })
+      setSelectedId(id)
+      centerOn(place.x, place.y)
+      toast.success(
+        locations.length >= PIN_SOFT_CAP
+          ? `Added ${place.name} — heads up, you're past ${PIN_SOFT_CAP} pins, so the map may slow.`
+          : `Added ${place.name} to the map.`,
+      )
+    } catch {
+      toast.error("Couldn't add that town to the map.")
+    }
+  }
+
   const activeMode = (placing || movingId !== null || painting) && isDM
 
   return (
@@ -1454,6 +1538,14 @@ function MapWorkspace({
               onTogglePreview={() => setFogPreview((p) => !p)}
               onStartPaint={startPaint}
             />
+            {(map.worldEvents?.length ?? 0) > 0 && (
+              <WorldEventsControl
+                events={map.worldEvents!}
+                locations={locations}
+                onJumpTo={jumpToLocation}
+                onAddTown={addEventTown}
+              />
+            )}
             {isAdmin && (
               <ToolbarButton onClick={handleSaveAsPreset} title="Publish as a starter map for all users">
                 <Crown className="h-4 w-4" />
@@ -1710,6 +1802,127 @@ function MapWorkspace({
 // Fog-of-war control: a toolbar button that opens a small popover with the
 // on/off toggle, the clearing-radius slider, and a "preview player view" toggle
 // so the DM can see exactly what their players see.
+// DM-only popover listing the world's active events (Azgaar zones). Reference-only
+// hooks for the DM to seed story — no per-event reveal yet (the natural future seam
+// is reveal-per-event like pins). Mirrors FogControl's popover scaffolding.
+function WorldEventsControl({
+  events,
+  locations,
+  onJumpTo,
+  onAddTown,
+}: {
+  events: { name: string; type: string; places?: EventPlace[] }[]
+  locations: MapLocation[]
+  onJumpTo: (loc: MapLocation) => void
+  onAddTown: (place: EventPlace) => void
+}) {
+  const [open, setOpen] = useState(false)
+  // Match an affected town to an existing pin by name AND near-exact coords (the
+  // same burg ⇒ identical coords; this guards Azgaar's duplicate burg names). A
+  // match ⇒ jump-link; no match ⇒ a "+" chip that mints the pin from the payload.
+  const settlementPins = useMemo(() => locations.filter((l) => l.type === "settlement"), [locations])
+  const findPin = (place: EventPlace) =>
+    settlementPins.find(
+      (l) => l.name === place.name && Math.abs(l.x - place.x) < 0.5 && Math.abs(l.y - place.y) < 0.5,
+    )
+  return (
+    <div className="relative">
+      <ToolbarButton onClick={() => setOpen((o) => !o)} active={open} title="Active world events">
+        <Swords className="h-4 w-4" />
+        <span className="hidden sm:inline">Events</span>
+        <span
+          className="ml-1 rounded-full px-1.5 text-[10px] font-bold leading-tight"
+          style={{ background: "var(--scene-accent)", color: "#fff" }}
+        >
+          {events.length}
+        </span>
+      </ToolbarButton>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-full z-50 mt-2 max-h-[60vh] w-72 overflow-y-auto rounded-xl p-4 shadow-2xl"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+          >
+            <span
+              className="text-sm font-bold"
+              style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+            >
+              Active World Events
+            </span>
+            <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+              Brewing conflicts, plagues, and disasters across this world — DM-only hooks to seed your story.
+            </p>
+            <ul className="mt-3 space-y-1.5">
+              {events.map((e, i) => {
+                const m = zoneMeta(e.type)
+                const Icon = m.icon
+                return (
+                  <li key={`${e.name}-${i}`} className="flex items-start gap-2">
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: m.color }} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
+                        {e.name}
+                      </p>
+                      <p className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+                        {e.type}
+                      </p>
+                      {e.places && e.places.length > 0 && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+                          <span style={{ color: "var(--scene-text-muted)" }}>Affecting:</span>
+                          {e.places.map((place) => {
+                            const pin = findPin(place)
+                            return pin ? (
+                              <button
+                                key={place.name}
+                                onClick={() => {
+                                  onJumpTo(pin)
+                                  setOpen(false)
+                                }}
+                                title={`Go to ${place.name}`}
+                                className="rounded px-1.5 py-0.5 font-medium transition-opacity hover:opacity-80"
+                                style={{
+                                  background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+                                  color: "var(--scene-accent)",
+                                  border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
+                                }}
+                              >
+                                {place.name}
+                              </button>
+                            ) : (
+                              <button
+                                key={place.name}
+                                onClick={() => {
+                                  onAddTown(place)
+                                  setOpen(false)
+                                }}
+                                title={`Add ${place.name} to the map`}
+                                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-medium transition-opacity hover:opacity-80"
+                                style={{
+                                  background: "var(--scene-bg)",
+                                  color: "var(--scene-text-muted)",
+                                  border: "1px dashed var(--scene-border)",
+                                }}
+                              >
+                                {place.name}
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function FogControl({
   fogEnabled,
   fogRadius,

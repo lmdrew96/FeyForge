@@ -116,6 +116,25 @@ export type TownMeta = {
   features?: string[] // ["Capital","Port","Walled","Citadel","Temple","Market","Shantytown"]
 }
 
+// A named active world event (Azgaar "zone": invasions, plagues, eruptions, …).
+// World-level, not a pin — stored on the worldMaps row, DM-only. name + type only
+// (Azgaar zones carry no prose; the evocative name + category IS the hook).
+// A settlement an event affects — enough to MINT a full pin if the DM clicks "+",
+// since a town beyond the preset's stored set exists nowhere else in Convex.
+export type EventPlace = {
+  name: string
+  x: number // normalized 0–100 (same space as mapLocations) — matches the burg's pin if it exists
+  y: number
+  drillDownUrl?: string // MFCG city link, so an added town gets the city drill-down too
+  town?: TownMeta // gazetteer (population/crest/realm/…) so an added pin is first-class
+}
+
+export type ZoneInfo = {
+  name: string
+  type: string // Invasion | Rebels | Proselytism | Crusade | Disease | Disaster | Eruption | Fault | Flood | Avalanche | Tsunami | …
+  places?: EventPlace[] // settlements in the event's cells (top by population) — jump-link or "+ add"
+}
+
 export type ParsedMap = {
   width: number
   height: number
@@ -123,6 +142,7 @@ export type ParsedMap = {
   settlements: ParsedLocation[]
   pois: ParsedLocation[]
   poiNamedTotal: number // POIs that resolved a real name (not a type fallback) — for seed reporting
+  zones: ZoneInfo[] // named active world events (DM-only)
 }
 
 export type PresetStats = {
@@ -150,6 +170,7 @@ type Burg = {
   temple?: number
   MFCG?: number | null
   link?: string | null
+  cell?: number // the pack cell this burg sits in (used to anchor zones → places)
   state?: number // index into the states array (0 = neutral)
   culture?: number // index into the cultures array (0 = wildlands)
   coa?: unknown // Armoria coat-of-arms spec (object) or "custom"
@@ -160,6 +181,7 @@ type Note = { id: string; name: string; legend: string }
 // placeholder). Resolved by burg.state / burg.culture into the town gazetteer.
 type State = { i?: number; name?: string; fullName?: string; form?: string; removed?: boolean }
 type Culture = { i?: number; name?: string; removed?: boolean }
+type Zone = { i?: number; name?: string; type?: string; cells?: number[] }
 
 const clampPct = (v: number): number => Math.round(Math.max(0, Math.min(100, v)) * 10000) / 10000
 
@@ -214,6 +236,7 @@ export function parseMap(text: string): ParsedMap {
   let notes: Note[] = []
   let states: State[] = []
   let cultures: Culture[] = []
+  let zones: Zone[] = []
   for (const ln of lines) {
     const t = ln.trimStart()
     if (!t.startsWith("[")) continue
@@ -276,6 +299,24 @@ export function parseMap(text: string): ParsedMap {
       !("form" in sample)
     ) {
       cultures = arr as Culture[]
+    } else if (
+      // Zones: named active world events. cells+color+name+type, but WITHOUT the
+      // distinguishing keys of features (area/border), rivers (discharge/length),
+      // states (form), notes (legend), cultures (base), or markers (icon).
+      zones.length === 0 &&
+      "cells" in sample &&
+      "type" in sample &&
+      "color" in sample &&
+      "name" in sample &&
+      !("area" in sample) &&
+      !("discharge" in sample) &&
+      !("length" in sample) &&
+      !("form" in sample) &&
+      !("legend" in sample) &&
+      !("base" in sample) &&
+      !("icon" in sample)
+    ) {
+      zones = arr as Zone[]
     }
   }
 
@@ -371,6 +412,41 @@ export function parseMap(text: string): ParsedMap {
     }
   })
 
+  // World events (Azgaar "zones"): named active situations resolved to the
+  // settlements in their cells. Azgaar stores no per-cell coordinates (geometry is
+  // regenerated from the seed), so the burgs sitting in a zone's cells are the only
+  // reliable "where". Each affected town carries a full pin payload (coords + city
+  // link + gazetteer) so the DM can mint a real pin from it on demand. Built AFTER
+  // `settlements` so we reuse those records rather than recompute. Deduped by
+  // name+type (Azgaar emits the same proselytism/conflict twice for split clusters).
+  const PLACES_PER_EVENT = 6
+  const settlementByCell = new Map<number, ParsedLocation>()
+  realBurgs.forEach((b, idx) => {
+    if (typeof b.cell === "number" && !settlementByCell.has(b.cell)) {
+      settlementByCell.set(b.cell, settlements[idx])
+    }
+  })
+  const seenZone = new Set<string>()
+  const zoneInfos: ZoneInfo[] = []
+  for (const z of zones) {
+    const name = z && typeof z.name === "string" ? sanitizeText(z.name.trim()) : ""
+    const type = z && typeof z.type === "string" ? z.type.trim() : ""
+    if (!name || !type) continue
+    const key = `${name}|${type}`
+    if (seenZone.has(key)) continue
+    seenZone.add(key)
+    const byName = new Map<string, ParsedLocation>()
+    for (const c of z.cells ?? []) {
+      const s = typeof c === "number" ? settlementByCell.get(c) : undefined
+      if (s && !byName.has(s.name)) byName.set(s.name, s)
+    }
+    const places: EventPlace[] = [...byName.values()]
+      .sort((a, b) => (b.town?.population ?? 0) - (a.town?.population ?? 0))
+      .slice(0, PLACES_PER_EVENT)
+      .map((s) => ({ name: s.name, x: s.x, y: s.y, drillDownUrl: s.drillDownUrl, town: s.town }))
+    zoneInfos.push(places.length > 0 ? { name, type, places } : { name, type })
+  }
+
   // POIs: markers, named via the paired note (id === `marker${i}`); the note's
   // legend seeds dmNotes (DM-secret). Fall back to a title-cased marker type when
   // there's no note. Flat prominence ranks them among towns.
@@ -401,7 +477,7 @@ export function parseMap(text: string): ParsedMap {
       }
     })
 
-  return { width, height, scaleMilesPerPx, settlements, pois, poiNamedTotal }
+  return { width, height, scaleMilesPerPx, settlements, pois, poiNamedTotal, zones: zoneInfos }
 }
 
 // Preset curation: settlement-leaning, capped. POIs ≤ POI_POOL_SHARE of the cap

@@ -348,6 +348,42 @@ export default defineSchema({
     // clearings in FogOverlay (paint never un-reveals a pin). See
     // app/dm/world-map/fog-mask.ts for the encoding + worldMap.paintFog.
     fogMask: v.optional(v.string()),
+    // Named active world events lifted from the Azgaar "zones" (invasions, plagues,
+    // eruptions, rebellions…). World-level DM reference — getMap strips this for
+    // non-DM members (a brewing invasion is plot, not common knowledge). No
+    // per-event reveal yet; the natural future seam is reveal-per-event like pins.
+    // Mirrors ZoneInfo in lib/worldMap/azgaar-map.ts.
+    worldEvents: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          type: v.string(),
+          // Affected settlements — full pin payloads so the DM can "+ add" any to the
+          // map (a non-preset town isn't stored anywhere else). Jump-link if already
+          // pinned, else a one-click add. town mirrors the mapLocations.town shape.
+          places: v.optional(
+            v.array(
+              v.object({
+                name: v.string(),
+                x: v.number(),
+                y: v.number(),
+                drillDownUrl: v.optional(v.string()),
+                town: v.optional(
+                  v.object({
+                    population: v.optional(v.number()),
+                    coa: v.optional(v.string()),
+                    realm: v.optional(v.string()),
+                    government: v.optional(v.string()),
+                    culture: v.optional(v.string()),
+                    features: v.optional(v.array(v.string())),
+                  }),
+                ),
+              }),
+            ),
+          ),
+        }),
+      ),
+    ),
     updatedAt: v.number(),
   })
     .index("by_campaignId", ["campaignId"])
