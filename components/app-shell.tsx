@@ -85,6 +85,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const me = useQuery(api.users.getMe)
   const isAdmin = me?.role === "admin"
+  // getMe folds admin into isPremium, so this is false only for genuine free
+  // users — the ones we surface the Upgrade affordance to.
+  const showUpgrade = me != null && me.isPremium !== true
 
   // Role in the active campaign drives whether the nav shows the full DM
   // toolset or the slimmed player "Campaign" section. Only an explicit player
@@ -225,6 +228,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           className="px-4 py-3 space-y-2"
           style={{ borderTop: "1px solid var(--scene-border)" }}
         >
+          {showUpgrade && (
+            <Link
+              href="/account"
+              className="flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+              style={{
+                background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+                color: "var(--scene-accent)",
+                border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
+              }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Upgrade to Premium
+            </Link>
+          )}
           <ThemeToggle className="w-full justify-center" />
           <div className="flex items-center gap-3">
             <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
@@ -313,11 +330,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </nav>
 
-          <div className="px-4 py-3 shrink-0 flex items-center justify-between" style={{ borderTop: "1px solid var(--scene-border)" }}>
-            <ThemeToggle />
-            <Link href="/account" onClick={() => setDrawerOpen(false)} className="text-xs hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
-              Account
-            </Link>
+          <div className="px-4 py-3 shrink-0 space-y-2" style={{ borderTop: "1px solid var(--scene-border)" }}>
+            {showUpgrade && (
+              <Link
+                href="/account"
+                onClick={() => setDrawerOpen(false)}
+                className="flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+                  color: "var(--scene-accent)",
+                  border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
+                }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Upgrade to Premium
+              </Link>
+            )}
+            <div className="flex items-center justify-between">
+              <ThemeToggle />
+              <Link href="/account" onClick={() => setDrawerOpen(false)} className="text-xs hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+                Account
+              </Link>
+            </div>
           </div>
         </aside>
       </div>

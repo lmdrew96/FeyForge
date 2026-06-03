@@ -366,16 +366,24 @@ function ChatPanel({
     onError: (err) => {
       const raw = err?.message ?? ""
       let msg = "The DM Assistant hit a snag — try again."
+      let offerUpgrade = false
       if (raw.includes("quota_exceeded")) {
-        msg = raw.includes('"isPremium":true')
+        const premium = raw.includes('"isPremium":true')
+        msg = premium
           ? "You've used today's AI generations — resets tomorrow."
-          : "You've used your free AI generations for today. Upgrade for 50/day."
+          : "You've used your free AI generations for today."
+        offerUpgrade = !premium
       } else if (raw.includes("ai_unavailable")) {
         msg = "AI is briefly unavailable — try again in a moment."
       } else if (raw.includes("Unauthorized")) {
         msg = "Please sign in to use the DM Assistant."
       }
-      toast.error(msg)
+      toast.error(
+        msg,
+        offerUpgrade
+          ? { action: { label: "Upgrade", onClick: () => window.location.assign("/account") } }
+          : undefined,
+      )
     },
   })
 

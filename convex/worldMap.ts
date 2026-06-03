@@ -3,6 +3,7 @@ import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
 import { getMembership, requireDm as requireCampaignDm } from "./lib/auth"
+import { isPremiumActive } from "./premiumStatus"
 
 // ── World Map: campaign-scoped, Player/DM-gated ──────────────────────────────
 // Per docs/specs/feyforge-world-map-spec.md. Mirrors the wiki.ts Player/DM
@@ -294,7 +295,7 @@ export const setCampaignMapWithPins = mutation({
           .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
           .unique()
       : null
-    const isPremium = !!user && (user.isPremium || user.role === "admin")
+    const isPremium = !!user && isPremiumActive(user)
     if (!isPremium) throw new Error("Importing your own world is a premium feature.")
 
     // Replace any existing campaign map + its locations (one active map per campaign).
@@ -512,7 +513,7 @@ export const adoptPreset = mutation({
             .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
             .unique()
         : null
-      const isPremium = !!user && (user.isPremium || user.role === "admin")
+      const isPremium = !!user && isPremiumActive(user)
       if (!isPremium) {
         throw new Error(
           preset.source === "premium-preset"

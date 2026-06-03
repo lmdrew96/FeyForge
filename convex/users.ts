@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
 import type { MutationCtx, QueryCtx } from "./_generated/server"
+import { isPremiumActive } from "./premiumStatus"
 
 // ── Active campaign (server-side, cross-device) ──────────────────────────────
 // The "active campaign" is the one the user is currently working in. Storing it
@@ -85,8 +86,8 @@ export const getMe = query({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
       .unique()
     if (!user) return null
-    // Admins get premium access at zero cost
-    return { ...user, isPremium: user.isPremium || user.role === "admin" }
+    // Effective premium: admins (free), plus active subscribers (not lapsed).
+    return { ...user, isPremium: isPremiumActive(user) }
   },
 })
 
@@ -113,8 +114,9 @@ export const upsertUser = mutation({
 })
 
 // Called by Ko-fi webhook on each subscription payment. Ko-fi does not send
-// cancellation events, so we set premiumExpiresAt 35 days out and let the
-// daily expiry cron flip isPremium:false for lapsed subscribers.
+// cancellation events, so we push premiumExpiresAt 35 days out on every payment;
+// a lapsed subscription is then enforced at read time via isPremiumActive (see
+// premiumStatus.ts), with the daily cron only tidying the stored isPremium:false.
 const PREMIUM_GRACE_MS = 35 * 24 * 60 * 60 * 1000 // 35 days (monthly + 5-day grace)
 
 export const setPremiumByClerkId = mutation({

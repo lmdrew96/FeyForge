@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react"
+import Link from "next/link"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
@@ -568,7 +569,15 @@ function MapChooser({
         >
           <Crown className="h-5 w-5 shrink-0" style={{ color: "var(--scene-accent)" }} />
           <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
-            Uploading your own maps is a premium feature. Pick a starter map below, or upgrade to import custom worlds.
+            Uploading your own maps is a premium feature. Pick a starter map below, or{" "}
+            <Link
+              href="/account"
+              className="font-medium underline underline-offset-2 hover:opacity-80"
+              style={{ color: "var(--scene-accent)" }}
+            >
+              upgrade
+            </Link>{" "}
+            to import custom worlds.
           </p>
         </div>
       )}

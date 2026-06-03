@@ -26,6 +26,7 @@ import type * as liveSessions from "../liveSessions.js";
 import type * as migrations from "../migrations.js";
 import type * as npcs from "../npcs.js";
 import type * as partyInventory from "../partyInventory.js";
+import type * as premiumStatus from "../premiumStatus.js";
 import type * as sessionNotes from "../sessionNotes.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   npcs: typeof npcs;
   partyInventory: typeof partyInventory;
+  premiumStatus: typeof premiumStatus;
   sessionNotes: typeof sessionNotes;
   sessions: typeof sessions;
   users: typeof users;

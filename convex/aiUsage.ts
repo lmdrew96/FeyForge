@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import type { QueryCtx, MutationCtx } from "./_generated/server"
+import { isPremiumActive } from "./premiumStatus"
 
 // ── AI daily quota ───────────────────────────────────────────────────────────
 // Durable, per-user, per-day generation counter — the real quota behind
@@ -35,7 +36,7 @@ async function resolveUser(ctx: QueryCtx | MutationCtx) {
     .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.tokenIdentifier))
     .unique()
   if (!user) return null
-  const isPremium = user.isPremium || user.role === "admin"
+  const isPremium = isPremiumActive(user)
   const tz = user.timezone || DEFAULT_AI_TIMEZONE
   return { clerkId: identity.tokenIdentifier, isPremium, tz }
 }
