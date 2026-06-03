@@ -42,6 +42,13 @@ export const create = mutation({
     combatants: v.array(combatantValidator),
     round: v.number(),
     campaignId: v.optional(v.id("campaigns")),
+    details: v.optional(v.object({
+      readAloud: v.optional(v.string()),
+      setup: v.optional(v.string()),
+      scaling: v.optional(v.string()),
+      treasure: v.optional(v.string()),
+      difficulty: v.optional(v.string()),
+    })),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()

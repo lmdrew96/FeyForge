@@ -540,6 +540,15 @@ export default defineSchema({
       characterId: v.optional(v.string()),
     })),
     round: v.number(),
+    // Rich, run-time flavor captured at save (AI-generated or computed). Optional
+    // so encounters saved before this field — and bare manual line-ups — stay valid.
+    details: v.optional(v.object({
+      readAloud: v.optional(v.string()),   // boxed text to read to players
+      setup: v.optional(v.string()),       // DM notes & monster tactics
+      scaling: v.optional(v.string()),     // how to scale up/down
+      treasure: v.optional(v.string()),    // loot / rewards
+      difficulty: v.optional(v.string()),  // computed band label (e.g. "Deadly")
+    })),
   })
     .index("by_userId", ["userId"])
     .index("by_campaignId", ["campaignId"]),

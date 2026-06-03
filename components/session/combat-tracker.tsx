@@ -11,12 +11,14 @@ import {
   Square,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Plus,
   Trash2,
   Heart,
   Shield,
   Skull,
 } from "lucide-react"
+import { EncounterDetails, DifficultyBadge, hasEncounterDetails } from "@/components/encounters/encounter-details"
 
 type SessionId = Id<"partySessions">
 
@@ -105,6 +107,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
   const [monsterInit, setMonsterInit] = useState("")
   const [expandedConditions, setExpandedConditions] = useState<string | null>(null)
   const [loadingSaved, setLoadingSaved] = useState(false)
+  const [expandedSaved, setExpandedSaved] = useState<string | null>(null)
 
   const isActive = combat !== null && combat !== undefined
 
@@ -221,23 +224,55 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
     }
   }
 
-  // A picker of this campaign's saved encounters; resets after each pick.
+  // This campaign's saved encounters, each expandable to reveal its run-time
+  // flavor (read-aloud, tactics, scaling, treasure) so it stays reachable
+  // mid-session — and Load to start combat (or add monsters to an active fight).
   const savedLoader =
     campaignEncounters.length > 0 ? (
-      <select
-        value=""
-        disabled={loadingSaved}
-        onChange={(e) => { if (e.target.value) handleLoadSaved(e.target.value) }}
-        className="w-full px-3 py-2 rounded-md text-sm outline-none cursor-pointer disabled:opacity-50"
-        style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-      >
-        <option value="">↓ Load a saved encounter…</option>
-        {campaignEncounters.map((e) => (
-          <option key={e._id} value={e._id}>
-            {e.name} ({e.combatants.length})
-          </option>
-        ))}
-      </select>
+      <div className="space-y-1.5 text-left">
+        {campaignEncounters.map((e) => {
+          const expandable = hasEncounterDetails(e.details)
+          const isOpen = expandedSaved === e._id
+          return (
+            <div key={e._id} className="rounded-md overflow-hidden" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <button
+                  onClick={() => expandable && setExpandedSaved(isOpen ? null : e._id)}
+                  disabled={!expandable}
+                  className="flex flex-1 items-center gap-2 min-w-0 text-left transition-opacity enabled:hover:opacity-80 disabled:cursor-default"
+                  title={expandable ? "Show encounter details" : undefined}
+                >
+                  {expandable ? (
+                    isOpen ? <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--scene-accent)" }} /> : <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+                  ) : (
+                    <Swords className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+                  )}
+                  <span className="truncate text-sm" style={{ color: "var(--scene-text-primary)" }}>{e.name}</span>
+                  <DifficultyBadge difficulty={e.details?.difficulty} />
+                  <span className="flex-shrink-0 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>({e.combatants.length})</span>
+                </button>
+                <button
+                  onClick={() => handleLoadSaved(e._id)}
+                  disabled={loadingSaved}
+                  className="flex-shrink-0 inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                  style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                  title={isActive ? "Add this encounter's monsters to combat" : "Start combat with the party + these monsters"}
+                >
+                  {isActive ? <Plus className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                  {isActive ? "Add" : "Load"}
+                </button>
+              </div>
+              {isOpen && expandable && (
+                <div className="px-2.5 pb-2.5" style={{ borderTop: "1px solid var(--scene-border)" }}>
+                  <div className="pt-2.5">
+                    <EncounterDetails details={e.details} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     ) : null
 
   // ── Not started yet ──
@@ -272,10 +307,13 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
             <Play className="h-4 w-4" /> Start Combat
           </button>
           {savedLoader && (
-            <div className="mt-4 max-w-xs mx-auto">
+            <div className="mt-5 max-w-md mx-auto">
+              <p className="text-[11px] uppercase tracking-widest mb-2 text-left" style={{ color: "var(--scene-text-muted)" }}>
+                Saved encounters
+              </p>
               {savedLoader}
-              <p className="text-[11px] mt-1.5" style={{ color: "var(--scene-text-muted)" }}>
-                Starts combat with the party + that encounter&apos;s monsters.
+              <p className="text-[11px] mt-1.5 text-left" style={{ color: "var(--scene-text-muted)" }}>
+                Load starts combat with the party + that encounter&apos;s monsters. Expand to read its details.
               </p>
             </div>
           )}
@@ -546,6 +584,9 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
         </div>
         {savedLoader && (
           <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--scene-border)" }}>
+            <p className="text-[11px] uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+              Saved encounters
+            </p>
             {savedLoader}
           </div>
         )}

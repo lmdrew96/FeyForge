@@ -256,6 +256,13 @@ export function EncounterGenerator({
         combatants,
         round: 1,
         campaignId,
+        details: {
+          readAloud: result.readAloud,
+          setup: result.setup,
+          scaling: result.scaling,
+          treasure: result.treasure,
+          difficulty: realResult?.difficulty,
+        },
       })
       toast.success("Saved — find it in DM → Encounters to run initiative.")
     } catch {

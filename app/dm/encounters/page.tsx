@@ -10,7 +10,8 @@ import { useCampaignStore } from "@/lib/campaign-store"
 import { type Edition, EDITIONS, DEFAULT_EDITION, EDITION_LABELS, resolveEdition } from "@/lib/editions"
 import { computeEncounter, crToXp } from "@/lib/encounter"
 import { toast } from "sonner"
-import { BookMarked, Search, Plus, Minus, Save, Trash2, Users, Skull, Swords } from "lucide-react"
+import { BookMarked, Search, Plus, Minus, Save, Trash2, Users, Skull, Swords, ChevronDown, ChevronRight } from "lucide-react"
+import { EncounterDetails, DifficultyBadge, difficultyColor, hasEncounterDetails } from "@/components/encounters/encounter-details"
 
 // Collapse a combatant line-up ("Goblin 1", "Goblin 2", "Ogre") into a summary
 // ("2× Goblin, Ogre") by stripping the trailing index the generator appends.
@@ -29,24 +30,6 @@ interface SelectedMonster {
   challengeRating: string
   cr: number
   quantity: number
-}
-
-function difficultyColor(label: string): string {
-  switch (label) {
-    case "Easy":
-    case "Low":
-      return "#22c55e"
-    case "Medium":
-    case "Moderate":
-      return "#f59e0b"
-    case "Hard":
-      return "#f97316"
-    case "Deadly":
-    case "High":
-      return "#ef4444"
-    default:
-      return "var(--scene-text-muted)"
-  }
 }
 
 export default function EncounterCalculatorPage() {
@@ -143,6 +126,7 @@ export default function EncounterCalculatorPage() {
   const removeEncounter = useMutation(api.encounters.remove)
   const [encName, setEncName] = useState("")
   const [savingEnc, setSavingEnc] = useState(false)
+  const [expandedEnc, setExpandedEnc] = useState<string | null>(null)
 
   const campaignName = (id?: string) => campaigns?.find((c) => c._id === id)?.name
 
@@ -178,6 +162,7 @@ export default function EncounterCalculatorPage() {
         combatants,
         round: 1,
         campaignId: activeCampaignId ? (activeCampaignId as Id<"campaigns">) : undefined,
+        details: { difficulty: result.difficulty },
       })
       toast.success("Saved — load it from the Combat tab in a live session.")
       setEncName("")
@@ -489,21 +474,48 @@ export default function EncounterCalculatorPage() {
               </p>
             ) : (
               <div className="space-y-2">
-                {savedEncounters.map((enc) => (
-                  <div key={enc._id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
-                    <Swords className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--scene-text-primary)" }}>{enc.name}</p>
-                      <p className="text-xs truncate" style={{ color: "var(--scene-text-muted)" }}>
-                        {enc.combatants.length} combatant{enc.combatants.length === 1 ? "" : "s"} · {lineupSummary(enc.combatants)}
-                        {campaignName(enc.campaignId) ? ` · ${campaignName(enc.campaignId)}` : ""}
-                      </p>
+                {savedEncounters.map((enc) => {
+                  const expandable = hasEncounterDetails(enc.details)
+                  const isOpen = expandedEnc === enc._id
+                  return (
+                    <div key={enc._id} className="rounded-lg overflow-hidden" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
+                      <div className="flex items-center gap-3 px-3 py-2.5">
+                        <button
+                          onClick={() => expandable && setExpandedEnc(isOpen ? null : enc._id)}
+                          disabled={!expandable}
+                          className="flex flex-1 items-center gap-3 min-w-0 text-left transition-opacity enabled:hover:opacity-80 disabled:cursor-default"
+                          title={expandable ? "Show encounter details" : undefined}
+                        >
+                          {expandable ? (
+                            isOpen ? <ChevronDown className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} /> : <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+                          ) : (
+                            <Swords className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate" style={{ color: "var(--scene-text-primary)" }}>{enc.name}</p>
+                              <DifficultyBadge difficulty={enc.details?.difficulty} />
+                            </div>
+                            <p className="text-xs truncate" style={{ color: "var(--scene-text-muted)" }}>
+                              {enc.combatants.length} combatant{enc.combatants.length === 1 ? "" : "s"} · {lineupSummary(enc.combatants)}
+                              {campaignName(enc.campaignId) ? ` · ${campaignName(enc.campaignId)}` : ""}
+                            </p>
+                          </div>
+                        </button>
+                        <button onClick={() => handleDeleteEncounter(enc._id)} className="p-1.5 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }} title="Delete encounter">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {isOpen && expandable && (
+                        <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--scene-border)" }}>
+                          <div className="pt-3">
+                            <EncounterDetails details={enc.details} />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <button onClick={() => handleDeleteEncounter(enc._id)} className="p-1.5 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }} title="Delete encounter">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
