@@ -6,6 +6,8 @@ import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
+import { formatWorldContext } from "@/lib/worldMap/ai-context"
 import { AppShell } from "@/components/app-shell"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { Button } from "@/components/ui/button"
@@ -88,6 +90,24 @@ export default function DMAssistantPage() {
   const activeCampaign = useMemo(
     () => campaigns?.find((c) => c._id === activeCampaignId) ?? null,
     [campaigns, activeCampaignId],
+  )
+
+  // World context for the assistant: the map's realms/faiths/events/settlements so
+  // answers stay consistent with the DM's actual world (see lib/worldMap/ai-context).
+  const campaignArg = activeCampaignId ? { campaignId: activeCampaignId as Id<"campaigns"> } : "skip"
+  const worldMap = useQuery(api.worldMap.getMap, campaignArg)
+  const worldLocations = useQuery(api.worldMap.listLocations, campaignArg)
+  const worldbuilding = useQuery(api.worldMap.getWorldbuilding, campaignArg)
+  const worldContext = useMemo(
+    () =>
+      formatWorldContext({
+        mapName: worldMap?.name,
+        realms: worldbuilding?.realms,
+        faiths: worldbuilding?.faiths,
+        worldEvents: worldMap?.worldEvents,
+        settlements: worldLocations,
+      }),
+    [worldMap, worldbuilding, worldLocations],
   )
 
   const conversations = useDMAssistantStore((s) => s.conversations)
@@ -240,7 +260,7 @@ export default function DMAssistantPage() {
               <ChatPanel
                 key={activeConversation.id}
                 conversation={activeConversation}
-                campaignContext={buildContext(activeCampaign)}
+                campaignContext={buildContext(activeCampaign, worldContext)}
               />
             ) : (
               <EmptyConversationState onNewChat={handleNewChat} creating={creating} />
@@ -254,15 +274,20 @@ export default function DMAssistantPage() {
 
 // ---------------------------------------------------------------------------
 
-const buildContext = (campaign: {
-  name: string
-  description?: string
-  edition?: string
-}): string => {
+const buildContext = (
+  campaign: {
+    name: string
+    description?: string
+    edition?: string
+  } | null,
+  worldContext = "",
+): string => {
+  if (!campaign) return worldContext.trim()
   const lines = [`Campaign: ${campaign.name}`]
   if (campaign.edition) lines.push(`D&D edition: ${campaign.edition}`)
   if (campaign.description) lines.push(`Description: ${campaign.description}`)
-  return lines.join("\n")
+  // worldContext already leads with its own blank-line separator (or is "").
+  return lines.join("\n") + worldContext
 }
 
 function ConversationRow({
