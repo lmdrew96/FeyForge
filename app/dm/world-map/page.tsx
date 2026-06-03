@@ -220,7 +220,9 @@ export default function WorldMapPage() {
 
   const isDM = role === "dm"
   const canCreateMaps = me?.role === "admin" || me?.isPremium === true
-  const isAdmin = me?.role === "admin"
+  // "Change map" drops back to the chooser screen (same UI as first-time setup)
+  // rather than opening a modal.
+  const [choosing, setChoosing] = useState(false)
 
   if (!activeCampaignId) {
     return (
@@ -245,14 +247,16 @@ export default function WorldMapPage() {
     )
   }
 
-  // No map yet
-  if (!map) {
+  // No map yet, or the DM tapped "Change map" — show the chooser screen.
+  if (!map || choosing) {
     return (
       <AppShell>
         <MapSetup
           campaignId={activeCampaignId}
           isDM={isDM}
           canCreateMaps={canCreateMaps}
+          onDone={choosing ? () => setChoosing(false) : undefined}
+          onCancel={choosing && map ? () => setChoosing(false) : undefined}
         />
       </AppShell>
     )
@@ -265,8 +269,8 @@ export default function WorldMapPage() {
         map={map}
         locations={locations ?? []}
         isDM={isDM}
-        isAdmin={isAdmin}
         canCreateMaps={canCreateMaps}
+        onChangeMap={() => setChoosing(true)}
       />
     </AppShell>
   )
@@ -278,10 +282,16 @@ function MapSetup({
   campaignId,
   isDM,
   canCreateMaps,
+  onDone,
+  onCancel,
 }: {
   campaignId: CampaignId
   isDM: boolean
   canCreateMaps: boolean
+  // When set, the chooser is being used to SWITCH maps (a map already exists):
+  // onDone fires after a new map is adopted; onCancel keeps the current map.
+  onDone?: () => void
+  onCancel?: () => void
 }) {
   if (!isDM) {
     return (
@@ -293,21 +303,35 @@ function MapSetup({
     )
   }
 
+  const changing = !!onCancel
+
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
+      {changing && (
+        <button
+          onClick={onCancel}
+          className="mb-4 flex items-center gap-1 text-xs font-medium transition-opacity hover:opacity-80"
+          style={{ color: "var(--scene-text-muted)" }}
+        >
+          <X className="h-3.5 w-3.5" />
+          Keep current map
+        </button>
+      )}
       <div className="mb-6">
         <h1
           className="flex items-center gap-2 text-2xl font-bold"
           style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
         >
           <Globe className="h-6 w-6" style={{ color: "var(--scene-accent)" }} />
-          World Map
+          {changing ? "Change Map" : "World Map"}
         </h1>
         <p className="mt-1 text-sm" style={{ color: "var(--scene-text-muted)" }}>
-          Choose a starter map, or upload your own to begin charting your world.
+          {changing
+            ? `Pick a starter map${canCreateMaps ? " or upload a new image" : ""} to replace the current one — existing pins are cleared.`
+            : "Choose a starter map, or upload your own to begin charting your world."}
         </p>
       </div>
-      <MapChooser campaignId={campaignId} canCreateMaps={canCreateMaps} />
+      <MapChooser campaignId={campaignId} canCreateMaps={canCreateMaps} onDone={onDone} />
     </div>
   )
 }
@@ -1084,21 +1108,20 @@ function MapWorkspace({
   map,
   locations,
   isDM,
-  isAdmin,
   canCreateMaps,
+  onChangeMap,
 }: {
   campaignId: CampaignId
   map: WorldMap
   locations: MapLocation[]
   isDM: boolean
-  isAdmin: boolean
   canCreateMaps: boolean
+  onChangeMap: () => void
 }) {
   const createLocation = useMutation(api.worldMap.createLocation)
   const updateLocation = useMutation(api.worldMap.updateLocation)
   const removeLocation = useMutation(api.worldMap.removeLocation)
   const setRevealed = useMutation(api.worldMap.setRevealed)
-  const saveAsPreset = useMutation(api.worldMap.saveAsPreset)
   const setFogSettings = useMutation(api.worldMap.setFogSettings)
   const paintFog = useMutation(api.worldMap.paintFog)
 
@@ -1434,17 +1457,6 @@ function MapWorkspace({
     }
   }
 
-  const handleSaveAsPreset = async () => {
-    const name = prompt("Name this preset (visible to all users):", map.name)
-    if (!name?.trim()) return
-    try {
-      await saveAsPreset({ campaignId, presetName: name.trim() })
-      toast.success("Published as a starter map.")
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't publish preset.")
-    }
-  }
-
   const handleToggleFog = async () => {
     const next = !(map.fogEnabled ?? false)
     try {
@@ -1577,12 +1589,10 @@ function MapWorkspace({
                 onAddTown={addEventTown}
               />
             )}
-            {isAdmin && (
-              <ToolbarButton onClick={handleSaveAsPreset} title="Publish as a starter map for all users">
-                <Crown className="h-4 w-4" />
-              </ToolbarButton>
-            )}
-            <ChangeMapButton campaignId={campaignId} canCreateMaps={canCreateMaps} />
+            <ToolbarButton onClick={onChangeMap} title="Switch to a different map">
+              <ImageIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Change map</span>
+            </ToolbarButton>
           </div>
         )}
       </div>
@@ -2168,47 +2178,6 @@ function PaintSegment({
     >
       {children}
     </button>
-  )
-}
-
-function ChangeMapButton({
-  campaignId,
-  canCreateMaps,
-}: {
-  campaignId: CampaignId
-  canCreateMaps: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <ToolbarButton onClick={() => setOpen(true)} title="Switch to a different map">
-        <ImageIcon className="h-4 w-4" />
-        <span className="hidden sm:inline">Change map</span>
-      </ToolbarButton>
-      {open && (
-        <Modal onClose={() => setOpen(false)}>
-          <h2
-            className="mb-1 text-lg font-bold"
-            style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
-          >
-            Change Map
-          </h2>
-          <p className="mb-4 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-            Picking a starter map{canCreateMaps ? " or uploading a new image" : ""} replaces the
-            current map. Existing pins are cleared.
-          </p>
-          <MapChooser
-            campaignId={campaignId}
-            canCreateMaps={canCreateMaps}
-            onDone={() => setOpen(false)}
-          />
-          <SecondaryButton onClick={() => setOpen(false)}>
-            <X className="h-4 w-4" />
-            Close
-          </SecondaryButton>
-        </Modal>
-      )}
-    </>
   )
 }
 

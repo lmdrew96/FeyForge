@@ -93,8 +93,20 @@ export const getMyCampaignContext = query({
       }
     }
 
-    // Otherwise surface a live session in any other campaign the user belongs to
-    // (covers a stale active campaign while a session is live elsewhere).
+    // A DM's explicit campaign selection must win. If their active campaign has
+    // no live session, show the DM "ready to start" view for IT — never pull a DM
+    // into another campaign's live session where they may only be a player (the
+    // bug behind Live Session / Story Web showing player mode for a DM's own
+    // campaign). Starting a session sets the DM's active campaign
+    // (setupDMSession → setActiveCampaignForUser), so a DM actually running a game
+    // is already caught by the block above and keeps seeing their live session.
+    if (activeMembership && activeMembership.role === "dm") {
+      return { campaignId: activeMembership.campaignId, role: "dm", session: null }
+    }
+
+    // Otherwise (active membership is a player with no live session) surface a
+    // live session in any other campaign the user belongs to — covers a stale
+    // active campaign while a session is live elsewhere.
     let live: {
       campaignId: Id<"campaigns">
       role: "dm" | "player"

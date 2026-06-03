@@ -6,7 +6,6 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { AppShell } from "@/components/app-shell"
 import { useCampaignStore } from "@/lib/campaign-store"
-import { useActiveCampaign } from "@/lib/hooks/use-campaign-data"
 import {
   Sparkles,
   UserSquare2,
@@ -24,17 +23,24 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export default function DashboardPage() {
-  const campaigns = useQuery(api.campaigns.list)
-  const active = useActiveCampaign()
+  // Membership-based: includes campaigns the user joined as a PLAYER, not just
+  // ones they own/DM. Using the owned-only campaigns.list here was the bug that
+  // clobbered a player-campaign selection on landing (it looked "deleted").
+  const campaigns = useQuery(api.campaignMembers.listMyCampaigns)
   const activeId = useCampaignStore((s) => s.activeCampaignId)
   const setActiveCampaign = useCampaignStore((s) => s.setActiveCampaign)
+  const active = campaigns?.find((c) => c.campaignId === activeId) ?? null
 
-  // Auto-pick a campaign when none is active, or when the stored active id
-  // points to a campaign that no longer exists (e.g. deleted on another device).
+  // Auto-pick a campaign only when none is active, or the stored active id points
+  // to a campaign the user no longer belongs to (e.g. removed on another device).
+  // A valid player-campaign selection is now honored. Default prefers a DM campaign.
   useEffect(() => {
     if (!campaigns || campaigns.length === 0) return
-    const stillExists = activeId && campaigns.some((c) => c._id === activeId)
-    if (!stillExists) setActiveCampaign(campaigns[0]._id)
+    const stillMember = activeId && campaigns.some((c) => c.campaignId === activeId)
+    if (!stillMember) {
+      const fallback = campaigns.find((c) => c.role === "dm") ?? campaigns[0]
+      setActiveCampaign(fallback.campaignId)
+    }
   }, [campaigns, activeId, setActiveCampaign])
 
   return (
@@ -129,12 +135,12 @@ export default function DashboardPage() {
                 >
                   {active?.name ?? "—"}
                 </div>
-                {active?.description && (
+                {active?.role && (
                   <div
-                    className="text-sm truncate"
+                    className="text-sm"
                     style={{ color: "var(--scene-text-muted)" }}
                   >
-                    {active.description}
+                    {active.role === "dm" ? "You're the DM" : "You're a player"}
                   </div>
                 )}
               </div>
@@ -157,12 +163,12 @@ export default function DashboardPage() {
                     <DropdownMenuContent align="end" className="min-w-56">
                       {campaigns.map((c) => (
                         <DropdownMenuItem
-                          key={c._id}
-                          onSelect={() => setActiveCampaign(c._id)}
+                          key={c.campaignId}
+                          onSelect={() => setActiveCampaign(c.campaignId)}
                           className="cursor-pointer"
                         >
                           <span className="flex-1 truncate">{c.name}</span>
-                          {c._id === activeId && (
+                          {c.campaignId === activeId && (
                             <span className="text-xs" style={{ color: "var(--scene-accent)" }}>
                               ✓
                             </span>
