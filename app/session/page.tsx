@@ -907,7 +907,7 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
         </div>
       </section>
 
-      <DMCombatTracker sessionId={sessionId} />
+      <DMCombatTracker sessionId={sessionId} campaignId={campaignId} />
       </div>
 
       <div className="space-y-6">

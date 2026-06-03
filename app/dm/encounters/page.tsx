@@ -1,14 +1,27 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useQuery } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { type Edition, EDITIONS, DEFAULT_EDITION, EDITION_LABELS, resolveEdition } from "@/lib/editions"
 import { computeEncounter, crToXp } from "@/lib/encounter"
-import { Search, Plus, Minus, Trash2, Users, Skull, Swords } from "lucide-react"
+import { toast } from "sonner"
+import { BookMarked, Search, Plus, Minus, Save, Trash2, Users, Skull, Swords } from "lucide-react"
+
+// Collapse a combatant line-up ("Goblin 1", "Goblin 2", "Ogre") into a summary
+// ("2× Goblin, Ogre") by stripping the trailing index the generator appends.
+function lineupSummary(combatants: { name: string }[]): string {
+  const counts = new Map<string, number>()
+  for (const c of combatants) {
+    const base = c.name.replace(/\s+\d+$/, "")
+    counts.set(base, (counts.get(base) ?? 0) + 1)
+  }
+  return [...counts.entries()].map(([n, q]) => (q > 1 ? `${q}× ${n}` : n)).join(", ")
+}
 
 interface SelectedMonster {
   slug: string
@@ -123,6 +136,65 @@ export default function EncounterCalculatorPage() {
   )
 
   const diffColor = difficultyColor(result.difficulty)
+
+  // ── Saved encounters (the library: map-generated + saved here) ──────────────
+  const savedEncounters = useQuery(api.encounters.list)
+  const createEncounter = useMutation(api.encounters.create)
+  const removeEncounter = useMutation(api.encounters.remove)
+  const [encName, setEncName] = useState("")
+  const [savingEnc, setSavingEnc] = useState(false)
+
+  const campaignName = (id?: string) => campaigns?.find((c) => c._id === id)?.name
+
+  // Save the current monster line-up as a runnable encounter (combatants in the
+  // live-combat shape; AC/HP/Dex pulled from the SRD list). Initiative is rolled
+  // at load time in the tracker, so it's stored as 0 here.
+  const handleSaveEncounter = async () => {
+    if (selected.length === 0) return
+    const totalMonsters = selected.reduce((n, s) => n + s.quantity, 0)
+    const name = encName.trim() || `Encounter — ${totalMonsters} monster${totalMonsters === 1 ? "" : "s"}`
+    const combatants = selected.flatMap((s) => {
+      const full = allMonsters.find((m) => m.slug === s.slug)
+      const ac = full?.armor_class ?? 10
+      const hp = full?.hit_points ?? 1
+      const dexMod = full ? Math.floor((full.dexterity - 10) / 2) : 0
+      return Array.from({ length: s.quantity }, (_, i) => ({
+        id: `${s.slug}-${i + 1}`,
+        name: s.quantity > 1 ? `${s.name} ${i + 1}` : s.name,
+        type: "monster" as const,
+        initiative: 0,
+        initiativeBonus: dexMod,
+        armorClass: ac,
+        hitPoints: { current: hp, max: hp, temp: 0 },
+        conditions: [] as string[],
+        notes: "",
+        isActive: false,
+      }))
+    })
+    setSavingEnc(true)
+    try {
+      await createEncounter({
+        name,
+        combatants,
+        round: 1,
+        campaignId: activeCampaignId ? (activeCampaignId as Id<"campaigns">) : undefined,
+      })
+      toast.success("Saved — load it from the Combat tab in a live session.")
+      setEncName("")
+    } catch {
+      toast.error("Couldn't save the encounter.")
+    } finally {
+      setSavingEnc(false)
+    }
+  }
+
+  const handleDeleteEncounter = async (id: Id<"savedEncounters">) => {
+    try {
+      await removeEncounter({ id })
+    } catch {
+      toast.error("Couldn't delete the encounter.")
+    }
+  }
 
   return (
     <AppShell>
@@ -371,9 +443,71 @@ export default function EncounterCalculatorPage() {
                   ? "2014: per-character thresholds summed across the party; monster XP × encounter multiplier."
                   : "2024: per-character budget summed across the party; no multiplier."}
               </p>
+
+              {/* Save this line-up as a runnable encounter */}
+              <div className="mt-4 pt-3" style={{ borderTop: "1px solid var(--scene-border)" }}>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={encName}
+                    onChange={(e) => setEncName(e.target.value)}
+                    placeholder={selected.length ? `Encounter — ${result.monsterCount} monster${result.monsterCount === 1 ? "" : "s"}` : "Add monsters to save…"}
+                    disabled={selected.length === 0 || savingEnc}
+                    className="flex-1 px-2.5 py-1.5 rounded-md text-sm bg-transparent outline-none disabled:opacity-50"
+                    style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+                  />
+                  <button
+                    onClick={handleSaveEncounter}
+                    disabled={selected.length === 0 || monstersLoading || savingEnc}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                    style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                  >
+                    <Save className="h-3.5 w-3.5" /> Save
+                  </button>
+                </div>
+                <p className="text-[11px] mt-1.5" style={{ color: "var(--scene-text-muted)" }}>
+                  Saves the line-up to run later from a live session&apos;s Combat tab.
+                </p>
+              </div>
             </div>
           </section>
         </div>
+
+        {/* ── Saved encounters (library: saved here + generated from the world map) ── */}
+        <section className="mt-8">
+          <div className="flex items-center gap-2 mb-3">
+            <BookMarked className="h-4 w-4" style={{ color: "var(--scene-accent)" }} />
+            <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+              Saved Encounters{savedEncounters?.length ? ` (${savedEncounters.length})` : ""}
+            </h2>
+          </div>
+          <div className="rounded-xl p-4" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+            {savedEncounters === undefined ? (
+              <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>Loading…</p>
+            ) : savedEncounters.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                No saved encounters yet — save a line-up above, or generate one from a world-map pin. Load them from the Combat tab in a live session to run initiative.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {savedEncounters.map((enc) => (
+                  <div key={enc._id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
+                    <Swords className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: "var(--scene-text-primary)" }}>{enc.name}</p>
+                      <p className="text-xs truncate" style={{ color: "var(--scene-text-muted)" }}>
+                        {enc.combatants.length} combatant{enc.combatants.length === 1 ? "" : "s"} · {lineupSummary(enc.combatants)}
+                        {campaignName(enc.campaignId) ? ` · ${campaignName(enc.campaignId)}` : ""}
+                      </p>
+                    </div>
+                    <button onClick={() => handleDeleteEncounter(enc._id)} className="p-1.5 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }} title="Delete encounter">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </AppShell>
   )

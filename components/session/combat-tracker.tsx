@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -47,9 +47,15 @@ const rollD20 = () => Math.floor(Math.random() * 20) + 1
 
 // ── DM tracker ──────────────────────────────────────────────────────────────────
 
-export function DMCombatTracker({ sessionId }: { sessionId: SessionId }) {
+export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionId; campaignId: Id<"campaigns"> }) {
   const combat = useQuery(api.liveCombat.getCombat, { sessionId })
   const partyMembers = useQuery(api.liveSessions.getPartyMembers, { sessionId })
+  // Saved encounters for THIS campaign — loadable into combat (generate→save→run).
+  const savedEncounters = useQuery(api.encounters.list)
+  const campaignEncounters = useMemo(
+    () => (savedEncounters ?? []).filter((e) => e.campaignId === campaignId),
+    [savedEncounters, campaignId],
+  )
 
   const doStart = useMutation(api.liveCombat.startCombat)
   const doEnd = useMutation(api.liveCombat.endCombat)
@@ -98,6 +104,7 @@ export function DMCombatTracker({ sessionId }: { sessionId: SessionId }) {
   const [monsterAc, setMonsterAc] = useState("")
   const [monsterInit, setMonsterInit] = useState("")
   const [expandedConditions, setExpandedConditions] = useState<string | null>(null)
+  const [loadingSaved, setLoadingSaved] = useState(false)
 
   const isActive = combat !== null && combat !== undefined
 
@@ -160,6 +167,79 @@ export function DMCombatTracker({ sessionId }: { sessionId: SessionId }) {
     }
   }
 
+  // Load a saved encounter's monsters into combat. Rebuild CLEAN combatants that
+  // match combatantInputValidator EXACTLY (no notes/isActive/characterId — Convex
+  // rejects extra fields), with fresh ids and freshly-rolled initiative. Not
+  // started → start with party + monsters; active → add each monster.
+  const handleLoadSaved = async (encId: string) => {
+    const enc = campaignEncounters.find((e) => e._id === encId)
+    if (!enc || loadingSaved) return
+    setLoadingSaved(true)
+    const monsters = enc.combatants.map((c) => ({
+      id: crypto.randomUUID(),
+      name: c.name,
+      type: "monster" as const,
+      initiative: rollD20() + (c.initiativeBonus ?? 0),
+      initiativeBonus: c.initiativeBonus ?? 0,
+      armorClass: c.armorClass ?? 10,
+      hitPoints: {
+        current: c.hitPoints?.current ?? 1,
+        max: c.hitPoints?.max ?? 1,
+        temp: c.hitPoints?.temp ?? 0,
+      },
+      conditions: [] as string[],
+    }))
+    try {
+      if (isActive) {
+        for (const m of monsters) await doAdd({ sessionId, combatant: m })
+        toast.success(`Added ${monsters.length} combatant${monsters.length === 1 ? "" : "s"} from “${enc.name}.”`)
+      } else {
+        const party = (partyMembers ?? [])
+          .filter((m) => m.character)
+          .map((m) => {
+            const char = m.character!
+            return {
+              id: crypto.randomUUID(),
+              name: char.name,
+              type: "pc" as const,
+              initiative: rollD20(),
+              initiativeBonus: 0,
+              armorClass: 10,
+              hitPoints: { current: char.hitPoints.current, max: char.hitPoints.max, temp: char.hitPoints.temp },
+              conditions: [] as string[],
+              characterId: char._id,
+              userId: m.userId,
+            }
+          })
+        await doStart({ sessionId, combatants: [...party, ...monsters] })
+        toast.success(`Combat started with “${enc.name}.”`)
+      }
+    } catch {
+      toast.error("Failed to load the encounter.")
+    } finally {
+      setLoadingSaved(false)
+    }
+  }
+
+  // A picker of this campaign's saved encounters; resets after each pick.
+  const savedLoader =
+    campaignEncounters.length > 0 ? (
+      <select
+        value=""
+        disabled={loadingSaved}
+        onChange={(e) => { if (e.target.value) handleLoadSaved(e.target.value) }}
+        className="w-full px-3 py-2 rounded-md text-sm outline-none cursor-pointer disabled:opacity-50"
+        style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+      >
+        <option value="">↓ Load a saved encounter…</option>
+        {campaignEncounters.map((e) => (
+          <option key={e._id} value={e._id}>
+            {e.name} ({e.combatants.length})
+          </option>
+        ))}
+      </select>
+    ) : null
+
   // ── Not started yet ──
   if (combat === undefined) {
     return (
@@ -191,6 +271,14 @@ export function DMCombatTracker({ sessionId }: { sessionId: SessionId }) {
           >
             <Play className="h-4 w-4" /> Start Combat
           </button>
+          {savedLoader && (
+            <div className="mt-4 max-w-xs mx-auto">
+              {savedLoader}
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--scene-text-muted)" }}>
+                Starts combat with the party + that encounter&apos;s monsters.
+              </p>
+            </div>
+          )}
         </div>
       </section>
     )
@@ -456,6 +544,11 @@ export function DMCombatTracker({ sessionId }: { sessionId: SessionId }) {
             <Plus className="h-4 w-4" /> Add
           </button>
         </div>
+        {savedLoader && (
+          <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--scene-border)" }}>
+            {savedLoader}
+          </div>
+        )}
       </div>
     </section>
   )
