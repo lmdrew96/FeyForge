@@ -1189,6 +1189,8 @@ function MapWorkspace({
   // Interaction
   const [selectedId, setSelectedId] = useState<LocationId | null>(null)
   const [showRoutes, setShowRoutes] = useState(false)
+  // View-only declutter: hide every pin so the bare map can be shown to players.
+  const [showPins, setShowPins] = useState(true)
   const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
   const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
   const [placing, setPlacing] = useState(false)
@@ -1527,6 +1529,19 @@ function MapWorkspace({
     setPlacing(false)
     setMovingId(null)
     setPaintMode("off")
+    setShowPins(true) // journey planning needs tappable town pins
+  }
+  const togglePins = () => {
+    const next = !showPins
+    setShowPins(next)
+    if (!next) {
+      // Hiding pins is a "show players the clean map" view — drop selection and
+      // any authoring mode so nothing's left mid-action behind the hidden pins.
+      setSelectedId(null)
+      setPlacing(false)
+      setMovingId(null)
+      setPaintMode("off")
+    }
   }
 
   return (
@@ -1573,6 +1588,18 @@ function MapWorkspace({
               onTogglePreview={() => setFogPreview((p) => !p)}
               onStartPaint={startPaint}
             />
+            <ToolbarButton
+              onClick={togglePins}
+              active={!showPins}
+              title={
+                showPins
+                  ? "Hide all pins from this view (just declutters your screen — doesn't change what players see)"
+                  : "Show all pins"
+              }
+            >
+              {showPins ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              <span className="hidden sm:inline">Pins</span>
+            </ToolbarButton>
             {(map.worldEvents?.length ?? 0) > 0 && (
               <WorldEventsControl
                 events={map.worldEvents!}
@@ -1653,20 +1680,21 @@ function MapWorkspace({
               {showRoutes && routes && (
                 <RoutesSvg routes={routes} journey={journey?.points ?? null} />
               )}
-              {locations.map((loc) => (
-                <LocationMarker
-                  key={loc._id}
-                  loc={loc}
-                  zoom={zoom}
-                  isDM={isDM}
-                  selected={
-                    showRoutes
-                      ? loc._id === journeyFrom || loc._id === journeyTo
-                      : loc._id === selectedId
-                  }
-                  onSelect={() => (showRoutes ? pickJourney(loc) : jumpToLocation(loc))}
-                />
-              ))}
+              {showPins &&
+                locations.map((loc) => (
+                  <LocationMarker
+                    key={loc._id}
+                    loc={loc}
+                    zoom={zoom}
+                    isDM={isDM}
+                    selected={
+                      showRoutes
+                        ? loc._id === journeyFrom || loc._id === journeyTo
+                        : loc._id === selectedId
+                    }
+                    onSelect={() => (showRoutes ? pickJourney(loc) : jumpToLocation(loc))}
+                  />
+                ))}
             </div>
           </div>
 

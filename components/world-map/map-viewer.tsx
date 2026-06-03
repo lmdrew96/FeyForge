@@ -23,7 +23,7 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { Crown, Globe, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
+import { Crown, Eye, EyeOff, Globe, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
 import { FogOverlay } from "./fog-overlay"
 import { decodeFogMask } from "./fog-mask"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
@@ -61,6 +61,8 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [selectedId, setSelectedId] = useState<LocationId | null>(null)
+  // View-only declutter: hide every pin for a clean look at the bare map.
+  const [showPins, setShowPins] = useState(true)
   const imgRef = useRef<HTMLImageElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null)
@@ -169,6 +171,12 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     setJourneyFrom(null)
     setJourneyTo(null)
     setSelectedId(null)
+    setShowPins(true) // journey planning needs tappable town pins
+  }
+  const togglePins = () => {
+    const next = !showPins
+    setShowPins(next)
+    if (!next) setSelectedId(null)
   }
 
   // ── Loading / empty (the parent mounts us past the DM page's own guards) ─────
@@ -259,20 +267,21 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             {showRoutes && routes && (
               <RoutesSvg routes={routes} journey={journey?.points ?? null} />
             )}
-            {locations.map((loc) => (
-              <LocationMarker
-                key={loc._id}
-                loc={loc}
-                zoom={zoom}
-                isDM={isDM}
-                selected={
-                  showRoutes
-                    ? loc._id === journeyFrom || loc._id === journeyTo
-                    : loc._id === selectedId
-                }
-                onSelect={() => (showRoutes ? pickJourney(loc) : jumpToLocation(loc))}
-              />
-            ))}
+            {showPins &&
+              locations.map((loc) => (
+                <LocationMarker
+                  key={loc._id}
+                  loc={loc}
+                  zoom={zoom}
+                  isDM={isDM}
+                  selected={
+                    showRoutes
+                      ? loc._id === journeyFrom || loc._id === journeyTo
+                      : loc._id === selectedId
+                  }
+                  onSelect={() => (showRoutes ? pickJourney(loc) : jumpToLocation(loc))}
+                />
+              ))}
           </div>
         </div>
 
@@ -289,8 +298,21 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           </ZoomButton>
         </div>
 
-        {/* Overlay controls (top-right): journey planner + realms/faiths */}
+        {/* Overlay controls (top-right): pin visibility + journey planner + realms/faiths */}
         <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-1">
+          <button
+            onClick={togglePins}
+            title={showPins ? "Hide all pins" : "Show all pins"}
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+            style={{
+              background: !showPins ? "var(--scene-accent)" : "var(--scene-surface)",
+              color: !showPins ? "#fff" : "var(--scene-text-primary)",
+              border: `1px solid ${!showPins ? "var(--scene-accent)" : "var(--scene-border)"}`,
+            }}
+          >
+            {showPins ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            <span className="hidden sm:inline">Pins</span>
+          </button>
           <button
             onClick={toggleRoutes}
             title="Plan a journey — show the road network and tap two towns for the route + travel time"
