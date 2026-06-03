@@ -36,6 +36,8 @@ import {
   isMaskEmpty,
   paintBrush,
 } from "@/components/world-map/fog-mask"
+import { JourneyCard, RoutesLegend, RoutesSvg } from "@/components/world-map/routes-overlay"
+import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import {
   Globe,
   Plus,
@@ -50,6 +52,7 @@ import {
   ZoomOut,
   Maximize,
   MapPin as MapPinIcon,
+  Route as RouteIcon,
   ExternalLink,
   Waves,
   Skull,
@@ -798,6 +801,7 @@ function AzgaarWorldBuilder({ campaignId, onDone }: { campaignId: CampaignId; on
         scaleMilesPerPx: parsed.scaleMilesPerPx,
         locations,
         worldEvents: parsed.zones, // named active events → worldMaps row (DM-only)
+        routes: parsed.routes, // roads/trails/searoutes polylines → worldMaps row (travel overlay)
       })
       toast.success(`Imported “${name}” — ${locations.length} location${locations.length === 1 ? "" : "s"} placed.`)
       onDone?.()
@@ -1172,6 +1176,9 @@ function MapWorkspace({
 
   // Interaction
   const [selectedId, setSelectedId] = useState<LocationId | null>(null)
+  const [showRoutes, setShowRoutes] = useState(false)
+  const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
+  const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
   const [placing, setPlacing] = useState(false)
   const [movingId, setMovingId] = useState<LocationId | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -1183,6 +1190,21 @@ function MapWorkspace({
 
   // Today's AI quota (premium 50 / free 3) for the "✨ Generate details" button.
   const aiUsage = useQuery(api.aiUsage.getUsage)
+  // Travel routes (roads/trails/searoutes) — lazy, only fetched when toggled on.
+  const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
+  const routeGraph = useMemo(
+    () => (routes ? buildRouteGraph(routes, map.width, map.height) : null),
+    [routes, map.width, map.height],
+  )
+  const journey = useMemo(() => {
+    if (!routeGraph || !journeyFrom || !journeyTo) return null
+    const f = locations.find((l) => l._id === journeyFrom)
+    const t = locations.find((l) => l._id === journeyTo)
+    if (!f || !t) return null
+    const res = planRoute(routeGraph, [f.x, f.y], [t.x, t.y])
+    const miles = res && map.scaleMilesPerPx ? Math.round(res.px * map.scaleMilesPerPx) : null
+    return { found: !!res, miles, points: res?.points ?? null }
+  }, [routeGraph, journeyFrom, journeyTo, locations, map.scaleMilesPerPx])
 
   // AI: flesh out the pin's player + DM notes into the draft for review (never
   // saved silently). Confirms before clobbering notes the DM already wrote.
@@ -1473,6 +1495,26 @@ function MapWorkspace({
 
   const activeMode = (placing || movingId !== null || painting) && isDM
 
+  // Journey mode (Travel toggle): first town tap = origin, second = destination.
+  // Turning it on exits the authoring modes so a town tap plans a route, not a pin.
+  const pickJourney = (loc: MapLocation) => {
+    if (!journeyFrom || journeyTo) {
+      setJourneyFrom(loc._id)
+      setJourneyTo(null)
+    } else {
+      setJourneyTo(loc._id)
+    }
+  }
+  const toggleRoutes = () => {
+    setShowRoutes((s) => !s)
+    setJourneyFrom(null)
+    setJourneyTo(null)
+    setSelectedId(null)
+    setPlacing(false)
+    setMovingId(null)
+    setPaintMode("off")
+  }
+
   return (
     <div className="flex h-[100dvh] flex-col lg:h-screen">
       {/* Header */}
@@ -1525,6 +1567,14 @@ function MapWorkspace({
                 onAddTown={addEventTown}
               />
             )}
+            <ToolbarButton
+              onClick={toggleRoutes}
+              active={showRoutes}
+              title="Plan a journey — show the road network and tap two towns"
+            >
+              <RouteIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Travel</span>
+            </ToolbarButton>
             <ToolbarButton onClick={onChangeMap} title="Switch to a different map">
               <ImageIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Change map</span>
@@ -1582,14 +1632,21 @@ function MapWorkspace({
                 radiusPct={fogRadius}
                 paintedCells={maskCells}
               />
+              {showRoutes && routes && (
+                <RoutesSvg routes={routes} journey={journey?.points ?? null} />
+              )}
               {locations.map((loc) => (
                 <LocationMarker
                   key={loc._id}
                   loc={loc}
                   zoom={zoom}
                   isDM={isDM}
-                  selected={loc._id === selectedId}
-                  onSelect={() => jumpToLocation(loc)}
+                  selected={
+                    showRoutes
+                      ? loc._id === journeyFrom || loc._id === journeyTo
+                      : loc._id === selectedId
+                  }
+                  onSelect={() => (showRoutes ? pickJourney(loc) : jumpToLocation(loc))}
                 />
               ))}
             </div>
@@ -1607,6 +1664,24 @@ function MapWorkspace({
               <Maximize className="h-4 w-4" />
             </ZoomButton>
           </div>
+
+          {showRoutes && routes && routes.length > 0 && (
+            <div className="absolute left-4 top-4 z-10 max-w-[calc(100%-2rem)]">
+              <RoutesLegend routes={routes} />
+            </div>
+          )}
+
+          {showRoutes && (
+            <div className="absolute bottom-4 left-4 z-20">
+              <JourneyCard
+                fromName={journeyFrom ? locations.find((l) => l._id === journeyFrom)?.name ?? null : null}
+                toName={journeyTo ? locations.find((l) => l._id === journeyTo)?.name ?? null : null}
+                found={journey?.found ?? false}
+                miles={journey?.miles ?? null}
+                onClear={() => { setJourneyFrom(null); setJourneyTo(null) }}
+              />
+            </div>
+          )}
 
           {(placing || movingId !== null) && isDM && (
             <div

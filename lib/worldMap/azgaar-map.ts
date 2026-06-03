@@ -135,6 +135,20 @@ export type ZoneInfo = {
   places?: EventPlace[] // settlements in the event's cells (top by population) — jump-link or "+ add"
 }
 
+// A travel route from Azgaar's pack.routes. UNLIKE rivers/zones (cell-index only,
+// geometry regenerated from the seed → no offline coordinates), routes store an
+// explicit point polyline, so they CAN be drawn and measured. `points` are 0–100 %
+// (the same space as pins); `miles` is the polyline length × scaleMilesPerPx, and
+// is omitted when the map has no usable scale. World-level, not secret.
+export type RouteInfo = {
+  group: string // "roads" | "trails" | "searoutes" (land vs sea; verified across 21 maps)
+  // Each point is [x%, y%, cellId?]: x/y are 0–100 (burg/pin space) for drawing; the
+  // optional cellId is Azgaar's pack-cell index — the junction key that lets segments
+  // be stitched into a graph for point-to-point routing (lib/worldMap/routing.ts).
+  points: number[][]
+  miles?: number // whole-segment length (Σ px × scaleMilesPerPx); routing recomputes per-edge
+}
+
 export type ParsedMap = {
   width: number
   height: number
@@ -143,6 +157,7 @@ export type ParsedMap = {
   pois: ParsedLocation[]
   poiNamedTotal: number // POIs that resolved a real name (not a type fallback) — for seed reporting
   zones: ZoneInfo[] // named active world events (DM-only)
+  routes: RouteInfo[] // roads/trails/searoutes polylines for the travel overlay
 }
 
 export type PresetStats = {
@@ -182,6 +197,7 @@ type Note = { id: string; name: string; legend: string }
 type State = { i?: number; name?: string; fullName?: string; form?: string; removed?: boolean }
 type Culture = { i?: number; name?: string; removed?: boolean }
 type Zone = { i?: number; name?: string; type?: string; cells?: number[] }
+type Route = { i?: number; group?: string; feature?: number; points?: number[][] }
 
 const clampPct = (v: number): number => Math.round(Math.max(0, Math.min(100, v)) * 10000) / 10000
 
@@ -237,6 +253,7 @@ export function parseMap(text: string): ParsedMap {
   let states: State[] = []
   let cultures: Culture[] = []
   let zones: Zone[] = []
+  let routes: Route[] = []
   for (const ln of lines) {
     const t = ln.trimStart()
     if (!t.startsWith("[")) continue
@@ -317,6 +334,14 @@ export function parseMap(text: string): ParsedMap {
       !("icon" in sample)
     ) {
       zones = arr as Zone[]
+    } else if (
+      // Routes: the ONLY pack array whose elements carry BOTH `group` and `points`
+      // (roads/trails/searoutes polylines). Verified unique across 21 real maps.
+      routes.length === 0 &&
+      "group" in sample &&
+      "points" in sample
+    ) {
+      routes = arr as Route[]
     }
   }
 
@@ -477,7 +502,47 @@ export function parseMap(text: string): ParsedMap {
       }
     })
 
-  return { width, height, scaleMilesPerPx, settlements, pois, poiNamedTotal, zones: zoneInfos }
+  // Travel routes (Azgaar pack.routes): roads/trails/searoutes. Each point is native
+  // px in the same space as burgs → convert to 0–100 % (like pins). Length in miles =
+  // Σ segment px-distance × scaleMilesPerPx (computed from the raw px BEFORE the %
+  // conversion; omitted when the map has no usable scale). Round % to 2 decimals
+  // (~0.15px on a 1500px map — plenty for line drawing) to keep the stored doc lean.
+  const r2 = (v: number): number => Math.round(v * 100) / 100
+  const routeInfos: RouteInfo[] = []
+  for (const rt of routes) {
+    const valid = (Array.isArray(rt.points) ? rt.points : []).filter(
+      (p): p is number[] => Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number",
+    )
+    if (valid.length < 2) continue
+    let px = 0
+    for (let k = 1; k < valid.length; k++) {
+      px += Math.hypot(valid[k][0] - valid[k - 1][0], valid[k][1] - valid[k - 1][1])
+    }
+    // Keep the cellId (p[2]) alongside the % coords — it's the junction key for
+    // routing. Points missing a numeric cell stay 2-element (just won't graph-join).
+    const points = valid.map((p) => {
+      const pt = [r2((p[0] / width) * 100), r2((p[1] / height) * 100)]
+      if (typeof p[2] === "number") pt.push(p[2])
+      return pt
+    })
+    const info: RouteInfo = {
+      group: typeof rt.group === "string" ? rt.group : "roads",
+      points,
+    }
+    if (scaleMilesPerPx) info.miles = Math.round(px * scaleMilesPerPx * 10) / 10
+    routeInfos.push(info)
+  }
+
+  return {
+    width,
+    height,
+    scaleMilesPerPx,
+    settlements,
+    pois,
+    poiNamedTotal,
+    zones: zoneInfos,
+    routes: routeInfos,
+  }
 }
 
 // Preset curation: settlement-leaning, capped. POIs ≤ POI_POOL_SHARE of the cap

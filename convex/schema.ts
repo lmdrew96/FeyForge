@@ -384,6 +384,21 @@ export default defineSchema({
         }),
       ),
     ),
+    // Travel routes lifted from Azgaar's pack.routes (roads/trails/searoutes). Unlike
+    // zones/rivers, routes carry explicit point polylines, so they're drawable +
+    // measurable. NOT secret (both DM + players see them), but heavy (~40–65KB), so
+    // getMap STRIPS this and the travel overlay lazy-loads it via worldMap.getRoutes.
+    // points are 0–100 % (pin space); miles is omitted when the map has no scale.
+    // Mirrors RouteInfo in lib/worldMap/azgaar-map.ts.
+    routes: v.optional(
+      v.array(
+        v.object({
+          group: v.string(), // roads | trails | searoutes
+          points: v.array(v.array(v.number())), // [[x,y], …] normalized 0–100
+          miles: v.optional(v.number()),
+        }),
+      ),
+    ),
     updatedAt: v.number(),
   })
     .index("by_campaignId", ["campaignId"])

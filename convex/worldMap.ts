@@ -62,6 +62,15 @@ const worldEventsV = v.array(
     places: v.optional(v.array(eventPlaceV)),
   }),
 )
+// Travel routes (roads/trails/searoutes). Mirrors RouteInfo in lib/worldMap/azgaar-map.ts
+// + the worldMaps.routes schema field. Threaded through the same paths as worldEvents.
+const routesV = v.array(
+  v.object({
+    group: v.string(),
+    points: v.array(v.array(v.number())),
+    miles: v.optional(v.number()),
+  }),
+)
 
 // Premium-picker vibe validators (mirror lib/worldMap/vibe.ts + the worldMaps
 // schema). Shared by seedPreset (writes them) and listPremiumPresets (filters).
@@ -148,8 +157,25 @@ export const getMap = query({
     // common knowledge). Everything else on the row is player-safe (image, fog,
     // scale). Set to undefined (not omit) so the return type stays a clean Doc and
     // the array still never reaches the player's wire.
-    if (m.member.role !== "dm") return { ...map, worldEvents: undefined }
-    return map
+    // routes are heavy (~40–65KB) and lazy-loaded via getRoutes — strip from this hot
+    // read for everyone. worldEvents stay DM-only (plot, not common knowledge).
+    if (m.member.role !== "dm") return { ...map, worldEvents: undefined, routes: undefined }
+    return { ...map, routes: undefined }
+  },
+})
+
+// Travel routes for the map overlay — lazy-loaded (getMap strips routes to keep the
+// hot read lean). Membership-gated like getMap; routes aren't secret, no role filter.
+export const getRoutes = query({
+  args: { campaignId: v.id("campaigns") },
+  handler: async (ctx, args) => {
+    const m = await getMembership(ctx, args.campaignId)
+    if (!m) return []
+    const map = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .first()
+    return map?.routes ?? []
   },
 })
 
@@ -209,6 +235,7 @@ export const setCampaignMapWithPins = mutation({
       }),
     ),
     worldEvents: v.optional(worldEventsV),
+    routes: v.optional(routesV),
   },
   handler: async (ctx, args): Promise<Id<"worldMaps">> => {
     const userId = await requireDm(ctx, args.campaignId)
@@ -235,6 +262,7 @@ export const setCampaignMapWithPins = mutation({
       scaleMilesPerPx: args.scaleMilesPerPx,
       source: "import",
       worldEvents: args.worldEvents,
+      routes: args.routes,
       createdBy: userId,
       updatedAt: Date.now(),
     })
@@ -459,6 +487,7 @@ export const adoptPreset = mutation({
       source: "preset",
       presetSourceId: preset._id,
       worldEvents: preset.worldEvents,
+      routes: preset.routes,
       createdBy: userId,
       updatedAt: Date.now(),
     })
@@ -541,6 +570,7 @@ export const saveAsPreset = mutation({
       source: "preset",
       isPremiumPreset: args.isPremiumPreset ?? false,
       worldEvents: map.worldEvents,
+      routes: map.routes,
       createdBy: identity.tokenIdentifier,
       updatedAt: Date.now(),
     })
@@ -610,6 +640,7 @@ export const seedPreset = mutation({
       }),
     ),
     worldEvents: v.optional(worldEventsV),
+    routes: v.optional(routesV),
   },
   handler: async (
     ctx,
@@ -659,6 +690,7 @@ export const seedPreset = mutation({
       vibeCivilization: args.vibeCivilization,
       vibeScale: args.vibeScale,
       worldEvents: args.worldEvents,
+      routes: args.routes,
       createdBy: "seed-script",
       updatedAt: Date.now(),
     })

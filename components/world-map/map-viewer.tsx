@@ -23,9 +23,11 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { Globe, Loader2, Maximize, ZoomIn, ZoomOut } from "lucide-react"
+import { Globe, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
 import { FogOverlay } from "./fog-overlay"
 import { decodeFogMask } from "./fog-mask"
+import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
+import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import {
   clampPanToViewport,
   DEFAULT_FOG_RADIUS,
@@ -44,6 +46,12 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   const map = useQuery(api.worldMap.getMap, { campaignId })
   const locations = useQuery(api.worldMap.listLocations, { campaignId })
   const setRevealed = useMutation(api.worldMap.setRevealed)
+  // Travel routes are heavy + lazy — only fetched when journey mode is on. In that
+  // mode the network draws faint and tapping two town pins plans a road route.
+  const [showRoutes, setShowRoutes] = useState(false)
+  const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
+  const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
+  const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
 
   // View transform
   const [zoom, setZoom] = useState(1)
@@ -77,6 +85,22 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     () => (selectedId ? (locations ?? []).find((l) => l._id === selectedId) ?? null : null),
     [locations, selectedId],
   )
+
+  // Land routing graph, built once per loaded route set; Dijkstra runs on it per
+  // journey. The journey result feeds both the bold path overlay and the card.
+  const graph = useMemo(
+    () => (routes && map ? buildRouteGraph(routes, map.width, map.height) : null),
+    [routes, map],
+  )
+  const journey = useMemo(() => {
+    if (!graph || !journeyFrom || !journeyTo) return null
+    const f = (locations ?? []).find((l) => l._id === journeyFrom)
+    const t = (locations ?? []).find((l) => l._id === journeyTo)
+    if (!f || !t) return null
+    const res = planRoute(graph, [f.x, f.y], [t.x, t.y])
+    const miles = res && map?.scaleMilesPerPx ? Math.round(res.px * map.scaleMilesPerPx) : null
+    return { found: !!res, miles, points: res?.points ?? null }
+  }, [graph, journeyFrom, journeyTo, locations, map])
 
   // ── Pan / zoom (read-only: no placement, move, or paint) ────────────────────
   const handleWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
@@ -125,6 +149,22 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't update visibility.")
     }
+  }
+
+  // Journey mode: first tap = origin, second = destination, third starts over.
+  const pickJourney = (loc: MapLocation) => {
+    if (!journeyFrom || journeyTo) {
+      setJourneyFrom(loc._id)
+      setJourneyTo(null)
+    } else {
+      setJourneyTo(loc._id)
+    }
+  }
+  const toggleRoutes = () => {
+    setShowRoutes((s) => !s)
+    setJourneyFrom(null)
+    setJourneyTo(null)
+    setSelectedId(null)
   }
 
   // ── Loading / empty (the parent mounts us past the DM page's own guards) ─────
@@ -212,14 +252,21 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
               radiusPct={fogRadius}
               paintedCells={maskCells}
             />
+            {showRoutes && routes && (
+              <RoutesSvg routes={routes} journey={journey?.points ?? null} />
+            )}
             {locations.map((loc) => (
               <LocationMarker
                 key={loc._id}
                 loc={loc}
                 zoom={zoom}
                 isDM={isDM}
-                selected={loc._id === selectedId}
-                onSelect={() => jumpToLocation(loc)}
+                selected={
+                  showRoutes
+                    ? loc._id === journeyFrom || loc._id === journeyTo
+                    : loc._id === selectedId
+                }
+                onSelect={() => (showRoutes ? pickJourney(loc) : jumpToLocation(loc))}
               />
             ))}
           </div>
@@ -237,6 +284,39 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             <Maximize className="h-4 w-4" />
           </ZoomButton>
         </div>
+
+        {/* Journey-planner toggle */}
+        <button
+          onClick={toggleRoutes}
+          title="Plan a journey — show the road network and tap two towns for the route + travel time"
+          className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+          style={{
+            background: showRoutes ? "var(--scene-accent)" : "var(--scene-surface)",
+            color: showRoutes ? "#fff" : "var(--scene-text-primary)",
+            border: `1px solid ${showRoutes ? "var(--scene-accent)" : "var(--scene-border)"}`,
+          }}
+        >
+          <RouteIcon className="h-4 w-4" />
+          <span className="hidden sm:inline">Travel</span>
+        </button>
+
+        {showRoutes && routes && routes.length > 0 && (
+          <div className="absolute left-4 top-16 z-10 max-w-[calc(100%-2rem)]">
+            <RoutesLegend routes={routes} />
+          </div>
+        )}
+
+        {showRoutes && (
+          <div className="absolute bottom-4 left-4 z-20">
+            <JourneyCard
+              fromName={journeyFrom ? locations.find((l) => l._id === journeyFrom)?.name ?? null : null}
+              toName={journeyTo ? locations.find((l) => l._id === journeyTo)?.name ?? null : null}
+              found={journey?.found ?? false}
+              miles={journey?.miles ?? null}
+              onClear={() => { setJourneyFrom(null); setJourneyTo(null) }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Detail sidebar (desktop) */}
