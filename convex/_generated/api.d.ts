@@ -24,6 +24,7 @@ import type * as libraryShare from "../libraryShare.js";
 import type * as liveCombat from "../liveCombat.js";
 import type * as liveSessions from "../liveSessions.js";
 import type * as migrations from "../migrations.js";
+import type * as npcPool from "../npcPool.js";
 import type * as npcs from "../npcs.js";
 import type * as partyInventory from "../partyInventory.js";
 import type * as premiumStatus from "../premiumStatus.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   liveCombat: typeof liveCombat;
   liveSessions: typeof liveSessions;
   migrations: typeof migrations;
+  npcPool: typeof npcPool;
   npcs: typeof npcs;
   partyInventory: typeof partyInventory;
   premiumStatus: typeof premiumStatus;

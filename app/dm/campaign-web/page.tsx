@@ -35,7 +35,7 @@ type PinMeta = ReturnType<typeof metaFor>
 // Display order for grouping map pins in the Location picker: settlements, then
 // combat/quest POIs, social/flavor, then terrain. Mirrors the world map panel.
 const LOCATION_KIND_ORDER = [
-  "settlement", "encounter", "monster", "dungeon", "ruin", "tavern", "landmark", "poi", "natural", "water", "region",
+  "settlement", "npc", "encounter", "monster", "dungeon", "ruin", "tavern", "landmark", "poi", "natural", "water", "region",
 ]
 const locationKindOrder = (k: string): number => {
   const i = LOCATION_KIND_ORDER.indexOf(k)

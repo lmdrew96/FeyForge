@@ -24,6 +24,7 @@ import {
   KeyRound,
   PawPrint,
   Swords,
+  Handshake,
   Beer,
   Flag,
   Eye,
@@ -68,6 +69,7 @@ const POI_KIND_META: Record<PoiKind, PinMeta> = {
   ruin: { label: "Ruins", color: "#78716c", icon: Skull },
   monster: { label: "Monster lair", color: "#be123c", icon: PawPrint },
   encounter: { label: "Encounter", color: "#ea580c", icon: Swords },
+  npc: { label: "NPC Encounter", color: "#db2777", icon: Handshake },
   tavern: { label: "Tavern", color: "#b45309", icon: Beer },
   landmark: { label: "Landmark", color: "#0d9488", icon: Flag },
 }
@@ -243,20 +245,19 @@ export function LocationDetail({
   const [lightbox, setLightbox] = useState(false)
   const [cityOpen, setCityOpen] = useState(false)
   // Drill-down resolution (per spec): a DM's uploaded image overrides everything;
-  // else the pin's embedded Watabou map — a settlement's MFCG city, a dungeon's One
-  // Page Dungeon, or an encounter's premade-NPC view. POI drill-downs are DM-only
-  // (listLocations strips drillDownUrl from the player payload for type "poi").
+  // else the pin's embedded Watabou map — a settlement's MFCG city or a dungeon's
+  // One Page Dungeon. POI drill-downs are DM-only (listLocations strips drillDownUrl
+  // from the player payload for type "poi"). NPC pins drill down to nothing — their
+  // content is the in-app bio card below, not an iframe.
   const hasImage = !!loc.drillDownImageKey
   const hasEmbed = !hasImage && !!loc.drillDownUrl
   // Label/title the drill-down by what it actually opens.
   const embedLabel =
     loc.poiKind === "dungeon"
       ? "View dungeon map"
-      : loc.poiKind === "encounter"
-        ? "View encounter NPC"
-        : loc.type === "settlement"
-          ? "View city map"
-          : "View map"
+      : loc.type === "settlement"
+        ? "View city map"
+        : "View map"
   // Notes render as Markdown (the shared, sanitized renderer). htmlToMarkdown
   // also cleans the raw HTML the Azgaar seed pipeline leaves in dmNotes — links
   // survive, the <iframe>/<div> soup doesn't. Gate on the NORMALIZED value so an
@@ -327,6 +328,10 @@ export function LocationDetail({
       {playerMd && (
         <MarkdownRenderer variant="scene" content={playerMd} className="mt-3 text-sm" />
       )}
+
+      {/* First-party NPC bio (npc pins). DM-only by construction — listLocations
+          strips loc.npc from the player payload, so this never renders for them. */}
+      {loc.npc && <NpcCard name={loc.name} npc={loc.npc} />}
 
       {(hasImage || hasEmbed) && (
         <button
@@ -465,6 +470,64 @@ function LocalMapLightbox({
   )
 }
 
+// First-party NPC bio for an "npc" pin — the in-app replacement for the old
+// Deorum iframe. Renders only when loc.npc is present, which (by the listLocations
+// strip) means DM-only. The pin's name IS the NPC's name; this shows the rest.
+function NpcCard({ name, npc }: { name: string; npc: NonNullable<MapLocation["npc"]> }) {
+  const accent = "#db2777"
+  return (
+    <div
+      className="mt-3 rounded-lg p-3"
+      style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", borderLeft: `3px solid ${accent}` }}
+    >
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <Handshake className="h-3.5 w-3.5" style={{ color: accent }} />
+        <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+          NPC
+        </span>
+      </div>
+      <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{name}</p>
+      <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+        {npc.occupation} · {npc.race} · {npc.alignment}
+      </p>
+      <p className="mt-2 text-sm" style={{ color: "var(--scene-text-primary)" }}>{npc.appearance}</p>
+      {npc.personality.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {npc.personality.map((t) => (
+            <span key={t} className="rounded px-1.5 py-0.5 text-[10px] font-medium" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="mt-2 space-y-1 text-xs" style={{ color: "var(--scene-text-primary)" }}>
+        <NpcLine label="Mannerisms" value={npc.mannerisms} />
+        <NpcLine label="Voice" value={npc.voice} />
+        <NpcLine label="Motivation" value={npc.motivation} />
+        <NpcLine label="Hook" value={npc.hook} />
+      </div>
+      <div
+        className="mt-2 rounded p-2"
+        style={{ background: `color-mix(in srgb, ${accent} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 30%, transparent)` }}
+      >
+        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: accent }}>
+          Secret · DM only
+        </p>
+        <p className="text-xs" style={{ color: "var(--scene-text-primary)" }}>{npc.secret}</p>
+      </div>
+    </div>
+  )
+}
+
+function NpcLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="font-semibold" style={{ color: "var(--scene-text-muted)" }}>{label}: </span>
+      {value}
+    </div>
+  )
+}
+
 // What a drill-down URL actually frames — drives the viewer's labels AND the
 // source attribution. The two Watabou products share a host (watabou.github.io),
 // so discriminate them by PATH, not host. We frame the live page (never host the
@@ -474,8 +537,6 @@ function LocalMapLightbox({
 function drillDownSource(url: string): { noun: string; creditText: string; creditHref: string } {
   try {
     const u = new URL(url)
-    if (u.hostname === "deorum.vercel.app")
-      return { noun: "character", creditText: "Character by Deorum (Azgaar)", creditHref: "https://deorum.vercel.app" }
     if (u.hostname === "watabou.github.io" && u.pathname.includes("one-page-dungeon"))
       return { noun: "dungeon map", creditText: "Dungeon by Watabou's One Page Dungeon", creditHref: "https://watabou.github.io/one-page-dungeon/" }
   } catch {

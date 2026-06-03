@@ -482,9 +482,28 @@ export default defineSchema({
         v.literal("ruin"),
         v.literal("monster"),
         v.literal("encounter"),
+        v.literal("npc"),
         v.literal("tavern"),
         v.literal("landmark"),
       ),
+    ),
+    // "npc" pins only: a first-party NPC dealt from the server-only pool at
+    // import/adopt (see convex/npcPool.ts). The pin's NAME is the NPC's name; this
+    // holds the rest of the bio. SECRET — listLocations strips it for players
+    // (they keep the name only). Mirrors PoolNpc minus name.
+    npc: v.optional(
+      v.object({
+        race: v.string(),
+        occupation: v.string(),
+        alignment: v.string(),
+        appearance: v.string(),
+        personality: v.array(v.string()),
+        mannerisms: v.string(),
+        voice: v.string(),
+        motivation: v.string(),
+        secret: v.string(),
+        hook: v.string(),
+      }),
     ),
     // Settlements only: the gazetteer block lifted from the Azgaar burg at import
     // (population, coat-of-arms spec, owning realm + government, culture, amenity

@@ -36,7 +36,7 @@ const metaForKey = (key: string) =>
 
 // Display order: settlements first, then combat/quest POIs, social/flavor, terrain.
 const KEY_ORDER = [
-  "settlement", "encounter", "monster", "dungeon", "ruin", "tavern", "landmark", "poi", "natural", "water", "region",
+  "settlement", "npc", "encounter", "monster", "dungeon", "ruin", "tavern", "landmark", "poi", "natural", "water", "region",
 ]
 const orderIndex = (k: string): number => {
   const i = KEY_ORDER.indexOf(k)

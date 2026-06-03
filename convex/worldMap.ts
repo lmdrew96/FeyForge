@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
 import { getMembership, requireDm as requireCampaignDm } from "./lib/auth"
 import { isPremiumActive } from "./premiumStatus"
+import { NPC_POOL } from "./npcPool"
 
 // ── World Map: campaign-scoped, Player/DM-gated ──────────────────────────────
 // Per docs/specs/feyforge-world-map-spec.md. Mirrors the wiki.ts Player/DM
@@ -29,9 +30,25 @@ const poiKindV = v.union(
   v.literal("ruin"),
   v.literal("monster"),
   v.literal("encounter"),
+  v.literal("npc"),
   v.literal("tavern"),
   v.literal("landmark"),
 )
+
+// First-party NPC dealt to an "npc" pin (mirrors PoolNpc minus name + the
+// mapLocations.npc schema block). SECRET — listLocations strips it for players.
+const npcV = v.object({
+  race: v.string(),
+  occupation: v.string(),
+  alignment: v.string(),
+  appearance: v.string(),
+  personality: v.array(v.string()),
+  mannerisms: v.string(),
+  voice: v.string(),
+  motivation: v.string(),
+  secret: v.string(),
+  hook: v.string(),
+})
 
 // Settlement gazetteer block (mirrors TownMeta in lib/worldMap/azgaar-map.ts + the
 // mapLocations schema). Display-only, non-secret; threaded through every pin-write
@@ -174,6 +191,28 @@ function mulberry32(seed: number): () => number {
   }
 }
 
+// Deal a distinct first-party NPC to each "npc"-kind pin: set the pin's NAME to
+// the NPC's name and copy the rest of the bio onto it. Sampled WITHOUT replacement
+// via a seeded Fisher–Yates shuffle of the pool (cycles only if a map somehow has
+// more npc pins than the pool holds). Empty pool → pins keep their "NPC Encounter"
+// placeholder (graceful: never crashes, never blanks). The dealt bio is stripped
+// for players in listLocations — only the name rides to them.
+function dealNpcs<T extends { poiKind?: string; name: string }>(locations: T[], rng: () => number): T[] {
+  if (NPC_POOL.length === 0) return locations
+  const order = [...NPC_POOL.keys()]
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[order[i], order[j]] = [order[j], order[i]]
+  }
+  let cursor = 0
+  return locations.map((loc) => {
+    if (loc.poiKind !== "npc") return loc
+    const { name, ...bio } = NPC_POOL[order[cursor % order.length]]
+    cursor++
+    return { ...loc, name, npc: bio } as T
+  })
+}
+
 // ── Map (one active map per campaign) ────────────────────────────────────────
 
 export const getMap = query({
@@ -280,6 +319,7 @@ export const setCampaignMapWithPins = mutation({
         dmNotes: v.optional(v.string()),
         drillDownUrl: v.optional(v.string()),
         poiKind: v.optional(poiKindV),
+        npc: v.optional(npcV),
         town: v.optional(townV),
         prominence: v.optional(v.number()),
       }),
@@ -323,7 +363,9 @@ export const setCampaignMapWithPins = mutation({
 
     // Hard-cap server-side (the client trims too, but never trust it) so an import
     // can't flood the campaign — or the DM map — past the render ceiling.
-    const capped = args.locations.slice(0, MAX_PINS)
+    // Deal a first-party NPC to each "npc" pin (sets its name + bio), seeded by
+    // campaign so a re-import is stable. Non-npc pins pass through untouched.
+    const capped = dealNpcs(args.locations.slice(0, MAX_PINS), mulberry32(seedFromString(args.campaignId)))
     for (const loc of capped) {
       await ctx.db.insert("mapLocations", {
         worldMapId: newMapId,
@@ -336,6 +378,7 @@ export const setCampaignMapWithPins = mutation({
         dmNotes: loc.dmNotes,
         drillDownUrl: loc.drillDownUrl,
         poiKind: loc.poiKind,
+        npc: loc.npc,
         town: loc.town,
         prominence: loc.prominence,
         createdBy: userId,
@@ -579,7 +622,9 @@ export const adoptPreset = mutation({
       chosen.push(...sample(presetLocations.filter((l) => !taken.has(l._id)), limit - chosen.length))
     }
 
-    for (const loc of chosen) {
+    // Re-roll NPCs per campaign so two campaigns adopting the same preset meet
+    // different people (reuses the same seeded rng → reproducible per campaign).
+    for (const loc of dealNpcs(chosen, rng)) {
       await ctx.db.insert("mapLocations", {
         worldMapId: newMapId,
         campaignId: args.campaignId,
@@ -594,6 +639,7 @@ export const adoptPreset = mutation({
         drillDownImageKey: loc.drillDownImageKey,
         drillDownUrl: loc.drillDownUrl,
         poiKind: loc.poiKind,
+        npc: loc.npc,
         town: loc.town,
         prominence: loc.prominence,
         createdBy: userId,
@@ -664,6 +710,7 @@ export const saveAsPreset = mutation({
         drillDownImageKey: loc.drillDownImageKey,
         drillDownUrl: loc.drillDownUrl,
         poiKind: loc.poiKind,
+        npc: loc.npc,
         town: loc.town,
         createdBy: identity.tokenIdentifier,
       })
@@ -705,6 +752,7 @@ export const seedPreset = mutation({
         drillDownImageKey: v.optional(v.string()),
         drillDownUrl: v.optional(v.string()),
         poiKind: v.optional(poiKindV),
+        npc: v.optional(npcV),
         town: v.optional(townV),
         prominence: v.optional(v.number()),
       }),
@@ -784,6 +832,7 @@ export const seedPreset = mutation({
         drillDownImageKey: loc.drillDownImageKey,
         drillDownUrl: loc.drillDownUrl,
         poiKind: loc.poiKind,
+        npc: loc.npc,
         town: loc.town,
         prominence: loc.prominence,
         createdBy: "seed-script",
@@ -807,10 +856,10 @@ export const listLocations = query({
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
       .collect()
     const visible = m.member.role === "dm" ? locations : locations.filter((l) => l.revealed === true)
-    // Players never receive dmNotes. They also don't get a POI's drillDownUrl: those
-    // are dungeon/encounter prep tools (the interior map IS the secret — revealing a
-    // pin says "a ruined keep stands here," not its room-by-room layout). A
-    // settlement's city link is NOT secret, so it rides through to players on reveal.
+    // Players never receive dmNotes. They also don't get a POI's drillDownUrl (the
+    // dungeon interior IS the secret) NOR an npc pin's bio block (motivation/secret
+    // are DM prep) — players keep only the pin's name (the NPC's name is fine to
+    // know). A settlement's city link + gazetteer are NOT secret and ride through.
     // ⚠️ The dungeon URL ALSO appears inside dmNotes ("See [One page dungeon](…)"),
     // so the dmNotes strip is load-bearing for this secret too — never serve dmNotes
     // to players, or the drill-down leaks back through the notes.
@@ -818,7 +867,7 @@ export const listLocations = query({
       m.member.role === "dm"
         ? visible
         : visible.map(({ dmNotes: _dm, ...rest }) =>
-            rest.type === "poi" ? (({ drillDownUrl: _d, ...keep }) => keep)(rest) : rest,
+            rest.type === "poi" ? (({ drillDownUrl: _d, npc: _n, ...keep }) => keep)(rest) : rest,
           )
     return sanitized.sort((a, b) => a.name.localeCompare(b.name))
   },

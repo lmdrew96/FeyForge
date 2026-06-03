@@ -43,7 +43,7 @@ export const TARGET_POI_SHARE = 0.4
 // game-meaningful kinds. Drives the pin icon (SVG, not Azgaar's emoji) and which
 // in-app action a pin offers (dungeon → drill-down map, encounter → AI/NPC, …).
 // Keep in sync with poiKind in convex/schema.ts + POI_KIND_META in the map page.
-export const POI_KINDS = ["dungeon", "ruin", "monster", "encounter", "tavern", "landmark"] as const
+export const POI_KINDS = ["dungeon", "ruin", "monster", "encounter", "npc", "tavern", "landmark"] as const
 export type PoiKind = (typeof POI_KINDS)[number]
 
 // Prominence by POI kind — the ONE lever feeding all three pin-thinning stages
@@ -55,6 +55,7 @@ export type PoiKind = (typeof POI_KINDS)[number]
 // (Was a flat 1.2 for every POI, tuned when settlements were the only priority —
 // it silently starved the combat pins the encounter generator needs.)
 const PROMINENCE_BY_POI_KIND: Record<PoiKind, number> = {
+  npc: 3.0,
   encounter: 3.0,
   monster: 3.0,
   dungeon: 3.0,
@@ -75,8 +76,8 @@ const POI_KIND_FROM_MARKER: Record<string, PoiKind> = {
   "sea-monsters": "monster",
   "lake-monsters": "monster",
   "hill-monsters": "monster",
-  encounters: "encounter",
-  brigands: "encounter",
+  encounters: "npc", // Azgaar "Random encounter" markers → first-party NPC (dealt server-side)
+  brigands: "encounter", // creature/group fights stay generic encounters
   pirates: "encounter",
   migration: "encounter",
   inns: "tavern",
@@ -99,11 +100,14 @@ const POI_KIND_FROM_MARKER: Record<string, PoiKind> = {
 // Hosts we trust to embed a per-pin drill-down (dungeon map / premade-NPC) in an
 // <iframe>. Azgaar itself emits these inside its marker legends. ALLOWLISTED so a
 // hand-edited or malicious .map can't inject an arbitrary iframe src into the app.
-const DRILLDOWN_HOSTS = new Set(["watabou.github.io", "deorum.vercel.app"])
+// Only Watabou's One Page Dungeon is framed now. Deorum (encounter NPCs) was
+// dropped in favor of a first-party NPC pool — see convex/npcPool.ts — so its
+// host is no longer allowlisted and those markers carry no drill-down URL.
+const DRILLDOWN_HOSTS = new Set(["watabou.github.io"])
 
 // Pull the first allowlisted https URL out of a marker legend's raw HTML — Azgaar
-// embeds a One Page Dungeon / encounter-NPC link as both an <iframe src> and an
-// <a href>. Prefer the iframe src (the canonical embed), else the first anchor.
+// embeds a One Page Dungeon link as both an <iframe src> and an <a href>. Prefer
+// the iframe src (the canonical embed), else the first anchor.
 function extractDrillDownUrl(legendHtml: string): string | undefined {
   const candidates: string[] = []
   const iframe = legendHtml.match(/<iframe[^>]*\bsrc\s*=\s*["']([^"']+)["']/i)
@@ -583,17 +587,25 @@ export function parseMap(text: string): ParsedMap {
       // URL is extracted from the RAW HTML first (htmlToMarkdown drops <iframe>s).
       const legend = rawLegend ? htmlToMarkdown(rawLegend) : ""
       const drillDownUrl = rawLegend ? extractDrillDownUrl(rawLegend) : undefined
+      const poiKind = POI_KIND_FROM_MARKER[String(m.type ?? "")]
+      const isNpc = poiKind === "npc"
       return {
         type: "poi" as const,
-        name: sanitizeText(named ? note!.name.trim() : titleCase(String(m.type ?? ""))),
+        // NPC pins get the real NPC's name server-side at import/adopt; until then
+        // a clean placeholder, never Azgaar's generic "Random encounter".
+        name: isNpc
+          ? "NPC Encounter"
+          : sanitizeText(named ? note!.name.trim() : titleCase(String(m.type ?? ""))),
         x: clampPct((m.x / width) * 100),
         y: clampPct((m.y / height) * 100),
-        dmNotes: legend.length > 0 ? legend : undefined,
-        // A dungeon/encounter pin's drill-down is a DM secret — listLocations strips
-        // it from the player payload (unlike a settlement's city link).
+        // NPC markers carry only Deorum boilerplate ("You have encountered a
+        // character.") — drop it; the dealt NPC's bio is the content.
+        dmNotes: isNpc ? undefined : legend.length > 0 ? legend : undefined,
+        // A dungeon pin's drill-down is a DM secret — listLocations strips it from
+        // the player payload (unlike a settlement's city link). NPC pins get none.
         drillDownUrl,
-        poiKind: POI_KIND_FROM_MARKER[String(m.type ?? "")],
-        prominence: prominenceForPoi(POI_KIND_FROM_MARKER[String(m.type ?? "")]),
+        poiKind,
+        prominence: prominenceForPoi(poiKind),
       }
     })
 
