@@ -32,6 +32,12 @@ export const PRESET_MAX_PINS = 100
 // apply. Presets lean settlement: POIs capped at POI_POOL_SHARE of the pool.
 export const PRESET_POOL_MAX = 250
 export const POI_POOL_SHARE = 1 / 3
+// Target share of NON-settlement pins in the FINAL map (import + adopt). Maps are
+// POI-poor (hundreds of settlements, dozens of POIs), so unweighted selection
+// drowns the POIs out — we stratify to guarantee this share, capped by how many
+// POIs the map actually has. Combat/quest pins fill it first (prominence). Keep in
+// sync with TARGET_POI_SHARE in convex/worldMap.ts (the adopt-sampling mirror).
+export const TARGET_POI_SHARE = 0.4
 
 // FeyForge POI subtypes — the ~25 Azgaar marker types collapsed into a handful of
 // game-meaningful kinds. Drives the pin icon (SVG, not Azgaar's emoji) and which
@@ -750,14 +756,18 @@ export function curateForPreset(
   }
 }
 
-// Import curation: a DM's OWN world. Keep the most prominent pins up to the cap,
-// with the settlement/POI MIX preserved (POIs rank by prominence, NOT culled to a
-// fixed share — a DM's markers are likely deliberate, unlike preset bulk).
+// Import curation: a DM's OWN world. Stratified to TARGET_POI_SHARE so the DM's
+// markers (encounters/dungeons) aren't crowded out by the hundreds of settlements
+// when capping to maxPins — POIs fill their share by prominence (combat/quest
+// first), settlements take the rest. POI share is capped by how many POIs exist.
 export function curateForImport(
   parsed: ParsedMap,
   maxPins: number = PRESET_MAX_PINS,
 ): ParsedLocation[] {
-  return [...parsed.settlements, ...parsed.pois]
+  const poiTarget = Math.min(parsed.pois.length, Math.round(maxPins * TARGET_POI_SHARE))
+  const keptPois = [...parsed.pois].sort((a, b) => b.prominence - a.prominence).slice(0, poiTarget)
+  const keptSettlements = [...parsed.settlements]
     .sort((a, b) => b.prominence - a.prominence)
-    .slice(0, maxPins)
+    .slice(0, maxPins - keptPois.length)
+  return [...keptSettlements, ...keptPois]
 }

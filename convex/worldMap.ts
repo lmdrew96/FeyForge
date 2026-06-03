@@ -147,6 +147,10 @@ async function clearCampaignMap(ctx: MutationCtx, campaignId: Id<"campaigns">): 
 // Hard ceiling MAX_PINS so a preset never floods a campaign (or the DM map).
 const FREE_MAX_PINS = 40
 const MAX_PINS = 100
+// Target share of non-settlement pins when sampling a campaign's map from a preset
+// (mirrors TARGET_POI_SHARE in lib/worldMap/azgaar-map.ts). Maps are POI-poor, so
+// without stratifying, the few POIs get diluted by the many settlements.
+const TARGET_POI_SHARE = 0.4
 
 // Deterministic per-campaign pin selection. We seed a tiny PRNG from
 // campaignId+presetId so a given campaign always gets the SAME world (re-adopt
@@ -554,14 +558,26 @@ export const adoptPreset = mutation({
       .withIndex("by_worldMap", (q) => q.eq("worldMapId", preset._id))
       .collect()
     const rng = mulberry32(seedFromString(`${args.campaignId}:${args.presetId}`))
-    const chosen = presetLocations
-      .map((loc) => {
-        const weight = Math.max(loc.prominence ?? 1, 0.0001)
-        return { loc, key: Math.pow(rng(), 1 / weight) }
-      })
-      .sort((a, b) => b.key - a.key)
-      .slice(0, limit)
-      .map((entry) => entry.loc)
+    // Weighted-random WITHOUT replacement, stratified by settlement vs POI so the
+    // few non-settlement pins aren't diluted away by the many settlements. Sample
+    // each stratum to its target count; combat/quest pins win the POI slots (their
+    // prominence is highest). A bigger `limit` stays a superset of a smaller one
+    // (same seed → same keys → wider slice).
+    const sample = (pool: typeof presetLocations, n: number) =>
+      pool
+        .map((loc) => ({ loc, key: Math.pow(rng(), 1 / Math.max(loc.prominence ?? 1, 0.0001)) }))
+        .sort((a, b) => b.key - a.key)
+        .slice(0, n)
+        .map((e) => e.loc)
+    const pois = presetLocations.filter((l) => l.type === "poi")
+    const settlements = presetLocations.filter((l) => l.type !== "poi")
+    const poiTarget = Math.min(pois.length, Math.round(limit * TARGET_POI_SHARE))
+    const chosen = [...sample(settlements, limit - poiTarget), ...sample(pois, poiTarget)]
+    // Backfill if a stratum ran short (e.g. a tiny map) so density tiers still fill.
+    if (chosen.length < limit) {
+      const taken = new Set(chosen.map((l) => l._id))
+      chosen.push(...sample(presetLocations.filter((l) => !taken.has(l._id)), limit - chosen.length))
+    }
 
     for (const loc of chosen) {
       await ctx.db.insert("mapLocations", {
