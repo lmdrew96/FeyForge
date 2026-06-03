@@ -331,7 +331,7 @@ export function LocationDetail({
 
       {/* First-party NPC bio (npc pins). DM-only by construction — listLocations
           strips loc.npc from the player payload, so this never renders for them. */}
-      {loc.npc && <NpcCard name={loc.name} npc={loc.npc} />}
+      {loc.npc && <NpcCard npc={loc.npc} />}
 
       {(hasImage || hasEmbed) && (
         <button
@@ -473,7 +473,7 @@ function LocalMapLightbox({
 // First-party NPC bio for an "npc" pin — the in-app replacement for the old
 // Deorum iframe. Renders only when loc.npc is present, which (by the listLocations
 // strip) means DM-only. The pin's name IS the NPC's name; this shows the rest.
-function NpcCard({ name, npc }: { name: string; npc: NonNullable<MapLocation["npc"]> }) {
+function NpcCard({ npc }: { npc: NonNullable<MapLocation["npc"]> }) {
   const accent = "#db2777"
   return (
     <div
@@ -486,7 +486,6 @@ function NpcCard({ name, npc }: { name: string; npc: NonNullable<MapLocation["np
           NPC
         </span>
       </div>
-      <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{name}</p>
       <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
         {npc.occupation} · {npc.race} · {npc.alignment}
       </p>
