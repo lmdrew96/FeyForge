@@ -27,7 +27,7 @@ import { S3Client, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s
 import {
   parseMap,
   curateForPreset,
-  PRESET_MAX_PINS,
+  PRESET_POOL_MAX,
   POI_POOL_SHARE,
   type ParsedLocation,
   type ZoneInfo,
@@ -325,7 +325,7 @@ async function main(): Promise<void> {
 
   console.log(`\nFound ${mapFiles.length} .map file(s) in ${MAPS_DIR}/`)
   console.log(
-    `Pool cap: ${PRESET_MAX_PINS} pins/preset (settlement-leaning: POIs ≤ ${Math.round(POI_POOL_SHARE * 100)}%, rest = capitals + top towns)`,
+    `Pool cap: ${PRESET_POOL_MAX} pins/preset (sampling source; settlement-leaning: POIs ≤ ${Math.round(POI_POOL_SHARE * 100)}%, rest = capitals + top towns)`,
   )
   console.log(dryRun ? "Mode: DRY RUN (no R2 uploads, no DB writes)\n" : "Mode: LIVE\n")
 

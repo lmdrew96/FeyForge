@@ -21,11 +21,16 @@
 import { htmlToMarkdown } from "../html-to-markdown"
 import { buildMfcgUrl } from "./mfcgLink"
 
-// Hard ceiling on stored pins (matches MAX_PINS in convex/worldMap.ts). The DM map
-// renders every pin, so this is the render-perf cap for presets AND imports.
+// Render cap: how many pins a campaign map stores + renders (mirrors MAX_PINS in
+// convex/worldMap.ts). Imports store up to this; adoptPreset never clones more.
 export const PRESET_MAX_PINS = 100
-// Presets lean settlement: POIs capped at this share of the pool, the rest is
-// capitals + top towns.
+// Preset POOL size: how many pins a seeded PRESET row holds. This is NOT rendered
+// wholesale — adoptPreset weighted-samples a campaign's density tier (≤ PRESET_MAX_PINS)
+// FROM this pool, so a bigger pool means more variety / fewer repeats across
+// campaigns (a 100-pool sampled at the 100 "mega" tier hands every campaign the
+// SAME pins). Density tiers are unchanged; only the draw is deeper. ⚠️ Re-seed to
+// apply. Presets lean settlement: POIs capped at POI_POOL_SHARE of the pool.
+export const PRESET_POOL_MAX = 250
 export const POI_POOL_SHARE = 1 / 3
 
 // FeyForge POI subtypes — the ~25 Azgaar marker types collapsed into a handful of
@@ -712,11 +717,12 @@ export function parseMap(text: string): ParsedMap {
   }
 }
 
-// Preset curation: settlement-leaning, capped. POIs ≤ POI_POOL_SHARE of the cap
-// (preferring those with legend notes), the rest = top settlements by prominence.
+// Preset curation: settlement-leaning, capped to the POOL size (the sampling
+// source, not the render cap). POIs ≤ POI_POOL_SHARE of the cap (combat/quest pins
+// first via prominence), the rest = top settlements by prominence.
 export function curateForPreset(
   parsed: ParsedMap,
-  maxPins: number = PRESET_MAX_PINS,
+  maxPins: number = PRESET_POOL_MAX,
   poiShare: number = POI_POOL_SHARE,
 ): { locations: ParsedLocation[]; stats: PresetStats } {
   const { settlements, pois, poiNamedTotal } = parsed

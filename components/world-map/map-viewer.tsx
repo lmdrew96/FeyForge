@@ -23,13 +23,14 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { Crown, Eye, EyeOff, Globe, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
+import { Crown, Eye, EyeOff, Globe, ListFilter, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
 import { FogOverlay } from "./fog-overlay"
 import { decodeFogMask } from "./fog-mask"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
 import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import { RealmsFaithsPanel } from "./realms-faiths-panel"
 import { COMBAT_POI_KINDS, EncounterGenerator } from "./encounter-generator"
+import { PinsPanel, filterByKeys } from "./pins-panel"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import {
   clampPanToViewport,
@@ -65,6 +66,9 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   const [selectedId, setSelectedId] = useState<LocationId | null>(null)
   // View-only declutter: hide every pin for a clean look at the bare map.
   const [showPins, setShowPins] = useState(true)
+  // Pin-type filter (empty = show all) + the filter/locator drawer.
+  const [filterKeys, setFilterKeys] = useState<Set<string>>(new Set())
+  const [pinsPanelOpen, setPinsPanelOpen] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null)
@@ -111,6 +115,22 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     selected && isDM && selected.poiKind && COMBAT_POI_KINDS.has(selected.poiKind) ? (
       <EncounterGenerator loc={selected} campaignId={campaignId} mapName={map?.name ?? ""} surroundings={selectedSurroundings} />
     ) : undefined
+
+  // Pin-type filter drives ONLY the marker render below — fog, routing, journey,
+  // and jump-to-center stay on the full location list.
+  const visibleLocations = useMemo(() => filterByKeys(locations ?? [], filterKeys), [locations, filterKeys])
+  const toggleFilterKey = (key: string) =>
+    setFilterKeys((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  // If the filter hides the selected pin, drop the selection.
+  useEffect(() => {
+    if (selectedId && filterKeys.size > 0 && !visibleLocations.some((l) => l._id === selectedId)) {
+      setSelectedId(null)
+    }
+  }, [filterKeys, visibleLocations, selectedId])
 
   // Land routing graph, built once per loaded route set; Dijkstra runs on it per
   // journey. The journey result feeds both the bold path overlay and the card.
@@ -192,6 +212,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     setJourneyTo(null)
     setSelectedId(null)
     setShowPins(true) // journey planning needs tappable town pins
+    setFilterKeys(new Set()) // …and all towns visible, not a filtered subset
   }
   const togglePins = () => {
     const next = !showPins
@@ -288,7 +309,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
               <RoutesSvg routes={routes} journey={journey?.points ?? null} />
             )}
             {showPins &&
-              locations.map((loc) => (
+              visibleLocations.map((loc) => (
                 <LocationMarker
                   key={loc._id}
                   loc={loc}
@@ -332,6 +353,19 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           >
             {showPins ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
             <span className="hidden sm:inline">Pins</span>
+          </button>
+          <button
+            onClick={() => setPinsPanelOpen(true)}
+            title="Filter pins by type & jump to a location"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+            style={{
+              background: filterKeys.size > 0 ? "var(--scene-accent)" : "var(--scene-surface)",
+              color: filterKeys.size > 0 ? "#fff" : "var(--scene-text-primary)",
+              border: `1px solid ${filterKeys.size > 0 ? "var(--scene-accent)" : "var(--scene-border)"}`,
+            }}
+          >
+            <ListFilter className="h-4 w-4" />
+            <span className="hidden sm:inline">List</span>
           </button>
           <button
             onClick={toggleRoutes}
@@ -413,6 +447,18 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           realms={worldbuilding.realms}
           faiths={worldbuilding.faiths}
           onClose={() => setWbOpen(false)}
+        />
+      )}
+
+      {pinsPanelOpen && (
+        <PinsPanel
+          locations={locations}
+          activeKeys={filterKeys}
+          onToggleKey={toggleFilterKey}
+          onClear={() => setFilterKeys(new Set())}
+          onSelect={(loc) => { setShowPins(true); jumpToLocation(loc); setPinsPanelOpen(false) }}
+          onClose={() => setPinsPanelOpen(false)}
+          isDM={isDM}
         />
       )}
     </div>

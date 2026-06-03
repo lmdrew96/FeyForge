@@ -41,11 +41,13 @@ import {
 import { JourneyCard, RoutesLegend, RoutesSvg } from "@/components/world-map/routes-overlay"
 import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import { RealmsFaithsPanel } from "@/components/world-map/realms-faiths-panel"
+import { PinsPanel, filterByKeys } from "@/components/world-map/pins-panel"
 import {
   Globe,
   Plus,
   Eye,
   EyeOff,
+  ListFilter,
   Trash2,
   Save,
   X,
@@ -1192,6 +1194,9 @@ function MapWorkspace({
   const [showRoutes, setShowRoutes] = useState(false)
   // View-only declutter: hide every pin so the bare map can be shown to players.
   const [showPins, setShowPins] = useState(true)
+  // Pin-type filter (empty = show all) + the filter/locator drawer.
+  const [filterKeys, setFilterKeys] = useState<Set<string>>(new Set())
+  const [pinsPanelOpen, setPinsPanelOpen] = useState(false)
   const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
   const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
   const [placing, setPlacing] = useState(false)
@@ -1289,6 +1294,22 @@ function MapWorkspace({
     selected && isDM && selected.poiKind && COMBAT_POI_KINDS.has(selected.poiKind) ? (
       <EncounterGenerator loc={selected} campaignId={campaignId} mapName={map.name} surroundings={selectedSurroundings} />
     ) : undefined
+
+  // Pin-type filter drives ONLY the marker render below — fog, routing, journey,
+  // and jump-to-center all stay on the full `locations`.
+  const visibleLocations = useMemo(() => filterByKeys(locations, filterKeys), [locations, filterKeys])
+  const toggleFilterKey = (key: string) =>
+    setFilterKeys((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  // If the filter hides the selected pin, drop the selection so no stale detail lingers.
+  useEffect(() => {
+    if (selectedId && filterKeys.size > 0 && !visibleLocations.some((l) => l._id === selectedId)) {
+      setSelectedId(null)
+    }
+  }, [filterKeys, visibleLocations, selectedId])
 
   const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
 
@@ -1545,6 +1566,7 @@ function MapWorkspace({
     setMovingId(null)
     setPaintMode("off")
     setShowPins(true) // journey planning needs tappable town pins
+    setFilterKeys(new Set()) // …and all towns visible, not a filtered subset
   }
   const togglePins = () => {
     const next = !showPins
@@ -1614,6 +1636,14 @@ function MapWorkspace({
             >
               {showPins ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
               <span className="hidden sm:inline">Pins</span>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => setPinsPanelOpen(true)}
+              active={pinsPanelOpen || filterKeys.size > 0}
+              title="Filter pins by type & jump to a location"
+            >
+              <ListFilter className="h-4 w-4" />
+              <span className="hidden sm:inline">List</span>
             </ToolbarButton>
             {(map.worldEvents?.length ?? 0) > 0 && (
               <WorldEventsControl
@@ -1696,7 +1726,7 @@ function MapWorkspace({
                 <RoutesSvg routes={routes} journey={journey?.points ?? null} />
               )}
               {showPins &&
-                locations.map((loc) => (
+                visibleLocations.map((loc) => (
                   <LocationMarker
                     key={loc._id}
                     loc={loc}
@@ -1917,6 +1947,18 @@ function MapWorkspace({
           realms={worldbuilding.realms}
           faiths={worldbuilding.faiths}
           onClose={() => setWbOpen(false)}
+        />
+      )}
+
+      {pinsPanelOpen && (
+        <PinsPanel
+          locations={locations}
+          activeKeys={filterKeys}
+          onToggleKey={toggleFilterKey}
+          onClear={() => setFilterKeys(new Set())}
+          onSelect={(loc) => { setShowPins(true); jumpToLocation(loc); setPinsPanelOpen(false) }}
+          onClose={() => setPinsPanelOpen(false)}
+          isDM={isDM}
         />
       )}
     </div>
