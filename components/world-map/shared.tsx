@@ -191,9 +191,9 @@ export function LocationMarker({
   )
 }
 
-// Town crest, rendered from the stored COA spec via Armoria. Hides itself if the
-// (third-party) render ever fails — never blocks the rest of the panel.
-function CoatOfArms({ coa, name }: { coa: string; name: string }) {
+// Town/realm crest, rendered from the stored COA spec via Armoria. Hides itself if
+// the (third-party) render ever fails — never blocks the rest of the panel.
+export function CoatOfArms({ coa, name }: { coa: string; name: string }) {
   const [ok, setOk] = useState(true)
   if (!ok) return null
   return (

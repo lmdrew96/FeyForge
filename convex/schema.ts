@@ -399,6 +399,43 @@ export default defineSchema({
         }),
       ),
     ),
+    // Realms (Azgaar states) + faiths (religions) for the "Realms & Faiths"
+    // worldbuilding panel. No geometry — indices already resolved to names at parse
+    // time. NOT secret (setting lore, shown to DM + players); served lazily by
+    // worldMap.getWorldbuilding (getMap strips them). Mirror RealmInfo / FaithInfo
+    // in lib/worldMap/azgaar-map.ts.
+    realms: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          form: v.optional(v.string()),
+          capital: v.optional(v.string()),
+          culture: v.optional(v.string()),
+          population: v.optional(v.number()),
+          coa: v.optional(v.string()),
+          color: v.optional(v.string()),
+          provinces: v.optional(v.number()),
+          campaigns: v.optional(v.array(v.string())),
+          relations: v.optional(
+            v.array(v.object({ relation: v.string(), realm: v.string() })),
+          ),
+        }),
+      ),
+    ),
+    faiths: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          type: v.optional(v.string()),
+          form: v.optional(v.string()),
+          deity: v.optional(v.string()),
+          color: v.optional(v.string()),
+          culture: v.optional(v.string()),
+          expansion: v.optional(v.string()),
+          origin: v.optional(v.string()),
+        }),
+      ),
+    ),
     updatedAt: v.number(),
   })
     .index("by_campaignId", ["campaignId"])

@@ -149,6 +149,33 @@ export type RouteInfo = {
   miles?: number // whole-segment length (Σ px × scaleMilesPerPx); routing recomputes per-edge
 }
 
+// A realm (Azgaar state) for the "Realms & Faiths" worldbuilding panel. No geometry —
+// indices (capital burg, culture) are resolved to names at parse time. World-level.
+export type RealmInfo = {
+  name: string // fullName ("Ocrafren Kingdom") or plain name
+  form?: string // government type (Monarchy, Theocracy, …)
+  capital?: string // capital settlement name
+  culture?: string // dominant culture/people
+  population?: number // urban + rural head count
+  coa?: string // Armoria coat-of-arms spec (rendered as <img>, like burgs)
+  color?: string // realm map color (a swatch in the panel)
+  provinces?: number // sub-division count
+  campaigns?: string[] // historical war/campaign names (flavor)
+  relations?: { relation: string; realm: string }[] // diplomacy → named realms (ally/enemy/…)
+}
+
+// A faith (Azgaar religion) for the same panel.
+export type FaithInfo = {
+  name: string
+  type?: string // Folk | Organized | Cult | Heresy
+  form?: string // Shamanism | Polytheism | Monotheism | …
+  deity?: string // named god(s), when the faith has one
+  color?: string
+  culture?: string // associated culture, when resolved
+  expansion?: string // human-readable spread mode (cultural / state / worldwide)
+  origin?: string // parent faith name, when this one descends from another
+}
+
 export type ParsedMap = {
   width: number
   height: number
@@ -158,6 +185,8 @@ export type ParsedMap = {
   poiNamedTotal: number // POIs that resolved a real name (not a type fallback) — for seed reporting
   zones: ZoneInfo[] // named active world events (DM-only)
   routes: RouteInfo[] // roads/trails/searoutes polylines for the travel overlay
+  realms: RealmInfo[] // Azgaar states → "Realms & Faiths" panel
+  faiths: FaithInfo[] // Azgaar religions → "Realms & Faiths" panel
 }
 
 export type PresetStats = {
@@ -194,8 +223,35 @@ type Marker = { type?: string; x: number; y: number; cell?: number; i: number }
 type Note = { id: string; name: string; legend: string }
 // Subsets of Azgaar's pack.states / pack.cultures (index 0 of each is the neutral
 // placeholder). Resolved by burg.state / burg.culture into the town gazetteer.
-type State = { i?: number; name?: string; fullName?: string; form?: string; removed?: boolean }
+type State = {
+  i?: number
+  name?: string
+  fullName?: string
+  form?: string // government type, e.g. "Monarchy"
+  removed?: boolean
+  capital?: number // capital burg index
+  culture?: number // culture index
+  coa?: unknown // Armoria coat-of-arms spec (object)
+  color?: string
+  urban?: number // urban population (thousands)
+  rural?: number // rural population (thousands)
+  provinces?: number[] // province indices
+  campaigns?: { name?: string; start?: number; end?: number }[] // historical wars
+  diplomacy?: string[] // relation to each state by index (Ally/Enemy/Vassal/…)
+}
 type Culture = { i?: number; name?: string; removed?: boolean }
+type Religion = {
+  i?: number
+  name?: string
+  type?: string // Folk | Organized | Cult | Heresy
+  form?: string // Shamanism | Polytheism | Monotheism | …
+  deity?: string | null // named god(s); null/"No religion" for deity-less folk faiths
+  culture?: number
+  color?: string
+  removed?: boolean
+  expansion?: string // how it spreads: "culture" | "state" | "global"
+  origins?: number[] // parent religion ids (lineage); first >0 is the direct parent
+}
 type Zone = { i?: number; name?: string; type?: string; cells?: number[] }
 type Route = { i?: number; group?: string; feature?: number; points?: number[][] }
 
@@ -254,6 +310,7 @@ export function parseMap(text: string): ParsedMap {
   let cultures: Culture[] = []
   let zones: Zone[] = []
   let routes: Route[] = []
+  let religions: Religion[] = []
   for (const ln of lines) {
     const t = ln.trimStart()
     if (!t.startsWith("[")) continue
@@ -342,6 +399,13 @@ export function parseMap(text: string): ParsedMap {
       "points" in sample
     ) {
       routes = arr as Route[]
+    } else if (
+      // Religions: only the religions array carries `deity`. Folk faiths can have
+      // deity:null but the key is present — richest-sample detection handles it.
+      religions.length === 0 &&
+      "deity" in sample
+    ) {
+      religions = arr as Religion[]
     }
   }
 
@@ -533,6 +597,87 @@ export function parseMap(text: string): ParsedMap {
     routeInfos.push(info)
   }
 
+  // Realms (states) + faiths (religions) for the worldbuilding panel. No geometry —
+  // resolve indices (capital burg, culture) to names. Skip the neutral state /
+  // "No religion" placeholders + removed entries.
+  const cultureNameOf = (idx: number | undefined): string | undefined => {
+    if (typeof idx !== "number" || idx <= 0) return undefined
+    const c = cultures[idx]
+    if (!c || c.removed || !c.name) return undefined
+    return sanitizeText(c.name.trim()) || undefined
+  }
+  // Diplomacy relations worth surfacing (skip Neutral/Unknown/Suspicion noise) + the
+  // human-readable religion spread modes.
+  const NOTABLE_RELS = new Set(["Ally", "Friendly", "Enemy", "Rival", "Vassal", "Suzerain"])
+  const EXPANSION_LABEL: Record<string, string> = {
+    culture: "Spreads along cultural lines",
+    state: "State religion",
+    global: "Spreads worldwide",
+  }
+  const realms: RealmInfo[] = states
+    .filter((s) => s && !s.removed && !!s.name && s.name !== "Neutrals" && (s.i ?? 0) > 0)
+    .map((s) => {
+      const cap = typeof s.capital === "number" ? burgs[s.capital] : undefined
+      const pop = Math.round(((s.urban ?? 0) + (s.rural ?? 0)) * 1000)
+      const r: RealmInfo = { name: sanitizeText((s.fullName || s.name || "").trim()) }
+      if (s.form) r.form = s.form
+      if (cap?.name) r.capital = sanitizeText(cap.name.trim())
+      const culture = cultureNameOf(s.culture)
+      if (culture) r.culture = culture
+      if (pop > 0) r.population = pop
+      if (s.coa && typeof s.coa === "object" && !Array.isArray(s.coa)) {
+        try {
+          r.coa = JSON.stringify(s.coa)
+        } catch {
+          // unserializable coa — skip
+        }
+      }
+      if (s.color) r.color = s.color
+      if (s.provinces?.length) r.provinces = s.provinces.length
+      const wars = (s.campaigns ?? []).map((c) => c?.name).filter((n): n is string => !!n)
+      if (wars.length) r.campaigns = wars.map((w) => sanitizeText(w))
+      // Diplomacy → named realms. diplomacy[j] is this state's stance toward state j.
+      const relations = (s.diplomacy ?? [])
+        .map((relation, j) => ({ relation, j }))
+        .filter(
+          ({ relation, j }) =>
+            NOTABLE_RELS.has(relation) &&
+            j !== s.i &&
+            !!states[j] &&
+            !states[j].removed &&
+            !!states[j].name &&
+            states[j].name !== "Neutrals",
+        )
+        .map(({ relation, j }) => ({
+          relation,
+          realm: sanitizeText((states[j].fullName || states[j].name || "").trim()),
+        }))
+        .filter((rel) => !!rel.realm)
+      if (relations.length) r.relations = relations
+      return r
+    })
+    .sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
+  const faiths: FaithInfo[] = religions
+    .filter((r) => r && !r.removed && !!r.name && r.name !== "No religion")
+    .map((r) => {
+      const f: FaithInfo = { name: sanitizeText(r.name!.trim()) }
+      if (r.type) f.type = r.type
+      if (r.form) f.form = r.form
+      if (r.deity && r.deity !== "null") f.deity = sanitizeText(String(r.deity))
+      if (r.color) f.color = r.color
+      const culture = cultureNameOf(r.culture)
+      if (culture) f.culture = culture
+      if (r.expansion) f.expansion = EXPANSION_LABEL[r.expansion] ?? r.expansion
+      const parentId = Array.isArray(r.origins)
+        ? r.origins.find((o) => typeof o === "number" && o > 0)
+        : undefined
+      if (parentId != null) {
+        const parent = religions[parentId]
+        if (parent?.name && parent.name !== "No religion") f.origin = sanitizeText(parent.name.trim())
+      }
+      return f
+    })
+
   return {
     width,
     height,
@@ -542,6 +687,8 @@ export function parseMap(text: string): ParsedMap {
     poiNamedTotal,
     zones: zoneInfos,
     routes: routeInfos,
+    realms,
+    faiths,
   }
 }
 

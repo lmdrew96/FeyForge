@@ -71,6 +71,34 @@ const routesV = v.array(
     miles: v.optional(v.number()),
   }),
 )
+// Realms (states) + faiths (religions) for the worldbuilding panel. Mirror
+// RealmInfo / FaithInfo in lib/worldMap/azgaar-map.ts + the worldMaps schema.
+const realmsV = v.array(
+  v.object({
+    name: v.string(),
+    form: v.optional(v.string()),
+    capital: v.optional(v.string()),
+    culture: v.optional(v.string()),
+    population: v.optional(v.number()),
+    coa: v.optional(v.string()),
+    color: v.optional(v.string()),
+    provinces: v.optional(v.number()),
+    campaigns: v.optional(v.array(v.string())),
+    relations: v.optional(v.array(v.object({ relation: v.string(), realm: v.string() }))),
+  }),
+)
+const faithsV = v.array(
+  v.object({
+    name: v.string(),
+    type: v.optional(v.string()),
+    form: v.optional(v.string()),
+    deity: v.optional(v.string()),
+    color: v.optional(v.string()),
+    culture: v.optional(v.string()),
+    expansion: v.optional(v.string()),
+    origin: v.optional(v.string()),
+  }),
+)
 
 // Premium-picker vibe validators (mirror lib/worldMap/vibe.ts + the worldMaps
 // schema). Shared by seedPreset (writes them) and listPremiumPresets (filters).
@@ -159,8 +187,9 @@ export const getMap = query({
     // the array still never reaches the player's wire.
     // routes are heavy (~40–65KB) and lazy-loaded via getRoutes — strip from this hot
     // read for everyone. worldEvents stay DM-only (plot, not common knowledge).
-    if (m.member.role !== "dm") return { ...map, worldEvents: undefined, routes: undefined }
-    return { ...map, routes: undefined }
+    if (m.member.role !== "dm")
+      return { ...map, worldEvents: undefined, routes: undefined, realms: undefined, faiths: undefined }
+    return { ...map, routes: undefined, realms: undefined, faiths: undefined }
   },
 })
 
@@ -176,6 +205,22 @@ export const getRoutes = query({
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
       .first()
     return map?.routes ?? []
+  },
+})
+
+// Realms + faiths for the worldbuilding panel — lazy-loaded (getMap strips them).
+// Not secret (the political/religious map is setting lore, shown to DM + players),
+// so membership-gated only. Returns both in one round-trip.
+export const getWorldbuilding = query({
+  args: { campaignId: v.id("campaigns") },
+  handler: async (ctx, args) => {
+    const m = await getMembership(ctx, args.campaignId)
+    if (!m) return { realms: [], faiths: [] }
+    const map = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .first()
+    return { realms: map?.realms ?? [], faiths: map?.faiths ?? [] }
   },
 })
 
@@ -236,6 +281,8 @@ export const setCampaignMapWithPins = mutation({
     ),
     worldEvents: v.optional(worldEventsV),
     routes: v.optional(routesV),
+    realms: v.optional(realmsV),
+    faiths: v.optional(faithsV),
   },
   handler: async (ctx, args): Promise<Id<"worldMaps">> => {
     const userId = await requireDm(ctx, args.campaignId)
@@ -263,6 +310,8 @@ export const setCampaignMapWithPins = mutation({
       source: "import",
       worldEvents: args.worldEvents,
       routes: args.routes,
+      realms: args.realms,
+      faiths: args.faiths,
       createdBy: userId,
       updatedAt: Date.now(),
     })
@@ -488,6 +537,8 @@ export const adoptPreset = mutation({
       presetSourceId: preset._id,
       worldEvents: preset.worldEvents,
       routes: preset.routes,
+      realms: preset.realms,
+      faiths: preset.faiths,
       createdBy: userId,
       updatedAt: Date.now(),
     })
@@ -571,6 +622,8 @@ export const saveAsPreset = mutation({
       isPremiumPreset: args.isPremiumPreset ?? false,
       worldEvents: map.worldEvents,
       routes: map.routes,
+      realms: map.realms,
+      faiths: map.faiths,
       createdBy: identity.tokenIdentifier,
       updatedAt: Date.now(),
     })
@@ -641,6 +694,8 @@ export const seedPreset = mutation({
     ),
     worldEvents: v.optional(worldEventsV),
     routes: v.optional(routesV),
+    realms: v.optional(realmsV),
+    faiths: v.optional(faithsV),
   },
   handler: async (
     ctx,
@@ -691,6 +746,8 @@ export const seedPreset = mutation({
       vibeScale: args.vibeScale,
       worldEvents: args.worldEvents,
       routes: args.routes,
+      realms: args.realms,
+      faiths: args.faiths,
       createdBy: "seed-script",
       updatedAt: Date.now(),
     })

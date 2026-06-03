@@ -23,11 +23,12 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { Globe, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
+import { Crown, Globe, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
 import { FogOverlay } from "./fog-overlay"
 import { decodeFogMask } from "./fog-mask"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
 import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
+import { RealmsFaithsPanel } from "./realms-faiths-panel"
 import {
   clampPanToViewport,
   DEFAULT_FOG_RADIUS,
@@ -52,6 +53,9 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
   const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
+  // Realms & faiths panel — lazy, opened from the toolbar.
+  const [wbOpen, setWbOpen] = useState(false)
+  const worldbuilding = useQuery(api.worldMap.getWorldbuilding, wbOpen ? { campaignId } : "skip")
 
   // View transform
   const [zoom, setZoom] = useState(1)
@@ -285,20 +289,31 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           </ZoomButton>
         </div>
 
-        {/* Journey-planner toggle */}
-        <button
-          onClick={toggleRoutes}
-          title="Plan a journey — show the road network and tap two towns for the route + travel time"
-          className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
-          style={{
-            background: showRoutes ? "var(--scene-accent)" : "var(--scene-surface)",
-            color: showRoutes ? "#fff" : "var(--scene-text-primary)",
-            border: `1px solid ${showRoutes ? "var(--scene-accent)" : "var(--scene-border)"}`,
-          }}
-        >
-          <RouteIcon className="h-4 w-4" />
-          <span className="hidden sm:inline">Travel</span>
-        </button>
+        {/* Overlay controls (top-right): journey planner + realms/faiths */}
+        <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-1">
+          <button
+            onClick={toggleRoutes}
+            title="Plan a journey — show the road network and tap two towns for the route + travel time"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+            style={{
+              background: showRoutes ? "var(--scene-accent)" : "var(--scene-surface)",
+              color: showRoutes ? "#fff" : "var(--scene-text-primary)",
+              border: `1px solid ${showRoutes ? "var(--scene-accent)" : "var(--scene-border)"}`,
+            }}
+          >
+            <RouteIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Travel</span>
+          </button>
+          <button
+            onClick={() => setWbOpen(true)}
+            title="Realms &amp; Faiths — the world's kingdoms and religions"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+            style={{ background: "var(--scene-surface)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+          >
+            <Crown className="h-4 w-4" />
+            <span className="hidden sm:inline">Realms</span>
+          </button>
+        </div>
 
         {showRoutes && routes && routes.length > 0 && (
           <div className="absolute left-4 top-16 z-10 max-w-[calc(100%-2rem)]">
@@ -347,6 +362,14 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             onReveal={isDM ? () => handleReveal(selected) : undefined}
           />
         </div>
+      )}
+
+      {wbOpen && worldbuilding && (
+        <RealmsFaithsPanel
+          realms={worldbuilding.realms}
+          faiths={worldbuilding.faiths}
+          onClose={() => setWbOpen(false)}
+        />
       )}
     </div>
   )

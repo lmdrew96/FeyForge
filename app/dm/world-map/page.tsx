@@ -38,6 +38,7 @@ import {
 } from "@/components/world-map/fog-mask"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "@/components/world-map/routes-overlay"
 import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
+import { RealmsFaithsPanel } from "@/components/world-map/realms-faiths-panel"
 import {
   Globe,
   Plus,
@@ -802,6 +803,8 @@ function AzgaarWorldBuilder({ campaignId, onDone }: { campaignId: CampaignId; on
         locations,
         worldEvents: parsed.zones, // named active events → worldMaps row (DM-only)
         routes: parsed.routes, // roads/trails/searoutes polylines → worldMaps row (travel overlay)
+        realms: parsed.realms, // Azgaar states → worldMaps row (Realms & Faiths panel)
+        faiths: parsed.faiths, // Azgaar religions → worldMaps row (Realms & Faiths panel)
       })
       toast.success(`Imported “${name}” — ${locations.length} location${locations.length === 1 ? "" : "s"} placed.`)
       onDone?.()
@@ -1192,6 +1195,8 @@ function MapWorkspace({
   const aiUsage = useQuery(api.aiUsage.getUsage)
   // Travel routes (roads/trails/searoutes) — lazy, only fetched when toggled on.
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
+  const [wbOpen, setWbOpen] = useState(false)
+  const worldbuilding = useQuery(api.worldMap.getWorldbuilding, wbOpen ? { campaignId } : "skip")
   const routeGraph = useMemo(
     () => (routes ? buildRouteGraph(routes, map.width, map.height) : null),
     [routes, map.width, map.height],
@@ -1575,6 +1580,10 @@ function MapWorkspace({
               <RouteIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Travel</span>
             </ToolbarButton>
+            <ToolbarButton onClick={() => setWbOpen(true)} title="Realms & Faiths — the world's kingdoms and religions">
+              <Crown className="h-4 w-4" />
+              <span className="hidden sm:inline">Realms</span>
+            </ToolbarButton>
             <ToolbarButton onClick={onChangeMap} title="Switch to a different map">
               <ImageIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Change map</span>
@@ -1847,6 +1856,14 @@ function MapWorkspace({
             </div>
           </div>
         </Modal>
+      )}
+
+      {wbOpen && worldbuilding && (
+        <RealmsFaithsPanel
+          realms={worldbuilding.realms}
+          faiths={worldbuilding.faiths}
+          onClose={() => setWbOpen(false)}
+        />
       )}
     </div>
   )
