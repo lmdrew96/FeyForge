@@ -30,6 +30,8 @@ import {
   type VibeCivilization,
   type VibeScale,
 } from "../lib/worldMap/vibe"
+import { parseMap } from "../lib/worldMap/azgaar-map"
+import { proposeVibe, type VibeProposal } from "../lib/worldMap/vibe-derive"
 
 const SRC_DIR = "maps/premium-src"
 const MANIFEST = path.join(SRC_DIR, "manifest.json")
@@ -86,13 +88,18 @@ async function main() {
     label: string,
     options: T,
     labels: Record<T[number], string>,
+    suggested?: T[number],
   ): Promise<T[number]> {
     for (;;) {
       console.log(`\n${label}:`)
-      options.forEach((o, i) => console.log(`  ${i + 1}) ${labels[o as T[number]]}`))
-      const n = parseInt(await ask("  → "), 10)
+      options.forEach((o, i) =>
+        console.log(`  ${i + 1}) ${labels[o as T[number]]}${o === suggested ? "  ← suggested" : ""}`),
+      )
+      const raw = await ask(suggested ? `  → [Enter = ${labels[suggested]}] ` : "  → ")
+      if (raw === "" && suggested) return suggested
+      const n = parseInt(raw, 10)
       if (n >= 1 && n <= options.length) return options[n - 1] as T[number]
-      console.log(`  (enter 1–${options.length})`)
+      console.log(`  (enter 1–${options.length}${suggested ? ", or Enter for the suggested one" : ""})`)
     }
   }
 
@@ -110,10 +117,23 @@ async function main() {
     }
 
     console.log(`\n${"─".repeat(52)}\nTagging: ${mapFile}`)
-    const shape = await pick("Shape of the world", VIBE_SHAPES, VIBE_LABELS.shape)
-    const climate = await pick("Climate", VIBE_CLIMATES, VIBE_LABELS.climate)
-    const civilization = await pick("Civilization", VIBE_CIVILIZATIONS, VIBE_LABELS.civilization)
-    const scale = await pick("Scale", VIBE_SCALES, VIBE_LABELS.scale)
+    // Auto-derive suggested vibe tags from the .map itself; the curator confirms each.
+    let proposal: VibeProposal = {}
+    try {
+      const text = fs.readFileSync(path.join(SRC_DIR, mapFile), "utf8")
+      proposal = proposeVibe(text, parseMap(text))
+      console.log(
+        `  derived → shape ${proposal.shape ?? "?"} · climate ${proposal.climate ?? "?"} · ` +
+          `civ ${proposal.civilization ?? "?"} · scale ${proposal.scale ?? "?"}`,
+      )
+      console.log(`  (note: arid climate can't be auto-detected, and shape is a landmass guess — eyeball the .png)`)
+    } catch {
+      console.log(`  (couldn't auto-derive from this .map — pick each manually)`)
+    }
+    const shape = await pick("Shape of the world", VIBE_SHAPES, VIBE_LABELS.shape, proposal.shape)
+    const climate = await pick("Climate", VIBE_CLIMATES, VIBE_LABELS.climate, proposal.climate)
+    const civilization = await pick("Civilization", VIBE_CIVILIZATIONS, VIBE_LABELS.civilization, proposal.civilization)
+    const scale = await pick("Scale", VIBE_SCALES, VIBE_LABELS.scale, proposal.scale)
     const vibe: Vibe = { shape, climate, civilization, scale }
     const defName = vibeName(vibe)
     const name = (await ask(`Name [${defName}]: `)) || defName
