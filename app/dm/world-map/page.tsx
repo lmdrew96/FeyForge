@@ -19,6 +19,7 @@ import { htmlToMarkdown } from "@/lib/html-to-markdown"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { postAi, AiError } from "@/lib/ai-client"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
+import { COMBAT_POI_KINDS, EncounterGenerator } from "@/components/world-map/encounter-generator"
 import { parseMap, curateForImport, type EventPlace } from "@/lib/worldMap/azgaar-map"
 import {
   VIBE_AXES,
@@ -1275,6 +1276,20 @@ function MapWorkspace({
     [locations, selectedId],
   )
 
+  // AI encounter generator — only on combat-capable POI pins, DM-only. Its
+  // surroundings are the selected pin's neighborhood (itself excluded).
+  const selectedSurroundings = useMemo(
+    () =>
+      selected
+        ? computeSurroundings({ x: selected.x, y: selected.y }, locations.filter((l) => l._id !== selected._id), map)
+        : undefined,
+    [selected, locations, map],
+  )
+  const encounterAction =
+    selected && isDM && selected.poiKind && COMBAT_POI_KINDS.has(selected.poiKind) ? (
+      <EncounterGenerator loc={selected} campaignId={campaignId} mapName={map.name} surroundings={selectedSurroundings} />
+    ) : undefined
+
   const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
 
   // Whenever zoom changes (wheel, buttons, reset, centering), pull pan back into
@@ -1767,6 +1782,7 @@ function MapWorkspace({
               onMove={() => { setMovingId(selected._id); setSelectedId(null) }}
               onDelete={() => handleDelete(selected)}
               onReveal={() => handleReveal(selected)}
+              extraActions={encounterAction}
             />
           </aside>
         )}
@@ -1786,6 +1802,7 @@ function MapWorkspace({
             onMove={() => { setMovingId(selected._id); setSelectedId(null) }}
             onDelete={() => handleDelete(selected)}
             onReveal={() => handleReveal(selected)}
+            extraActions={encounterAction}
           />
         </div>
       )}

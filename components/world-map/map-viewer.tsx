@@ -29,6 +29,8 @@ import { decodeFogMask } from "./fog-mask"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
 import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import { RealmsFaithsPanel } from "./realms-faiths-panel"
+import { COMBAT_POI_KINDS, EncounterGenerator } from "./encounter-generator"
+import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import {
   clampPanToViewport,
   DEFAULT_FOG_RADIUS,
@@ -91,6 +93,24 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     () => (selectedId ? (locations ?? []).find((l) => l._id === selectedId) ?? null : null),
     [locations, selectedId],
   )
+
+  // AI encounter generator — DM-only, combat-capable POI pins. Lets a DM spin up
+  // a CR-balanced encounter live at the table, grounded in the pin's neighborhood.
+  const selectedSurroundings = useMemo(
+    () =>
+      selected && map
+        ? computeSurroundings(
+            { x: selected.x, y: selected.y },
+            (locations ?? []).filter((l) => l._id !== selected._id),
+            map,
+          )
+        : undefined,
+    [selected, locations, map],
+  )
+  const encounterAction =
+    selected && isDM && selected.poiKind && COMBAT_POI_KINDS.has(selected.poiKind) ? (
+      <EncounterGenerator loc={selected} campaignId={campaignId} mapName={map?.name ?? ""} surroundings={selectedSurroundings} />
+    ) : undefined
 
   // Land routing graph, built once per loaded route set; Dijkstra runs on it per
   // journey. The journey result feeds both the bold path overlay and the card.
@@ -367,6 +387,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             isDM={isDM}
             onClose={() => setSelectedId(null)}
             onReveal={isDM ? () => handleReveal(selected) : undefined}
+            extraActions={encounterAction}
           />
         </aside>
       )}
@@ -382,6 +403,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             isDM={isDM}
             onClose={() => setSelectedId(null)}
             onReveal={isDM ? () => handleReveal(selected) : undefined}
+            extraActions={encounterAction}
           />
         </div>
       )}

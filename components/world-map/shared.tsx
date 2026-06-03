@@ -224,6 +224,7 @@ export function LocationDetail({
   onMove,
   onDelete,
   onReveal,
+  extraActions,
 }: {
   loc: MapLocation
   isDM: boolean
@@ -232,6 +233,10 @@ export function LocationDetail({
   onMove?: () => void
   onDelete?: () => void
   onReveal?: () => void
+  // DM-only slot in the action row — the parent fills it with feature triggers
+  // that need context this dependency-free component shouldn't import (e.g. the
+  // AI encounter generator, which needs party levels + edition + open5e).
+  extraActions?: React.ReactNode
 }) {
   const meta = metaFor(loc)
   const Icon = meta.icon
@@ -258,7 +263,7 @@ export function LocationDetail({
   // HTML-only legend (e.g. just an embed) doesn't leave an empty header block.
   const playerMd = htmlToMarkdown(loc.playerNotes)
   const dmMd = htmlToMarkdown(loc.dmNotes)
-  const showActions = isDM && (onReveal || onEdit || onMove || onDelete)
+  const showActions = isDM && (onReveal || onEdit || onMove || onDelete || extraActions)
   return (
     <div>
       <div className="flex items-start justify-between gap-3">
@@ -390,6 +395,7 @@ export function LocationDetail({
               Delete
             </SecondaryButton>
           )}
+          {extraActions}
         </div>
       )}
     </div>
