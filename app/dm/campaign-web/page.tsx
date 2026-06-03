@@ -25,6 +25,22 @@ import {
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { Users, MapPin, ScrollText, Shield, Milestone, Plus, Trash2, X, Check, Radio } from "lucide-react"
+import { metaFor } from "@/components/world-map/shared"
+import { pinFilterKey } from "@/components/world-map/pins-panel"
+
+// Pin meta shape returned by metaFor — reused so Story Web location nodes match
+// the world map's icon/label/color for each pin kind exactly.
+type PinMeta = ReturnType<typeof metaFor>
+
+// Display order for grouping map pins in the Location picker: settlements, then
+// combat/quest POIs, social/flavor, then terrain. Mirrors the world map panel.
+const LOCATION_KIND_ORDER = [
+  "settlement", "encounter", "monster", "dungeon", "ruin", "tavern", "landmark", "poi", "natural", "water", "region",
+]
+const locationKindOrder = (k: string): number => {
+  const i = LOCATION_KIND_ORDER.indexOf(k)
+  return i === -1 ? 999 : i
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -49,13 +65,19 @@ type WebNodeData = {
   label: string
   entityType: EntityType
   color?: string
+  // For location nodes: the resolved pin kind's icon/label/color, so a tavern pin
+  // renders as a tavern (not a generic green "Location"). Derived at render from
+  // the live map pin, so it also corrects nodes added before this differentiation.
+  locMeta?: PinMeta
   onDelete: (id: string) => void
   onReveal: (id: string) => void
   sessionActive: boolean
 }
 
 function WebNode({ id, data, selected }: { id: string; data: WebNodeData; selected: boolean }) {
-  const meta = TYPE_META[data.entityType]
+  // Location nodes show their actual pin kind (tavern/dungeon/river…); everything
+  // else uses the node-type meta. locMeta is resolved from the live map pin.
+  const meta = data.entityType === "location" && data.locMeta ? data.locMeta : TYPE_META[data.entityType]
   const color = data.color ?? meta.color
   const Icon = meta.icon
 
@@ -153,21 +175,35 @@ export default function CampaignWebPage() {
       .catch(console.error)
   }, [context])
 
+  // Map pin lookup, so a location node can resolve its live kind (icon/label/color).
+  const locById = useMemo(() => {
+    const m = new Map<string, NonNullable<typeof locations>[number]>()
+    for (const l of locations ?? []) m.set(l._id, l)
+    return m
+  }, [locations])
+
   // Map Convex nodes → RF nodes
   const rfNodes: Node[] = useMemo(() => {
     if (!webNodes) return []
-    return webNodes.map((n) => ({
-      id: n._id,
-      type: "webNode",
-      position: { x: n.x, y: n.y },
-      data: {
-        label: n.entityName ?? n.label,
-        entityType: n.entityType,
-        color: n.color ?? TYPE_META[n.entityType].color,
-        onDelete: () => {}, // filled in below via nodeTypes prop
-      },
-    }))
-  }, [webNodes])
+    return webNodes.map((n) => {
+      // A location node tied to a map pin takes that pin's kind meta — derived
+      // live, so even pre-existing generic nodes re-render as their true kind.
+      const pin = n.entityType === "location" && n.entityId ? locById.get(n.entityId) : undefined
+      const locMeta = pin ? metaFor(pin) : undefined
+      return {
+        id: n._id,
+        type: "webNode",
+        position: { x: n.x, y: n.y },
+        data: {
+          label: n.entityName ?? n.label,
+          entityType: n.entityType,
+          color: locMeta ? locMeta.color : n.color ?? TYPE_META[n.entityType].color,
+          locMeta,
+          onDelete: () => {}, // filled in below via nodeTypes prop
+        },
+      }
+    })
+  }, [webNodes, locById])
 
   // Map Convex edges → RF edges
   const rfEdges: Edge[] = useMemo(() => {
@@ -242,14 +278,16 @@ export default function CampaignWebPage() {
     if (!sessionId || !campaignId) return
     const node = webNodes?.find((n) => n._id === id)
     if (!node) return
+    const pin = node.entityType === "location" && node.entityId ? locById.get(node.entityId) : undefined
+    const kindLabel = pin ? metaFor(pin).label : TYPE_META[node.entityType].label
     doBroadcast({
       sessionId,
       campaignId,
       type: "web_node",
       title: node.entityName ?? node.label,
-      body: TYPE_META[node.entityType].label,
+      body: kindLabel,
     }).catch(console.error)
-  }, [sessionId, campaignId, webNodes, doBroadcast])
+  }, [sessionId, campaignId, webNodes, locById, doBroadcast])
 
   // Patch handlers into node data
   const nodesWithDelete = useMemo(() =>
@@ -298,6 +336,19 @@ export default function CampaignWebPage() {
     () => (locations ?? []).filter((l) => !onCanvasEntityIds.has(l._id)),
     [locations, onCanvasEntityIds]
   )
+
+  // Group the pickable pins by kind (settlement/dungeon/tavern/river/…) so the
+  // Location tab is an organized, scannable list instead of one flat dump.
+  const groupedLocations = useMemo(() => {
+    const groups = new Map<string, typeof filteredLocations>()
+    for (const loc of filteredLocations) {
+      const key = pinFilterKey(loc)
+      const arr = groups.get(key)
+      if (arr) arr.push(loc)
+      else groups.set(key, [loc])
+    }
+    return [...groups.entries()].sort((a, b) => locationKindOrder(a[0]) - locationKindOrder(b[0]))
+  }, [filteredLocations])
 
   const tabs: EntityType[] = ["npc", "location", "faction", "plot_hook"]
 
@@ -378,20 +429,37 @@ export default function CampaignWebPage() {
               </button>
             ))}
 
-            {activeTab === "location" && filteredLocations.map((loc) => (
-              <button
-                key={loc._id}
-                onClick={() => addEntityNode("location", loc._id, loc.name)}
-                className="w-full flex items-center justify-between gap-2 rounded px-2 py-1.5 text-left transition-opacity hover:opacity-80"
-                style={{
-                  background: TYPE_META.location.color + "1a",
-                  border: `1px solid ${TYPE_META.location.color}44`,
-                }}
-              >
-                <span className="text-xs truncate" style={{ color: "var(--scene-text-primary)" }}>{loc.name}</span>
-                <Plus size={10} style={{ color: TYPE_META.location.color }} />
-              </button>
-            ))}
+            {activeTab === "location" && groupedLocations.map(([key, locs]) => {
+              const groupMeta = metaFor(locs[0])
+              const GroupIcon = groupMeta.icon
+              return (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center gap-1.5 px-1 pt-1.5">
+                    <GroupIcon size={11} style={{ color: groupMeta.color }} />
+                    <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: groupMeta.color }}>
+                      {groupMeta.label}
+                    </span>
+                    <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>{locs.length}</span>
+                  </div>
+                  {locs.map((loc) => {
+                    const m = metaFor(loc)
+                    const Icon = m.icon
+                    return (
+                      <button
+                        key={loc._id}
+                        onClick={() => addEntityNode("location", loc._id, loc.name)}
+                        className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-left transition-opacity hover:opacity-80"
+                        style={{ background: m.color + "1a", border: `1px solid ${m.color}44` }}
+                      >
+                        <Icon size={11} style={{ color: m.color, flexShrink: 0 }} />
+                        <span className="flex-1 text-xs truncate" style={{ color: "var(--scene-text-primary)" }}>{loc.name}</span>
+                        <Plus size={10} style={{ color: m.color, flexShrink: 0 }} />
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })}
 
             {(activeTab === "faction" || activeTab === "plot_hook") && (
               <div className="space-y-2">
