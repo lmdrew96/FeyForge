@@ -393,15 +393,19 @@ function VibeChip({
 function PremiumMapPicker({ onPick }: { onPick: (id: WorldMapId, name: string) => void }) {
   const [filter, setFilter] = useState<VibeFilter>({})
   const results = useQuery(api.worldMap.listPremiumPresets, filter)
+  const libraryHasMaps = useRef(false)
 
   const setAxis = (field: keyof VibeFilter, option: string | undefined) =>
     setFilter((f) => ({ ...f, [field]: option }) as VibeFilter)
 
-  // Empty library (nothing seeded yet) → render nothing rather than a dead section.
-  // Once premium presets exist, the picker appears. An over-FILTERED empty result
-  // still shows (with a "fewer filters" hint) so the chips stay usable.
-  const hasFilter = Object.values(filter).some((v) => v !== undefined)
-  if (results !== undefined && results.length === 0 && !hasFilter) return null
+  // Latch: have we ever seen a non-empty premium library? Until we have, render
+  // NOTHING — not even while loading. Otherwise the picker flashes in (chips +
+  // skeleton) on first load and then vanishes when an empty library resolves,
+  // shoving the always-present "build your own world" card up (the reported race).
+  // Once maps are known to exist we keep the picker mounted and let the body show
+  // the skeleton during filter reloads / the "fewer filters" hint when over-filtered.
+  if (results && results.length > 0) libraryHasMaps.current = true
+  if (!libraryHasMaps.current) return null
 
   return (
     <div className="mb-6">
