@@ -353,7 +353,7 @@ export function LocationDetail({
       )}
 
       {cityOpen && loc.drillDownUrl && (
-        <MfcgViewer url={loc.drillDownUrl} title={loc.name} onClose={() => setCityOpen(false)} />
+        <DrillDownViewer url={loc.drillDownUrl} title={loc.name} onClose={() => setCityOpen(false)} />
       )}
 
       {isDM && dmMd && (
@@ -465,15 +465,37 @@ function LocalMapLightbox({
   )
 }
 
-// Settlement drill-down: Watabou MFCG framed in-app (his live site, his servers —
-// we never host his output; see docs/specs/feyforge-drilldown-spec.md). Keyed on
-// the URL so each pin gets a fresh iframe (avoids MFCG's multi-city stale-state
-// bug). A CSP block may never fire onError, so an 8s load-timeout flips to the
-// always-available external link; the "Open in new tab" header link is the final
-// escape hatch even if a block renders inside the frame.
-function MfcgViewer({ url, title, onClose }: { url: string; title: string; onClose: () => void }) {
+// What a drill-down URL actually frames — drives the viewer's labels AND the
+// source attribution. The two Watabou products share a host (watabou.github.io),
+// so discriminate them by PATH, not host. We frame the live page (never host the
+// output), so crediting the real source is both correct and the licensing-safe
+// posture — Watabou's tools are CC BY, Deorum's characters are CC BY-NC; both
+// require attribution, and a Deorum NPC must never read "city map by Watabou".
+function drillDownSource(url: string): { noun: string; creditText: string; creditHref: string } {
+  try {
+    const u = new URL(url)
+    if (u.hostname === "deorum.vercel.app")
+      return { noun: "character", creditText: "Character by Deorum (Azgaar)", creditHref: "https://deorum.vercel.app" }
+    if (u.hostname === "watabou.github.io" && u.pathname.includes("one-page-dungeon"))
+      return { noun: "dungeon map", creditText: "Dungeon by Watabou's One Page Dungeon", creditHref: "https://watabou.github.io/one-page-dungeon/" }
+  } catch {
+    // not a parseable URL — fall through to the city default
+  }
+  return { noun: "city map", creditText: "City map by Watabou's Medieval Fantasy City Generator", creditHref: "https://watabou.github.io/city-generator/" }
+}
+
+// Pin drill-down: a third-party generator framed in-app (their live site, their
+// servers — we never host their output; see docs/specs/feyforge-drilldown-spec.md).
+// Kind-aware: a settlement's MFCG city, a dungeon's One Page Dungeon, or an
+// encounter's Deorum NPC — labels + attribution follow the URL's real source.
+// Keyed on the URL so each pin gets a fresh iframe (avoids MFCG's multi-city
+// stale-state bug). A CSP block may never fire onError, so an 8s load-timeout
+// flips to the always-available external link; the "Open in new tab" header link
+// is the final escape hatch even if a block renders inside the frame.
+function DrillDownViewer({ url, title, onClose }: { url: string; title: string; onClose: () => void }) {
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(false)
+  const { noun, creditText, creditHref } = drillDownSource(url)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -493,7 +515,7 @@ function MfcgViewer({ url, title, onClose }: { url: string; title: string; onClo
     <div className="fixed inset-0 z-[60] flex flex-col bg-black/85" role="dialog" aria-modal="true">
       <div className="flex items-center justify-between gap-3 p-3">
         <span className="truncate text-sm font-medium text-white/90" style={{ fontFamily: "var(--font-cinzel)" }}>
-          {title} — city map
+          {title} — {noun}
         </span>
         <div className="flex items-center gap-2">
           <a
@@ -514,7 +536,7 @@ function MfcgViewer({ url, title, onClose }: { url: string; title: string; onClo
       <div className="relative flex-1">
         {failed ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-            <p className="text-sm text-white/80">Couldn&apos;t embed the city map here.</p>
+            <p className="text-sm text-white/80">Couldn&apos;t embed the {noun} here.</p>
             <a
               href={url}
               target="_blank"
@@ -523,14 +545,14 @@ function MfcgViewer({ url, title, onClose }: { url: string; title: string; onClo
               style={{ background: "var(--scene-accent)", color: "#fff" }}
             >
               <ExternalLink className="h-4 w-4" />
-              Open city map
+              Open {noun}
             </a>
           </div>
         ) : (
           <iframe
             key={url}
             src={url}
-            title={`${title} — city map`}
+            title={`${title} — ${noun}`}
             loading="lazy"
             onLoad={() => setLoaded(true)}
             onError={() => setFailed(true)}
@@ -540,14 +562,13 @@ function MfcgViewer({ url, title, onClose }: { url: string; title: string; onClo
       </div>
 
       <div className="p-2 text-center text-[11px] text-white/50">
-        City maps by{" "}
         <a
-          href="https://watabou.github.io/city-generator/"
+          href={creditHref}
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-white/80"
         >
-          Watabou&apos;s Medieval Fantasy City Generator
+          {creditText}
         </a>
       </div>
     </div>
