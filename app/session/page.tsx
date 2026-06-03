@@ -11,12 +11,14 @@ import { cn } from "@/lib/utils"
 import {
   Sparkles, Play, Square, Radio, Users, Clock, Heart, X,
   ChevronUp, ChevronDown, Shield, Trash2, Package, ScrollText, UserPlus,
+  Map as MapIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 import { InvitePlayersDialog } from "@/components/invite-players-dialog"
 import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-panel"
 import { DMCombatTracker, PlayerCombatView } from "@/components/session/combat-tracker"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import { WorldMapViewer } from "@/components/world-map/map-viewer"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -93,13 +95,14 @@ function HpBar({ current, max }: { current: number; max: number }) {
   )
 }
 
-type TabId = "live" | "notes" | "inventory"
+type TabId = "live" | "map" | "notes" | "inventory"
 
 function SessionTabs({ tab, setTab }: { tab: TabId; setTab: (t: TabId) => void }) {
   return (
     <div className="flex gap-1 mb-6 p-1 rounded-lg max-w-lg" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
       {([
         { id: "live" as TabId, label: "Live", icon: Sparkles },
+        { id: "map" as TabId, label: "Map", icon: MapIcon },
         { id: "notes" as TabId, label: "Notes", icon: ScrollText },
         { id: "inventory" as TabId, label: "Inventory", icon: Package },
       ] as const).map(({ id, label, icon: Icon }) => (
@@ -1004,10 +1007,11 @@ export default function SessionPage() {
     !isDM && session ? { sessionId: session._id } : "skip"
   )
 
-  // Widen to a dashboard only when the live tab is actually showing the
+  // Widen to a dashboard when the live OR map tab is showing the
   // Conductor/Receiver. JoinView, DMReadyView, PlayerWaiting and the loading
-  // skeleton stay narrow so their single-column content doesn't sprawl.
-  const wide = tab === "live" && !!session && (isDM || !!myPartyMember)
+  // skeleton stay narrow so their single-column content doesn't sprawl. The map
+  // needs the wide column too — a world map in a narrow column reads poorly.
+  const wide = (tab === "live" || tab === "map") && !!session && (isDM || !!myPartyMember)
 
   if (context === undefined) {
     return (
@@ -1037,6 +1041,9 @@ export default function SessionPage() {
                   sceneTime={session.sceneTime}
                 />
               )}
+              {tab === "map" && (
+                <WorldMapViewer campaignId={session.campaignId} isDM={true} />
+              )}
               {tab === "notes" && <NotesView sessionId={session._id} isDM={true} />}
               {tab === "inventory" && (
                 <InventoryView
@@ -1061,6 +1068,9 @@ export default function SessionPage() {
                   campaignId={session.campaignId}
                   myMember={myPartyMember as MyMember}
                 />
+              )}
+              {tab === "map" && (
+                <WorldMapViewer campaignId={session.campaignId} isDM={false} />
               )}
               {tab === "notes" && <NotesView sessionId={session._id} isDM={false} />}
               {tab === "inventory" && (
