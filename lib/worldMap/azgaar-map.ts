@@ -25,9 +25,8 @@ import { buildMfcgUrl } from "./mfcgLink"
 // renders every pin, so this is the render-perf cap for presets AND imports.
 export const PRESET_MAX_PINS = 100
 // Presets lean settlement: POIs capped at this share of the pool, the rest is
-// capitals + top towns. POIs get a flat prominence sitting among towns.
+// capitals + top towns.
 export const POI_POOL_SHARE = 1 / 3
-export const POI_PROMINENCE = 1.2
 
 // FeyForge POI subtypes — the ~25 Azgaar marker types collapsed into a handful of
 // game-meaningful kinds. Drives the pin icon (SVG, not Azgaar's emoji) and which
@@ -35,6 +34,26 @@ export const POI_PROMINENCE = 1.2
 // Keep in sync with poiKind in convex/schema.ts + POI_KIND_META in the map page.
 export const POI_KINDS = ["dungeon", "ruin", "monster", "encounter", "tavern", "landmark"] as const
 export type PoiKind = (typeof POI_KINDS)[number]
+
+// Prominence by POI kind — the ONE lever feeding all three pin-thinning stages
+// (curateForImport's top-N ranking, curateForPreset's POI ordering, and
+// adoptPreset's prominence-weighted density sampling). Combat/quest pins are
+// capital-tier (3.0) so they survive even at the smallest density — a DM picking
+// "handful" wants the quest hooks, not 10 hamlets. Social/flavor sit BELOW towns
+// (1.0–1.9) so the map stays settlement-lean and untyped markers rank last.
+// (Was a flat 1.2 for every POI, tuned when settlements were the only priority —
+// it silently starved the combat pins the encounter generator needs.)
+const PROMINENCE_BY_POI_KIND: Record<PoiKind, number> = {
+  encounter: 3.0,
+  monster: 3.0,
+  dungeon: 3.0,
+  ruin: 2.8,
+  tavern: 1.6,
+  landmark: 1.1,
+}
+const POI_PROMINENCE_UNTYPED = 0.9 // unmapped marker type → below towns
+export const prominenceForPoi = (poiKind?: PoiKind): number =>
+  poiKind ? PROMINENCE_BY_POI_KIND[poiKind] : POI_PROMINENCE_UNTYPED
 
 // Azgaar marker `type` → FeyForge PoiKind. Anything unmapped stays an untyped POI
 // (falls back to the generic pin) so a new Azgaar marker type never breaks import.
@@ -538,7 +557,8 @@ export function parseMap(text: string): ParsedMap {
 
   // POIs: markers, named via the paired note (id === `marker${i}`); the note's
   // legend seeds dmNotes (DM-secret). Fall back to a title-cased marker type when
-  // there's no note. Flat prominence ranks them among towns.
+  // there's no note. Prominence is kind-based (prominenceForPoi) so combat/quest
+  // pins survive curation + density sampling.
   const noteById = new Map(notes.map((n) => [n.id, n]))
   let poiNamedTotal = 0
   const pois: ParsedLocation[] = markers
@@ -562,7 +582,7 @@ export function parseMap(text: string): ParsedMap {
         // it from the player payload (unlike a settlement's city link).
         drillDownUrl,
         poiKind: POI_KIND_FROM_MARKER[String(m.type ?? "")],
-        prominence: POI_PROMINENCE,
+        prominence: prominenceForPoi(POI_KIND_FROM_MARKER[String(m.type ?? "")]),
       }
     })
 
@@ -702,7 +722,9 @@ export function curateForPreset(
   const { settlements, pois, poiNamedTotal } = parsed
   const candidates = settlements.length + pois.length
   const keptPois = [...pois]
-    .sort((a, b) => (b.dmNotes ? 1 : 0) - (a.dmNotes ? 1 : 0))
+    // Combat/quest kinds first (kind-based prominence), legend-bearing pins as the
+    // tiebreak — so the capped POI slots aren't filled by flavor in marker order.
+    .sort((a, b) => b.prominence - a.prominence || (b.dmNotes ? 1 : 0) - (a.dmNotes ? 1 : 0))
     .slice(0, Math.floor(maxPins * poiShare))
   const keptSettlements = [...settlements]
     .sort((a, b) => b.prominence - a.prominence)
