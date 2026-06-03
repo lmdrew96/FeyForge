@@ -20,6 +20,7 @@ import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { postAi, AiError } from "@/lib/ai-client"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import { COMBAT_POI_KINDS, EncounterGenerator } from "@/components/world-map/encounter-generator"
+import { SaveNpcButton } from "@/components/world-map/save-npc-button"
 import { parseMap, curateForImport, type EventPlace } from "@/lib/worldMap/azgaar-map"
 import {
   VIBE_AXES,
@@ -1294,6 +1295,8 @@ function MapWorkspace({
     selected && isDM && selected.poiKind && COMBAT_POI_KINDS.has(selected.poiKind) ? (
       <EncounterGenerator loc={selected} campaignId={campaignId} mapName={map.name} surroundings={selectedSurroundings} />
     ) : undefined
+  const npcAction =
+    selected && isDM && selected.poiKind === "npc" ? <SaveNpcButton locationId={selected._id} /> : undefined
 
   // Pin-type filter drives ONLY the marker render below — fog, routing, journey,
   // and jump-to-center all stay on the full `locations`.
@@ -1812,7 +1815,7 @@ function MapWorkspace({
               onMove={() => { setMovingId(selected._id); setSelectedId(null) }}
               onDelete={() => handleDelete(selected)}
               onReveal={() => handleReveal(selected)}
-              extraActions={encounterAction}
+              extraActions={encounterAction ?? npcAction}
             />
           </aside>
         )}
@@ -1832,7 +1835,7 @@ function MapWorkspace({
             onMove={() => { setMovingId(selected._id); setSelectedId(null) }}
             onDelete={() => handleDelete(selected)}
             onReveal={() => handleReveal(selected)}
-            extraActions={encounterAction}
+            extraActions={encounterAction ?? npcAction}
           />
         </div>
       )}

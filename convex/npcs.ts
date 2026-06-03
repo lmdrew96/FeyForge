@@ -1,5 +1,7 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import type { Id } from "./_generated/dataModel"
+import { requireDm } from "./lib/auth"
 
 const npcStatsValidator = v.object({
   cr: v.string(),
@@ -60,6 +62,54 @@ export const create = mutation({
       ...args,
       updatedAt: Date.now(),
     })
+  },
+})
+
+// Save a map "npc" pin's dealt NPC into the campaign's roster. DM-gated on the
+// pin's campaign. Idempotent: re-saving the same pin (matched by name within the
+// campaign) returns the existing roster entry instead of duplicating. Maps the
+// lean pool bio → the fuller roster shape, defaulting the fields the pool omits.
+export const saveFromMapPin = mutation({
+  args: { locationId: v.id("mapLocations") },
+  handler: async (ctx, args): Promise<{ id: Id<"npcs">; alreadyExisted: boolean }> => {
+    const loc = await ctx.db.get(args.locationId)
+    if (!loc || !loc.campaignId || loc.poiKind !== "npc" || !loc.npc) {
+      throw new Error("Not an NPC encounter pin")
+    }
+    const userId = await requireDm(ctx, loc.campaignId, "Only the DM can save NPCs")
+
+    // Dedup by name within the campaign so a second click doesn't clone the NPC.
+    const existing = await ctx.db
+      .query("npcs")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", loc.campaignId!))
+      .collect()
+    const dup = existing.find((n) => n.name === loc.name)
+    if (dup) return { id: dup._id, alreadyExisted: true }
+
+    const npc = loc.npc
+    const id = await ctx.db.insert("npcs", {
+      userId,
+      campaignId: loc.campaignId,
+      name: loc.name,
+      race: npc.race,
+      occupation: npc.occupation,
+      age: "Unknown",
+      gender: "Unknown",
+      alignment: npc.alignment,
+      appearance: npc.appearance,
+      personality: npc.personality,
+      mannerisms: npc.mannerisms,
+      voiceDescription: npc.voice,
+      motivation: npc.motivation,
+      secret: npc.secret,
+      backstory: npc.hook, // the pool's roleplay hook is the closest narrative seed
+      location: "Wilderness encounter",
+      relationship: "neutral",
+      status: "alive",
+      tags: ["encounter"],
+      updatedAt: Date.now(),
+    })
+    return { id, alreadyExisted: false }
   },
 })
 

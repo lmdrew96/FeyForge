@@ -30,6 +30,7 @@ import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
 import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import { RealmsFaithsPanel } from "./realms-faiths-panel"
 import { COMBAT_POI_KINDS, EncounterGenerator } from "./encounter-generator"
+import { SaveNpcButton } from "./save-npc-button"
 import { PinsPanel, filterByKeys } from "./pins-panel"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import {
@@ -115,6 +116,8 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     selected && isDM && selected.poiKind && COMBAT_POI_KINDS.has(selected.poiKind) ? (
       <EncounterGenerator loc={selected} campaignId={campaignId} mapName={map?.name ?? ""} surroundings={selectedSurroundings} />
     ) : undefined
+  const npcAction =
+    selected && isDM && selected.poiKind === "npc" ? <SaveNpcButton locationId={selected._id} /> : undefined
 
   // Pin-type filter drives ONLY the marker render below — fog, routing, journey,
   // and jump-to-center stay on the full location list.
@@ -421,7 +424,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             isDM={isDM}
             onClose={() => setSelectedId(null)}
             onReveal={isDM ? () => handleReveal(selected) : undefined}
-            extraActions={encounterAction}
+            extraActions={encounterAction ?? npcAction}
           />
         </aside>
       )}
@@ -437,7 +440,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             isDM={isDM}
             onClose={() => setSelectedId(null)}
             onReveal={isDM ? () => handleReveal(selected) : undefined}
-            extraActions={encounterAction}
+            extraActions={encounterAction ?? npcAction}
           />
         </div>
       )}

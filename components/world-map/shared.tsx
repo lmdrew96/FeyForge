@@ -650,11 +650,12 @@ export function ZoomButton({ children, onClick, title }: { children: React.React
   )
 }
 
-export function SecondaryButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+export function SecondaryButton({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm transition-opacity hover:opacity-90"
+      disabled={disabled}
+      className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
       style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
     >
       {children}
