@@ -151,8 +151,31 @@ const ZONE_TYPE_META: Record<string, { color: string; icon: typeof MapPinIcon }>
 const zoneMeta = (type: string): { color: string; icon: typeof MapPinIcon } =>
   ZONE_TYPE_META[type] ?? { color: "#6b7280", icon: TriangleAlert }
 
-const MIN_ZOOM = 0.5
+// Floor at 1 = fit-to-screen: the image renders at scale(1) with
+// max-h/max-w constraints (contain), so zoom < 1 would shrink the map
+// smaller than the viewport. Zoom-in (up to MAX_ZOOM) stays free.
+const MIN_ZOOM = 1
 const MAX_ZOOM = 6
+
+// Keep the scaled map covering the viewport: pan is bounded to the overflow
+// (how much bigger the scaled image is than the viewport) on each axis, so the
+// map edge can never be dragged inside the frame. When the scaled image is no
+// bigger than the viewport on an axis (e.g. at fit-to-screen zoom=1), that axis
+// locks to center. transformOrigin is center center, so the bound is symmetric.
+function clampPanToViewport(
+  pan: { x: number; y: number },
+  zoom: number,
+  img: HTMLImageElement | null,
+  viewport: HTMLElement | null,
+): { x: number; y: number } {
+  if (!img || !viewport) return pan
+  const maxX = Math.max(0, (img.offsetWidth * zoom - viewport.clientWidth) / 2)
+  const maxY = Math.max(0, (img.offsetHeight * zoom - viewport.clientHeight) / 2)
+  return {
+    x: Math.min(maxX, Math.max(-maxX, pan.x)),
+    y: Math.min(maxY, Math.max(-maxY, pan.y)),
+  }
+}
 // Soft render-perf ceiling — mirrors MAX_PINS in convex/worldMap.ts. Adding a World
 // Event's town past this is allowed (manual pins are uncapped) but warns the DM.
 const PIN_SOFT_CAP = 100
@@ -1185,6 +1208,7 @@ function MapWorkspace({
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const imgRef = useRef<HTMLImageElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null)
 
   // Interaction
@@ -1256,6 +1280,13 @@ function MapWorkspace({
 
   const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
 
+  // Whenever zoom changes (wheel, buttons, reset, centering), pull pan back into
+  // bounds — zooming out should reclaim empty edge space rather than stranding the
+  // map off-center. Drag-time clamping is handled inline in handlePointerMove.
+  useEffect(() => {
+    setPan((p) => clampPanToViewport(p, zoom, imgRef.current, viewportRef.current))
+  }, [zoom])
+
   // Click → map-relative percent. Measured against the IMAGE element, which is
   // the exact box pins are positioned within (left/top %), so placement is exact
   // at any zoom/pan and aspect ratio.
@@ -1298,7 +1329,7 @@ function MapWorkspace({
     const dx = e.clientX - d.sx
     const dy = e.clientY - d.sy
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) d.moved = true
-    setPan({ x: d.px + dx, y: d.py + dy })
+    setPan(clampPanToViewport({ x: d.px + dx, y: d.py + dy }, zoom, imgRef.current, viewportRef.current))
   }
 
   const endPointer = () => {
@@ -1445,7 +1476,7 @@ function MapWorkspace({
     const dx = ((x - 50) / 100) * img.offsetWidth
     const dy = ((y - 50) / 100) * img.offsetHeight
     setZoom(z)
-    setPan({ x: -dx * z, y: -dy * z })
+    setPan(clampPanToViewport({ x: -dx * z, y: -dy * z }, z, imgRef.current, viewportRef.current))
   }
   // World Events panel: jump to an already-pinned town (select + center).
   const jumpToLocation = (loc: MapLocation) => {
@@ -1560,6 +1591,7 @@ function MapWorkspace({
         {/* Viewport */}
         <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--scene-bg)" }}>
           <div
+            ref={viewportRef}
             className={cn(
               "absolute inset-0 flex touch-none select-none items-center justify-center",
               activeMode ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
@@ -1611,7 +1643,7 @@ function MapWorkspace({
                   zoom={zoom}
                   isDM={isDM}
                   selected={loc._id === selectedId}
-                  onSelect={() => setSelectedId(loc._id)}
+                  onSelect={() => jumpToLocation(loc)}
                 />
               ))}
             </div>
