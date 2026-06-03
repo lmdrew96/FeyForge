@@ -128,13 +128,31 @@ export const setupDMSession = mutation({
 })
 
 export const startSession = mutation({
-  args: { campaignId: v.id("campaigns") },
+  // gameSessionId: launch this live session FROM a planned gameSessions row
+  // (Direction B). The link is stamped only on a fresh insert, never reassigned
+  // onto an already-running session.
+  args: { campaignId: v.id("campaigns"), gameSessionId: v.optional(v.id("gameSessions")) },
   handler: async (ctx, args): Promise<Id<"partySessions">> => {
     const userId = await requireDm(ctx, args.campaignId, "Only the DM can start a session")
 
+    // Validate the plan link up front: it must be a real gameSession in THIS
+    // campaign (guards a stale/deleted plan and cross-campaign id tampering).
+    if (args.gameSessionId) {
+      const plan = await ctx.db.get(args.gameSessionId)
+      if (!plan || plan.campaignId !== args.campaignId) {
+        throw new Error("That planned session belongs to a different campaign.")
+      }
+    }
+
+    // Run the session in this campaign — make it the DM's active campaign so the
+    // live page (which resolves via the active campaign) lands on this session,
+    // even when launched from a plan in a non-active campaign.
+    await setActiveCampaignForUser(ctx, userId, args.campaignId)
+
     // Reuse the active session if one already exists for this campaign. Ending +
     // recreating would orphan the partyMembers already joined under it, forcing
-    // players to re-pick their character.
+    // players to re-pick their character. One active session per campaign is an
+    // invariant, so we never reattach the plan link to a running session.
     const existing = await ctx.db
       .query("partySessions")
       .withIndex("by_campaignId_and_isActive", (q) =>
@@ -150,21 +168,79 @@ export const startSession = mutation({
       activeScene: "",
       isActive: true,
       startedAt: Date.now(),
+      ...(args.gameSessionId ? { gameSessionId: args.gameSessionId } : {}),
     })
   },
 })
 
 export const endSession = mutation({
   args: { sessionId: v.id("partySessions") },
-  handler: async (ctx, args) => {
+  // Returns the gameSessions row this live session is recorded under, so the DM
+  // can jump straight to writing the recap. Closes the duality: a live session
+  // always leaves an editable record in /sessions.
+  handler: async (ctx, args): Promise<Id<"gameSessions">> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
+    const userId = identity.tokenIdentifier
 
     const session = await ctx.db.get(args.sessionId)
     if (!session) throw new Error("Session not found")
-    if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
+    if (session.dmUserId !== userId) throw new Error("Not authorized")
 
-    await ctx.db.patch(args.sessionId, { isActive: false, endedAt: Date.now() })
+    const endedAt = session.endedAt ?? Date.now()
+    const durationMinutes = Math.max(0, Math.round((endedAt - session.startedAt) / 60000))
+
+    // Resolve (or create) the linked record. Idempotent: a second end re-finds
+    // the same row via the forward link and re-completes it — never duplicates.
+    let gameSessionId = session.gameSessionId ?? null
+    if (gameSessionId) {
+      const existing = await ctx.db.get(gameSessionId)
+      if (existing) {
+        // Launched-from-plan completion: never clobber the DM's title/summary/date.
+        await ctx.db.patch(gameSessionId, {
+          status: "completed",
+          duration: durationMinutes,
+          updatedAt: endedAt,
+        })
+      } else {
+        gameSessionId = null // linked plan was deleted mid-session → fall through to a fresh record
+      }
+    }
+
+    if (!gameSessionId) {
+      // Ad-hoc session (or orphaned link): auto-create a completed record.
+      const priorForCampaign = await ctx.db
+        .query("gameSessions")
+        .withIndex("by_campaignId", (q) => q.eq("campaignId", session.campaignId))
+        .collect()
+      const nextNumber = priorForCampaign.reduce((max, s) => Math.max(max, s.number ?? 0), 0) + 1
+      gameSessionId = await ctx.db.insert("gameSessions", {
+        userId,
+        campaignId: session.campaignId,
+        number: nextNumber,
+        title: `Session ${nextNumber}`,
+        date: session.startedAt,
+        duration: durationMinutes,
+        status: "completed",
+        plotThreads: [],
+        highlights: [],
+        loot: [],
+        npcsEncountered: [],
+        locationsVisited: [],
+        objectives: [],
+        plannedEncounters: [],
+        plannedNPCs: [],
+        updatedAt: endedAt,
+      })
+      // Stamp the forward link so a double-end re-finds this record instead of inserting another.
+      await ctx.db.patch(args.sessionId, { gameSessionId })
+    }
+
+    if (session.isActive) {
+      await ctx.db.patch(args.sessionId, { isActive: false, endedAt })
+    }
+
+    return gameSessionId
   },
 })
 

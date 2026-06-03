@@ -3,6 +3,7 @@
 import { AppShell } from "@/components/app-shell"
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
+import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { SCENES, applySceneToBody, type CustomPalette } from "@/lib/scenes"
@@ -809,6 +810,7 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
 // ── DM Conductor View ─────────────────────────────────────────────────────────
 
 function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette, sceneTime }: { sessionId: SessionId; campaignId: CampaignId; activeScene: string; activeScenePalette?: CustomPalette | null; sceneTime?: "day" | "night" | null }) {
+  const router = useRouter()
   const doActivateScene = useMutation(api.liveSessions.activateScene)
   const doSetSceneTime = useMutation(api.liveSessions.setSceneTime)
   const doEndSession = useMutation(api.liveSessions.endSession)
@@ -838,8 +840,17 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
   }
   const handleEndSession = async () => {
     if (!confirm("End this session?")) return
-    try { await doEndSession({ sessionId }); toast.success("Session ended.") }
-    catch { toast.error("Failed to end session.") }
+    try {
+      const gameSessionId = await doEndSession({ sessionId })
+      toast.success("Session ended — saved to your log.", {
+        action: {
+          label: "Write the recap",
+          onClick: () => router.push(`/sessions/${gameSessionId}`),
+        },
+      })
+    } catch {
+      toast.error("Failed to end session.")
+    }
   }
   const handleBroadcast = async () => {
     if (!broadcastTitle.trim()) return

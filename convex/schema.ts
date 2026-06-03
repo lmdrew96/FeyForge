@@ -606,6 +606,11 @@ export default defineSchema({
   partySessions: defineTable({
     campaignId: v.id("campaigns"),
     dmUserId: v.string(),
+    // Forward link to the planning/record row in gameSessions. Set only when a
+    // live session is launched from a plan (Direction B) or stamped on end for an
+    // ad-hoc session's auto-created record (Direction A). Optional — pre-bridge
+    // sessions and never-linked ad-hoc sessions leave it unset.
+    gameSessionId: v.optional(v.id("gameSessions")),
     activeScene: v.string(),
     activeScenePalette: v.optional(v.object({
       bg: v.string(),

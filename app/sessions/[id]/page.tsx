@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { ArrowLeft, Loader2, Sparkles, Trash2 } from "lucide-react"
+import { ArrowLeft, Loader2, Play, Sparkles, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { postAi } from "@/lib/ai-client"
 
@@ -129,10 +129,12 @@ export default function SessionDetailPage({
   const plotThreadsAll = useQuery(api.sessions.listPlotThreads) ?? []
   const updateSession = useMutation(api.sessions.updateSession)
   const removeSession = useMutation(api.sessions.removeSession)
+  const startSession = useMutation(api.liveSessions.startSession)
 
   const [draft, setDraft] = useState<EditState | null>(null)
   const [saving, setSaving] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(false)
+  const [goingLive, setGoingLive] = useState(false)
 
   const [generatingPrep, setGeneratingPrep] = useState(false)
   const [generatingSummary, setGeneratingSummary] = useState(false)
@@ -185,6 +187,19 @@ export default function SessionDetailPage({
   const previousSession = allSessions
     .filter((s) => s.campaignId === session.campaignId && s.number < session.number)
     .sort((a, b) => b.number - a.number)[0]
+
+  // Direction B of the sessions bridge: launch this plan into the live view. The
+  // live session stamps its gameSessionId link, so ending it completes THIS row.
+  const handleGoLive = async () => {
+    setGoingLive(true)
+    try {
+      await startSession({ campaignId: session.campaignId, gameSessionId: sessionId })
+      router.push("/session")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't start the live session.")
+      setGoingLive(false)
+    }
+  }
 
   const handleGeneratePrep = async () => {
     setGeneratingPrep(true)
@@ -311,18 +326,32 @@ export default function SessionDetailPage({
             <ArrowLeft className="h-4 w-4" />
             Back to sessions
           </Link>
-          <button
-            onClick={() => setPendingDelete(true)}
-            className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-opacity hover:opacity-80"
-            style={{
-              background: "var(--scene-surface)",
-              color: "var(--scene-text-muted)",
-              border: "1px solid var(--scene-border)",
-            }}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete
-          </button>
+          <div className="flex items-center gap-2">
+            {draft.status !== "cancelled" && (
+              <button
+                onClick={handleGoLive}
+                disabled={goingLive}
+                title="Start a live session from this plan — ending it records back here"
+                className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-md font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+              >
+                {goingLive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                {goingLive ? "Starting…" : "Go Live"}
+              </button>
+            )}
+            <button
+              onClick={() => setPendingDelete(true)}
+              className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-opacity hover:opacity-80"
+              style={{
+                background: "var(--scene-surface)",
+                color: "var(--scene-text-muted)",
+                border: "1px solid var(--scene-border)",
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
+          </div>
         </div>
 
         <div className="mb-6">
