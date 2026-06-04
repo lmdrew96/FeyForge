@@ -10,7 +10,8 @@ import { ALIGNMENTS } from "@/lib/character/constants"
 import { toast } from "sonner"
 import { postAi } from "@/lib/ai-client"
 import Link from "next/link"
-import { Plus, Sparkles, Loader2, Pencil, Trash2, Users, BookMarked } from "lucide-react"
+import { Plus, Sparkles, Loader2, Pencil, Trash2, Users, BookMarked, ChevronDown } from "lucide-react"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import {
   Dialog,
   DialogContent,
@@ -145,6 +146,171 @@ const draftFromGenerated = (g: NpcGenerated, base: NpcDraft): NpcDraft => ({
   backstory: g.backstory || base.backstory,
 })
 
+// ── Read-only expanded detail ───────────────────────────────────────────────
+// Shown inline when a card is expanded. Prose fields run through the shared
+// markdown renderer (NPC text is AI-generated and may contain markdown).
+
+function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p
+        className="text-[10px] font-semibold uppercase tracking-widest mb-0.5"
+        style={{ color: "var(--scene-text-muted)" }}
+      >
+        {label}
+      </p>
+      {children}
+    </div>
+  )
+}
+
+const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"] as const
+
+function StatBlock({ stats }: { stats: NonNullable<NpcDoc["stats"]> }) {
+  return (
+    <DetailBlock label="Stat block">
+      <div className="flex gap-3 text-xs mb-1.5" style={{ color: "var(--scene-text-primary)" }}>
+        <span>CR {stats.cr}</span>
+        <span>AC {stats.ac}</span>
+        <span>HP {stats.hp}</span>
+      </div>
+      <div className="grid grid-cols-6 gap-1 text-center">
+        {ABILITY_KEYS.map((k) => (
+          <div
+            key={k}
+            className="rounded p-1"
+            style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+          >
+            <div className="text-[9px] uppercase" style={{ color: "var(--scene-text-muted)" }}>{k}</div>
+            <div className="text-xs font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+              {stats.abilities[k]}
+            </div>
+          </div>
+        ))}
+      </div>
+    </DetailBlock>
+  )
+}
+
+function NpcExpanded({ npc }: { npc: NpcDoc }) {
+  const facts: [string, string][] = [
+    ["Age", npc.age],
+    ["Gender", npc.gender],
+    ["Alignment", npc.alignment],
+    ["Faction", npc.faction ?? ""],
+  ].filter((f): f is [string, string] => Boolean(f[1]))
+
+  return (
+    // Clicks inside the detail body shouldn't collapse the card — that lets the DM
+    // select text or follow a markdown link. Collapse stays on the header / "Show
+    // less" row, which sit outside this wrapper.
+    <div
+      className="mt-4 space-y-3 border-t pt-4"
+      style={{ borderColor: "var(--scene-border)" }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {facts.length > 0 && (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+          {facts.map(([k, v]) => (
+            <div key={k} className="text-xs">
+              <span className="font-semibold" style={{ color: "var(--scene-text-muted)" }}>{k}: </span>
+              <span style={{ color: "var(--scene-text-primary)" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {npc.appearance && (
+        <DetailBlock label="Appearance">
+          <MarkdownRenderer variant="scene" content={npc.appearance} className="text-sm" />
+        </DetailBlock>
+      )}
+
+      {npc.personality.length > 0 && (
+        <DetailBlock label="Personality">
+          <div className="flex flex-wrap gap-1">
+            {npc.personality.map((t) => (
+              <span
+                key={t}
+                className="text-xs px-2 py-0.5 rounded-full"
+                style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </DetailBlock>
+      )}
+
+      {npc.mannerisms && (
+        <DetailBlock label="Mannerisms">
+          <MarkdownRenderer variant="scene" content={npc.mannerisms} className="text-sm" />
+        </DetailBlock>
+      )}
+      {npc.voiceDescription && (
+        <DetailBlock label="Voice">
+          <MarkdownRenderer variant="scene" content={npc.voiceDescription} className="text-sm" />
+        </DetailBlock>
+      )}
+      {npc.motivation && (
+        <DetailBlock label="Motivation">
+          <MarkdownRenderer variant="scene" content={npc.motivation} className="text-sm" />
+        </DetailBlock>
+      )}
+      {npc.backstory && (
+        <DetailBlock label="Backstory">
+          <MarkdownRenderer variant="scene" content={npc.backstory} className="text-sm" />
+        </DetailBlock>
+      )}
+
+      {npc.stats && <StatBlock stats={npc.stats} />}
+
+      {npc.secret && (
+        <div
+          className="rounded-md p-2.5"
+          style={{
+            background: "color-mix(in srgb, var(--scene-accent) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)",
+          }}
+        >
+          <p
+            className="text-[10px] font-semibold uppercase tracking-widest mb-0.5"
+            style={{ color: "var(--scene-accent)" }}
+          >
+            Secret · DM only
+          </p>
+          <MarkdownRenderer variant="scene" content={npc.secret} className="text-sm" />
+        </div>
+      )}
+
+      {npc.tags.length > 0 && (
+        <DetailBlock label="Tags">
+          <div className="flex flex-wrap gap-1">
+            {npc.tags.map((t) => (
+              <span
+                key={t}
+                className="text-xs px-2 py-0.5 rounded-full"
+                style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </DetailBlock>
+      )}
+
+      {npc.notes && (
+        <div className="rounded-md p-2.5" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: "var(--scene-text-muted)" }}>
+            DM notes
+          </p>
+          <MarkdownRenderer variant="scene" content={npc.notes} className="text-sm" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function NpcsPage() {
   const activeCampaign = useActiveCampaign()
   const campaignId = activeCampaign?._id
@@ -162,6 +328,15 @@ export default function NpcsPage() {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Id<"npcs"> | null>(null)
+  // Cards expand in place to reveal full details; multiple can be open at once.
+  const [expandedIds, setExpandedIds] = useState<Set<Id<"npcs">>>(new Set())
+
+  const toggleExpand = (id: Id<"npcs">) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
 
   const setField = <K extends keyof NpcDraft>(key: K, value: NpcDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -357,11 +532,23 @@ export default function NpcsPage() {
         )}
 
         {!loading && activeCampaign && npcs.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {npcs.map((npc) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+            {npcs.map((npc) => {
+              const expanded = expandedIds.has(npc._id)
+              return (
               <div
                 key={npc._id}
-                className="rounded-xl p-5 group relative"
+                onClick={() => toggleExpand(npc._id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    toggleExpand(npc._id)
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={expanded}
+                className="rounded-xl p-5 group relative cursor-pointer transition-colors focus:outline-none focus-visible:ring-2"
                 style={{
                   background: "var(--scene-surface)",
                   border: "1px solid var(--scene-border)",
@@ -369,7 +556,7 @@ export default function NpcsPage() {
               >
                 <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => openEdit(npc)}
+                    onClick={(e) => { e.stopPropagation(); openEdit(npc) }}
                     className="p-1.5 rounded"
                     style={{ color: "var(--scene-text-muted)" }}
                     title="Edit NPC"
@@ -377,7 +564,7 @@ export default function NpcsPage() {
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => setPendingDelete(npc._id)}
+                    onClick={(e) => { e.stopPropagation(); setPendingDelete(npc._id) }}
                     className="p-1.5 rounded"
                     style={{ color: "var(--scene-text-muted)" }}
                     title="Delete NPC"
@@ -421,13 +608,25 @@ export default function NpcsPage() {
                     </span>
                   )}
                 </div>
-                {npc.motivation && (
+
+                {/* Collapsed: a teaser of the motivation. Expanded: the full sheet. */}
+                {!expanded && npc.motivation && (
                   <p className="text-xs mt-3 line-clamp-2" style={{ color: "var(--scene-text-muted)" }}>
                     {npc.motivation}
                   </p>
                 )}
+                {expanded && <NpcExpanded npc={npc} />}
+
+                <div className="mt-3 flex items-center justify-center gap-1 text-[10px] uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+                  {expanded ? "Show less" : "Show details"}
+                  <ChevronDown
+                    className="h-3.5 w-3.5 transition-transform"
+                    style={{ transform: expanded ? "rotate(180deg)" : "none" }}
+                  />
+                </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
