@@ -19,6 +19,7 @@ import {
   Skull,
 } from "lucide-react"
 import { EncounterDetails, DifficultyBadge, hasEncounterDetails } from "@/components/encounters/encounter-details"
+import { MonsterAttacksPanel } from "@/components/session/monster-attacks-panel"
 
 type SessionId = Id<"partySessions">
 
@@ -106,6 +107,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
   const [monsterAc, setMonsterAc] = useState("")
   const [monsterInit, setMonsterInit] = useState("")
   const [expandedConditions, setExpandedConditions] = useState<string | null>(null)
+  const [expandedAttacks, setExpandedAttacks] = useState<string | null>(null)
   const [loadingSaved, setLoadingSaved] = useState(false)
   const [expandedSaved, setExpandedSaved] = useState<string | null>(null)
 
@@ -488,6 +490,17 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
 
                 {/* Row actions */}
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {c.type !== "pc" && (
+                    <button
+                      onClick={() => setExpandedAttacks(expandedAttacks === c.id ? null : c.id)}
+                      className="p-1.5 rounded transition-opacity hover:opacity-80"
+                      style={{ color: expandedAttacks === c.id ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
+                      aria-label={`Roll ${c.name} attacks`}
+                      title="Roll attacks"
+                    >
+                      <Swords className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setExpandedConditions(expandedConditions === c.id ? null : c.id)}
                     className="p-1.5 rounded transition-opacity hover:opacity-80"
@@ -528,6 +541,17 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
                     )
                   })}
                 </div>
+              )}
+
+              {/* Monster / NPC attack roller (DM rolls to-hit + damage, applies it) */}
+              {expandedAttacks === c.id && c.type !== "pc" && (
+                <MonsterAttacksPanel
+                  monsterName={c.name}
+                  targets={combat.combatants
+                    .filter((x) => x.id !== c.id)
+                    .map((x) => ({ id: x.id, name: x.name, type: x.type }))}
+                  onApply={(targetId, amount) => handleAdjustHp(targetId, -amount)}
+                />
               )}
             </div>
           )

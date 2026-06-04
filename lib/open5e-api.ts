@@ -63,12 +63,26 @@ export interface Open5eMonster {
   languages: string
   challenge_rating: string
   cr: number
-  actions?: Array<{ name: string; desc: string }>
-  reactions?: Array<{ name: string; desc: string }>
-  legendary_actions?: Array<{ name: string; desc: string }>
-  special_abilities?: Array<{ name: string; desc: string }>
+  actions?: MonsterAction[]
+  reactions?: MonsterAction[]
+  legendary_actions?: MonsterAction[]
+  special_abilities?: MonsterAction[]
   document__slug: string
   document__title: string
+}
+
+// A creature action/ability. Beyond name+desc, open5e exposes STRUCTURED attack
+// fields on weapon-attack actions (verified live against the SRD): attack_bonus is
+// the to-hit, damage_dice + damage_bonus the primary damage. They're absent on
+// non-attacks (Multiattack, save-based breath weapons, traits), so treat them as
+// optional and fall back to the desc prose. Damage TYPE and rider damage ("plus 7
+// (2d6) fire damage") live only in the desc — see lib/monster-attacks.ts.
+export interface MonsterAction {
+  name: string
+  desc: string
+  attack_bonus?: number
+  damage_dice?: string // e.g. "1d6" or "2d10"
+  damage_bonus?: number
 }
 
 export interface Open5eCondition {
