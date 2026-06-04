@@ -18,6 +18,7 @@ import {
 } from "@/lib/character/character-data"
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
 import type { Ability } from "@/lib/character/constants"
+import { initSpellcasting } from "@/lib/character/leveling"
 import { NormalBuilder } from "./normal-builder"
 import { GuidedFlow } from "./guided-flow"
 import {
@@ -352,6 +353,10 @@ export default function NewCharacterPage() {
       const conTotal = baseAbilities.constitution + (racialBonuses.constitution ?? 0)
       const conMod = Math.floor((conTotal - 10) / 2)
       const maxHp = hitDie + conMod
+      // Seed the spellcasting block for casters so slots/DC/attack are live on the
+      // sheet from level 1 (null for non-casters → omitted). Curated ids resolve a
+      // caster type; homebrew ids fall through to null, same as on the sheet.
+      const spellcasting = initSpellcasting(characterClass.id, 1, baseAbilities, racialBonuses) ?? undefined
 
       await createCharacter({
         name,
@@ -378,6 +383,7 @@ export default function NewCharacterPage() {
         toolProficiencies: characterClass.toolProficiencies,
         languages: race.languages,
         currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+        spellcasting,
       })
       toast.success(`${name} is ready to adventure!`)
       router.push("/characters")
@@ -451,6 +457,7 @@ export default function NewCharacterPage() {
     const conMod = Math.floor((conTotal - 10) / 2)
     const hitDie = CLASS_HIT_DICE[cls.id] ?? cls.hitDie ?? 8
     const maxHp = hitDie + conMod
+    const spellcasting = initSpellcasting(cls.id, 1, baseAbilities, racialBonuses) ?? undefined
 
     setSaving(true)
     try {
@@ -479,6 +486,7 @@ export default function NewCharacterPage() {
         toolProficiencies: cls.toolProficiencies,
         languages: race.languages,
         currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+        spellcasting,
       })
       toast.success(`${finalName} is ready to adventure!`)
       setConceptOpen(false)

@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -22,7 +22,7 @@ import {
 import type { Ability, Skill } from "@/lib/character/constants"
 import { getDarkvisionRange } from "@/lib/character/character-data"
 import { getXPProgress, getXPForLevel, getLevelFromXP, getXPToNextLevel } from "@/lib/character/experience"
-import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting } from "@/lib/character/leveling"
+import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting } from "@/lib/character/leveling"
 import {
   useDiceStore,
   rollExpression,
@@ -35,7 +35,9 @@ import {
   equippedArmor,
   rowToItem,
 } from "@/lib/character/sheet-items"
+import { rowToSpell } from "@/lib/character/sheet-spells"
 import { AttacksSection, InventorySection } from "./inventory"
+import { SpellbookSection } from "@/components/character/spellbook"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
 
@@ -768,8 +770,11 @@ function LevelUpDialog({
           {(casterType === "full" || casterType === "half") && char.spellcasting && (
             <li>• Spell slots updated for level {newLevel}{profChanged ? "; spell save DC & attack rescaled" : ""}</li>
           )}
-          {casterType === "pact" && (
-            <li style={{ color: "var(--scene-text-muted)" }}>• Warlock Pact Magic — adjust slots manually (DC/attack {profChanged ? "rescaled" : "unchanged"})</li>
+          {casterType === "pact" && char.spellcasting && (
+            <li>• Pact Magic slots updated for level {newLevel}{profChanged ? "; spell save DC & attack rescaled" : ""}</li>
+          )}
+          {casterType !== "none" && !char.spellcasting && (
+            <li style={{ color: "var(--scene-text-muted)" }}>• Enable spellcasting on your sheet to track spell slots</li>
           )}
         </ul>
 
@@ -1098,6 +1103,55 @@ function CustomPropertiesSection({ characterId }: { characterId: Id<"characters"
   )
 }
 
+// Shown for a caster whose spellcasting block was never initialized (every
+// character built before this feature, plus any class changed TO a caster on the
+// edit page). One tap derives + saves the block via the existing update mutation —
+// the same block new casters get at creation. Non-casters never see this.
+function EnableSpellcastingCard({ char }: { char: CharDoc }) {
+  const doUpdate = useMutation(api.characters.update)
+  const [saving, setSaving] = useState(false)
+
+  const handleEnable = async () => {
+    const block = initSpellcasting(char.characterClass, char.level, char.baseAbilities, char.racialBonuses)
+    if (!block) return
+    setSaving(true)
+    try {
+      await doUpdate({ id: char._id, spellcasting: block })
+      toast.success("Spellcasting enabled.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't enable spellcasting.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+        Spellcasting
+      </h2>
+      <div
+        className="rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+      >
+        <p className="text-sm flex-1" style={{ color: "var(--scene-text-muted)" }}>
+          {char.characterClass} is a spellcasting class. Enable spell tracking to manage spell slots,
+          your spell save DC &amp; attack, and a spellbook.
+        </p>
+        <button
+          onClick={handleEnable}
+          disabled={saving}
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50 flex-shrink-0"
+          style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+        >
+          <Sparkles className="h-4 w-4" />
+          {saving ? "Enabling…" : "Enable spellcasting"}
+        </button>
+      </div>
+    </section>
+  )
+}
+
 export default function CharacterSheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const char = useQuery(api.characters.get, { id: id as Id<"characters"> })
@@ -1144,6 +1198,8 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     .filter((p) => p.characterId === char._id)
     .sort((a, b) => a.orderIndex - b.orderIndex)
   const items = myProps.filter((p) => p.type === "item").map(rowToItem)
+  const spells = myProps.filter((p) => p.type === "spell").map(rowToSpell)
+  const casterType = getCasterType(char.characterClass)
   const equippedWeapons = items.filter(
     (i) => i.active && i.equipped && i.category === "weapon",
   )
@@ -1358,28 +1414,6 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
                 </span>
               </div>
             </div>
-
-            {char.spellcasting && (
-              <>
-                <h2 className="text-xs uppercase tracking-widest mt-4 mb-3" style={{ color: "var(--scene-text-muted)" }}>
-                  Spellcasting
-                </h2>
-                <div className="rounded-xl p-4 space-y-2" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
-                  <div className="flex justify-between text-sm">
-                    <span style={{ color: "var(--scene-text-muted)" }}>Ability</span>
-                    <span className="font-medium capitalize" style={{ color: "var(--scene-text-primary)" }}>{char.spellcasting.ability}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span style={{ color: "var(--scene-text-muted)" }}>Save DC</span>
-                    <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{char.spellcasting.spellSaveDC}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span style={{ color: "var(--scene-text-muted)" }}>Attack Bonus</span>
-                    <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{formatModifier(char.spellcasting.spellAttackBonus)}</span>
-                  </div>
-                </div>
-              </>
-            )}
           </section>
         </div>
 
@@ -1485,6 +1519,24 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           </h2>
           <CurrencyEditor char={char} />
         </section>
+
+        {/* Spellcasting — slots, spell save DC/attack, and the spellbook. Casters
+            without a block yet (built before this feature) get a one-tap enable card.
+            Gated on the CURRENT class being a caster, so a stale block from a class
+            later changed to a non-caster (edit page) never shows a phantom spellbook. */}
+        {casterType !== "none" &&
+          (char.spellcasting ? (
+            <SpellbookSection
+              characterId={char._id}
+              spellcasting={char.spellcasting}
+              classId={char.characterClass}
+              spells={spells}
+              nextOrder={nextOrder}
+              roll={roll}
+            />
+          ) : (
+            <EnableSpellcastingCard char={char} />
+          ))}
 
         {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}
         <InventorySection characterId={char._id} items={items} nextOrder={nextOrder} />

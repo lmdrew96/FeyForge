@@ -9,7 +9,8 @@
  * manual feature/slot reminder in the level-up flow instead.
  */
 
-import { getProficiencyBonus } from "./constants"
+import { getProficiencyBonus, getAbilityModifier, type Ability } from "./constants"
+import type { AbilityScores } from "./types"
 
 export type CasterType = "full" | "half" | "pact" | "none"
 
@@ -23,6 +24,58 @@ export function getCasterType(classId: string): CasterType {
   if (HALF_CASTERS.has(id)) return "half"
   if (PACT_CASTERS.has(id)) return "pact"
   return "none"
+}
+
+// How a class manages its spells — drives the spellbook UI branch:
+//  • spellbook    Wizard: learn into a book, prepare a subset each long rest
+//  • prepared     Cleric/Druid/Paladin: prepare from the full class list daily
+//  • known        Sorcerer/Bard/Ranger/Warlock: a fixed known set, no daily prep
+// v1 follows the 2014-style split (locked w/ Coru); 2024 only shifts prepared
+// COUNTS + free-swap, which v1 doesn't hard-enforce, so the mode mapping holds.
+export type PrepMode = "spellbook" | "prepared" | "known"
+
+const SPELL_ABILITY: Record<string, Ability> = {
+  wizard: "intelligence",
+  cleric: "wisdom",
+  druid: "wisdom",
+  ranger: "wisdom",
+  bard: "charisma",
+  sorcerer: "charisma",
+  warlock: "charisma",
+  paladin: "charisma",
+}
+
+const PREP_MODE: Record<string, PrepMode> = {
+  wizard: "spellbook",
+  cleric: "prepared",
+  druid: "prepared",
+  paladin: "prepared",
+  bard: "known",
+  sorcerer: "known",
+  ranger: "known",
+  warlock: "known",
+}
+
+export interface CastingDescriptor {
+  casterType: CasterType
+  prepMode: PrepMode | null // null only for non-casters
+  ability: Ability | null // the spellcasting ability; null for non-casters
+}
+
+// The casting "spine" for a class, derived live from its id. Curated SRD classes
+// only (homebrew casters are deferred — they have no caster-type field yet), so a
+// homebrew/unknown class resolves to a non-caster. No persistence: the sheet, the
+// init helper, and the level-up recompute all re-derive this, so there's nothing
+// to migrate and nothing to drift.
+export function getCastingDescriptor(classId: string): CastingDescriptor {
+  const id = classId.toLowerCase()
+  const casterType = getCasterType(id)
+  if (casterType === "none") return { casterType, prepMode: null, ability: null }
+  return {
+    casterType,
+    prepMode: PREP_MODE[id] ?? "known",
+    ability: SPELL_ABILITY[id] ?? "intelligence",
+  }
 }
 
 // Full-caster spell slots per spell level [1st..9th], by class level.
@@ -96,6 +149,83 @@ export function getSpellSlotsForClassLevel(classId: string, level: number): { le
     .filter((s) => s.total > 0)
 }
 
+// Warlock Pact Magic: a small number of slots, ALL at the same (highest castable)
+// level, recharging on a SHORT rest. The {level,total,used}[] shape can't be filled
+// by the full/half tables — pact is one pool — so it gets its own [count, slotLevel]
+// table (SRD, shared 2014/2024). At L9+ all slots are 5th level.
+const PACT_SLOTS: Record<number, [count: number, slotLevel: number]> = {
+  1: [1, 1], 2: [2, 1], 3: [2, 2], 4: [2, 2], 5: [2, 3], 6: [2, 3], 7: [2, 4],
+  8: [2, 4], 9: [2, 5], 10: [2, 5], 11: [3, 5], 12: [3, 5], 13: [3, 5], 14: [3, 5],
+  15: [3, 5], 16: [3, 5], 17: [4, 5], 18: [4, 5], 19: [4, 5], 20: [4, 5],
+}
+
+// Pact slots as a single {level,total,used} pool. Returns [] for non-warlocks.
+export function getPactSlots(level: number): SpellSlot[] {
+  const entry = PACT_SLOTS[clampLevel(level)]
+  if (!entry) return []
+  const [count, slotLevel] = entry
+  return [{ level: slotLevel, total: count, used: 0 }]
+}
+
+// Cantrips known by class & level (SRD; breakpoints at 1 / 4 / 10). Half-casters
+// (paladin/ranger) get none → 0. A guidance count, not a hard cap. Edition-stable
+// for these SRD classes.
+const CANTRIPS_KNOWN: Record<string, [l1to3: number, l4to9: number, l10plus: number]> = {
+  bard: [2, 3, 4],
+  cleric: [3, 4, 5],
+  druid: [2, 3, 4],
+  sorcerer: [4, 5, 6],
+  warlock: [2, 3, 4],
+  wizard: [3, 4, 5],
+}
+
+export function getCantripsKnown(classId: string, level: number): number {
+  const t = CANTRIPS_KNOWN[classId.toLowerCase()]
+  if (!t) return 0
+  const l = clampLevel(level)
+  return l >= 10 ? t[2] : l >= 4 ? t[1] : t[0]
+}
+
+export interface InitializedSpellcasting {
+  ability: Ability
+  spellSaveDC: number
+  spellAttackBonus: number
+  spellSlots: SpellSlot[]
+  cantripsKnown: number
+}
+
+// Build a caster's spellcasting block at a given level from class + ability scores.
+// Returns null for non-casters. Pact casters get their dedicated slot pool; full/
+// half casters get the standard table (half-casters are slotless until L2 → an
+// empty-but-valid block, which is what lets the L2 level-up recompute kick in).
+// Called both at creation and by the sheet's lazy "enable spellcasting" card, so a
+// caster created before this feature still gets a block on demand.
+export function initSpellcasting(
+  classId: string,
+  level: number,
+  baseAbilities: AbilityScores,
+  racialBonuses?: Partial<AbilityScores>,
+): InitializedSpellcasting | null {
+  const desc = getCastingDescriptor(classId)
+  if (desc.casterType === "none" || !desc.ability) return null
+
+  const score = baseAbilities[desc.ability] + (racialBonuses?.[desc.ability] ?? 0)
+  const mod = getAbilityModifier(score)
+  const prof = getProficiencyBonus(clampLevel(level))
+  const spellSlots =
+    desc.casterType === "pact"
+      ? getPactSlots(level)
+      : getSpellSlotsForClassLevel(classId, level).map((s) => ({ ...s, used: 0 }))
+
+  return {
+    ability: desc.ability,
+    spellSaveDC: 8 + prof + mod,
+    spellAttackBonus: prof + mod,
+    spellSlots,
+    cantripsKnown: getCantripsKnown(classId, level),
+  }
+}
+
 /** Average HP gained per level after 1st: hit die average (d6→4, d8→5, d10→6, d12→7). */
 export const avgHitDieRoll = (hitDie: number): number => Math.floor(hitDie / 2) + 1
 
@@ -121,9 +251,9 @@ export interface RecomputedSpellcasting {
 
 /**
  * Recompute a caster's spellcasting block at a new level. DC and attack bonus
- * always rescale with proficiency (both are STORED, not derived). Spell slots
- * are recomputed for full/half casters, preserving `used` (clamped to the new
- * total); pact/other casters keep their existing slots untouched.
+ * always rescale with proficiency (both are STORED, not derived). Spell slots are
+ * recomputed for full/half/pact casters, preserving `used` (clamped to the new
+ * total); cantrips-known is rescaled too (full casters gain cantrips at 4/10).
  */
 export function recomputeSpellcasting(
   existing: RecomputedSpellcasting,
@@ -141,6 +271,11 @@ export function recomputeSpellcasting(
       const prev = existing.spellSlots.find((s) => s.level === level)
       return { level, total, used: Math.min(prev?.used ?? 0, total) }
     })
+  } else if (type === "pact") {
+    spellSlots = getPactSlots(newLevel).map((s) => {
+      const prev = existing.spellSlots.find((p) => p.level === s.level)
+      return { ...s, used: Math.min(prev?.used ?? 0, s.total) }
+    })
   }
 
   return {
@@ -148,5 +283,6 @@ export function recomputeSpellcasting(
     spellSaveDC: 8 + prof + abilityMod,
     spellAttackBonus: prof + abilityMod,
     spellSlots,
+    cantripsKnown: getCantripsKnown(classId, newLevel),
   }
 }
