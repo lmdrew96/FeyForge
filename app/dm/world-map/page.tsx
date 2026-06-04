@@ -92,6 +92,7 @@ import {
   clampPanToViewport,
   panToAnchorZoom,
   ResizableDetailAside,
+  PANEL_DEFAULT,
   LocationMarker,
   LocationDetail,
   ZoomButton,
@@ -1201,6 +1202,9 @@ function MapWorkspace({
   // Pin-type filter (empty = show all) + the filter/locator drawer.
   const [filterKeys, setFilterKeys] = useState<Set<string>>(new Set())
   const [pinsPanelOpen, setPinsPanelOpen] = useState(false)
+  // Current width of the detail overlay, mirrored as the --panel-w CSS var so the
+  // map's right-edge zoom controls slide left of the panel instead of hiding under it.
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
   const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
   const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
   const [placing, setPlacing] = useState(false)
@@ -1688,7 +1692,10 @@ function MapWorkspace({
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div
+        className="relative flex min-h-0 flex-1"
+        style={{ "--panel-w": selected ? `${panelWidth}px` : "0px" } as React.CSSProperties}
+      >
         {/* Viewport */}
         <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: "var(--scene-bg)" }}>
           <div
@@ -1758,8 +1765,8 @@ function MapWorkspace({
             </div>
           </div>
 
-          {/* Zoom controls */}
-          <div className="absolute bottom-4 right-4 flex flex-col gap-1">
+          {/* Zoom controls — slide left of the detail overlay when a pin is open. */}
+          <div className="absolute bottom-4 right-4 flex flex-col gap-1 lg:right-[calc(var(--panel-w)_+_1rem)]">
             <ZoomButton onClick={() => setZoom((z) => clampZoom(z * 1.25))} title="Zoom in">
               <ZoomIn className="h-4 w-4" />
             </ZoomButton>
@@ -1815,7 +1822,7 @@ function MapWorkspace({
 
         {/* Detail sidebar (desktop) — drag its left edge to resize. */}
         {selected && (
-          <ResizableDetailAside>
+          <ResizableDetailAside onWidthChange={setPanelWidth}>
             <LocationDetail
               loc={selected}
               isDM={isDM}

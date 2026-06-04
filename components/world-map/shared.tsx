@@ -700,31 +700,42 @@ export function panToAnchorZoom(
 // min-w-0 so long DM notes scroll inside the panel instead of stretching it.
 const PANEL_MIN = 256
 const PANEL_MAX = 640
-const PANEL_DEFAULT = 288
+export const PANEL_DEFAULT = 288
 
 export function ResizableDetailAside({
   storageKey = "feyforge:map-panel-width",
+  onWidthChange,
   children,
 }: {
   storageKey?: string
+  // Reports the panel width on mount/restore and after a resize so the parent can
+  // slide its right-edge floating controls out from under the overlay.
+  onWidthChange?: (w: number) => void
   children: React.ReactNode
 }) {
   const [width, setWidth] = useState(PANEL_DEFAULT)
   const widthRef = useRef(PANEL_DEFAULT)
   const drag = useRef<{ startX: number; startW: number } | null>(null)
+  // Hold the latest callback in a ref so the restore effect's deps don't churn
+  // (and clobber an in-progress resize) when a parent passes a fresh closure.
+  const onWidthChangeRef = useRef(onWidthChange)
+  useEffect(() => {
+    onWidthChangeRef.current = onWidthChange
+  })
 
   // Restore the saved width (one-frame DEFAULT→saved flash is acceptable; using a
   // layout effect to avoid it isn't worth the SSR caveats for a side panel).
   useEffect(() => {
+    let w = PANEL_DEFAULT
     try {
       const saved = Number(localStorage.getItem(storageKey))
-      if (saved >= PANEL_MIN && saved <= PANEL_MAX) {
-        setWidth(saved)
-        widthRef.current = saved
-      }
+      if (saved >= PANEL_MIN && saved <= PANEL_MAX) w = saved
     } catch {
       /* localStorage unavailable — keep the default */
     }
+    setWidth(w)
+    widthRef.current = w
+    onWidthChangeRef.current?.(w)
   }, [storageKey])
 
   const onDown = (e: React.PointerEvent) => {
@@ -742,14 +753,20 @@ export function ResizableDetailAside({
   const onUp = (e: React.PointerEvent) => {
     if (drag.current) {
       try { localStorage.setItem(storageKey, String(widthRef.current)) } catch { /* ignore */ }
+      // Report on release (not per-move) so the parent re-offsets its controls
+      // once, instead of re-rendering on every drag frame.
+      onWidthChangeRef.current?.(widthRef.current)
     }
     drag.current = null
     e.currentTarget.releasePointerCapture?.(e.pointerId)
   }
 
   return (
+    // Overlay the right edge of the map instead of sitting in flow — a flex
+    // sibling would steal width and shrink the map as the panel grows. The
+    // parent is position:relative so inset-y-0/right-0 anchor to the map area.
     <aside
-      className="relative hidden shrink-0 border-l lg:flex"
+      className="absolute inset-y-0 right-0 z-20 hidden border-l shadow-2xl lg:flex"
       style={{ width, borderColor: "var(--scene-border)", background: "var(--scene-surface)" }}
     >
       <div

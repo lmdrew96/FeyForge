@@ -38,6 +38,7 @@ import {
   clampPanToViewport,
   panToAnchorZoom,
   ResizableDetailAside,
+  PANEL_DEFAULT,
   DEFAULT_FOG_RADIUS,
   LocationDetail,
   LocationMarker,
@@ -73,6 +74,9 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   // Pin-type filter (empty = show all) + the filter/locator drawer.
   const [filterKeys, setFilterKeys] = useState<Set<string>>(new Set())
   const [pinsPanelOpen, setPinsPanelOpen] = useState(false)
+  // Detail-overlay width, mirrored as --panel-w so the right-edge controls
+  // (zoom + pins/travel/realms) slide left of the panel instead of hiding under it.
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
   const imgRef = useRef<HTMLImageElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null)
@@ -265,7 +269,11 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   return (
     <div
       className="relative flex h-[70vh] min-h-[420px] overflow-hidden rounded-xl border"
-      style={{ borderColor: "var(--scene-border)", background: "var(--scene-bg)" }}
+      style={{
+        borderColor: "var(--scene-border)",
+        background: "var(--scene-bg)",
+        "--panel-w": selected ? `${panelWidth}px` : "0px",
+      } as React.CSSProperties}
     >
       {/* Viewport */}
       <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -340,8 +348,8 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           </div>
         </div>
 
-        {/* Zoom controls */}
-        <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-1">
+        {/* Zoom controls — slide left of the detail overlay when a pin is open. */}
+        <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-1 lg:right-[calc(var(--panel-w)_+_1rem)]">
           <ZoomButton onClick={() => setZoom((z) => clampZoom(z * 1.25))} title="Zoom in">
             <ZoomIn className="h-4 w-4" />
           </ZoomButton>
@@ -353,8 +361,9 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           </ZoomButton>
         </div>
 
-        {/* Overlay controls (top-right): pin visibility + journey planner + realms/faiths */}
-        <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-1">
+        {/* Overlay controls (top-right): pin visibility + journey planner + realms/faiths.
+            Slide left of the detail overlay when a pin is open. */}
+        <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-1 lg:right-[calc(var(--panel-w)_+_1rem)]">
           <button
             onClick={togglePins}
             title={showPins ? "Hide all pins" : "Show all pins"}
@@ -426,7 +435,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
 
       {/* Detail sidebar (desktop) — drag its left edge to resize. */}
       {selected && (
-        <ResizableDetailAside>
+        <ResizableDetailAside onWidthChange={setPanelWidth}>
           <LocationDetail
             loc={selected}
             isDM={isDM}
