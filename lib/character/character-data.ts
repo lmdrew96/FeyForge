@@ -9,6 +9,9 @@ export interface SubraceData {
   abilityBonuses: Partial<Record<Ability, number>>
   traits: string[]
   speed?: number
+  // Explicit darkvision range in feet. Optional on curated subraces (derived from
+  // trait strings); homebrew sets it directly. See deriveDarkvision.
+  darkvision?: number
 }
 
 export interface RaceData {
@@ -21,6 +24,11 @@ export interface RaceData {
   traits: string[]
   languages: string[]
   subraces?: SubraceData[]
+  // Explicit darkvision range in feet. Optional on curated races (derived from
+  // trait strings); homebrew sets it directly. See deriveDarkvision.
+  darkvision?: number
+  // True for user-authored homebrew merged into the builder, so the UI can badge it.
+  homebrew?: boolean
 }
 
 export const RACES: RaceData[] = [
@@ -423,6 +431,8 @@ export interface BackgroundData {
   ideals: string[]
   bonds: string[]
   flaws: string[]
+  // True for user-authored homebrew merged into the builder, so the UI can badge it.
+  homebrew?: boolean
 }
 
 export const BACKGROUNDS: BackgroundData[] = [
@@ -623,6 +633,22 @@ export function getDarkvisionRange(raceName: string, subraceName?: string): numb
   const subrace = subraceName
     ? race.subraces?.find((s) => s.name.toLowerCase() === subraceName.toLowerCase())
     : undefined
+  const traits = [...race.traits, ...(subrace?.traits ?? [])].map((t) => t.toLowerCase())
+  if (traits.some((t) => t.includes("superior darkvision"))) return 120
+  if (traits.some((t) => t.includes("darkvision"))) return 60
+  return 0
+}
+
+/**
+ * Compute a race's darkvision range (feet) from the selected RaceData/SubraceData
+ * objects — used at character creation to SNAPSHOT darkvision onto the character.
+ * An explicit `darkvision` field wins (homebrew sets it directly); otherwise it's
+ * derived from trait strings exactly like getDarkvisionRange. Works for curated
+ * AND homebrew races since the builder holds the full data object either way.
+ */
+export function deriveDarkvision(race: RaceData, subrace?: SubraceData): number {
+  if (subrace?.darkvision !== undefined) return subrace.darkvision
+  if (race.darkvision !== undefined) return race.darkvision
   const traits = [...race.traits, ...(subrace?.traits ?? [])].map((t) => t.toLowerCase())
   if (traits.some((t) => t.includes("superior darkvision"))) return 120
   if (traits.some((t) => t.includes("darkvision"))) return 60

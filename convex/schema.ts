@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server"
 import { v } from "convex/values"
+import { homebrewData } from "./lib/homebrewValidators"
 
 export default defineSchema({
   campaigns: defineTable({
@@ -86,6 +87,11 @@ export default defineSchema({
       failures: v.number(),
     }),
     speed: v.number(),
+    // Darkvision range in feet, snapshotted from the chosen race at creation (0 =
+    // none). Optional: characters built before this field fall back to the static
+    // race lookup in getDarkvisionRange. Lets a HOMEBREW race's darkvision show on
+    // the sheet without the sheet resolving homebrew live. See deriveDarkvision.
+    darkvision: v.optional(v.number()),
     inspiration: v.boolean(),
 
     savingThrowProficiencies: v.array(v.string()),
@@ -142,6 +148,27 @@ export default defineSchema({
     orderIndex: v.number(),
     data: v.any(),
   }).index("by_characterId", ["characterId"]),
+
+  // User-authored homebrew content (races, backgrounds) that merges into the
+  // character builder's pickers alongside the curated SRD set. Owned by its
+  // creator (userId) and usable in any character they build; optionally PUBLISHED
+  // to one campaign (sharedCampaignId) so that campaign's members see it in their
+  // builder too. `data` is the typed race/background payload (see
+  // convex/lib/homebrewValidators.ts) — a discriminated union keyed by `kind`,
+  // mirroring RaceData / BackgroundData so lib/homebrew.ts can convert a row
+  // straight into what the builder consumes. Selection SNAPSHOTS the mechanics
+  // onto the character, so editing/deleting a homebrew entry never breaks an
+  // already-built character.
+  homebrew: defineTable({
+    userId: v.string(), // tokenIdentifier of the creator
+    kind: v.union(v.literal("race"), v.literal("background"), v.literal("item")),
+    name: v.string(), // display name; also what's stored on characters.race/background
+    sharedCampaignId: v.optional(v.id("campaigns")),
+    data: homebrewData,
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_sharedCampaignId", ["sharedCampaignId"]),
 
   npcs: defineTable({
     userId: v.string(),

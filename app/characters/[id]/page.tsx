@@ -1134,7 +1134,9 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const raceName = char.subrace ? `${char.subrace} ${char.race}` : char.race
   const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
   const hitDie = char.hitDice[0]?.diceSize ?? 8
-  const darkvision = getDarkvisionRange(char.race, char.subrace)
+  // Prefer the value snapshotted at creation (works for homebrew races too); fall
+  // back to the static name lookup for characters built before the snapshot field.
+  const darkvision = char.darkvision ?? getDarkvisionRange(char.race, char.subrace)
 
   // Inventory: this character's property rows, mapped to flat items the
   // calculators understand. Drives real AC + the Attacks section.

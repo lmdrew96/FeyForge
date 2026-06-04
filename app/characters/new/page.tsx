@@ -13,6 +13,7 @@ import {
   BACKGROUNDS,
   quickRollCharacter,
   generateName,
+  deriveDarkvision,
   type QuickRollResult,
 } from "@/lib/character/character-data"
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
@@ -364,6 +365,7 @@ export default function NewCharacterPage() {
         hitDice: [{ diceSize: hitDie, total: 1, used: 0 }],
         deathSaves: { successes: 0, failures: 0 },
         speed: subrace?.speed ?? race.speed,
+        darkvision: deriveDarkvision(race, subrace),
         inspiration: false,
         savingThrowProficiencies: characterClass.savingThrows,
         skillProficiencies,
@@ -464,6 +466,7 @@ export default function NewCharacterPage() {
         hitDice: [{ diceSize: hitDie, total: 1, used: 0 }],
         deathSaves: { successes: 0, failures: 0 },
         speed: subrace?.speed ?? race.speed,
+        darkvision: deriveDarkvision(race, subrace),
         inspiration: false,
         savingThrowProficiencies: cls.savingThrows,
         skillProficiencies: background.skillProficiencies,

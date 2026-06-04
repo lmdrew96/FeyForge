@@ -19,6 +19,7 @@ import {
   Globe,
   Network,
   Shield,
+  FlaskConical,
   Settings,
   Menu,
   X,
@@ -66,6 +67,7 @@ function buildNavItems(isPlayer: boolean): NavItem[] {
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { label: "Campaigns", href: "/campaigns", icon: BookMarked },
     { label: "Characters", href: "/characters", icon: UserSquare2 },
+    { label: "Homebrew", href: "/homebrew", icon: FlaskConical },
     { label: "Live Session", href: "/session", icon: Sparkles },
     {
       label: isPlayer ? "Campaign" : "DM Tools",

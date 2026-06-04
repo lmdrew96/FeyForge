@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { RACES, CLASSES, BACKGROUNDS } from "@/lib/character/character-data"
 import type { QuickRollResult, ClassData, RaceData, SubraceData, BackgroundData } from "@/lib/character/character-data"
+import { partitionHomebrew } from "@/lib/homebrew"
 import {
   ABILITY_ABBREVIATIONS,
   SKILL_DISPLAY_NAMES,
@@ -184,12 +187,21 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   })
   const [selectedSkills, setSelectedSkills] = useState<Skill[]>([])
 
+  // ── Content (curated SRD + homebrew you own or that's shared to your campaigns) ─
+  const homebrew = useQuery(api.homebrew.listForBuilder)
+  const { races: hbRaces, backgrounds: hbBackgrounds } = useMemo(
+    () => partitionHomebrew(homebrew),
+    [homebrew],
+  )
+  const allRaces = useMemo(() => [...RACES, ...hbRaces], [hbRaces])
+  const allBackgrounds = useMemo(() => [...BACKGROUNDS, ...hbBackgrounds], [hbBackgrounds])
+
   // ── Derived ──────────────────────────────────────────────────────────────────
 
   const cls = useMemo(() => CLASSES.find(c => c.id === classId), [classId])
-  const race = useMemo(() => RACES.find(r => r.id === raceId), [raceId])
+  const race = useMemo(() => allRaces.find(r => r.id === raceId), [allRaces, raceId])
   const subrace = useMemo(() => race?.subraces?.find(s => s.id === subraceId), [race, subraceId])
-  const background = useMemo(() => BACKGROUNDS.find(b => b.id === backgroundId), [backgroundId])
+  const background = useMemo(() => allBackgrounds.find(b => b.id === backgroundId), [allBackgrounds, backgroundId])
 
   const racialBonuses = useMemo((): Partial<Record<Ability, number>> => {
     const out: Partial<Record<Ability, number>> = {}
@@ -442,7 +454,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
           Race
         </h2>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
-          {RACES.map(r => (
+          {allRaces.map(r => (
             <button
               key={r.id}
               onClick={() => handleRaceChange(r.id)}
@@ -454,6 +466,14 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
               }}
             >
               {r.name}
+              {r.homebrew && (
+                <span
+                  className="ml-1 text-[9px] uppercase tracking-wider align-middle"
+                  style={{ color: raceId === r.id ? "var(--scene-bg)" : "var(--scene-highlight)" }}
+                >
+                  ★
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -553,8 +573,8 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
           }}
         >
           <option value="">Choose a background…</option>
-          {BACKGROUNDS.map(b => (
-            <option key={b.id} value={b.id}>{b.name}</option>
+          {allBackgrounds.map(b => (
+            <option key={b.id} value={b.id}>{b.name}{b.homebrew ? " ★" : ""}</option>
           ))}
         </select>
         {background && (

@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { RACES, CLASSES, BACKGROUNDS, generateName } from "@/lib/character/character-data"
 import type { QuickRollResult } from "@/lib/character/character-data"
+import { partitionHomebrew } from "@/lib/homebrew"
 import {
   ABILITY_ABBREVIATIONS,
   SKILL_DISPLAY_NAMES,
@@ -89,12 +92,21 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   })
   const [selectedSkills, setSelectedSkills] = useState<Skill[]>([])
 
+  // ── Content (curated SRD + homebrew you own or that's shared to your campaigns) ─
+  const homebrew = useQuery(api.homebrew.listForBuilder)
+  const { races: hbRaces, backgrounds: hbBackgrounds } = useMemo(
+    () => partitionHomebrew(homebrew),
+    [homebrew],
+  )
+  const allRaces = useMemo(() => [...RACES, ...hbRaces], [hbRaces])
+  const allBackgrounds = useMemo(() => [...BACKGROUNDS, ...hbBackgrounds], [hbBackgrounds])
+
   // ── Derived ──────────────────────────────────────────────────────────────────
 
   const cls = useMemo(() => CLASSES.find(c => c.id === classId), [classId])
-  const race = useMemo(() => RACES.find(r => r.id === raceId), [raceId])
+  const race = useMemo(() => allRaces.find(r => r.id === raceId), [allRaces, raceId])
   const subrace = useMemo(() => race?.subraces?.find(s => s.id === subraceId), [race, subraceId])
-  const background = useMemo(() => BACKGROUNDS.find(b => b.id === backgroundId), [backgroundId])
+  const background = useMemo(() => allBackgrounds.find(b => b.id === backgroundId), [allBackgrounds, backgroundId])
 
   const racialBonuses = useMemo((): Partial<Record<Ability, number>> => {
     const out: Partial<Record<Ability, number>> = {}
@@ -322,7 +334,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-        {RACES.map(r => (
+        {allRaces.map(r => (
           <button
             key={r.id}
             onClick={() => handleRaceChange(r.id)}
@@ -334,6 +346,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
           >
             <span className="block font-semibold text-sm" style={{ color: raceId === r.id ? "var(--scene-accent)" : "var(--scene-text-primary)" }}>
               {r.name}
+              {r.homebrew && <span className="ml-1" style={{ color: "var(--scene-highlight)" }}>★</span>}
             </span>
             <span className="block text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
               {Object.entries(r.abilityBonuses).map(([k, v]) => `+${v} ${ABILITY_ABBREVIATIONS[k as Ability]}`).join(", ") || "Various bonuses"}
@@ -408,7 +421,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-        {BACKGROUNDS.map(b => (
+        {allBackgrounds.map(b => (
           <button
             key={b.id}
             onClick={() => setBackgroundId(b.id)}
@@ -420,6 +433,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
           >
             <span className="block font-semibold text-sm" style={{ color: backgroundId === b.id ? "var(--scene-accent)" : "var(--scene-text-primary)" }}>
               {b.name}
+              {b.homebrew && <span className="ml-1" style={{ color: "var(--scene-highlight)" }}>★</span>}
             </span>
             <span className="block text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
               {b.skillProficiencies.map(s => SKILL_DISPLAY_NAMES[s]).join(", ")}
