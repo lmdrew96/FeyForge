@@ -21,6 +21,7 @@ import { postAi, AiError } from "@/lib/ai-client"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import { COMBAT_POI_KINDS, EncounterGenerator } from "@/components/world-map/encounter-generator"
 import { SaveNpcButton } from "@/components/world-map/save-npc-button"
+import { NpcGenerator, NPC_GEN_POI_KINDS } from "@/components/world-map/npc-generator"
 import { parseMap, curateForImport, type EventPlace } from "@/lib/worldMap/azgaar-map"
 import {
   VIBE_AXES,
@@ -1299,6 +1300,12 @@ function MapWorkspace({
     ) : undefined
   const npcAction =
     selected && isDM && selected.poiKind === "npc" ? <SaveNpcButton locationId={selected._id} /> : undefined
+  // Tavern/landmark pins → "Flesh out NPC" (AI). A pin has one poiKind, so at most
+  // one of these three actions is ever non-undefined.
+  const npcGenAction =
+    selected && isDM && selected.poiKind && NPC_GEN_POI_KINDS.has(selected.poiKind) ? (
+      <NpcGenerator loc={selected} campaignId={campaignId} mapName={map.name} />
+    ) : undefined
 
   // Pin-type filter drives ONLY the marker render below — fog, routing, journey,
   // and jump-to-center all stay on the full `locations`.
@@ -1817,7 +1824,7 @@ function MapWorkspace({
               onMove={() => { setMovingId(selected._id); setSelectedId(null) }}
               onDelete={() => handleDelete(selected)}
               onReveal={() => handleReveal(selected)}
-              extraActions={encounterAction ?? npcAction}
+              extraActions={encounterAction ?? npcAction ?? npcGenAction}
             />
           </ResizableDetailAside>
         )}

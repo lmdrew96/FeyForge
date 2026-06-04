@@ -31,6 +31,7 @@ import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import { RealmsFaithsPanel } from "./realms-faiths-panel"
 import { COMBAT_POI_KINDS, EncounterGenerator } from "./encounter-generator"
 import { SaveNpcButton } from "./save-npc-button"
+import { NpcGenerator, NPC_GEN_POI_KINDS } from "./npc-generator"
 import { PinsPanel, filterByKeys } from "./pins-panel"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import {
@@ -120,6 +121,12 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     ) : undefined
   const npcAction =
     selected && isDM && selected.poiKind === "npc" ? <SaveNpcButton locationId={selected._id} /> : undefined
+  // Tavern/landmark pins → "Flesh out NPC" (AI). One poiKind per pin, so at most
+  // one of these three extra actions is ever active.
+  const npcGenAction =
+    selected && isDM && selected.poiKind && NPC_GEN_POI_KINDS.has(selected.poiKind) ? (
+      <NpcGenerator loc={selected} campaignId={campaignId} mapName={map?.name ?? ""} />
+    ) : undefined
 
   // Pin-type filter drives ONLY the marker render below — fog, routing, journey,
   // and jump-to-center stay on the full location list.
@@ -425,7 +432,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             isDM={isDM}
             onClose={() => setSelectedId(null)}
             onReveal={isDM ? () => handleReveal(selected) : undefined}
-            extraActions={encounterAction ?? npcAction}
+            extraActions={encounterAction ?? npcAction ?? npcGenAction}
           />
         </ResizableDetailAside>
       )}
@@ -441,7 +448,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             isDM={isDM}
             onClose={() => setSelectedId(null)}
             onReveal={isDM ? () => handleReveal(selected) : undefined}
-            extraActions={encounterAction ?? npcAction}
+            extraActions={encounterAction ?? npcAction ?? npcGenAction}
           />
         </div>
       )}
