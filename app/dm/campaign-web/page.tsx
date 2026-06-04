@@ -337,18 +337,32 @@ export default function CampaignWebPage() {
     [locations, onCanvasEntityIds]
   )
 
-  // Group the pickable pins by kind (settlement/dungeon/tavern/river/…) so the
-  // Location tab is an organized, scannable list instead of one flat dump.
+  // Encounters ("Pirates", "Mules migration", roaming gangs) are narrative threads,
+  // not places — they belong under Plot Hooks, not Location. Split them off so the
+  // Location tab lists only true locations and the Plot Hook tab can offer the
+  // encounter pins as ready-made hooks. (A "monster lair" is a place, so monster
+  // pins stay under Location by design.)
+  const locationPins = useMemo(
+    () => filteredLocations.filter((l) => pinFilterKey(l) !== "encounter"),
+    [filteredLocations]
+  )
+  const encounterPins = useMemo(
+    () => filteredLocations.filter((l) => pinFilterKey(l) === "encounter"),
+    [filteredLocations]
+  )
+
+  // Group the pickable location pins by kind (settlement/dungeon/tavern/river/…) so
+  // the Location tab is an organized, scannable list instead of one flat dump.
   const groupedLocations = useMemo(() => {
-    const groups = new Map<string, typeof filteredLocations>()
-    for (const loc of filteredLocations) {
+    const groups = new Map<string, typeof locationPins>()
+    for (const loc of locationPins) {
       const key = pinFilterKey(loc)
       const arr = groups.get(key)
       if (arr) arr.push(loc)
       else groups.set(key, [loc])
     }
     return [...groups.entries()].sort((a, b) => locationKindOrder(a[0]) - locationKindOrder(b[0]))
-  }, [filteredLocations])
+  }, [locationPins])
 
   const tabs: EntityType[] = ["npc", "location", "faction", "plot_hook"]
 
@@ -461,10 +475,48 @@ export default function CampaignWebPage() {
               )
             })}
 
+            {/* Encounter pins surface here (not under Location) as ready-made hooks.
+                Clicking one adds it as a plot_hook node; entityId is retained so it
+                drops off this list once on the canvas (dedup) and won't double-add. */}
+            {activeTab === "plot_hook" && encounterPins.length > 0 && (
+              <div className="space-y-1 pb-2 mb-1" style={{ borderBottom: "1px solid var(--scene-border)" }}>
+                {(() => {
+                  // All encounter pins share one kind meta (Swords / "Encounter").
+                  const m = metaFor(encounterPins[0])
+                  const Icon = m.icon
+                  return (
+                    <div className="flex items-center gap-1.5 px-1 pt-1">
+                      <Icon size={11} style={{ color: m.color }} />
+                      <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: m.color }}>
+                        From the map · Encounters
+                      </span>
+                      <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>{encounterPins.length}</span>
+                    </div>
+                  )
+                })()}
+                {encounterPins.map((loc) => {
+                  const m = metaFor(loc)
+                  const Icon = m.icon
+                  return (
+                    <button
+                      key={loc._id}
+                      onClick={() => addEntityNode("plot_hook", loc._id, loc.name)}
+                      className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-left transition-opacity hover:opacity-80"
+                      style={{ background: m.color + "1a", border: `1px solid ${m.color}44` }}
+                    >
+                      <Icon size={11} style={{ color: m.color, flexShrink: 0 }} />
+                      <span className="flex-1 text-xs truncate" style={{ color: "var(--scene-text-primary)" }}>{loc.name}</span>
+                      <Plus size={10} style={{ color: m.color, flexShrink: 0 }} />
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
             {(activeTab === "faction" || activeTab === "plot_hook") && (
               <div className="space-y-2">
                 <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
-                  {activeTab === "faction" ? "Name the faction:" : "Describe the hook:"}
+                  {activeTab === "faction" ? "Name the faction:" : encounterPins.length > 0 ? "Or write a custom hook:" : "Describe the hook:"}
                 </p>
                 <input
                   value={newNodeLabel}
@@ -495,9 +547,11 @@ export default function CampaignWebPage() {
               </p>
             )}
 
-            {activeTab === "location" && filteredLocations.length === 0 && (
+            {activeTab === "location" && locationPins.length === 0 && (
               <p className="text-xs p-2" style={{ color: "var(--scene-text-muted)" }}>
-                {(locations?.length ?? 0) === 0 ? "No locations yet — create them in World Map." : "All locations are on the canvas."}
+                {(locations ?? []).some((l) => pinFilterKey(l) !== "encounter")
+                  ? "All locations are on the canvas."
+                  : "No locations yet — create them in World Map."}
               </p>
             )}
           </div>
