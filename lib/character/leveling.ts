@@ -11,6 +11,7 @@
 
 import { getProficiencyBonus, getAbilityModifier, type Ability } from "./constants"
 import type { AbilityScores } from "./types"
+import type { Edition } from "../editions"
 
 export type CasterType = "full" | "half" | "pact" | "none"
 
@@ -196,40 +197,60 @@ const SPELLS_KNOWN: Record<string, number[]> = {
   warlock:  [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
 }
 
+// 2024 (SRD 5.2) "Prepared Spells" progression SHARED by all five full casters
+// (Bard/Cleric/Druid/Sorcerer/Wizard). Index 0 = level 1. VERIFIED against three
+// independent reads of the SRD 5.2 class tables (5e24srd Cleric + Sorcerer, aidedd
+// Cleric — all identical). 2024 collapses "known" into a fixed prepared count.
+const PREPARED_2024_FULL: number[] = [
+  4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22,
+]
+
 export interface SpellLimits {
   cantrips: number
-  // Whether the leveled-spell cap is a fixed "known" count or a daily "prepared"
-  // count (drives the label). The cap itself is `leveled`.
-  leveledKind: "known" | "prepared"
+  // Display label for the leveled-spell cap ("Prepared" or "Spells known").
+  leveledLabel: string
   leveled: number
 }
 
 // How many cantrips + leveled spells a caster should have at a level — guidance
-// for the sheet, not hard-enforced. Known casters (bard/sorcerer/ranger/warlock)
-// read the verified SPELLS_KNOWN table; prepared/spellbook casters use the SRD
-// formula (ability mod + level; paladin = mod + half level), min 1 once they have
-// slots (paladins/rangers are slotless — so 0 prepared — at level 1). 2014 SRD
-// numbers, consistent with the 2014-style prepMode split; 2024's fixed prepared
-// tables are a later refinement. `abilityMod` is the spellcasting ability modifier.
-export function getSpellLimits(classId: string, level: number, abilityMod: number): SpellLimits | null {
+// for the sheet, not hard-enforced.
+//
+// EDITION HANDLING (scoped): only FULL casters go edition-aware here. In 2024 they
+// use the verified shared PREPARED_2024_FULL table; in 2014 they use the SRD
+// formula (ability mod + level) / SPELLS_KNOWN table. Half-casters + warlock stay
+// on 2014 logic regardless of edition ON PURPOSE — their 2024 SLOT tables also
+// differ (half-casters cast from level 1, warlock pact-slot counts changed), and
+// that's a separate slot patch. Flipping only their COUNT to 2024 would show a
+// 2024 number next to 2014-gated slots; full-caster slots are identical across
+// editions, so count + gating stay coherent. `abilityMod` = spellcasting mod.
+export function getSpellLimits(
+  classId: string,
+  level: number,
+  abilityMod: number,
+  edition: Edition,
+): SpellLimits | null {
   const id = classId.toLowerCase()
   const desc = getCastingDescriptor(id)
   if (desc.casterType === "none") return null
   const l = clampLevel(level)
   const cantrips = getCantripsKnown(id, level)
 
-  if (desc.prepMode === "known") {
-    return { cantrips, leveledKind: "known", leveled: SPELLS_KNOWN[id]?.[l - 1] ?? 0 }
+  if (edition === "2024" && desc.casterType === "full") {
+    return { cantrips, leveledLabel: "Prepared", leveled: PREPARED_2024_FULL[l - 1] ?? 0 }
   }
 
-  // prepared + spellbook casters
+  if (desc.prepMode === "known") {
+    return { cantrips, leveledLabel: "Spells known", leveled: SPELLS_KNOWN[id]?.[l - 1] ?? 0 }
+  }
+
+  // prepared + spellbook casters (2014 logic)
   const hasSlots = desc.casterType === "pact" || getSpellSlotsForClassLevel(id, level).length > 0
-  if (!hasSlots) return { cantrips, leveledKind: "prepared", leveled: 0 }
+  if (!hasSlots) return { cantrips, leveledLabel: "Prepared", leveled: 0 }
   const leveled =
     id === "paladin"
       ? Math.max(1, abilityMod + Math.floor(l / 2))
       : Math.max(1, abilityMod + l)
-  return { cantrips, leveledKind: "prepared", leveled }
+  return { cantrips, leveledLabel: "Prepared", leveled }
 }
 
 // Highest spell level a caster can currently cast — the cap for which spells they

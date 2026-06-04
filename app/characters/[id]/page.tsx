@@ -23,6 +23,7 @@ import type { Ability, Skill } from "@/lib/character/constants"
 import { getDarkvisionRange } from "@/lib/character/character-data"
 import { getXPProgress, getXPForLevel, getLevelFromXP, getXPToNextLevel } from "@/lib/character/experience"
 import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting } from "@/lib/character/leveling"
+import { resolveEdition } from "@/lib/editions"
 import {
   useDiceStore,
   rollExpression,
@@ -1158,6 +1159,13 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   // Hooks must run on every render — call before any early return (Rules of Hooks).
   const { roll, rollExpr, mode, setMode, lastRoll, rolling, dismiss } = useSheetRoll()
   const allProps = useQuery(api.characters.listAllProperties)
+  // Resolve the character's campaign edition (for edition-aware spell counts).
+  // Membership-gated query → null for a non-member, which resolveEdition defaults
+  // to 2024; "skip" for a character with no campaign (also defaults to 2024).
+  const campaign = useQuery(
+    api.campaigns.get,
+    char?.campaignId ? { campaignId: char.campaignId } : "skip",
+  )
 
   if (char === undefined) {
     return (
@@ -1200,6 +1208,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const items = myProps.filter((p) => p.type === "item").map(rowToItem)
   const spells = myProps.filter((p) => p.type === "spell").map(rowToSpell)
   const casterType = getCasterType(char.characterClass)
+  const edition = resolveEdition(campaign?.edition)
   const equippedWeapons = items.filter(
     (i) => i.active && i.equipped && i.category === "weapon",
   )
@@ -1531,6 +1540,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               spellcasting={char.spellcasting}
               classId={char.characterClass}
               level={char.level}
+              edition={edition}
               spells={spells}
               nextOrder={nextOrder}
               roll={roll}

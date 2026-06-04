@@ -30,6 +30,7 @@ import {
   maxSpellLevel,
   type PrepMode,
 } from "@/lib/character/leveling"
+import type { Edition } from "@/lib/editions"
 import {
   groupSpellsByLevel,
   spellLevelLabel,
@@ -54,6 +55,7 @@ export function SpellbookSection({
   spellcasting,
   classId,
   level,
+  edition,
   spells,
   nextOrder,
   roll,
@@ -62,6 +64,7 @@ export function SpellbookSection({
   spellcasting: SpellcastingBlock
   classId: string
   level: number
+  edition: Edition
   spells: SheetSpell[]
   nextOrder: number
   roll: RollFn
@@ -81,17 +84,18 @@ export function SpellbookSection({
   // (= prof + mod) so we don't need the raw ability scores here. Drives the
   // prepared-count guidance.
   const abilityMod = spellcasting.spellAttackBonus - getProficiencyBonus(level)
-  const limits = getSpellLimits(classId, level, abilityMod)
+  const limits = getSpellLimits(classId, level, abilityMod, edition)
   const maxLevel = maxSpellLevel(spellcasting.spellSlots)
 
-  // Counts for the guidance chips. Known casters count all known leveled spells;
-  // prepared/spellbook casters count only the ones currently prepared.
+  // Counts for the guidance chips. The COUNT-source follows the UI (whether the
+  // sheet shows a per-spell prepared toggle), NOT the edition-aware label: classes
+  // with a toggle count prepared spells; the rest count all leveled spells.
+  const usesToggle = prepMode === "prepared" || prepMode === "spellbook"
   const cantripCount = spells.filter((s) => s.level <= 0).length
   const leveledSpells = spells.filter((s) => s.level >= 1)
-  const leveledCount =
-    limits?.leveledKind === "prepared"
-      ? leveledSpells.filter((s) => s.prepared).length
-      : leveledSpells.length
+  const leveledCount = usesToggle
+    ? leveledSpells.filter((s) => s.prepared).length
+    : leveledSpells.length
   const showCantripChip = !!limits && (limits.cantrips > 0 || cantripCount > 0)
   const showLeveledChip = !!limits && (limits.leveled > 0 || leveledCount > 0)
 
@@ -266,11 +270,7 @@ export function SpellbookSection({
         <div className="flex flex-wrap gap-2 mb-3">
           {showCantripChip && <CountChip label="Cantrips" have={cantripCount} max={limits.cantrips} />}
           {showLeveledChip && (
-            <CountChip
-              label={limits.leveledKind === "prepared" ? "Prepared" : "Spells known"}
-              have={leveledCount}
-              max={limits.leveled}
-            />
+            <CountChip label={limits.leveledLabel} have={leveledCount} max={limits.leveled} />
           )}
         </div>
       )}
