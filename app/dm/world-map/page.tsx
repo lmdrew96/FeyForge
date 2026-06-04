@@ -89,6 +89,8 @@ import {
   MAX_ZOOM,
   DEFAULT_FOG_RADIUS,
   clampPanToViewport,
+  panToAnchorZoom,
+  ResizableDetailAside,
   LocationMarker,
   LocationDetail,
   ZoomButton,
@@ -1338,8 +1340,11 @@ function MapWorkspace({
   }
 
   const handleWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
-    const delta = -e.deltaY * 0.0015
-    setZoom((z) => clampZoom(z * (1 + delta)))
+    const nz = clampZoom(zoom * (1 + -e.deltaY * 0.0015))
+    // Anchor the zoom to the cursor (not the map center) so the spot under the
+    // pointer stays put. Pre-clamped to the viewport; both set as absolute values.
+    if (nz !== zoom) setPan(panToAnchorZoom(e, zoom, nz, pan, imgRef.current, viewportRef.current))
+    setZoom(nz)
   }
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -1801,12 +1806,9 @@ function MapWorkspace({
           )}
         </div>
 
-        {/* Detail sidebar (desktop) */}
+        {/* Detail sidebar (desktop) — drag its left edge to resize. */}
         {selected && (
-          <aside
-            className="hidden w-72 shrink-0 overflow-y-auto border-l p-4 lg:block"
-            style={{ borderColor: "var(--scene-border)", background: "var(--scene-surface)" }}
-          >
+          <ResizableDetailAside>
             <LocationDetail
               loc={selected}
               isDM={isDM}
@@ -1817,7 +1819,7 @@ function MapWorkspace({
               onReveal={() => handleReveal(selected)}
               extraActions={encounterAction ?? npcAction}
             />
-          </aside>
+          </ResizableDetailAside>
         )}
       </div>
 

@@ -10,7 +10,7 @@
 // edit/move/delete/reveal callbacks are now optional (a button renders only when
 // its handler is supplied), so the viewer can show a read-only detail.
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { htmlToMarkdown } from "@/lib/html-to-markdown"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
@@ -660,5 +660,109 @@ export function SecondaryButton({ children, onClick, disabled }: { children: Rea
     >
       {children}
     </button>
+  )
+}
+
+// ── Zoom-at-cursor ─────────────────────────────────────────────────────────────
+// Pan that keeps the point under the cursor fixed while zooming `zoom`→`nz`. The
+// image layer is scaled about its center (transformOrigin: center center), so a
+// cursor offset s from the viewport center satisfies s = pan + d·zoom for the
+// world point d beneath it. Holding d fixed across the zoom gives
+// pan' = s − (s − pan)·(nz/zoom). (At s=0 this is pan·r — the same convention the
+// jump-to-center math uses.) Shared by the DM editor and the in-session viewer so
+// the two wheel handlers can't drift. Result is pre-clamped to the viewport.
+export function panToAnchorZoom(
+  cursor: { clientX: number; clientY: number },
+  zoom: number,
+  nz: number,
+  pan: { x: number; y: number },
+  img: HTMLImageElement | null,
+  viewport: HTMLElement | null,
+): { x: number; y: number } {
+  if (!viewport || zoom === 0) return pan
+  const rect = viewport.getBoundingClientRect()
+  const sx = cursor.clientX - rect.left - rect.width / 2
+  const sy = cursor.clientY - rect.top - rect.height / 2
+  const r = nz / zoom
+  return clampPanToViewport(
+    { x: sx - (sx - pan.x) * r, y: sy - (sy - pan.y) * r },
+    nz,
+    img,
+    viewport,
+  )
+}
+
+// ── Resizable pin-detail sidebar ────────────────────────────────────────────────
+// The desktop detail panel, widened by dragging its left edge. Width persists to
+// localStorage so it sticks across sessions and both map surfaces (DM editor +
+// in-session viewer). Structure is [handle][scrollable content]: the handle is a
+// flex sibling (full height, never scrolls away), and the content gets min-h-0 /
+// min-w-0 so long DM notes scroll inside the panel instead of stretching it.
+const PANEL_MIN = 256
+const PANEL_MAX = 640
+const PANEL_DEFAULT = 288
+
+export function ResizableDetailAside({
+  storageKey = "feyforge:map-panel-width",
+  children,
+}: {
+  storageKey?: string
+  children: React.ReactNode
+}) {
+  const [width, setWidth] = useState(PANEL_DEFAULT)
+  const widthRef = useRef(PANEL_DEFAULT)
+  const drag = useRef<{ startX: number; startW: number } | null>(null)
+
+  // Restore the saved width (one-frame DEFAULT→saved flash is acceptable; using a
+  // layout effect to avoid it isn't worth the SSR caveats for a side panel).
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(storageKey))
+      if (saved >= PANEL_MIN && saved <= PANEL_MAX) {
+        setWidth(saved)
+        widthRef.current = saved
+      }
+    } catch {
+      /* localStorage unavailable — keep the default */
+    }
+  }, [storageKey])
+
+  const onDown = (e: React.PointerEvent) => {
+    drag.current = { startX: e.clientX, startW: widthRef.current }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+  const onMove = (e: React.PointerEvent) => {
+    const d = drag.current
+    if (!d) return
+    // Panel sits on the right; dragging its left edge leftward widens it.
+    const next = Math.max(PANEL_MIN, Math.min(PANEL_MAX, d.startW + (d.startX - e.clientX)))
+    widthRef.current = next
+    setWidth(next)
+  }
+  const onUp = (e: React.PointerEvent) => {
+    if (drag.current) {
+      try { localStorage.setItem(storageKey, String(widthRef.current)) } catch { /* ignore */ }
+    }
+    drag.current = null
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
+  }
+
+  return (
+    <aside
+      className="relative hidden shrink-0 border-l lg:flex"
+      style={{ width, borderColor: "var(--scene-border)", background: "var(--scene-surface)" }}
+    >
+      <div
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        className="w-1.5 shrink-0 cursor-col-resize transition-colors hover:bg-[var(--scene-accent)]"
+        style={{ touchAction: "none" }}
+        title="Drag to resize"
+        role="separator"
+        aria-orientation="vertical"
+      />
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">{children}</div>
+    </aside>
   )
 }

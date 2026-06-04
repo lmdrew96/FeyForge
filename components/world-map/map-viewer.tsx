@@ -35,6 +35,8 @@ import { PinsPanel, filterByKeys } from "./pins-panel"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import {
   clampPanToViewport,
+  panToAnchorZoom,
+  ResizableDetailAside,
   DEFAULT_FOG_RADIUS,
   LocationDetail,
   LocationMarker,
@@ -153,8 +155,10 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
 
   // ── Pan / zoom (read-only: no placement, move, or paint) ────────────────────
   const handleWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
-    const delta = -e.deltaY * 0.0015
-    setZoom((z) => clampZoom(z * (1 + delta)))
+    const nz = clampZoom(zoom * (1 + -e.deltaY * 0.0015))
+    // Anchor the zoom to the cursor (not the map center); matches the DM page.
+    if (nz !== zoom) setPan(panToAnchorZoom(e, zoom, nz, pan, imgRef.current, viewportRef.current))
+    setZoom(nz)
   }
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -413,12 +417,9 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
         )}
       </div>
 
-      {/* Detail sidebar (desktop) */}
+      {/* Detail sidebar (desktop) — drag its left edge to resize. */}
       {selected && (
-        <aside
-          className="hidden w-72 shrink-0 overflow-y-auto border-l p-4 lg:block"
-          style={{ borderColor: "var(--scene-border)", background: "var(--scene-surface)" }}
-        >
+        <ResizableDetailAside>
           <LocationDetail
             loc={selected}
             isDM={isDM}
@@ -426,7 +427,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             onReveal={isDM ? () => handleReveal(selected) : undefined}
             extraActions={encounterAction ?? npcAction}
           />
-        </aside>
+        </ResizableDetailAside>
       )}
 
       {/* Detail sheet (mobile) */}
