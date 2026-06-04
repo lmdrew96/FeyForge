@@ -23,7 +23,7 @@ import type { Ability, Skill } from "@/lib/character/constants"
 import { getDarkvisionRange } from "@/lib/character/character-data"
 import { getXPProgress, getXPForLevel, getLevelFromXP, getXPToNextLevel } from "@/lib/character/experience"
 import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting } from "@/lib/character/leveling"
-import { resolveEdition } from "@/lib/editions"
+import { resolveEdition, type Edition } from "@/lib/editions"
 import {
   useDiceStore,
   rollExpression,
@@ -654,12 +654,14 @@ function LevelUpDialog({
   hitDie,
   conMod,
   spellAbilityMod,
+  edition,
   onClose,
 }: {
   char: CharDoc
   hitDie: number
   conMod: number
   spellAbilityMod: number
+  edition: Edition
   onClose: () => void
 }) {
   const doUpdate = useMutation(api.characters.update)
@@ -691,7 +693,7 @@ function LevelUpDialog({
         current: char.hitPoints.current + hpGain,
       }
       const spellcasting = char.spellcasting
-        ? recomputeSpellcasting(char.spellcasting, classId, newLevel, spellAbilityMod)
+        ? recomputeSpellcasting(char.spellcasting, classId, newLevel, spellAbilityMod, edition)
         : undefined
       await doUpdate({
         id: char._id,
@@ -808,7 +810,7 @@ function LevelUpDialog({
 }
 
 // Experience bar + Add XP + Level Up entry point.
-function ExperienceCard({ char, conMod, spellAbilityMod, hitDie }: { char: CharDoc; conMod: number; spellAbilityMod: number; hitDie: number }) {
+function ExperienceCard({ char, conMod, spellAbilityMod, hitDie, edition }: { char: CharDoc; conMod: number; spellAbilityMod: number; hitDie: number; edition: Edition }) {
   const doUpdate = useMutation(api.characters.update)
   const [levelUpOpen, setLevelUpOpen] = useState(false)
   const [addingXp, setAddingXp] = useState(false)
@@ -894,7 +896,7 @@ function ExperienceCard({ char, conMod, spellAbilityMod, hitDie }: { char: CharD
       )}
 
       {levelUpOpen && (
-        <LevelUpDialog char={char} hitDie={hitDie} conMod={conMod} spellAbilityMod={spellAbilityMod} onClose={() => setLevelUpOpen(false)} />
+        <LevelUpDialog char={char} hitDie={hitDie} conMod={conMod} spellAbilityMod={spellAbilityMod} edition={edition} onClose={() => setLevelUpOpen(false)} />
       )}
     </div>
   )
@@ -1108,12 +1110,12 @@ function CustomPropertiesSection({ characterId }: { characterId: Id<"characters"
 // character built before this feature, plus any class changed TO a caster on the
 // edit page). One tap derives + saves the block via the existing update mutation —
 // the same block new casters get at creation. Non-casters never see this.
-function EnableSpellcastingCard({ char }: { char: CharDoc }) {
+function EnableSpellcastingCard({ char, edition }: { char: CharDoc; edition: Edition }) {
   const doUpdate = useMutation(api.characters.update)
   const [saving, setSaving] = useState(false)
 
   const handleEnable = async () => {
-    const block = initSpellcasting(char.characterClass, char.level, char.baseAbilities, char.racialBonuses)
+    const block = initSpellcasting(char.characterClass, char.level, char.baseAbilities, edition, char.racialBonuses)
     if (!block) return
     setSaving(true)
     try {
@@ -1312,6 +1314,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           conMod={mods.constitution}
           spellAbilityMod={char.spellcasting ? mods[char.spellcasting.ability as Ability] : 0}
           hitDie={hitDie}
+          edition={edition}
         />
 
         {/* HP + Rest */}
@@ -1546,7 +1549,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               roll={roll}
             />
           ) : (
-            <EnableSpellcastingCard char={char} />
+            <EnableSpellcastingCard char={char} edition={edition} />
           ))}
 
         {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}

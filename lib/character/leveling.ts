@@ -104,7 +104,7 @@ const FULL_CASTER_SLOTS: Record<number, number[]> = {
 }
 
 // Half-caster spell slots per spell level [1st..5th], by class level (paladin/
-// ranger). No slots at level 1.
+// ranger). This is the 2014 progression — no slots at level 1, first slot at L2.
 const HALF_CASTER_SLOTS: Record<number, number[]> = {
   1: [0, 0, 0, 0, 0],
   2: [2, 0, 0, 0, 0],
@@ -128,6 +128,16 @@ const HALF_CASTER_SLOTS: Record<number, number[]> = {
   20: [4, 3, 3, 3, 2],
 }
 
+// 2024 (SRD 5.2) half-caster slots. Paladin AND Ranger gained the Spellcasting
+// feature at LEVEL 1 in 2024, so the ONLY change from the 2014 table is that level
+// 1 now grants two 1st-level slots; L2-20 are byte-identical across editions.
+// (Verified: Roll20 confirms the L1 feature; 5e24srd + aidedd confirm L2-20 match
+// the 2014 progression.) Slot LEVELS are unchanged too.
+const HALF_CASTER_SLOTS_2024: Record<number, number[]> = {
+  ...HALF_CASTER_SLOTS,
+  1: [2, 0, 0, 0, 0],
+}
+
 export interface SpellSlot {
   level: number
   total: number
@@ -141,9 +151,14 @@ const clampLevel = (level: number): number => Math.max(1, Math.min(20, Math.roun
  * spell level that has slots. Returns [] for pact/non-casters (handled
  * separately).
  */
-export function getSpellSlotsForClassLevel(classId: string, level: number): { level: number; total: number }[] {
+export function getSpellSlotsForClassLevel(
+  classId: string,
+  level: number,
+  edition: Edition,
+): { level: number; total: number }[] {
   const type = getCasterType(classId)
-  const table = type === "full" ? FULL_CASTER_SLOTS : type === "half" ? HALF_CASTER_SLOTS : null
+  const halfTable = edition === "2024" ? HALF_CASTER_SLOTS_2024 : HALF_CASTER_SLOTS
+  const table = type === "full" ? FULL_CASTER_SLOTS : type === "half" ? halfTable : null
   if (!table) return []
   return table[clampLevel(level)]
     .map((total, i) => ({ level: i + 1, total }))
@@ -205,6 +220,21 @@ const PREPARED_2024_FULL: number[] = [
   4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22,
 ]
 
+// 2024 (SRD 5.2) prepared-spell counts for HALF-casters. Paladin and Ranger share
+// one table (verified: 5e24srd paladin == 5e24srd ranger, cross-checked vs aidedd
+// ranger). The L9/L10 value is 9 per 5e24srd's corroborating reads; aidedd shows 8
+// there — a soft-guidance discrepancy on this non-blocking count, not the slots.
+const PREPARED_2024_HALF: number[] = [
+  2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15,
+]
+
+// 2024 (SRD 5.2) prepared-spell counts for the WARLOCK. 2024 makes the warlock a
+// prepared caster; the pact SLOT pool itself is unchanged from 2014 (PACT_SLOTS).
+// Verified vs aidedd + the L9=10 / L11=11 figures in the SRD warlock text.
+const PREPARED_2024_WARLOCK: number[] = [
+  2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15,
+]
+
 export interface SpellLimits {
   cantrips: number
   // Display label for the leveled-spell cap ("Prepared" or "Spells known").
@@ -215,14 +245,15 @@ export interface SpellLimits {
 // How many cantrips + leveled spells a caster should have at a level — guidance
 // for the sheet, not hard-enforced.
 //
-// EDITION HANDLING (scoped): only FULL casters go edition-aware here. In 2024 they
-// use the verified shared PREPARED_2024_FULL table; in 2014 they use the SRD
-// formula (ability mod + level) / SPELLS_KNOWN table. Half-casters + warlock stay
-// on 2014 logic regardless of edition ON PURPOSE — their 2024 SLOT tables also
-// differ (half-casters cast from level 1, warlock pact-slot counts changed), and
-// that's a separate slot patch. Flipping only their COUNT to 2024 would show a
-// 2024 number next to 2014-gated slots; full-caster slots are identical across
-// editions, so count + gating stay coherent. `abilityMod` = spellcasting mod.
+// EDITION HANDLING: in 2024 EVERY caster type uses its verified fixed prepared-
+// count table (full → PREPARED_2024_FULL, half → PREPARED_2024_HALF, pact →
+// PREPARED_2024_WARLOCK) under the "Prepared" label, because 2024 collapses the old
+// "known" casters into fixed prepared counts. In 2014 the known casters (bard/
+// sorcerer/ranger/warlock) read SPELLS_KNOWN and prepared/spellbook casters use the
+// SRD formula (ability mod + level; paladin = mod + level/2). The internal prepMode
+// enum stays 2014-style (it only drives the spellbook UI's prepare toggle); the
+// COUNT + LABEL are what go edition-aware here, mirroring the v0.92.0 full-caster
+// work. `abilityMod` = spellcasting mod.
 export function getSpellLimits(
   classId: string,
   level: number,
@@ -235,8 +266,15 @@ export function getSpellLimits(
   const l = clampLevel(level)
   const cantrips = getCantripsKnown(id, level)
 
-  if (edition === "2024" && desc.casterType === "full") {
-    return { cantrips, leveledLabel: "Prepared", leveled: PREPARED_2024_FULL[l - 1] ?? 0 }
+  if (edition === "2024") {
+    // casterType is full | half | pact here (none returned null above).
+    const table =
+      desc.casterType === "full"
+        ? PREPARED_2024_FULL
+        : desc.casterType === "half"
+          ? PREPARED_2024_HALF
+          : PREPARED_2024_WARLOCK
+    return { cantrips, leveledLabel: "Prepared", leveled: table[l - 1] ?? 0 }
   }
 
   if (desc.prepMode === "known") {
@@ -244,7 +282,7 @@ export function getSpellLimits(
   }
 
   // prepared + spellbook casters (2014 logic)
-  const hasSlots = desc.casterType === "pact" || getSpellSlotsForClassLevel(id, level).length > 0
+  const hasSlots = desc.casterType === "pact" || getSpellSlotsForClassLevel(id, level, edition).length > 0
   if (!hasSlots) return { cantrips, leveledLabel: "Prepared", leveled: 0 }
   const leveled =
     id === "paladin"
@@ -278,6 +316,7 @@ export function initSpellcasting(
   classId: string,
   level: number,
   baseAbilities: AbilityScores,
+  edition: Edition,
   racialBonuses?: Partial<AbilityScores>,
 ): InitializedSpellcasting | null {
   const desc = getCastingDescriptor(classId)
@@ -289,7 +328,7 @@ export function initSpellcasting(
   const spellSlots =
     desc.casterType === "pact"
       ? getPactSlots(level)
-      : getSpellSlotsForClassLevel(classId, level).map((s) => ({ ...s, used: 0 }))
+      : getSpellSlotsForClassLevel(classId, level, edition).map((s) => ({ ...s, used: 0 }))
 
   return {
     ability: desc.ability,
@@ -333,14 +372,15 @@ export function recomputeSpellcasting(
   existing: RecomputedSpellcasting,
   classId: string,
   newLevel: number,
-  abilityMod: number
+  abilityMod: number,
+  edition: Edition,
 ): RecomputedSpellcasting {
   const prof = getProficiencyBonus(newLevel)
   const type = getCasterType(classId)
 
   let spellSlots = existing.spellSlots
   if (type === "full" || type === "half") {
-    const totals = getSpellSlotsForClassLevel(classId, newLevel)
+    const totals = getSpellSlotsForClassLevel(classId, newLevel, edition)
     spellSlots = totals.map(({ level, total }) => {
       const prev = existing.spellSlots.find((s) => s.level === level)
       return { level, total, used: Math.min(prev?.used ?? 0, total) }

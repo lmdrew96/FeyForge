@@ -19,6 +19,7 @@ import {
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
 import type { Ability } from "@/lib/character/constants"
 import { initSpellcasting } from "@/lib/character/leveling"
+import { DEFAULT_EDITION } from "@/lib/editions"
 import { NormalBuilder } from "./normal-builder"
 import { GuidedFlow } from "./guided-flow"
 import {
@@ -356,7 +357,10 @@ export default function NewCharacterPage() {
       // Seed the spellcasting block for casters so slots/DC/attack are live on the
       // sheet from level 1 (null for non-casters → omitted). Curated ids resolve a
       // caster type; homebrew ids fall through to null, same as on the sheet.
-      const spellcasting = initSpellcasting(characterClass.id, 1, baseAbilities, racialBonuses) ?? undefined
+      // Edition is unknowable at creation (no campaign yet) → DEFAULT_EDITION; the
+      // only L1 edition-dependent value is the 2024 half-caster's L1 slot, which the
+      // sheet's edition-aware recompute corrects once they join a 2014 campaign.
+      const spellcasting = initSpellcasting(characterClass.id, 1, baseAbilities, DEFAULT_EDITION, racialBonuses) ?? undefined
 
       await createCharacter({
         name,
@@ -457,7 +461,8 @@ export default function NewCharacterPage() {
     const conMod = Math.floor((conTotal - 10) / 2)
     const hitDie = CLASS_HIT_DICE[cls.id] ?? cls.hitDie ?? 8
     const maxHp = hitDie + conMod
-    const spellcasting = initSpellcasting(cls.id, 1, baseAbilities, racialBonuses) ?? undefined
+    // Edition unknown at creation (no campaign) → DEFAULT_EDITION; see saveCharacter.
+    const spellcasting = initSpellcasting(cls.id, 1, baseAbilities, DEFAULT_EDITION, racialBonuses) ?? undefined
 
     setSaving(true)
     try {
