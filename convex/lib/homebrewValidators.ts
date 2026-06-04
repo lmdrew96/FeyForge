@@ -88,9 +88,39 @@ export const homebrewItemData = v.object({
   stealthDisadvantage: v.optional(v.boolean()),
 })
 
-// The stored `data` blob — one of the three shapes, picked by the row's `kind`.
+// Mirrors ClassData in lib/character/character-data.ts (minus id/name, which are
+// row-level). `hitDie` + `primaryAbility` are required and unique to this shape —
+// they discriminate it from race (size/traits), background (feature/skills), and
+// item (category) in the union. Subclasses are homebrew-only (the manual builder
+// has no subclass picker for curated classes); each is a name + description shown
+// in the builder, mirroring how subraces work.
+export const homebrewClassData = v.object({
+  description: v.string(),
+  flavorText: v.string(),
+  hitDie: v.number(),
+  primaryAbility: v.string(),
+  savingThrows: v.array(v.string()),
+  armorProficiencies: v.array(v.string()),
+  weaponProficiencies: v.array(v.string()),
+  toolProficiencies: v.array(v.string()),
+  skillChoices: v.object({
+    count: v.number(),
+    options: v.array(v.string()),
+  }),
+  // Display metadata only (the app doesn't wire spell slots for any class — a
+  // caster just gets a "Spellcaster" badge + ability in the builder).
+  spellcasting: v.optional(
+    v.object({ ability: v.string(), type: v.string() }),
+  ),
+  subclasses: v.optional(
+    v.array(v.object({ name: v.string(), description: v.string() })),
+  ),
+})
+
+// The stored `data` blob — one of the shapes, picked by the row's `kind`.
 export const homebrewData = v.union(
   homebrewRaceData,
   homebrewBackgroundData,
   homebrewItemData,
+  homebrewClassData,
 )

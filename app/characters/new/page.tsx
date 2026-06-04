@@ -345,8 +345,10 @@ export default function NewCharacterPage() {
   const saveCharacter = async (result: QuickRollResult) => {
     setSaving(true)
     try {
-      const { race, subrace, characterClass, background, baseAbilities, racialBonuses, skillProficiencies, name } = result
-      const hitDie = CLASS_HIT_DICE[characterClass.id] ?? 8
+      const { race, subrace, characterClass, subclass, background, baseAbilities, racialBonuses, skillProficiencies, name } = result
+      // Curated classes resolve via the id-keyed map (unchanged); homebrew ids
+      // miss it and fall through to the class's own hitDie.
+      const hitDie = CLASS_HIT_DICE[characterClass.id] ?? characterClass.hitDie ?? 8
       const conTotal = baseAbilities.constitution + (racialBonuses.constitution ?? 0)
       const conMod = Math.floor((conTotal - 10) / 2)
       const maxHp = hitDie + conMod
@@ -356,6 +358,7 @@ export default function NewCharacterPage() {
         race: race.name,
         subrace: subrace?.name,
         characterClass: characterClass.name,
+        subclass: subclass?.name,
         level: 1,
         experiencePoints: 0,
         background: background.name,
@@ -446,7 +449,7 @@ export default function NewCharacterPage() {
     const baseAbilities = buildSuggestion.suggestedAbilities
     const conTotal = baseAbilities.constitution + (racialBonuses.constitution ?? 0)
     const conMod = Math.floor((conTotal - 10) / 2)
-    const hitDie = CLASS_HIT_DICE[cls.id] ?? 8
+    const hitDie = CLASS_HIT_DICE[cls.id] ?? cls.hitDie ?? 8
     const maxHp = hitDie + conMod
 
     setSaving(true)

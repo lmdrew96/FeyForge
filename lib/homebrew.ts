@@ -4,9 +4,12 @@ import type { StoredItemData } from "@/lib/character/sheet-items"
 import {
   RACES,
   BACKGROUNDS,
+  CLASSES,
   type RaceData,
   type SubraceData,
   type BackgroundData,
+  type ClassData,
+  type SubclassData,
 } from "@/lib/character/character-data"
 
 // ── Homebrew client helpers ───────────────────────────────────────────────────
@@ -56,6 +59,48 @@ export interface HomebrewItem {
 
 export function homebrewToItem(doc: Doc<"homebrew">): HomebrewItem {
   return { id: doc._id, name: doc.name, data: doc.data as StoredItemData }
+}
+
+export interface HomebrewClassData {
+  description: string
+  flavorText: string
+  hitDie: number
+  primaryAbility: string
+  savingThrows: string[]
+  armorProficiencies: string[]
+  weaponProficiencies: string[]
+  toolProficiencies: string[]
+  skillChoices: { count: number; options: string[] }
+  spellcasting?: { ability: string; type: string }
+  subclasses?: { name: string; description: string }[]
+}
+
+export function homebrewToClassData(doc: Doc<"homebrew">): ClassData {
+  const data = doc.data as HomebrewClassData
+  const subclasses: SubclassData[] | undefined = data.subclasses?.map((s, i) => ({
+    id: `${HB_PREFIX}${doc._id}:sub:${i}`,
+    name: s.name,
+    description: s.description,
+  }))
+  return {
+    id: `${HB_PREFIX}${doc._id}`,
+    name: doc.name,
+    description: data.description,
+    hitDie: data.hitDie,
+    savingThrows: data.savingThrows as ClassData["savingThrows"],
+    armorProficiencies: data.armorProficiencies,
+    weaponProficiencies: data.weaponProficiencies,
+    toolProficiencies: data.toolProficiencies,
+    skillChoices: {
+      count: data.skillChoices.count,
+      options: data.skillChoices.options as ClassData["skillChoices"]["options"],
+    },
+    spellcasting: data.spellcasting as ClassData["spellcasting"],
+    primaryAbility: data.primaryAbility as ClassData["primaryAbility"],
+    flavorText: data.flavorText,
+    subclasses: subclasses && subclasses.length > 0 ? subclasses : undefined,
+    homebrew: true,
+  }
 }
 
 const HB_PREFIX = "hb:"
@@ -111,32 +156,35 @@ export function homebrewToBackgroundData(doc: Doc<"homebrew">): BackgroundData {
   }
 }
 
-// Split a homebrew list into builder-ready race/background/item arrays.
+// Split a homebrew list into builder-ready race/background/item/class arrays.
 export function partitionHomebrew(docs: Doc<"homebrew">[] | undefined): {
   races: RaceData[]
   backgrounds: BackgroundData[]
   items: HomebrewItem[]
+  classes: ClassData[]
 } {
   const races: RaceData[] = []
   const backgrounds: BackgroundData[] = []
   const items: HomebrewItem[] = []
+  const classes: ClassData[] = []
   for (const doc of docs ?? []) {
     if (doc.kind === "race") races.push(homebrewToRaceData(doc))
     else if (doc.kind === "background") backgrounds.push(homebrewToBackgroundData(doc))
     else if (doc.kind === "item") items.push(homebrewToItem(doc))
+    else if (doc.kind === "class") classes.push(homebrewToClassData(doc))
   }
-  return { races, backgrounds, items }
+  return { races, backgrounds, items, classes }
 }
 
 // True if `name` (case-insensitive) collides with a curated SRD race/background.
 // A homebrew entry sharing a curated name would shadow it in the merged list and
 // confuse the sheet's name-keyed darkvision lookup — block it in the form.
 export function collidesWithCuratedName(
-  kind: "race" | "background",
+  kind: "race" | "background" | "class",
   name: string,
 ): boolean {
   const lower = name.trim().toLowerCase()
   if (!lower) return false
-  const pool = kind === "race" ? RACES : BACKGROUNDS
+  const pool = kind === "race" ? RACES : kind === "background" ? BACKGROUNDS : CLASSES
   return pool.some((entry) => entry.name.toLowerCase() === lower)
 }

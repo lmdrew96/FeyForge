@@ -20,6 +20,7 @@ import {
   collidesWithCuratedName,
   type HomebrewRaceData,
   type HomebrewBackgroundData,
+  type HomebrewClassData,
 } from "@/lib/homebrew"
 import { ItemEditorDialog } from "@/components/character/item-editor"
 import { rowToItem, type SheetItem, type StoredItemData } from "@/lib/character/sheet-items"
@@ -71,9 +72,34 @@ interface BackgroundDraft {
   feature: string
 }
 
+interface SubclassDraft {
+  name: string
+  description: string
+}
+
+interface ClassDraft {
+  id?: Id<"homebrew">
+  name: string
+  description: string
+  flavorText: string
+  hitDie: number // 6 | 8 | 10 | 12
+  primaryAbility: Ability
+  savingThrows: Ability[]
+  armorProfText: string
+  weaponProfText: string
+  toolProfText: string
+  skillCount: number
+  skillOptions: Skill[]
+  isSpellcaster: boolean
+  spellAbility: Ability
+  spellType: "prepared" | "known" | "slots"
+  subclasses: SubclassDraft[]
+}
+
 type Editor =
   | { kind: "race"; draft: RaceDraft }
   | { kind: "background"; draft: BackgroundDraft }
+  | { kind: "class"; draft: ClassDraft }
   | null
 
 // ── Draft <-> stored-data conversion ──────────────────────────────────────────
@@ -178,6 +204,67 @@ const backgroundDraftToData = (draft: BackgroundDraft): HomebrewBackgroundData =
   feature: draft.feature.trim(),
 })
 
+const emptyClassDraft = (): ClassDraft => ({
+  name: "",
+  description: "",
+  flavorText: "",
+  hitDie: 8,
+  primaryAbility: "strength",
+  savingThrows: [],
+  armorProfText: "",
+  weaponProfText: "",
+  toolProfText: "",
+  skillCount: 2,
+  skillOptions: [],
+  isSpellcaster: false,
+  spellAbility: "intelligence",
+  spellType: "prepared",
+  subclasses: [],
+})
+
+const classDocToDraft = (doc: Doc<"homebrew">): ClassDraft => {
+  const d = doc.data as HomebrewClassData
+  return {
+    id: doc._id,
+    name: doc.name,
+    description: d.description,
+    flavorText: d.flavorText,
+    hitDie: d.hitDie,
+    primaryAbility: d.primaryAbility as Ability,
+    savingThrows: (d.savingThrows as Ability[]) ?? [],
+    armorProfText: (d.armorProficiencies ?? []).join(", "),
+    weaponProfText: (d.weaponProficiencies ?? []).join(", "),
+    toolProfText: (d.toolProficiencies ?? []).join(", "),
+    skillCount: d.skillChoices.count,
+    skillOptions: (d.skillChoices.options as Skill[]) ?? [],
+    isSpellcaster: !!d.spellcasting,
+    spellAbility: (d.spellcasting?.ability as Ability) ?? "intelligence",
+    spellType: (d.spellcasting?.type as ClassDraft["spellType"]) ?? "prepared",
+    subclasses: (d.subclasses ?? []).map((s) => ({
+      name: s.name,
+      description: s.description,
+    })),
+  }
+}
+
+const classDraftToData = (draft: ClassDraft): HomebrewClassData => ({
+  description: draft.description.trim(),
+  flavorText: draft.flavorText.trim(),
+  hitDie: draft.hitDie,
+  primaryAbility: draft.primaryAbility,
+  savingThrows: draft.savingThrows,
+  armorProficiencies: linesToArray(draft.armorProfText),
+  weaponProficiencies: linesToArray(draft.weaponProfText),
+  toolProficiencies: linesToArray(draft.toolProfText),
+  skillChoices: { count: draft.skillCount, options: draft.skillOptions },
+  ...(draft.isSpellcaster
+    ? { spellcasting: { ability: draft.spellAbility, type: draft.spellType } }
+    : {}),
+  subclasses: draft.subclasses
+    .filter((s) => s.name.trim())
+    .map((s) => ({ name: s.name.trim(), description: s.description.trim() })),
+})
+
 // ── Shared form atoms (match the app's --scene-* token system) ────────────────
 
 const fieldStyle: React.CSSProperties = {
@@ -276,6 +363,10 @@ export default function HomebrewPage() {
     () => (mine ?? []).filter((h) => h.kind === "item"),
     [mine],
   )
+  const classes = useMemo(
+    () => (mine ?? []).filter((h) => h.kind === "class"),
+    [mine],
+  )
 
   const handleSave = async () => {
     if (!editor) return
@@ -288,12 +379,28 @@ export default function HomebrewPage() {
       toast.error(`"${name}" is an official ${editor.kind} — pick a different name.`)
       return
     }
+    // Class skill-choice guard: the builder offers `count` skills from `options`,
+    // so a count larger than the option list (or zero options) would stick the
+    // builder's skill step.
+    if (editor.kind === "class") {
+      const { skillCount, skillOptions } = editor.draft
+      if (skillCount > 0 && skillOptions.length === 0) {
+        toast.error("Pick the skills this class can choose from.")
+        return
+      }
+      if (skillCount > skillOptions.length) {
+        toast.error(`Skill count (${skillCount}) can't exceed the ${skillOptions.length} options offered.`)
+        return
+      }
+    }
     setSaving(true)
     try {
       const data =
         editor.kind === "race"
           ? raceDraftToData(editor.draft)
-          : backgroundDraftToData(editor.draft)
+          : editor.kind === "background"
+            ? backgroundDraftToData(editor.draft)
+            : classDraftToData(editor.draft)
       if (editor.draft.id) {
         await updateHb({ id: editor.draft.id, name, data })
         toast.success(`${name} updated.`)
@@ -349,10 +456,15 @@ export default function HomebrewPage() {
               draft={editor.draft}
               onChange={(draft) => setEditor({ kind: "race", draft })}
             />
-          ) : (
+          ) : editor.kind === "background" ? (
             <BackgroundForm
               draft={editor.draft}
               onChange={(draft) => setEditor({ kind: "background", draft })}
+            />
+          ) : (
+            <ClassForm
+              draft={editor.draft}
+              onChange={(draft) => setEditor({ kind: "class", draft })}
             />
           )}
 
@@ -395,10 +507,10 @@ export default function HomebrewPage() {
           </div>
         </div>
         <p className="text-sm mb-6" style={{ color: "var(--scene-text-muted)" }}>
-          Custom races and backgrounds appear in the character builder, and custom
-          items in the inventory&apos;s item search — all alongside the official set.
-          They&apos;re yours everywhere; share one to a campaign and its members can use
-          it too.
+          Custom races, backgrounds, and classes appear in the character builder, and
+          custom items in the inventory&apos;s item search — all alongside the official
+          set. They&apos;re yours everywhere; share one to a campaign and its members can
+          use it too.
         </p>
 
         <div className="flex flex-wrap gap-2 mb-8">
@@ -408,6 +520,13 @@ export default function HomebrewPage() {
             style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
           >
             <Plus className="w-4 h-4" /> New race
+          </button>
+          <button
+            onClick={() => setEditor({ kind: "class", draft: emptyClassDraft() })}
+            className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          >
+            <Plus className="w-4 h-4" /> New class
           </button>
           <button
             onClick={() => setEditor({ kind: "background", draft: emptyBackgroundDraft() })}
@@ -429,13 +548,13 @@ export default function HomebrewPage() {
           <div className="flex items-center gap-2 text-sm" style={{ color: "var(--scene-text-muted)" }}>
             <Loader2 className="w-4 h-4 animate-spin" /> Loading your library…
           </div>
-        ) : races.length === 0 && backgrounds.length === 0 && items.length === 0 ? (
+        ) : races.length === 0 && backgrounds.length === 0 && items.length === 0 && classes.length === 0 ? (
           <div
             className="rounded-xl p-8 text-center text-sm"
             style={{ background: "var(--scene-surface)", border: "1px dashed var(--scene-border)", color: "var(--scene-text-muted)" }}
           >
-            Nothing brewed yet. Create a race, background, or item to get started — it&apos;ll
-            show up the next time you build a character or open your inventory.
+            Nothing brewed yet. Create a race, class, background, or item to get started —
+            it&apos;ll show up the next time you build a character or open your inventory.
           </div>
         ) : (
           <div className="space-y-8">
@@ -453,6 +572,23 @@ export default function HomebrewPage() {
                     .map(([k, v]) => `+${v} ${ABILITY_ABBREVIATIONS[k as Ability]}`)
                     .join(", ")
                   return [`${d.size}`, `${d.speed}ft`, bonuses].filter(Boolean).join(" · ")
+                }}
+              />
+            )}
+            {classes.length > 0 && (
+              <HomebrewSection
+                title="Classes"
+                items={classes}
+                myCampaigns={myCampaigns ?? []}
+                onEdit={(doc) => setEditor({ kind: "class", draft: classDocToDraft(doc) })}
+                onDelete={handleDelete}
+                onShare={handleShare}
+                summarize={(doc) => {
+                  const d = doc.data as HomebrewClassData
+                  const bits = [`d${d.hitDie}`, `${d.primaryAbility} primary`]
+                  if (d.subclasses?.length) bits.push(`${d.subclasses.length} subclass${d.subclasses.length > 1 ? "es" : ""}`)
+                  if (d.spellcasting) bits.push("spellcaster")
+                  return bits.join(" · ")
                 }}
               />
             )}
@@ -929,6 +1065,311 @@ function BackgroundForm({
           className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-y"
           style={fieldStyle}
         />
+      </div>
+    </div>
+  )
+}
+
+// ── Class form ─────────────────────────────────────────────────────────────────
+
+const HIT_DICE = [6, 8, 10, 12]
+
+function ClassForm({
+  draft,
+  onChange,
+}: {
+  draft: ClassDraft
+  onChange: (draft: ClassDraft) => void
+}) {
+  const set = <K extends keyof ClassDraft>(key: K, value: ClassDraft[K]) =>
+    onChange({ ...draft, [key]: value })
+
+  const toggleSave = (a: Ability) =>
+    set(
+      "savingThrows",
+      draft.savingThrows.includes(a)
+        ? draft.savingThrows.filter((x) => x !== a)
+        : [...draft.savingThrows, a],
+    )
+
+  const toggleSkillOption = (s: Skill) =>
+    set(
+      "skillOptions",
+      draft.skillOptions.includes(s)
+        ? draft.skillOptions.filter((x) => x !== s)
+        : [...draft.skillOptions, s],
+    )
+
+  const setSubclass = (i: number, next: SubclassDraft) =>
+    onChange({ ...draft, subclasses: draft.subclasses.map((s, idx) => (idx === i ? next : s)) })
+  const addSubclass = () =>
+    onChange({ ...draft, subclasses: [...draft.subclasses, { name: "", description: "" }] })
+  const removeSubclass = (i: number) =>
+    onChange({ ...draft, subclasses: draft.subclasses.filter((_, idx) => idx !== i) })
+
+  const skillKeys = Object.keys(SKILLS) as Skill[]
+
+  return (
+    <div className="space-y-5">
+      <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+        {draft.id ? "Edit class" : "New class"}
+      </h2>
+
+      <div>
+        <FieldLabel>Name</FieldLabel>
+        <input
+          value={draft.name}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder="e.g. Warden"
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+          style={fieldStyle}
+        />
+      </div>
+
+      <div>
+        <FieldLabel>Flavor line</FieldLabel>
+        <input
+          value={draft.flavorText}
+          onChange={(e) => set("flavorText", e.target.value)}
+          placeholder="A one-line hook shown in the builder."
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+          style={fieldStyle}
+        />
+      </div>
+
+      <div>
+        <FieldLabel>Description</FieldLabel>
+        <textarea
+          value={draft.description}
+          onChange={(e) => set("description", e.target.value)}
+          rows={2}
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-y"
+          style={fieldStyle}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Hit die</FieldLabel>
+          <select
+            value={draft.hitDie}
+            onChange={(e) => set("hitDie", parseInt(e.target.value, 10))}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
+            style={fieldStyle}
+          >
+            {HIT_DICE.map((d) => (
+              <option key={d} value={d}>d{d}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Primary ability</FieldLabel>
+          <select
+            value={draft.primaryAbility}
+            onChange={(e) => set("primaryAbility", e.target.value as Ability)}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none capitalize"
+            style={fieldStyle}
+          >
+            {ABILITIES.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <FieldLabel>Saving throw proficiencies</FieldLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {ABILITIES.map((a) => {
+            const on = draft.savingThrows.includes(a)
+            return (
+              <button
+                key={a}
+                onClick={() => toggleSave(a)}
+                className="text-xs px-2.5 py-1 rounded-full transition-all"
+                style={{
+                  background: on ? "var(--scene-accent)" : "var(--scene-surface)",
+                  color: on ? "var(--scene-bg)" : "var(--scene-text-primary)",
+                  border: `1px solid ${on ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                }}
+              >
+                {ABILITY_ABBREVIATIONS[a]}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <FieldLabel>Armor (comma/line)</FieldLabel>
+          <textarea
+            value={draft.armorProfText}
+            onChange={(e) => set("armorProfText", e.target.value)}
+            rows={2}
+            placeholder="Light armor, Shields"
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-y"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <FieldLabel>Weapons (comma/line)</FieldLabel>
+          <textarea
+            value={draft.weaponProfText}
+            onChange={(e) => set("weaponProfText", e.target.value)}
+            rows={2}
+            placeholder="Simple weapons"
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-y"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <FieldLabel>Tools (comma/line)</FieldLabel>
+          <textarea
+            value={draft.toolProfText}
+            onChange={(e) => set("toolProfText", e.target.value)}
+            rows={2}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-y"
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <FieldLabel>Skill choices</FieldLabel>
+          <div className="flex items-center gap-2 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+            Pick
+            <input
+              type="number"
+              min={0}
+              max={draft.skillOptions.length || undefined}
+              value={draft.skillCount}
+              onChange={(e) => set("skillCount", Math.max(0, parseInt(e.target.value, 10) || 0))}
+              className="w-14 px-2 py-1 rounded-lg text-sm outline-none text-center"
+              style={fieldStyle}
+            />
+            of {draft.skillOptions.length}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {skillKeys.map((s) => {
+            const on = draft.skillOptions.includes(s)
+            return (
+              <button
+                key={s}
+                onClick={() => toggleSkillOption(s)}
+                className="text-xs px-2.5 py-1 rounded-full transition-all"
+                style={{
+                  background: on ? "var(--scene-accent)" : "var(--scene-surface)",
+                  color: on ? "var(--scene-bg)" : "var(--scene-text-primary)",
+                  border: `1px solid ${on ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                }}
+              >
+                {SKILL_DISPLAY_NAMES[s]}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Spellcasting (display metadata) */}
+      <div className="rounded-xl p-3 space-y-3" style={{ border: "1px solid var(--scene-border)" }}>
+        <button
+          onClick={() => set("isSpellcaster", !draft.isSpellcaster)}
+          className="flex items-center gap-2 text-sm"
+          style={{ color: "var(--scene-text-primary)" }}
+        >
+          <span
+            className="w-4 h-4 rounded flex items-center justify-center"
+            style={{
+              border: `1.5px solid ${draft.isSpellcaster ? "var(--scene-accent)" : "var(--scene-border)"}`,
+              background: draft.isSpellcaster ? "var(--scene-accent)" : "transparent",
+            }}
+          >
+            {draft.isSpellcaster && <span style={{ color: "var(--scene-bg)", fontSize: 10 }}>✓</span>}
+          </span>
+          Spellcaster
+        </button>
+        {draft.isSpellcaster && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Spellcasting ability</FieldLabel>
+              <select
+                value={draft.spellAbility}
+                onChange={(e) => set("spellAbility", e.target.value as Ability)}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none capitalize"
+                style={fieldStyle}
+              >
+                {ABILITIES.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel>Preparation</FieldLabel>
+              <select
+                value={draft.spellType}
+                onChange={(e) => set("spellType", e.target.value as ClassDraft["spellType"])}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
+                style={fieldStyle}
+              >
+                <option value="prepared">Prepared</option>
+                <option value="known">Known</option>
+                <option value="slots">Slots</option>
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Subclasses */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <FieldLabel>Subclasses (optional)</FieldLabel>
+          <button
+            onClick={addSubclass}
+            className="text-xs flex items-center gap-1 px-2 py-1 rounded-lg"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          >
+            <Plus className="w-3 h-3" /> Add subclass
+          </button>
+        </div>
+        <div className="space-y-3">
+          {draft.subclasses.map((sc, i) => (
+            <div
+              key={i}
+              className="rounded-xl p-3 space-y-2"
+              style={{ background: "color-mix(in srgb, var(--scene-accent) 4%, var(--scene-surface))", border: "1px solid var(--scene-border)" }}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  value={sc.name}
+                  onChange={(e) => setSubclass(i, { ...sc, name: e.target.value })}
+                  placeholder="Subclass name"
+                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                  style={fieldStyle}
+                />
+                <button
+                  onClick={() => removeSubclass(i)}
+                  className="p-1.5 rounded-lg"
+                  style={{ color: "var(--scene-text-muted)" }}
+                  aria-label="Remove subclass"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              <textarea
+                value={sc.description}
+                onChange={(e) => setSubclass(i, { ...sc, description: e.target.value })}
+                rows={2}
+                placeholder="What this subclass is about"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-y"
+                style={fieldStyle}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

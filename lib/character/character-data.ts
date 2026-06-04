@@ -198,6 +198,12 @@ export const RACES: RaceData[] = [
 
 // ─── Classes ─────────────────────────────────────────────────────────────────
 
+export interface SubclassData {
+  id: string
+  name: string
+  description: string
+}
+
 export interface ClassData {
   id: string
   name: string
@@ -211,6 +217,12 @@ export interface ClassData {
   spellcasting?: { ability: Ability; type: "prepared" | "known" | "slots" }
   primaryAbility: Ability
   flavorText: string
+  // Homebrew classes may define subclasses (curated SRD classes don't here — the
+  // manual builder has no subclass picker for them). When present, the builder
+  // shows a subclass picker, mirroring race → subrace.
+  subclasses?: SubclassData[]
+  // True for user-authored homebrew merged into the builder, so the UI can badge it.
+  homebrew?: boolean
 }
 
 export const CLASSES: ClassData[] = [
@@ -686,6 +698,7 @@ export interface QuickRollResult {
   race: RaceData
   subrace?: SubraceData
   characterClass: ClassData
+  subclass?: SubclassData
   background: BackgroundData
   baseAbilities: {
     strength: number

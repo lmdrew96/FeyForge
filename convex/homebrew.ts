@@ -70,12 +70,13 @@ export const listForBuilder = query({
 // validator accepts either shape, so this guards against a "race" row carrying
 // background data (or vice versa) — discriminate on a field unique to each.
 function assertDataMatchesKind(
-  kind: "race" | "background" | "item",
+  kind: "race" | "background" | "item" | "class",
   data: Record<string, unknown>,
 ) {
   const looksLikeRace = "size" in data && "traits" in data
   const looksLikeBackground = "feature" in data && "skillProficiencies" in data
   const looksLikeItem = "category" in data
+  const looksLikeClass = "hitDie" in data && "primaryAbility" in data
   if (kind === "race" && !looksLikeRace) {
     throw new Error("Race homebrew is missing race fields")
   }
@@ -85,11 +86,19 @@ function assertDataMatchesKind(
   if (kind === "item" && !looksLikeItem) {
     throw new Error("Item homebrew is missing a category")
   }
+  if (kind === "class" && !looksLikeClass) {
+    throw new Error("Class homebrew is missing class fields")
+  }
 }
 
 export const create = mutation({
   args: {
-    kind: v.union(v.literal("race"), v.literal("background"), v.literal("item")),
+    kind: v.union(
+      v.literal("race"),
+      v.literal("background"),
+      v.literal("item"),
+      v.literal("class"),
+    ),
     name: v.string(),
     data: homebrewData,
   },

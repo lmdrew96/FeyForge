@@ -176,6 +176,7 @@ interface NormalBuilderProps {
 export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   const [name, setName] = useState("")
   const [classId, setClassId] = useState("")
+  const [subclassId, setSubclassId] = useState("")
   const [raceId, setRaceId] = useState("")
   const [subraceId, setSubraceId] = useState("")
   const [backgroundId, setBackgroundId] = useState("")
@@ -189,16 +190,18 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
 
   // ── Content (curated SRD + homebrew you own or that's shared to your campaigns) ─
   const homebrew = useQuery(api.homebrew.listForBuilder)
-  const { races: hbRaces, backgrounds: hbBackgrounds } = useMemo(
+  const { races: hbRaces, backgrounds: hbBackgrounds, classes: hbClasses } = useMemo(
     () => partitionHomebrew(homebrew),
     [homebrew],
   )
   const allRaces = useMemo(() => [...RACES, ...hbRaces], [hbRaces])
   const allBackgrounds = useMemo(() => [...BACKGROUNDS, ...hbBackgrounds], [hbBackgrounds])
+  const allClasses = useMemo(() => [...CLASSES, ...hbClasses], [hbClasses])
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
-  const cls = useMemo(() => CLASSES.find(c => c.id === classId), [classId])
+  const cls = useMemo(() => allClasses.find(c => c.id === classId), [allClasses, classId])
+  const subclass = useMemo(() => cls?.subclasses?.find(s => s.id === subclassId), [cls, subclassId])
   const race = useMemo(() => allRaces.find(r => r.id === raceId), [allRaces, raceId])
   const subrace = useMemo(() => race?.subraces?.find(s => s.id === subraceId), [race, subraceId])
   const background = useMemo(() => allBackgrounds.find(b => b.id === backgroundId), [allBackgrounds, backgroundId])
@@ -236,6 +239,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
 
   const isValid = !!(
     name.trim() && classId && raceId && backgroundId &&
+    (!cls?.subclasses?.length || subclassId) &&
     (!race?.subraces?.length || subraceId) &&
     allAssigned &&
     selectedSkills.length === skillCount
@@ -255,6 +259,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
 
   const handleClassChange = (id: string) => {
     setClassId(id)
+    setSubclassId("")
     setSelectedSkills([])
   }
 
@@ -321,6 +326,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
       race,
       subrace,
       characterClass: cls,
+      subclass,
       background,
       baseAbilities: { ...assignments } as Record<Ability, number>,
       racialBonuses,
@@ -395,7 +401,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
           )}
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
-          {CLASSES.map(c => (
+          {allClasses.map(c => (
             <button
               key={c.id}
               onClick={() => handleClassChange(c.id)}
@@ -407,6 +413,14 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
               }}
             >
               {c.name}
+              {c.homebrew && (
+                <span
+                  className="ml-1 text-[9px] align-middle"
+                  style={{ color: classId === c.id ? "var(--scene-bg)" : "var(--scene-highlight)" }}
+                >
+                  ★
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -444,6 +458,34 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
                 {cls.armorProficiencies.join(", ") || "None"}
               </span>
             </div>
+
+            {/* Subclass picker (homebrew classes that define subclasses) */}
+            {cls.subclasses && cls.subclasses.length > 0 && (
+              <div className="pt-1">
+                <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+                  Subclass <span style={{ color: "var(--scene-accent)" }}>*</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {cls.subclasses.map(sc => (
+                    <button
+                      key={sc.id}
+                      onClick={() => setSubclassId(prev => prev === sc.id ? "" : sc.id)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      style={{
+                        background: subclassId === sc.id ? "var(--scene-highlight)" : "var(--scene-surface)",
+                        color: subclassId === sc.id ? "#fff" : "var(--scene-text-primary)",
+                        border: `1px solid ${subclassId === sc.id ? "var(--scene-highlight)" : "var(--scene-border)"}`,
+                      }}
+                    >
+                      {sc.name}
+                    </button>
+                  ))}
+                </div>
+                {subclass && (
+                  <p className="mt-2 text-xs" style={{ color: "var(--scene-text-muted)" }}>{subclass.description}</p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>

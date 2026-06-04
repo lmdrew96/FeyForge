@@ -82,6 +82,7 @@ interface GuidedFlowProps {
 export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const [step, setStep] = useState(0)
   const [classId, setClassId] = useState("")
+  const [subclassId, setSubclassId] = useState("")
   const [raceId, setRaceId] = useState("")
   const [subraceId, setSubraceId] = useState("")
   const [backgroundId, setBackgroundId] = useState("")
@@ -94,16 +95,18 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
 
   // ── Content (curated SRD + homebrew you own or that's shared to your campaigns) ─
   const homebrew = useQuery(api.homebrew.listForBuilder)
-  const { races: hbRaces, backgrounds: hbBackgrounds } = useMemo(
+  const { races: hbRaces, backgrounds: hbBackgrounds, classes: hbClasses } = useMemo(
     () => partitionHomebrew(homebrew),
     [homebrew],
   )
   const allRaces = useMemo(() => [...RACES, ...hbRaces], [hbRaces])
   const allBackgrounds = useMemo(() => [...BACKGROUNDS, ...hbBackgrounds], [hbBackgrounds])
+  const allClasses = useMemo(() => [...CLASSES, ...hbClasses], [hbClasses])
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
-  const cls = useMemo(() => CLASSES.find(c => c.id === classId), [classId])
+  const cls = useMemo(() => allClasses.find(c => c.id === classId), [allClasses, classId])
+  const subclass = useMemo(() => cls?.subclasses?.find(s => s.id === subclassId), [cls, subclassId])
   const race = useMemo(() => allRaces.find(r => r.id === raceId), [allRaces, raceId])
   const subrace = useMemo(() => race?.subraces?.find(s => s.id === subraceId), [race, subraceId])
   const background = useMemo(() => allBackgrounds.find(b => b.id === backgroundId), [allBackgrounds, backgroundId])
@@ -140,10 +143,11 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const skillCount = cls?.skillChoices.count ?? 0
 
   const needsSubrace = !!(race?.subraces?.length && !subraceId)
+  const needsSubclass = !!(cls?.subclasses?.length && !subclassId)
 
   // Step-level "can proceed"
   const canProceed = [
-    !!classId,                                             // 0: Class
+    !!classId && !needsSubclass,                           // 0: Class
     !!raceId && !needsSubrace,                             // 1: Race
     !!backgroundId,                                        // 2: Background
     allAssigned,                                           // 3: Abilities
@@ -155,6 +159,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
 
   const handleClassChange = (id: string) => {
     setClassId(id)
+    setSubclassId("")
     setSelectedSkills([])
   }
 
@@ -189,6 +194,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       race,
       subrace,
       characterClass: cls,
+      subclass,
       background,
       baseAbilities: { ...assignments } as Record<Ability, number>,
       racialBonuses,
@@ -265,7 +271,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        {CLASSES.map(c => (
+        {allClasses.map(c => (
           <button
             key={c.id}
             onClick={() => handleClassChange(c.id)}
@@ -278,6 +284,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
             <div className="flex items-center justify-between">
               <span className="font-semibold text-sm" style={{ color: classId === c.id ? "var(--scene-accent)" : "var(--scene-text-primary)" }}>
                 {c.name}
+                {c.homebrew && <span className="ml-1" style={{ color: "var(--scene-highlight)" }}>★</span>}
               </span>
               <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>d{c.hitDie}</span>
             </div>
@@ -315,6 +322,34 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
               </span>
             )}
           </div>
+
+          {/* Subclass picker (homebrew classes that define subclasses) */}
+          {cls.subclasses && cls.subclasses.length > 0 && (
+            <div className="pt-1">
+              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+                Subclass <span style={{ color: "var(--scene-accent)" }}>*</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {cls.subclasses.map(sc => (
+                  <button
+                    key={sc.id}
+                    onClick={() => setSubclassId(prev => prev === sc.id ? "" : sc.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      background: subclassId === sc.id ? "var(--scene-highlight)" : "var(--scene-surface)",
+                      color: subclassId === sc.id ? "#fff" : "var(--scene-text-primary)",
+                      border: `1px solid ${subclassId === sc.id ? "var(--scene-highlight)" : "var(--scene-border)"}`,
+                    }}
+                  >
+                    {sc.name}
+                  </button>
+                ))}
+              </div>
+              {subclass && (
+                <p className="mt-2 text-xs" style={{ color: "var(--scene-text-muted)" }}>{subclass.description}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
