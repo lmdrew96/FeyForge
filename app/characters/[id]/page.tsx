@@ -39,6 +39,8 @@ import {
 import { rowToSpell } from "@/lib/character/sheet-spells"
 import { AttacksSection, InventorySection } from "./inventory"
 import { SpellbookSection } from "@/components/character/spellbook"
+import { ResourcesSection } from "@/components/character/resources"
+import { getClassResources, type ResourceRow } from "@/lib/character/resources"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
 
@@ -476,13 +478,23 @@ function HpEditor({ char }: { char: CharDoc }) {
   )
 }
 
-function RestPanel({ char }: { char: CharDoc }) {
+function RestPanel({
+  char,
+  resourceRows,
+  shortRestResourceKeys,
+}: {
+  char: CharDoc
+  resourceRows: ResourceRow[]
+  shortRestResourceKeys: string[]
+}) {
   const doSpendHitDie = useMutation(api.characters.spendHitDie)
   const doLongRest = useMutation(api.characters.longRest)
+  const updateProperty = useMutation(api.characters.updateProperty)
   const [resting, setResting] = useState(false)
 
   const totalRemaining = char.hitDice.reduce((sum, d) => sum + (d.total - d.used), 0)
   const atFullHp = char.hitPoints.current >= char.hitPoints.max
+  const hasShortRestResources = shortRestResourceKeys.length > 0
 
   const handleSpend = async (diceSize: number) => {
     try {
@@ -494,11 +506,41 @@ function RestPanel({ char }: { char: CharDoc }) {
     }
   }
 
+  // Reset spent class resources to full. `onlyKeys` limits a SHORT rest to its
+  // short-rest resources; omitted (long rest) resets all. Client-side because the
+  // longRest mutation only touches the character doc, not these property rows.
+  const resetResources = async (onlyKeys?: string[]) => {
+    await Promise.all(
+      resourceRows
+        .filter((r) => {
+          const data = (r.data ?? {}) as { key?: string; used?: number }
+          if ((data.used ?? 0) <= 0) return false
+          return onlyKeys ? !!data.key && onlyKeys.includes(data.key) : true
+        })
+        .map((r) =>
+          updateProperty({
+            id: r._id as Id<"characterProperties">,
+            data: { ...(r.data as object), used: 0 },
+          }),
+        ),
+    )
+  }
+
+  const handleShortRest = async () => {
+    try {
+      await resetResources(shortRestResourceKeys)
+      toast.success("Short rest — short-rest resources restored.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't complete short rest.")
+    }
+  }
+
   const handleLongRest = async () => {
-    if (!confirm("Take a long rest? Restores HP, spell slots, and ~half your hit dice.")) return
+    if (!confirm("Take a long rest? Restores HP, spell slots, class resources, and ~half your hit dice.")) return
     setResting(true)
     try {
       await doLongRest({ id: char._id })
+      await resetResources()
       toast.success("Long rest complete — fully restored.")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't complete long rest.")
@@ -556,6 +598,23 @@ function RestPanel({ char }: { char: CharDoc }) {
           )
         })}
       </div>
+
+      {/* Short rest — restores short-rest class resources (hit dice are spent above) */}
+      {hasShortRestResources && (
+        <button
+          onClick={handleShortRest}
+          title="Restores short-rest resources (Ki, Channel Divinity, etc.). Spend hit dice above to heal."
+          className="w-full inline-flex items-center justify-center gap-2 py-2 mb-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+          style={{
+            background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)",
+            color: "var(--scene-accent)",
+            border: "1px solid color-mix(in srgb, var(--scene-accent) 32%, transparent)",
+          }}
+        >
+          <Wind className="h-4 w-4" />
+          Short Rest
+        </button>
+      )}
 
       {/* Long rest */}
       <button
@@ -1209,8 +1268,14 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     .sort((a, b) => a.orderIndex - b.orderIndex)
   const items = myProps.filter((p) => p.type === "item").map(rowToItem)
   const spells = myProps.filter((p) => p.type === "spell").map(rowToSpell)
+  const resourceRows = myProps.filter((p) => p.type === "classResource")
   const casterType = getCasterType(char.characterClass)
   const edition = resolveEdition(campaign?.edition)
+  // Keys of this character's short-rest-recharge resources, for the Rest panel's
+  // Short Rest button (derived once; ResourcesSection derives its own for display).
+  const shortRestResourceKeys = getClassResources(char.characterClass, char.level, mods, edition)
+    .filter((r) => r.rechargeOn === "shortRest")
+    .map((r) => r.key)
   const equippedWeapons = items.filter(
     (i) => i.active && i.equipped && i.category === "weapon",
   )
@@ -1317,10 +1382,23 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           edition={edition}
         />
 
-        {/* HP + Rest */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <HpEditor char={char} />
-          <RestPanel char={char} />
+        {/* HP + Class Resources (left) · Rest (right). Stacking resources under HP
+            balances the column against the taller Rest card and avoids a lonely
+            half-width card; ResourcesSection renders nothing for non-resource classes. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-start">
+          <div className="flex flex-col gap-4">
+            <HpEditor char={char} />
+            <ResourcesSection
+              characterId={char._id}
+              classId={char.characterClass}
+              level={char.level}
+              mods={mods}
+              edition={edition}
+              resourceRows={resourceRows}
+              nextOrder={nextOrder}
+            />
+          </div>
+          <RestPanel char={char} resourceRows={resourceRows} shortRestResourceKeys={shortRestResourceKeys} />
         </div>
 
         {/* Combat stats strip */}
