@@ -23,8 +23,13 @@ import {
   Wand2,
   ChevronDown,
 } from "lucide-react"
-import { formatModifier } from "@/lib/character/constants"
-import { getCastingDescriptor, type PrepMode } from "@/lib/character/leveling"
+import { formatModifier, getProficiencyBonus } from "@/lib/character/constants"
+import {
+  getCastingDescriptor,
+  getSpellLimits,
+  maxSpellLevel,
+  type PrepMode,
+} from "@/lib/character/leveling"
 import {
   groupSpellsByLevel,
   spellLevelLabel,
@@ -48,6 +53,7 @@ export function SpellbookSection({
   characterId,
   spellcasting,
   classId,
+  level,
   spells,
   nextOrder,
   roll,
@@ -55,6 +61,7 @@ export function SpellbookSection({
   characterId: Id<"characters">
   spellcasting: SpellcastingBlock
   classId: string
+  level: number
   spells: SheetSpell[]
   nextOrder: number
   roll: RollFn
@@ -69,6 +76,24 @@ export function SpellbookSection({
   const desc = getCastingDescriptor(classId)
   const prepMode: PrepMode = desc.prepMode ?? "known"
   const isPact = desc.casterType === "pact"
+
+  // Spellcasting ability modifier, recovered from the stored attack bonus
+  // (= prof + mod) so we don't need the raw ability scores here. Drives the
+  // prepared-count guidance.
+  const abilityMod = spellcasting.spellAttackBonus - getProficiencyBonus(level)
+  const limits = getSpellLimits(classId, level, abilityMod)
+  const maxLevel = maxSpellLevel(spellcasting.spellSlots)
+
+  // Counts for the guidance chips. Known casters count all known leveled spells;
+  // prepared/spellbook casters count only the ones currently prepared.
+  const cantripCount = spells.filter((s) => s.level <= 0).length
+  const leveledSpells = spells.filter((s) => s.level >= 1)
+  const leveledCount =
+    limits?.leveledKind === "prepared"
+      ? leveledSpells.filter((s) => s.prepared).length
+      : leveledSpells.length
+  const showCantripChip = !!limits && (limits.cantrips > 0 || cantripCount > 0)
+  const showLeveledChip = !!limits && (limits.leveled > 0 || leveledCount > 0)
 
   const groups = useMemo(() => groupSpellsByLevel(spells), [spells])
   const knownSlugs = useMemo(
@@ -234,6 +259,22 @@ export function SpellbookSection({
         </div>
       )}
 
+      {/* Count guidance — how many you should know/prepare vs how many you have.
+          Soft (amber when over), never blocks. Each chip shows only when relevant
+          (e.g. paladins have no cantrips → no cantrip chip). */}
+      {limits && (showCantripChip || showLeveledChip) && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {showCantripChip && <CountChip label="Cantrips" have={cantripCount} max={limits.cantrips} />}
+          {showLeveledChip && (
+            <CountChip
+              label={limits.leveledKind === "prepared" ? "Prepared" : "Spells known"}
+              have={leveledCount}
+              max={limits.leveled}
+            />
+          )}
+        </div>
+      )}
+
       {/* Spell list */}
       {spells.length === 0 ? (
         <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
@@ -272,12 +313,34 @@ export function SpellbookSection({
       {picking && (
         <SpellPicker
           classId={classId}
+          maxLevel={maxLevel}
           knownSlugs={knownSlugs}
           onAdd={addSpell}
           onClose={() => setPicking(false)}
         />
       )}
     </section>
+  )
+}
+
+// Guidance chip: "Label: have/max", amber when over the limit.
+function CountChip({ label, have, max }: { label: string; have: number; max: number }) {
+  const over = have > max
+  return (
+    <span
+      className="text-xs px-2.5 py-1 rounded-md"
+      style={{
+        background: "var(--scene-surface)",
+        border: `1px solid ${over ? "#f59e0b" : "var(--scene-border)"}`,
+        color: "var(--scene-text-muted)",
+      }}
+      title={over ? `Over your ${label.toLowerCase()} limit` : undefined}
+    >
+      {label}:{" "}
+      <span style={{ color: over ? "#f59e0b" : "var(--scene-text-primary)", fontWeight: 600 }}>
+        {have}/{max}
+      </span>
+    </span>
   )
 }
 
@@ -491,26 +554,33 @@ function SpellRowItem({
 
 // ── Spell picker ────────────────────────────────────────────────────────────────
 
-const LEVEL_FILTERS = [
-  { value: -1, label: "All" },
-  { value: 0, label: "Cantrip" },
-  ...Array.from({ length: 9 }, (_, i) => ({ value: i + 1, label: spellLevelLabel(i + 1) })),
-]
-
 // Dialog that searches the class's SRD spell list (Open5e, IndexedDB-cached) and
-// adds picked spells as characterProperties rows. Stays open so you can add several
-// at once; already-added spells show as added. Mirrors the inventory's SrdSearch.
+// adds picked spells as characterProperties rows. Level-gated to what the character
+// can actually cast (cantrips + up to their highest slot level). Stays open so you
+// can add several at once; already-added spells show as added. Mirrors SrdSearch.
 function SpellPicker({
   classId,
+  maxLevel,
   knownSlugs,
   onAdd,
   onClose,
 }: {
   classId: string
+  maxLevel: number
   knownSlugs: Set<string>
   onAdd: (data: StoredSpellData, name: string) => Promise<void>
   onClose: () => void
 }) {
+  // Level filters capped at what the character can cast — cantrips always, then
+  // 1st up to their highest slot level.
+  const levelFilters = [
+    { value: -1, label: "All" },
+    { value: 0, label: "Cantrip" },
+    ...Array.from({ length: maxLevel }, (_, i) => ({
+      value: i + 1,
+      label: spellLevelLabel(i + 1),
+    })),
+  ]
   const [query, setQuery] = useState("")
   const [levelFilter, setLevelFilter] = useState(-1)
   const [loading, setLoading] = useState(true)
@@ -547,11 +617,12 @@ function SpellPicker({
     void version
     const all = cacheRef.current ?? []
     return all
+      .filter((s) => s.level_int <= maxLevel) // can't learn spells above your slots
       .filter((s) => (levelFilter < 0 ? true : s.level_int === levelFilter))
       .filter((s) => (q ? s.name.toLowerCase().includes(q) : true))
       .sort((a, b) => a.level_int - b.level_int || a.name.localeCompare(b.name))
       .slice(0, 60)
-  }, [q, levelFilter, version])
+  }, [q, levelFilter, version, maxLevel])
 
   const handleAdd = async (s: Open5eSpell) => {
     setAdding(s.slug)
@@ -599,7 +670,7 @@ function SpellPicker({
         </div>
 
         <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
-          {LEVEL_FILTERS.map((f) => {
+          {levelFilters.map((f) => {
             const active = levelFilter === f.value
             return (
               <button
@@ -629,7 +700,9 @@ function SpellPicker({
             </div>
           ) : results.length === 0 ? (
             <div className="px-1 py-3 text-sm" style={{ color: "var(--scene-text-muted)" }}>
-              No matching spells.
+              {maxLevel === 0
+                ? "No spell slots yet — you can't learn spells at this level."
+                : "No matching spells."}
             </div>
           ) : (
             <div className="space-y-1">

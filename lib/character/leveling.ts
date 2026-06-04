@@ -186,6 +186,59 @@ export function getCantripsKnown(classId: string, level: number): number {
   return l >= 10 ? t[2] : l >= 4 ? t[1] : t[0]
 }
 
+// Spells known by class & level (index 0 = level 1 … 19 = level 20), for the
+// fixed-known casters. VERIFIED against Open5e's SRD class tables (2014 SRD 5.1);
+// see the spell-limit display. Prepared/spellbook casters use a formula instead.
+const SPELLS_KNOWN: Record<string, number[]> = {
+  bard:     [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 15, 16, 18, 19, 19, 20, 22, 22, 22],
+  sorcerer: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15],
+  ranger:   [0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11],
+  warlock:  [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
+}
+
+export interface SpellLimits {
+  cantrips: number
+  // Whether the leveled-spell cap is a fixed "known" count or a daily "prepared"
+  // count (drives the label). The cap itself is `leveled`.
+  leveledKind: "known" | "prepared"
+  leveled: number
+}
+
+// How many cantrips + leveled spells a caster should have at a level — guidance
+// for the sheet, not hard-enforced. Known casters (bard/sorcerer/ranger/warlock)
+// read the verified SPELLS_KNOWN table; prepared/spellbook casters use the SRD
+// formula (ability mod + level; paladin = mod + half level), min 1 once they have
+// slots (paladins/rangers are slotless — so 0 prepared — at level 1). 2014 SRD
+// numbers, consistent with the 2014-style prepMode split; 2024's fixed prepared
+// tables are a later refinement. `abilityMod` is the spellcasting ability modifier.
+export function getSpellLimits(classId: string, level: number, abilityMod: number): SpellLimits | null {
+  const id = classId.toLowerCase()
+  const desc = getCastingDescriptor(id)
+  if (desc.casterType === "none") return null
+  const l = clampLevel(level)
+  const cantrips = getCantripsKnown(id, level)
+
+  if (desc.prepMode === "known") {
+    return { cantrips, leveledKind: "known", leveled: SPELLS_KNOWN[id]?.[l - 1] ?? 0 }
+  }
+
+  // prepared + spellbook casters
+  const hasSlots = desc.casterType === "pact" || getSpellSlotsForClassLevel(id, level).length > 0
+  if (!hasSlots) return { cantrips, leveledKind: "prepared", leveled: 0 }
+  const leveled =
+    id === "paladin"
+      ? Math.max(1, abilityMod + Math.floor(l / 2))
+      : Math.max(1, abilityMod + l)
+  return { cantrips, leveledKind: "prepared", leveled }
+}
+
+// Highest spell level a caster can currently cast — the cap for which spells they
+// can learn/prepare. Drives the picker's level-gating. Derived from the slot pools
+// (edition-agnostic), so it's 0 for a slotless level-1 half-caster.
+export function maxSpellLevel(spellSlots: { level: number }[]): number {
+  return spellSlots.length ? Math.max(...spellSlots.map((s) => s.level)) : 0
+}
+
 export interface InitializedSpellcasting {
   ability: Ability
   spellSaveDC: number

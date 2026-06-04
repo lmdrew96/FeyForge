@@ -1530,6 +1530,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               characterId={char._id}
               spellcasting={char.spellcasting}
               classId={char.characterClass}
+              level={char.level}
               spells={spells}
               nextOrder={nextOrder}
               roll={roll}
