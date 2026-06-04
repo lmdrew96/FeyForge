@@ -166,6 +166,11 @@ export type EventPlace = {
 export type ZoneInfo = {
   name: string
   type: string // Invasion | Rebels | Proselytism | Crusade | Disease | Disaster | Eruption | Fault | Flood | Avalanche | Tsunami | …
+  // # of Azgaar pack cells the zone spans — a relative geographic-reach signal, shown
+  // as a Localized/Regional/Widespread "scope" badge. Counts assume Azgaar's default
+  // ~10k-cell resolution (true of every map we've seen); the bands live UI-side
+  // (eventScope() in the map page) so they retune without a reseed.
+  cellCount?: number
   places?: EventPlace[] // settlements in the event's cells (top by population) — jump-link or "+ add"
 }
 
@@ -558,6 +563,10 @@ export function parseMap(text: string): ParsedMap {
     const key = `${name}|${type}`
     if (seenZone.has(key)) continue
     seenZone.add(key)
+    // Cell span = the event's geographic reach. Azgaar emits split-cluster events
+    // twice (same name+type); we keep the first occurrence here, matching how
+    // `places` already only reflect that first cluster — a fine proxy for a badge.
+    const cellCount = Array.isArray(z.cells) ? z.cells.length : 0
     const byName = new Map<string, ParsedLocation>()
     for (const c of z.cells ?? []) {
       const s = typeof c === "number" ? settlementByCell.get(c) : undefined
@@ -567,7 +576,10 @@ export function parseMap(text: string): ParsedMap {
       .sort((a, b) => (b.town?.population ?? 0) - (a.town?.population ?? 0))
       .slice(0, PLACES_PER_EVENT)
       .map((s) => ({ name: s.name, x: s.x, y: s.y, drillDownUrl: s.drillDownUrl, town: s.town }))
-    zoneInfos.push(places.length > 0 ? { name, type, places } : { name, type })
+    const info: ZoneInfo = { name, type }
+    if (cellCount > 0) info.cellCount = cellCount
+    if (places.length > 0) info.places = places
+    zoneInfos.push(info)
   }
 
   // POIs: markers, named via the paired note (id === `marker${i}`); the note's

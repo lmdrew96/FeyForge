@@ -227,6 +227,7 @@ export function LocationDetail({
   onDelete,
   onReveal,
   extraActions,
+  eventsSlot,
 }: {
   loc: MapLocation
   isDM: boolean
@@ -239,6 +240,12 @@ export function LocationDetail({
   // that need context this dependency-free component shouldn't import (e.g. the
   // AI encounter generator, which needs party levels + edition + open5e).
   extraActions?: React.ReactNode
+  // DM-only slot under the gazetteer — the parent fills it with the "active world
+  // events affecting this pin" block (needs the map's worldEvents + zone meta this
+  // dependency-free component shouldn't import). Gated on isDM here too: worldEvents
+  // is server-stripped for players, but this is belt-and-suspenders against a future
+  // non-DM caller wiring the slot.
+  eventsSlot?: React.ReactNode
 }) {
   const meta = metaFor(loc)
   const Icon = meta.icon
@@ -324,6 +331,8 @@ export function LocationDetail({
           </div>
         </div>
       )}
+
+      {isDM && eventsSlot}
 
       {playerMd && (
         <MarkdownRenderer variant="scene" content={playerMd} className="mt-3 text-sm" />

@@ -358,6 +358,10 @@ export default defineSchema({
         v.object({
           name: v.string(),
           type: v.string(),
+          // # of Azgaar cells the zone spans — a relative geographic-reach signal
+          // surfaced as a Localized/Regional/Widespread "scope" badge. Optional:
+          // pre-v0.86 rows lack it (no badge) until the map is reseeded/reimported.
+          cellCount: v.optional(v.number()),
           // Affected settlements — full pin payloads so the DM can "+ add" any to the
           // map (a non-preset town isn't stored anywhere else). Jump-link if already
           // pinned, else a one-click add. town mirrors the mapLocations.town shape.

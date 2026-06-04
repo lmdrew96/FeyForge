@@ -77,6 +77,7 @@ const worldEventsV = v.array(
   v.object({
     name: v.string(),
     type: v.string(),
+    cellCount: v.optional(v.number()), // zone's cell span → "scope" badge; see ZoneInfo
     places: v.optional(v.array(eventPlaceV)),
   }),
 )

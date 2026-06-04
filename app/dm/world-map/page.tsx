@@ -122,6 +122,19 @@ const ZONE_TYPE_META: Record<string, { color: string; icon: typeof MapPinIcon }>
 const zoneMeta = (type: string): { color: string; icon: typeof MapPinIcon } =>
   ZONE_TYPE_META[type] ?? { color: "#6b7280", icon: TriangleAlert }
 
+// Geographic reach of a world event, from how many Azgaar cells its zone spans.
+// Bands assume Azgaar's default ~10k-cell resolution — confirmed across every repo
+// map (small events cluster ≤8 cells, regional 9–40, the rare continent-spanning
+// crusade/plague >40). A non-default high-res import would over-count; retune here,
+// no reseed needed (we store the raw count). Returns null when the count is absent
+// (pre-v0.86 maps, before reseed) so the badge simply doesn't render.
+const eventScope = (cellCount?: number): string | null => {
+  if (!cellCount || cellCount <= 0) return null
+  if (cellCount <= 8) return "Localized"
+  if (cellCount <= 40) return "Regional"
+  return "Widespread"
+}
+
 // Soft render-perf ceiling — mirrors MAX_PINS in convex/worldMap.ts. Adding a World
 // Event's town past this is allowed (manual pins are uncapped) but warns the DM.
 const PIN_SOFT_CAP = 100
@@ -1336,6 +1349,23 @@ function MapWorkspace({
       <NpcGenerator loc={selected} campaignId={campaignId} mapName={map.name} />
     ) : undefined
 
+  // World events affecting the selected settlement — the inverse of the Events panel
+  // (town → its events, vs. event → its towns). Reverse-match by name + near-exact
+  // coords: the same key the panel uses to bind a place to a pin (guards Azgaar's
+  // duplicate burg names). DM-only — worldEvents is undefined for players (server-
+  // stripped). Only the top-6 affected towns per event are stored, so a minor town
+  // caught in a sprawling event may not list it; the prominent ones do.
+  const affectingEvents = useMemo(() => {
+    if (!selected || selected.type !== "settlement" || !map.worldEvents) return []
+    return map.worldEvents.filter((e) =>
+      (e.places ?? []).some(
+        (p) => p.name === selected.name && Math.abs(p.x - selected.x) < 0.5 && Math.abs(p.y - selected.y) < 0.5,
+      ),
+    )
+  }, [selected, map.worldEvents])
+  const eventsSlot =
+    isDM && affectingEvents.length > 0 ? <SettlementEventsBlock events={affectingEvents} /> : undefined
+
   // Pin-type filter drives ONLY the marker render below — fog, routing, journey,
   // and jump-to-center all stay on the full `locations`.
   const visibleLocations = useMemo(() => filterByKeys(locations, filterKeys), [locations, filterKeys])
@@ -1874,6 +1904,7 @@ function MapWorkspace({
               onDelete={() => handleDelete(selected)}
               onReveal={() => handleReveal(selected)}
               extraActions={encounterAction ?? npcAction ?? npcGenAction}
+              eventsSlot={eventsSlot}
             />
           </ResizableDetailAside>
         )}
@@ -1894,6 +1925,7 @@ function MapWorkspace({
             onDelete={() => handleDelete(selected)}
             onReveal={() => handleReveal(selected)}
             extraActions={encounterAction ?? npcAction}
+            eventsSlot={eventsSlot}
           />
         </div>
       )}
@@ -2069,6 +2101,64 @@ function MapWorkspace({
 // Fog-of-war control: a toolbar button that opens a small popover with the
 // on/off toggle, the clearing-radius slider, and a "preview player view" toggle
 // so the DM can see exactly what their players see.
+// Geographic-reach chip (Localized / Regional / Widespread), derived from an event's
+// cell span. Shared by the Events panel and the per-settlement events block.
+function ScopeBadge({ label }: { label: string }) {
+  return (
+    <span
+      className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+      style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+    >
+      {label}
+    </span>
+  )
+}
+
+// "Active world events affecting this settlement" — rendered into LocationDetail's
+// eventsSlot for the selected pin (DM-only). The inverse of WorldEventsControl: there
+// you pick an event → its towns; here you click a town → the events bearing down on
+// it. Reuses zoneMeta + the scope badge so the two surfaces never drift.
+function SettlementEventsBlock({
+  events,
+}: {
+  events: { name: string; type: string; cellCount?: number }[]
+}) {
+  if (events.length === 0) return null
+  return (
+    <div
+      className="mt-3 rounded-md p-2.5"
+      style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+    >
+      <p className="mb-1.5 text-[10px] uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+        Active world events
+      </p>
+      <ul className="space-y-1.5">
+        {events.map((e, i) => {
+          const m = zoneMeta(e.type)
+          const Icon = m.icon
+          const scope = eventScope(e.cellCount)
+          return (
+            <li key={`${e.name}-${i}`} className="flex items-start gap-2">
+              <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: m.color }} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
+                  {e.name}
+                </p>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+                    {e.type}
+                  </span>
+                  {scope && <ScopeBadge label={scope} />}
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 // DM-only popover listing the world's active events (Azgaar zones). Reference-only
 // hooks for the DM to seed story — no per-event reveal yet (the natural future seam
 // is reveal-per-event like pins). Mirrors FogControl's popover scaffolding.
@@ -2078,7 +2168,7 @@ function WorldEventsControl({
   onJumpTo,
   onAddTown,
 }: {
-  events: { name: string; type: string; places?: EventPlace[] }[]
+  events: { name: string; type: string; cellCount?: number; places?: EventPlace[] }[]
   locations: MapLocation[]
   onJumpTo: (loc: MapLocation) => void
   onAddTown: (place: EventPlace) => void
@@ -2131,9 +2221,12 @@ function WorldEventsControl({
                       <p className="truncate text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
                         {e.name}
                       </p>
-                      <p className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
-                        {e.type}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+                          {e.type}
+                        </span>
+                        {eventScope(e.cellCount) && <ScopeBadge label={eventScope(e.cellCount)!} />}
+                      </div>
                       {e.places && e.places.length > 0 && (
                         <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
                           <span style={{ color: "var(--scene-text-muted)" }}>Affecting:</span>
