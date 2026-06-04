@@ -13,9 +13,41 @@
 // preserveAspectRatio="none" and vector-effect non-scaling-stroke keeps line width a
 // constant SCREEN size at any zoom.
 
+import { useState } from "react"
 import { Footprints, Route as RouteIcon, Ship, X } from "lucide-react"
 
 export type MapRoute = { group: string; points: number[][]; miles?: number }
+
+// ── Travel modes + pace model ────────────────────────────────────────────────
+// Everything resolves to an effective miles-per-hour, then × hours/day → distance
+// per day → total days. On foot reproduces the canonical PHB overland pace exactly
+// at the default 8-hour day (slow 18 / normal 24 / fast 30 mi/day). Ship rates are
+// the SRD waterborne-vehicle speeds. Mounted/cart are sustained-overland
+// conventions (5e doesn't table a daily rate for them).
+export type TravelMode = "foot" | "mounted" | "cart" | "ship"
+export type FootPace = "slow" | "normal" | "fast"
+export type ShipKind = "rowboat" | "sailing" | "longship" | "galley"
+
+const FOOT_MPH: Record<FootPace, number> = { slow: 2.25, normal: 3, fast: 3.75 }
+const SHIP_MPH: Record<ShipKind, number> = { rowboat: 1.5, sailing: 2, longship: 3, galley: 4 }
+const MOUNTED_MPH = 5 // riding horse, sustained with rests (~40 mi / 8-hr day)
+const CART_MPH = 3 // horse-drawn wagon on a road (~24 mi / 8-hr day)
+
+export const MODE_LABEL: Record<TravelMode, string> = {
+  foot: "On foot",
+  mounted: "Mounted",
+  cart: "Cart",
+  ship: "By ship",
+}
+export const SHIP_LABEL: Record<ShipKind, string> = {
+  rowboat: "Rowboat",
+  sailing: "Sailing ship",
+  longship: "Longship",
+  galley: "Galley",
+}
+
+const speedMph = (mode: TravelMode, pace: FootPace, ship: ShipKind): number =>
+  mode === "foot" ? FOOT_MPH[pace] : mode === "mounted" ? MOUNTED_MPH : mode === "cart" ? CART_MPH : SHIP_MPH[ship]
 
 type GroupStyle = { stroke: string; width: number; dash?: string; label: string; icon: typeof RouteIcon }
 const GROUP_STYLE: Record<string, GroupStyle> = {
@@ -24,13 +56,6 @@ const GROUP_STYLE: Record<string, GroupStyle> = {
   searoutes: { stroke: "#0e7490", width: 1.3, dash: "0.5 4.5", label: "Sea route", icon: Ship },
 }
 export const styleForGroup = (g: string): GroupStyle => GROUP_STYLE[g] ?? GROUP_STYLE.roads
-
-// D&D 5e overland pace (8-hr travel day): slow 18 / normal 24 / fast 30 mi/day.
-export const travelDays = (miles: number) => ({
-  slow: Math.round((miles / 18) * 10) / 10,
-  normal: Math.round((miles / 24) * 10) / 10,
-  fast: Math.round((miles / 30) * 10) / 10,
-})
 
 const pointsAttr = (pts: number[][]): string => pts.map((p) => `${p[0]},${p[1]}`).join(" ")
 
@@ -116,26 +141,85 @@ export function RoutesLegend({ routes }: { routes: MapRoute[] }) {
   )
 }
 
-// The journey-planner prompt/result card (mount in the viewport corner). Land routes
-// get travel days at the three 5e paces; "no overland route" is a real, common
-// outcome (disconnected landmasses) and reads as intentional, not an error.
+// A small segmented-control chip. Active = accent fill; disabled dims + blocks.
+function Seg({
+  active,
+  disabled,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  title?: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="flex-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+      style={{
+        background: active ? "var(--scene-accent)" : "color-mix(in srgb, var(--scene-text-primary) 7%, transparent)",
+        color: active ? "#fff" : "var(--scene-text-primary)",
+        border: `1px solid ${active ? "var(--scene-accent)" : "var(--scene-border)"}`,
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+const MODE_CHIP: Record<TravelMode, string> = { foot: "Foot", mounted: "Mount", cart: "Cart", ship: "Ship" }
+
+// The journey-planner prompt/result card (mount in the viewport corner). Travel
+// options (mode / pace / hours per day) sit up top so they can be set before the
+// route is even drawn; the route + travel time fill in below. "No route" is a real,
+// common outcome (disconnected landmasses, or a non-port picked for sea travel) and
+// reads as intentional, not an error.
 export function JourneyCard({
   fromName,
   toName,
   found,
   miles,
+  mode,
+  onModeChange,
+  hasWater,
+  seaBlockedBy,
   onClear,
 }: {
   fromName: string | null
   toName: string | null
   found: boolean
   miles: number | null
+  mode: TravelMode
+  onModeChange: (m: TravelMode) => void
+  hasWater: boolean // map has a sea network → Ship mode is usable
+  seaBlockedBy?: string | null // a non-port endpoint chosen for sea travel
   onClear: () => void
 }) {
-  const days = miles != null ? travelDays(miles) : null
+  const [footPace, setFootPace] = useState<FootPace>("normal")
+  const [shipKind, setShipKind] = useState<ShipKind>("sailing")
+  const [hoursPerDay, setHoursPerDay] = useState(8)
+
+  const mph = speedMph(mode, footPace, shipKind)
+  const milesPerDay = mph * hoursPerDay
+  const days = miles != null ? Math.round((miles / milesPerDay) * 10) / 10 : null
+  const bySea = mode === "ship"
+  const forcedMarch = hoursPerDay > 8 && (mode === "foot" || mode === "mounted")
+  const setHours = (n: number) => setHoursPerDay(Math.max(1, Math.min(24, n)))
+
+  const fieldStyle = {
+    background: "color-mix(in srgb, var(--scene-text-primary) 7%, transparent)",
+    border: "1px solid var(--scene-border)",
+    color: "var(--scene-text-primary)",
+  } as const
+
   return (
     <div
-      className="w-64 rounded-xl border p-3 shadow-2xl"
+      className="w-72 rounded-xl border p-3 shadow-2xl"
       style={{ background: "var(--scene-surface)", borderColor: "var(--scene-border)" }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -150,14 +234,86 @@ export function JourneyCard({
         </button>
       </div>
 
+      {/* Travel options */}
+      <div className="mt-2 space-y-1.5">
+        <div className="flex gap-1">
+          {(["foot", "mounted", "cart", "ship"] as TravelMode[]).map((m) => (
+            <Seg
+              key={m}
+              active={mode === m}
+              disabled={m === "ship" && !hasWater}
+              onClick={() => onModeChange(m)}
+              title={m === "ship" && !hasWater ? "This map has no sea routes" : MODE_LABEL[m]}
+            >
+              {MODE_CHIP[m]}
+            </Seg>
+          ))}
+        </div>
+
+        {/* Sub-option: foot pace, or vessel for ship. Mounted/cart are single-rate. */}
+        {mode === "foot" && (
+          <div className="flex gap-1">
+            {(["slow", "normal", "fast"] as FootPace[]).map((p) => (
+              <Seg key={p} active={footPace === p} onClick={() => setFootPace(p)}>
+                {p[0].toUpperCase() + p.slice(1)}
+              </Seg>
+            ))}
+          </div>
+        )}
+        {mode === "ship" && (
+          <select
+            value={shipKind}
+            onChange={(e) => setShipKind(e.target.value as ShipKind)}
+            className="w-full cursor-pointer rounded-md px-2 py-1 text-[11px] outline-none"
+            style={fieldStyle}
+          >
+            {(["rowboat", "sailing", "longship", "galley"] as ShipKind[]).map((k) => (
+              <option key={k} value={k}>
+                {SHIP_LABEL[k]} · {SHIP_MPH[k]} mph
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Hours per day */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+            Hours/day
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setHours(hoursPerDay - 1)}
+              className="grid h-6 w-6 place-items-center rounded-md text-sm leading-none hover:opacity-80"
+              style={fieldStyle}
+              aria-label="Fewer hours"
+            >
+              −
+            </button>
+            <span className="w-8 text-center text-xs font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+              {hoursPerDay} h
+            </span>
+            <button
+              onClick={() => setHours(hoursPerDay + 1)}
+              className="grid h-6 w-6 place-items-center rounded-md text-sm leading-none hover:opacity-80"
+              style={fieldStyle}
+              aria-label="More hours"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="my-2 border-t" style={{ borderColor: "var(--scene-border)" }} />
+
       {/* Step prompt until both ends are chosen. */}
       {!fromName && (
-        <p className="mt-1.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-          Tap a town to set your <span style={{ color: "var(--scene-text-primary)" }}>origin</span>.
+        <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+          Tap a {bySea ? "port" : "town"} to set your <span style={{ color: "var(--scene-text-primary)" }}>origin</span>.
         </p>
       )}
       {fromName && !toName && (
-        <p className="mt-1.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+        <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
           From <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{fromName}</span> — now tap a{" "}
           <span style={{ color: "var(--scene-text-primary)" }}>destination</span>.
         </p>
@@ -165,12 +321,19 @@ export function JourneyCard({
 
       {fromName && toName && (
         <>
-          <p className="mt-1.5 text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
+          <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
             {fromName} → {toName}
           </p>
-          {!found ? (
+          {bySea && seaBlockedBy ? (
             <p className="mt-1.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-              No overland route — they&apos;re on separate landmasses, or the journey needs sea travel.
+              <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{seaBlockedBy}</span> isn&apos;t a
+              port — pick coastal ports for sea travel.
+            </p>
+          ) : !found ? (
+            <p className="mt-1.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+              {bySea
+                ? "No sea route — these ports aren't connected by sea."
+                : "No overland route — they're on separate landmasses, or the journey needs sea travel."}
             </p>
           ) : miles == null ? (
             <p className="mt-1.5 text-xs italic" style={{ color: "var(--scene-text-muted)" }}>
@@ -179,21 +342,31 @@ export function JourneyCard({
           ) : (
             <>
               <p className="mt-1 text-lg font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-accent)" }}>
-                {miles.toLocaleString()} mi by road
+                {miles.toLocaleString()} mi by {bySea ? "sea" : "road"}
               </p>
-              {days && (
+              {days != null && (
                 <div className="mt-1.5 space-y-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
                   <div className="flex items-center justify-between">
-                    <span>Normal pace</span>
-                    <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>
-                      {days.normal} {days.normal === 1 ? "day" : "days"}
+                    <span>
+                      {MODE_LABEL[mode]}
+                      {mode === "foot" ? ` · ${footPace}` : mode === "ship" ? ` · ${SHIP_LABEL[shipKind].toLowerCase()}` : ""}
+                    </span>
+                    <span className="font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+                      {days} {days === 1 ? "day" : "days"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between opacity-80">
-                    <span>Slow · Fast</span>
-                    <span>{days.slow} · {days.fast} days</span>
+                    <span>{hoursPerDay} h/day</span>
+                    <span>≈ {Math.round(milesPerDay)} mi/day</span>
                   </div>
-                  <p className="pt-0.5 text-[10px] opacity-70">On foot, 8 hrs/day (5e overland pace).</p>
+                  {forcedMarch && (
+                    <p className="pt-0.5 text-[10px] opacity-80">
+                      Past 8 h/day is a forced march — Con saves each extra hour or gain exhaustion (5e).
+                    </p>
+                  )}
+                  {bySea && hoursPerDay <= 8 && (
+                    <p className="pt-0.5 text-[10px] opacity-70">Crews sail in shifts — raise hours/day for long voyages.</p>
+                  )}
                 </div>
               )}
             </>

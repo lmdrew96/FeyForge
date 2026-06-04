@@ -26,7 +26,7 @@ import { toast } from "sonner"
 import { Crown, Eye, EyeOff, Globe, ListFilter, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
 import { FogOverlay } from "./fog-overlay"
 import { decodeFogMask } from "./fog-mask"
-import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
+import { JourneyCard, RoutesLegend, RoutesSvg, type TravelMode } from "./routes-overlay"
 import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import { RealmsFaithsPanel } from "./realms-faiths-panel"
 import { COMBAT_POI_KINDS, EncounterGenerator } from "./encounter-generator"
@@ -60,6 +60,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   const [showRoutes, setShowRoutes] = useState(false)
   const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
   const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
+  const [travelMode, setTravelMode] = useState<TravelMode>("foot")
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
   // Realms & faiths panel — lazy, opened from the toolbar.
   const [wbOpen, setWbOpen] = useState(false)
@@ -148,21 +149,33 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     }
   }, [filterKeys, visibleLocations, selectedId])
 
-  // Land routing graph, built once per loaded route set; Dijkstra runs on it per
-  // journey. The journey result feeds both the bold path overlay and the card.
-  const graph = useMemo(
-    () => (routes && map ? buildRouteGraph(routes, map.width, map.height) : null),
+  // Separate land + sea graphs, built once per loaded route set; Dijkstra runs on
+  // one per journey depending on mode. The result feeds the bold path + the card.
+  const landGraph = useMemo(
+    () => (routes && map ? buildRouteGraph(routes, map.width, map.height, "land") : null),
     [routes, map],
   )
+  const waterGraph = useMemo(
+    () => (routes && map ? buildRouteGraph(routes, map.width, map.height, "water") : null),
+    [routes, map],
+  )
+  const hasWater = useMemo(() => (routes ?? []).some((r) => r.group === "searoutes"), [routes])
   const journey = useMemo(() => {
-    if (!graph || !journeyFrom || !journeyTo) return null
+    if (!journeyFrom || !journeyTo) return null
     const f = (locations ?? []).find((l) => l._id === journeyFrom)
     const t = (locations ?? []).find((l) => l._id === journeyTo)
     if (!f || !t) return null
+    // Ship travel embarks only from ports — the Port tag is the guard (see DM page).
+    if (travelMode === "ship") {
+      if (!f.town?.features?.includes("Port")) return { found: false, miles: null, points: null, seaBlockedBy: f.name }
+      if (!t.town?.features?.includes("Port")) return { found: false, miles: null, points: null, seaBlockedBy: t.name }
+    }
+    const graph = travelMode === "ship" ? waterGraph : landGraph
+    if (!graph) return null
     const res = planRoute(graph, [f.x, f.y], [t.x, t.y])
     const miles = res && map?.scaleMilesPerPx ? Math.round(res.px * map.scaleMilesPerPx) : null
-    return { found: !!res, miles, points: res?.points ?? null }
-  }, [graph, journeyFrom, journeyTo, locations, map])
+    return { found: !!res, miles, points: res?.points ?? null, seaBlockedBy: null as string | null }
+  }, [landGraph, waterGraph, travelMode, journeyFrom, journeyTo, locations, map])
 
   // ── Pan / zoom (read-only: no placement, move, or paint) ────────────────────
   const handleWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
@@ -427,6 +440,10 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
               toName={journeyTo ? locations.find((l) => l._id === journeyTo)?.name ?? null : null}
               found={journey?.found ?? false}
               miles={journey?.miles ?? null}
+              mode={travelMode}
+              onModeChange={setTravelMode}
+              hasWater={hasWater}
+              seaBlockedBy={journey?.seaBlockedBy ?? null}
               onClear={() => { setJourneyFrom(null); setJourneyTo(null) }}
             />
           </div>

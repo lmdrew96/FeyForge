@@ -921,6 +921,10 @@ export const updateLocation = mutation({
     dmNotes: v.optional(v.string()),
     playerNotes: v.optional(v.string()),
     drillDownImageKey: v.optional(v.string()),
+    // Settlement gazetteer block (amenity chips incl. "Port", which gates ship
+    // travel). The client sends the MERGED town so imported fields (population,
+    // crest, realm) survive a features-only edit.
+    town: v.optional(townV),
   },
   handler: async (ctx, args) => {
     const loc = await ctx.db.get(args.locationId)
@@ -939,6 +943,7 @@ export const updateLocation = mutation({
     if (args.drillDownImageKey !== undefined) {
       patch.drillDownImageKey = args.drillDownImageKey === "" ? undefined : args.drillDownImageKey
     }
+    if (args.town !== undefined) patch.town = args.town
     await ctx.db.patch(args.locationId, patch)
   },
 })

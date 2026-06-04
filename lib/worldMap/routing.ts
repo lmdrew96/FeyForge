@@ -23,8 +23,16 @@ export type RouteGraph = {
 const pxBetween = (a: number[], b: number[], width: number, height: number): number =>
   Math.hypot(((a[0] - b[0]) / 100) * width, ((a[1] - b[1]) / 100) * height)
 
-// Build the land routing graph (roads + trails). Sea routes are excluded.
-export function buildRouteGraph(routes: GraphRoute[], width: number, height: number): RouteGraph {
+// Build a routing graph over one network. "land" stitches roads + trails (foot,
+// mount, cart); "water" stitches the searoutes (ship). They're separate graphs
+// because the two networks meet only at ports and travel at different paces — a
+// journey is planned over one or the other depending on the chosen travel mode.
+export function buildRouteGraph(
+  routes: GraphRoute[],
+  width: number,
+  height: number,
+  network: "land" | "water" = "land",
+): RouteGraph {
   const adj = new Map<number, Map<number, number>>()
   const pos = new Map<number, [number, number]>()
   const link = (a: number, b: number, w: number) => {
@@ -38,7 +46,8 @@ export function buildRouteGraph(routes: GraphRoute[], width: number, height: num
     }
   }
   for (const r of routes) {
-    if (r.group === "searoutes") continue
+    const isSea = r.group === "searoutes"
+    if (network === "land" ? isSea : !isSea) continue
     const pts = r.points
     for (const p of pts) {
       const c = p[2]

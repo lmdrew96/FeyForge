@@ -40,7 +40,7 @@ import {
   isMaskEmpty,
   paintBrush,
 } from "@/components/world-map/fog-mask"
-import { JourneyCard, RoutesLegend, RoutesSvg } from "@/components/world-map/routes-overlay"
+import { JourneyCard, RoutesLegend, RoutesSvg, type TravelMode } from "@/components/world-map/routes-overlay"
 import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
 import { RealmsFaithsPanel } from "@/components/world-map/realms-faiths-panel"
 import { PinsPanel, filterByKeys } from "@/components/world-map/pins-panel"
@@ -137,6 +137,7 @@ type LocationDraft = {
   playerNotes: string
   dmNotes: string
   drillDownImageKey: string // R2 key for the pin's local "launchpad" map ("" = none)
+  features: string[] // settlement gazetteer chips (Azgaar's set); "Port" gates ship travel
 }
 
 const emptyDraft = (): LocationDraft => ({
@@ -145,7 +146,13 @@ const emptyDraft = (): LocationDraft => ({
   playerNotes: "",
   dmNotes: "",
   drillDownImageKey: "",
+  features: [],
 })
+
+// Settlement amenity chips, matching Azgaar's burg features so hand-placed towns
+// read the same as imported ones. "Port" is load-bearing — it's what makes a town
+// a valid embark/disembark point for sea travel in the journey planner.
+const SETTLEMENT_FEATURES = ["Capital", "Port", "Walled", "Citadel", "Temple", "Market", "Shantytown"] as const
 
 export default function WorldMapPage() {
   const activeCampaignId = useCampaignStore((s) => s.activeCampaignId) as CampaignId | null
@@ -1207,6 +1214,7 @@ function MapWorkspace({
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
   const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
   const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
+  const [travelMode, setTravelMode] = useState<TravelMode>("foot")
   const [placing, setPlacing] = useState(false)
   const [movingId, setMovingId] = useState<LocationId | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -1222,19 +1230,36 @@ function MapWorkspace({
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
   const [wbOpen, setWbOpen] = useState(false)
   const worldbuilding = useQuery(api.worldMap.getWorldbuilding, wbOpen ? { campaignId } : "skip")
-  const routeGraph = useMemo(
-    () => (routes ? buildRouteGraph(routes, map.width, map.height) : null),
+  // Separate land + sea graphs; the journey routes over one depending on mode.
+  const landGraph = useMemo(
+    () => (routes ? buildRouteGraph(routes, map.width, map.height, "land") : null),
     [routes, map.width, map.height],
   )
+  const waterGraph = useMemo(
+    () => (routes ? buildRouteGraph(routes, map.width, map.height, "water") : null),
+    [routes, map.width, map.height],
+  )
+  const hasWater = useMemo(() => (routes ?? []).some((r) => r.group === "searoutes"), [routes])
   const journey = useMemo(() => {
-    if (!routeGraph || !journeyFrom || !journeyTo) return null
+    if (!journeyFrom || !journeyTo) return null
     const f = locations.find((l) => l._id === journeyFrom)
     const t = locations.find((l) => l._id === journeyTo)
     if (!f || !t) return null
-    const res = planRoute(routeGraph, [f.x, f.y], [t.x, t.y])
+    // Ship travel embarks only from ports — this is the guard. A non-port (or a pin
+    // with no gazetteer at all) would otherwise snap to a distant sea node and report
+    // a confident, wrong distance. Block it with a clear reason instead; an explicit
+    // Port tag (Azgaar-imported OR set in the editor) is then trusted to connect to
+    // the nearest sea lane however far offshore it sits.
+    if (travelMode === "ship") {
+      if (!f.town?.features?.includes("Port")) return { found: false, miles: null, points: null, seaBlockedBy: f.name }
+      if (!t.town?.features?.includes("Port")) return { found: false, miles: null, points: null, seaBlockedBy: t.name }
+    }
+    const graph = travelMode === "ship" ? waterGraph : landGraph
+    if (!graph) return null
+    const res = planRoute(graph, [f.x, f.y], [t.x, t.y])
     const miles = res && map.scaleMilesPerPx ? Math.round(res.px * map.scaleMilesPerPx) : null
-    return { found: !!res, miles, points: res?.points ?? null }
-  }, [routeGraph, journeyFrom, journeyTo, locations, map.scaleMilesPerPx])
+    return { found: !!res, miles, points: res?.points ?? null, seaBlockedBy: null as string | null }
+  }, [landGraph, waterGraph, travelMode, journeyFrom, journeyTo, locations, map.scaleMilesPerPx])
 
   // AI: flesh out the pin's player + DM notes into the draft for review (never
   // saved silently). Confirms before clobbering notes the DM already wrote.
@@ -1420,6 +1445,7 @@ function MapWorkspace({
       playerNotes: loc.playerNotes ?? "",
       dmNotes: loc.dmNotes ?? "",
       drillDownImageKey: loc.drillDownImageKey ?? "",
+      features: loc.town?.features ?? [],
     })
     setSelectedId(loc._id)
     setEditorMode("edit")
@@ -1431,6 +1457,9 @@ function MapWorkspace({
     if (!draft.name.trim()) return
     setSaving(true)
     try {
+      // Settlement amenity chips → town.features. Only settlements carry a town
+      // block; for other pin types we never write one.
+      const features = draft.type === "settlement" ? draft.features : []
       if (editorMode === "new" && pendingCoords) {
         const id = await createLocation({
           campaignId,
@@ -1442,10 +1471,18 @@ function MapWorkspace({
           dmNotes: draft.dmNotes.trim() || undefined,
           playerNotes: draft.playerNotes.trim() || undefined,
           drillDownImageKey: draft.drillDownImageKey || undefined,
+          town: features.length ? { features } : undefined,
         })
         setSelectedId(id)
         toast.success("Location placed.")
       } else if (editorMode === "edit" && selectedId) {
+        // Merge: preserve imported gazetteer fields (population, crest, realm…) and
+        // replace only the features. Drop features entirely when none are set.
+        const existingTown = selected?.town
+        const town =
+          existingTown || features.length
+            ? { ...(existingTown ?? {}), features: features.length ? features : undefined }
+            : undefined
         await updateLocation({
           locationId: selectedId,
           type: draft.type,
@@ -1454,6 +1491,7 @@ function MapWorkspace({
           playerNotes: draft.playerNotes.trim() || undefined,
           // Always send (possibly "") so removing a local map clears it.
           drillDownImageKey: draft.drillDownImageKey,
+          town,
         })
         toast.success("Location updated.")
       }
@@ -1791,6 +1829,10 @@ function MapWorkspace({
                 toName={journeyTo ? locations.find((l) => l._id === journeyTo)?.name ?? null : null}
                 found={journey?.found ?? false}
                 miles={journey?.miles ?? null}
+                mode={travelMode}
+                onModeChange={setTravelMode}
+                hasWater={hasWater}
+                seaBlockedBy={journey?.seaBlockedBy ?? null}
                 onClear={() => { setJourneyFrom(null); setJourneyTo(null) }}
               />
             </div>
@@ -1884,6 +1926,46 @@ function MapWorkspace({
                 <option key={t} value={t}>{TYPE_META[t].label}</option>
               ))}
             </select>
+
+            {/* Settlement amenity chips. "Port" is functional — it makes the town a
+                valid endpoint for sea travel in the journey planner. */}
+            {draft.type === "settlement" && (
+              <div>
+                <p className="mb-1.5 text-xs font-medium" style={{ color: "var(--scene-text-muted)" }}>
+                  Settlement features
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SETTLEMENT_FEATURES.map((feat) => {
+                    const on = draft.features.includes(feat)
+                    return (
+                      <button
+                        key={feat}
+                        type="button"
+                        onClick={() =>
+                          setDraft((d) => ({
+                            ...d,
+                            features: on ? d.features.filter((x) => x !== feat) : [...d.features, feat],
+                          }))
+                        }
+                        className="rounded-md px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-90"
+                        style={{
+                          background: on
+                            ? "var(--scene-accent)"
+                            : "color-mix(in srgb, var(--scene-text-primary) 7%, transparent)",
+                          color: on ? "#fff" : "var(--scene-text-primary)",
+                          border: `1px solid ${on ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                        }}
+                      >
+                        {feat}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-1 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+                  <span style={{ color: "var(--scene-text-primary)" }}>Port</span> lets this town embark or land sea travel.
+                </p>
+              </div>
+            )}
 
             {/* AI fill (premium 50/day · free 3/day). Fills the notes below for
                 review — never saved without the DM hitting Save. */}
