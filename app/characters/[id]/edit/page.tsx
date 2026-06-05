@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ALIGNMENTS, getAbilityModifier, type Ability } from "@/lib/character/constants"
+import { CLASSES } from "@/lib/character/character-data"
 import { hpGainForLevel, recomputeSpellcasting } from "@/lib/character/leveling"
 import { resolveEdition } from "@/lib/editions"
 import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2 } from "lucide-react"
@@ -66,6 +67,7 @@ type EditState = {
   playerName: string
   level: number
   experiencePoints: number
+  subclass: string
   alignment: string
   background: string
   age: string
@@ -90,12 +92,14 @@ type EditState = {
 }
 
 const NO_ALIGNMENT = "__none__"
+const NO_SUBCLASS = "__none_sub__"
 
 const draftFromCharacter = (c: CharDoc): EditState => ({
   name: c.name,
   playerName: c.playerName ?? "",
   level: c.level,
   experiencePoints: c.experiencePoints,
+  subclass: c.subclass ?? "",
   alignment: c.alignment ?? "",
   background: c.background ?? "",
   age: c.age ?? "",
@@ -221,6 +225,9 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
   const conMod = getAbilityModifier(char.baseAbilities.constitution + (char.racialBonuses?.constitution ?? 0))
   const perLevelHp = hpGainForLevel(hitDie, conMod)
   const edition = resolveEdition(campaign?.edition)
+  // Subclass options for this character's class (curated). Empty for homebrew
+  // classes → the field falls back to free text.
+  const classSubclasses = CLASSES.find((c) => c.name === char.characterClass)?.subclasses ?? []
 
   // Changing the level field recomputes Max HP relative to the SAVED character
   // (not compounding across edits), so lowering level reduces HP and raising it
@@ -309,7 +316,7 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify({
           race: char.race,
           class: char.characterClass,
-          subclass: char.subclass,
+          subclass: draft.subclass.trim() || undefined,
           level: char.level,
           upcomingLevel: Math.min(20, char.level + 1),
           currentAbilities,
@@ -501,6 +508,37 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="char-subclass">Subclass</Label>
+              {classSubclasses.length > 0 ? (
+                <Select
+                  value={draft.subclass === "" ? NO_SUBCLASS : draft.subclass}
+                  onValueChange={(value) => setField("subclass", value === NO_SUBCLASS ? "" : value)}
+                >
+                  <SelectTrigger id="char-subclass">
+                    <SelectValue placeholder="Choose subclass" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_SUBCLASS}>None</SelectItem>
+                    {classSubclasses.map((sc) => (
+                      <SelectItem key={sc.id} value={sc.name}>
+                        {sc.name}
+                      </SelectItem>
+                    ))}
+                    {draft.subclass && !classSubclasses.some((sc) => sc.name === draft.subclass) && (
+                      <SelectItem value={draft.subclass}>{draft.subclass}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="char-subclass"
+                  value={draft.subclass}
+                  onChange={(e) => setField("subclass", e.target.value)}
+                  placeholder="e.g. Champion"
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="char-background">Background</Label>

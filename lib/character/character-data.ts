@@ -225,7 +225,7 @@ export interface ClassData {
   homebrew?: boolean
 }
 
-export const CLASSES: ClassData[] = [
+const BASE_CLASSES: ClassData[] = [
   {
     id: "barbarian",
     name: "Barbarian",
@@ -427,6 +427,85 @@ export const CLASSES: ClassData[] = [
     flavorText: "To name a thing is to know it. To know it is to command it.",
   },
 ]
+
+// Curated subclass identities per class. Names + original one-line flavor only —
+// subclass mechanics aren't modeled (class features stay manual, like the rest of
+// the app). Names and game mechanics aren't copyrightable; WotC's specific wording
+// is, so these are paraphrased. Merged onto CLASSES below so the builders' existing
+// subclass picker (gated on cls.subclasses) lights up for curated classes too.
+const CURATED_SUBCLASSES: Record<string, SubclassData[]> = {
+  barbarian: [
+    { id: "berserker", name: "Path of the Berserker", description: "Channel rage into a relentless, frenzied assault." },
+    { id: "totem-warrior", name: "Path of the Totem Warrior", description: "Draw on animal spirit totems for primal power and resilience." },
+  ],
+  bard: [
+    { id: "lore", name: "College of Lore", description: "A keeper of secrets who bends magic and knowledge to any task." },
+    { id: "valor", name: "College of Valor", description: "A battlefield skald who inspires through daring martial deeds." },
+  ],
+  cleric: [
+    { id: "life", name: "Life Domain", description: "A healer channeling positive energy to mend wounds and ward off death." },
+    { id: "light", name: "Light Domain", description: "Wields radiant fire and searing light against the dark." },
+    { id: "war", name: "War Domain", description: "A martial priest who blesses weapons and leads the faithful in battle." },
+    { id: "trickery", name: "Trickery Domain", description: "A mischief-maker granting illusions, stealth, and misdirection." },
+    { id: "knowledge", name: "Knowledge Domain", description: "Seeks divine truth, languages, and the secrets of the past." },
+    { id: "nature", name: "Nature Domain", description: "Tends the natural world with druidic magic and the power of storms." },
+    { id: "tempest", name: "Tempest Domain", description: "Calls down thunder and lightning as the wrath of the storm." },
+  ],
+  druid: [
+    { id: "land", name: "Circle of the Land", description: "A keeper of old lore drawing power from a chosen landscape." },
+    { id: "moon", name: "Circle of the Moon", description: "Masters Wild Shape, transforming into powerful beasts." },
+  ],
+  fighter: [
+    { id: "champion", name: "Champion", description: "A straightforward warrior whose strikes land harder and more often." },
+    { id: "battle-master", name: "Battle Master", description: "A tactician wielding combat maneuvers to control the fight." },
+    { id: "eldritch-knight", name: "Eldritch Knight", description: "A martial spellblade weaving arcane magic into swordplay." },
+  ],
+  monk: [
+    { id: "open-hand", name: "Way of the Open Hand", description: "A master of classic martial arts who redirects and stuns foes." },
+    { id: "shadow", name: "Way of Shadow", description: "A ninja-like mystic using stealth and shadow magic." },
+    { id: "four-elements", name: "Way of the Four Elements", description: "Channels ki to unleash elemental force." },
+  ],
+  paladin: [
+    { id: "devotion", name: "Oath of Devotion", description: "A paragon of honor holding to the highest ideals of justice." },
+    { id: "ancients", name: "Oath of the Ancients", description: "A champion of light and life defending the world's beauty." },
+    { id: "vengeance", name: "Oath of Vengeance", description: "A relentless avenger punishing those who do great evil." },
+  ],
+  ranger: [
+    { id: "hunter", name: "Hunter", description: "A monster-slayer specialized against particular threats." },
+    { id: "beast-master", name: "Beast Master", description: "Bonds with an animal companion that fights at their side." },
+  ],
+  rogue: [
+    { id: "thief", name: "Thief", description: "A nimble burglar, climber, and quick user of any magic item." },
+    { id: "assassin", name: "Assassin", description: "A killer specialized in disguise, poison, and lethal first strikes." },
+    { id: "arcane-trickster", name: "Arcane Trickster", description: "Blends roguish skill with enchantment and illusion magic." },
+  ],
+  sorcerer: [
+    { id: "draconic-bloodline", name: "Draconic Bloodline", description: "Innate magic from draconic ancestry — tough and elemental." },
+    { id: "wild-magic", name: "Wild Magic", description: "Chaotic power that surges with unpredictable magical effects." },
+  ],
+  warlock: [
+    { id: "fiend", name: "The Fiend", description: "A pact with a being of the Lower Planes, trading power for a price." },
+    { id: "archfey", name: "The Archfey", description: "A bargain with a fey lord of glamour, charm, and trickery." },
+    { id: "great-old-one", name: "The Great Old One", description: "A connection to an alien entity from beyond the stars." },
+  ],
+  wizard: [
+    { id: "evocation", name: "School of Evocation", description: "Sculpts powerful elemental magic, sparing allies from the blast." },
+    { id: "abjuration", name: "School of Abjuration", description: "A master of protective wards and dispelling magic." },
+    { id: "conjuration", name: "School of Conjuration", description: "Summons creatures and objects from thin air." },
+    { id: "divination", name: "School of Divination", description: "Peers into past, present, and future to reshape fate." },
+    { id: "enchantment", name: "School of Enchantment", description: "Bends minds with charm and compulsion." },
+    { id: "illusion", name: "School of Illusion", description: "Weaves convincing illusions to deceive the senses." },
+    { id: "necromancy", name: "School of Necromancy", description: "Commands the forces of life and death." },
+    { id: "transmutation", name: "School of Transmutation", description: "Alters the physical properties of creatures and objects." },
+  ],
+}
+
+// SRD-curated classes with their subclass lists merged in. Homebrew classes carry
+// their own subclasses and never pass through here.
+export const CLASSES: ClassData[] = BASE_CLASSES.map((c) => ({
+  ...c,
+  subclasses: CURATED_SUBCLASSES[c.id] ?? c.subclasses,
+}))
 
 // ─── Backgrounds ──────────────────────────────────────────────────────────────
 
@@ -765,6 +844,7 @@ export function quickRollCharacter(): QuickRollResult {
   }
 
   const skillProficiencies = autoPickSkillProficiencies(characterClass, background)
+  const subclass = characterClass.subclasses?.length ? pick(characterClass.subclasses) : undefined
 
-  return { name, race, subrace, characterClass, background, baseAbilities, racialBonuses, skillProficiencies }
+  return { name, race, subrace, characterClass, subclass, background, baseAbilities, racialBonuses, skillProficiencies }
 }

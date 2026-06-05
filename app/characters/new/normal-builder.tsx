@@ -242,7 +242,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
 
   const isValid = !!(
     name.trim() && classId && raceId && backgroundId &&
-    (!cls?.subclasses?.length || subclassId) &&
+    // Subclass is optional at creation (most classes choose at level 3).
     (!race?.subraces?.length || subraceId) &&
     allAssigned &&
     selectedSkills.length === skillCount
@@ -463,11 +463,11 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
               </span>
             </div>
 
-            {/* Subclass picker (homebrew classes that define subclasses) */}
+            {/* Subclass picker (curated + homebrew classes that define subclasses) */}
             {cls.subclasses && cls.subclasses.length > 0 && (
               <div className="pt-1">
                 <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
-                  Subclass <span style={{ color: "var(--scene-accent)" }}>*</span>
+                  Subclass <span style={{ color: "var(--scene-text-muted)", textTransform: "none" }}>(optional — usually chosen at level 3)</span>
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {cls.subclasses.map(sc => (

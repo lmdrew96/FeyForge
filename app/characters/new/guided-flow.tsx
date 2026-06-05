@@ -146,11 +146,11 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const skillCount = cls?.skillChoices.count ?? 0
 
   const needsSubrace = !!(race?.subraces?.length && !subraceId)
-  const needsSubclass = !!(cls?.subclasses?.length && !subclassId)
 
-  // Step-level "can proceed"
+  // Step-level "can proceed". Subclass is optional at creation (most classes
+  // choose it at level 3; 2014 Cleric/Sorcerer/Warlock at level 1).
   const canProceed = [
-    !!classId && !needsSubclass,                           // 0: Class
+    !!classId,                                             // 0: Class (subclass optional)
     !!raceId && !needsSubrace,                             // 1: Race
     !!backgroundId,                                        // 2: Background
     allAssigned,                                           // 3: Abilities
@@ -328,11 +328,11 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
             )}
           </div>
 
-          {/* Subclass picker (homebrew classes that define subclasses) */}
+          {/* Subclass picker (curated + homebrew classes that define subclasses) */}
           {cls.subclasses && cls.subclasses.length > 0 && (
             <div className="pt-1">
               <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
-                Subclass <span style={{ color: "var(--scene-accent)" }}>*</span>
+                Subclass <span style={{ color: "var(--scene-text-muted)", textTransform: "none" }}>(optional — usually chosen at level 3)</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {cls.subclasses.map(sc => (
