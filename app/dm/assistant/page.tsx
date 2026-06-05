@@ -7,7 +7,7 @@ import { DefaultChatTransport, type UIMessage } from "ai"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { formatWorldContext } from "@/lib/worldMap/ai-context"
+import { formatWorldContext, formatSessionState } from "@/lib/worldMap/ai-context"
 import { AppShell } from "@/components/app-shell"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { Button } from "@/components/ui/button"
@@ -108,6 +108,36 @@ export default function DMAssistantPage() {
         settlements: worldLocations,
       }),
     [worldMap, worldbuilding, worldLocations],
+  )
+
+  // Live session awareness: when a session is running, also feed the assistant the
+  // NOW — active scene, the live fight (whose turn/round/HP/conditions), and the
+  // party roster. All three reads are membership-gated; the DM here is a member, so
+  // getCombat returns exact HP. Skip the session-scoped reads until a session exists.
+  const activeSession = useQuery(api.liveSessions.getActiveSession, campaignArg)
+  const sessionArg = activeSession?._id
+    ? { sessionId: activeSession._id }
+    : "skip"
+  const liveCombat = useQuery(api.liveCombat.getCombat, sessionArg)
+  const partyMembers = useQuery(api.liveSessions.getPartyMembers, sessionArg)
+  const sessionContext = useMemo(
+    () =>
+      formatSessionState({
+        sceneName: activeSession?.activeScene,
+        sceneTime: activeSession?.sceneTime ?? null,
+        combat: liveCombat
+          ? { round: liveCombat.round, combatants: liveCombat.combatants }
+          : null,
+        party: (partyMembers ?? []).map((m) => ({
+          name: m.character?.name ?? "Unknown",
+          characterClass: m.character?.characterClass,
+          subclass: m.character?.subclass,
+          level: m.character?.level,
+          hitPoints: m.character?.hitPoints,
+          conditions: m.conditions,
+        })),
+      }),
+    [activeSession, liveCombat, partyMembers],
   )
 
   const conversations = useDMAssistantStore((s) => s.conversations)
@@ -260,7 +290,7 @@ export default function DMAssistantPage() {
               <ChatPanel
                 key={activeConversation.id}
                 conversation={activeConversation}
-                campaignContext={buildContext(activeCampaign, worldContext)}
+                campaignContext={buildContext(activeCampaign, worldContext, sessionContext)}
               />
             ) : (
               <EmptyConversationState onNewChat={handleNewChat} creating={creating} />
@@ -281,13 +311,15 @@ const buildContext = (
     edition?: string
   } | null,
   worldContext = "",
+  sessionContext = "",
 ): string => {
-  if (!campaign) return worldContext.trim()
+  // Both world + session blocks already lead with their own blank-line separator
+  // (or are ""), so they concatenate cleanly onto the campaign header.
+  if (!campaign) return (worldContext + sessionContext).trim()
   const lines = [`Campaign: ${campaign.name}`]
   if (campaign.edition) lines.push(`D&D edition: ${campaign.edition}`)
   if (campaign.description) lines.push(`Description: ${campaign.description}`)
-  // worldContext already leads with its own blank-line separator (or is "").
-  return lines.join("\n") + worldContext
+  return lines.join("\n") + worldContext + sessionContext
 }
 
 function ConversationRow({

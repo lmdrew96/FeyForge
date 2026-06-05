@@ -102,3 +102,98 @@ export function formatWorldContext(opts: {
     : "The campaign world includes:"
   return `\n\n${header}\n${sections.join("\n\n")}\n\nGround your answers in this world: name these real realms, faiths, settlements, and events rather than inventing ones that contradict the map, and keep suggestions consistent with the diplomacy and active events above.`
 }
+
+// ── Live session state ─────────────────────────────────────────────────────────
+//
+// The world summary above is static lore. When a session is actually running, the
+// DM Assistant should also know the NOW — the active scene, the live fight (whose
+// turn, round, each combatant's HP/conditions), and the party roster. This builds
+// that block so a DM mid-combat can ask "can the wizard counterspell that?" and the
+// assistant already knows the wizard's real HP/conditions.
+//
+// Same posture as formatWorldContext: pure, isomorphic, everything optional and
+// capped, degrades to "" when nothing is live so it never bloats the prompt. Inputs
+// are plain shapes (not Convex docs) — the caller maps the membership-gated query
+// results in. DM-only surface, so exact PC HP is fine to include.
+
+type SessionCombatant = {
+  name: string
+  type: "pc" | "npc" | "monster"
+  initiative: number
+  isActive: boolean
+  // Exact HP for the DM; a coarse band only if that's all the caller has.
+  hitPoints?: { current: number; max: number } | null
+  healthBand?: string | null
+  conditions?: string[] | null
+}
+
+type SessionPartyMember = {
+  name: string
+  characterClass?: string | null
+  subclass?: string | null
+  level?: number | null
+  hitPoints?: { current: number; max: number } | null
+  conditions?: string[] | null
+}
+
+const COMBATANT_LIMIT = 24
+const PARTY_LIMIT = 12
+
+const hpText = (c: {
+  hitPoints?: { current: number; max: number } | null
+  healthBand?: string | null
+}): string => {
+  if (c.hitPoints) return `HP ${c.hitPoints.current}/${c.hitPoints.max}`
+  if (c.healthBand) return `HP ${c.healthBand}`
+  return ""
+}
+
+const condText = (conditions?: string[] | null): string => {
+  const list = (conditions ?? []).filter(Boolean)
+  return list.length ? `conditions: ${list.join(", ")}` : ""
+}
+
+export function formatSessionState(opts: {
+  sceneName?: string | null
+  sceneTime?: "day" | "night" | null
+  combat?: { round: number; combatants: SessionCombatant[] } | null
+  party?: SessionPartyMember[] | null
+}): string {
+  const sections: string[] = []
+
+  const scene = opts.sceneName?.trim()
+  if (scene) {
+    sections.push(`Active scene: ${scene}${opts.sceneTime ? ` (${opts.sceneTime})` : ""}.`)
+  }
+
+  const combat = opts.combat
+  if (combat && combat.combatants.length) {
+    const order = [...combat.combatants]
+      .sort((a, b) => b.initiative - a.initiative)
+      .slice(0, COMBATANT_LIMIT)
+      .map((c) => {
+        const turn = c.isActive ? "▶" : "-"
+        const tail = [hpText(c), condText(c.conditions)].filter(Boolean).join(" · ")
+        return `  ${turn} ${c.name} (${c.type}) — init ${c.initiative}${tail ? ` — ${tail}` : ""}`
+      })
+    sections.push(
+      `Combat is active — round ${combat.round}. Initiative order (▶ = whose turn it is):\n${order.join("\n")}`,
+    )
+  }
+
+  const party = (opts.party ?? []).filter((p) => p.name)
+  if (party.length) {
+    const lines = party.slice(0, PARTY_LIMIT).map((p) => {
+      const cls = [p.level ? `level ${p.level}` : "", p.characterClass, p.subclass]
+        .filter(Boolean)
+        .join(" ")
+      const tail = [cls, hpText(p), condText(p.conditions)].filter(Boolean).join(" — ")
+      return `  - ${p.name}${tail ? ` — ${tail}` : ""}`
+    })
+    sections.push(`Party roster:\n${lines.join("\n")}`)
+  }
+
+  if (sections.length === 0) return ""
+
+  return `\n\nLIVE SESSION (happening right now):\n${sections.join("\n\n")}\n\nWhen the DM asks about the current fight, whose turn it is, what a character can still do, or anyone's status, use THIS live state — it's the real situation at the table.`
+}
