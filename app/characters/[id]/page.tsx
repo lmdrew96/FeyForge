@@ -51,6 +51,7 @@ import { AttacksSection, InventorySection } from "./inventory"
 import { SpellbookSection } from "@/components/character/spellbook"
 import { ResourcesSection } from "@/components/character/resources"
 import { WildshapeSection, CompanionsSection } from "@/components/character/creature-sheet"
+import { InvocationsSection } from "@/components/character/invocations-section"
 import { getClassResources, type ResourceRow } from "@/lib/character/resources"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
@@ -1616,7 +1617,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, casterType, edition,
+    items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, invocationRows, casterType, edition,
     shortRestResourceKeys, equippedWeapons, fightingStyleId,
     armorClass, armorName, nextOrder,
     grantedFeatures, channelDivinityOptions, grantedProficiencies,
@@ -1869,6 +1870,15 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           ) : (
             <EnableSpellcastingCard char={char} edition={edition} />
           ))}
+
+        {/* Eldritch Invocations (warlocks L2+) — chosen from a list, count-gated. */}
+        <InvocationsSection
+          characterId={char._id}
+          classId={char.characterClass}
+          level={char.level}
+          invocationRows={invocationRows}
+          nextOrder={nextOrder}
+        />
 
         {/* Wild Shape (druids L2+) + Companions — creature stat blocks attached to
             the character; derived live from alternateForm/companion property rows. */}

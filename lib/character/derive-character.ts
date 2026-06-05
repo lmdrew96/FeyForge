@@ -50,6 +50,7 @@ export interface CharacterDerived {
   featRows: PropDoc[]
   formRows: PropDoc[]
   companionRows: PropDoc[]
+  invocationRows: PropDoc[]
   casterType: CasterType
   edition: Edition
   shortRestResourceKeys: string[]
@@ -135,6 +136,7 @@ export function deriveCharacter(
   const featRows = myProps.filter((p) => p.type === "feature")
   const formRows = myProps.filter((p) => p.type === "alternateForm")
   const companionRows = myProps.filter((p) => p.type === "companion")
+  const invocationRows = myProps.filter((p) => p.type === "invocation")
   const casterType = getCasterType(char.characterClass)
   const edition = resolveEdition(campaign?.edition)
 
@@ -188,6 +190,7 @@ export function deriveCharacter(
     featRows,
     formRows,
     companionRows,
+    invocationRows,
     casterType,
     edition,
     shortRestResourceKeys,

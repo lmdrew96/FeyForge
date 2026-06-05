@@ -23,6 +23,7 @@ import { AttacksSection } from "@/app/characters/[id]/inventory"
 import { SpellbookSection } from "@/components/character/spellbook"
 import { ResourcesSection } from "@/components/character/resources"
 import { WildshapeSection, CompanionsSection } from "@/components/character/creature-sheet"
+import { InvocationsSection } from "@/components/character/invocations-section"
 
 // In-session character sheet — the play-oriented "act surface" a player needs at
 // the table: roll checks/saves/skills, attack, cast (spend slots), spend class
@@ -64,7 +65,7 @@ export function SessionCharacterSheet({
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    spells, grantedSpells, resourceRows, formRows, companionRows, casterType, edition,
+    spells, grantedSpells, resourceRows, formRows, companionRows, invocationRows, casterType, edition,
     equippedWeapons, fightingStyleId, armorClass, armorName, nextOrder,
     channelDivinityOptions,
   } = deriveCharacter(char, allProps, campaign)
@@ -145,6 +146,15 @@ export function SessionCharacterSheet({
         resourceRows={resourceRows}
         nextOrder={nextOrder}
         resourceOptions={{ "channel-divinity": channelDivinityOptions }}
+      />
+
+      {/* Eldritch Invocations (warlocks) */}
+      <InvocationsSection
+        characterId={char._id}
+        classId={char.characterClass}
+        level={char.level}
+        invocationRows={invocationRows}
+        nextOrder={nextOrder}
       />
 
       {/* Wild Shape (druids) + Companions — usable in the session (roll the form's
