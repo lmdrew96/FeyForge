@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X, Sparkles } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X, Sparkles, Skull, Dices } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -659,38 +659,105 @@ function DeathSavePips({ count, color, label, onSet }: {
   )
 }
 
-// Death-saves cell for the combat strip — editable success/failure pips.
-function DeathSavesBox({ char }: { char: CharDoc }) {
+// Death-save panel — auto-surfaces when the character is at 0 HP (dying). Rolls a
+// d20 server-side (RAW: nat-20 revives at 1 HP, nat-1 = two failures, 10+ success,
+// else failure; 3 successes = stable, 3 failures = dead), with editable pips for
+// manual correction and a Stabilize shortcut. Regaining any HP resets it (handled
+// server-side in updateHp/spendHitDie), so the panel disappears on heal.
+function DyingPanel({ char }: { char: CharDoc }) {
   const doSet = useMutation(api.characters.setDeathSaves)
-  const set = (successes: number, failures: number) => {
-    doSet({ id: char._id, successes, failures }).catch(() => toast.error("Failed to update death saves."))
+  const doRoll = useMutation(api.characters.rollDeathSave)
+  const [rolling, setRolling] = useState(false)
+
+  const { successes, failures } = char.deathSaves
+  const isDead = failures >= 3
+  const isStable = successes >= 3
+  const settled = isDead || isStable
+
+  const set = (s: number, f: number) =>
+    doSet({ id: char._id, successes: s, failures: f }).catch(() =>
+      toast.error("Failed to update death saves."),
+    )
+
+  const handleRoll = async () => {
+    setRolling(true)
+    try {
+      const res = await doRoll({ id: char._id })
+      const tag = `Death save: ${res.roll}`
+      if (res.outcome === "revived") toast.success(`${tag} (nat 20!) — ${char.name} regains 1 HP and is conscious.`)
+      else if (res.outcome === "dead") toast.error(`${tag} — ${char.name} has died.`)
+      else if (res.outcome === "stable") toast.success(`${tag} — ${char.name} is stable.`)
+      else if (res.outcome === "success") toast.success(`${tag} — success (${res.successes}/3).`)
+      else toast.error(`${tag} — failure (${res.failures}/3).`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't roll a death save.")
+    } finally {
+      setRolling(false)
+    }
   }
+
+  const status = isDead
+    ? "Dead"
+    : isStable
+      ? "Stable — unconscious but no longer dying"
+      : "Dying — roll a death save on your turn"
+
   return (
     <div
-      className="flex flex-col items-center justify-center rounded-lg p-3 text-center"
-      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+      className="rounded-xl p-4 mb-6"
+      style={{
+        background: "color-mix(in srgb, #ef4444 8%, var(--scene-surface))",
+        border: "1px solid #ef444466",
+      }}
     >
-      <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
-        Death Saves
+      <div className="flex items-center gap-1.5 mb-3">
+        <Skull className="h-3.5 w-3.5" style={{ color: "#ef4444" }} />
+        <span className="text-xs uppercase tracking-widest" style={{ color: "#ef4444" }}>
+          Death Saves
+        </span>
+        <span className="ml-auto text-xs" style={{ color: "var(--scene-text-muted)" }}>
+          {status}
+        </span>
       </div>
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold w-3" style={{ color: "#22c55e" }}>✓</span>
-          <DeathSavePips
-            count={char.deathSaves.successes}
-            color="#22c55e"
-            label="Success"
-            onSet={(n) => set(n, char.deathSaves.failures)}
-          />
+
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold w-14" style={{ color: "#22c55e" }}>Success</span>
+            <DeathSavePips count={successes} color="#22c55e" label="Success" onSet={(n) => set(n, failures)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold w-14" style={{ color: "#ef4444" }}>Failure</span>
+            <DeathSavePips count={failures} color="#ef4444" label="Failure" onSet={(n) => set(successes, n)} />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold w-3" style={{ color: "#ef4444" }}>✗</span>
-          <DeathSavePips
-            count={char.deathSaves.failures}
-            color="#ef4444"
-            label="Failure"
-            onSet={(n) => set(char.deathSaves.successes, n)}
-          />
+
+        <div className="ml-auto flex items-center gap-2">
+          {!settled && (
+            <button
+              onClick={() => set(3, failures)}
+              title="Stabilize (e.g. Spare the Dying or a successful Medicine check)"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+              style={{
+                background: "color-mix(in srgb, #22c55e 14%, transparent)",
+                color: "#22c55e",
+                border: "1px solid color-mix(in srgb, #22c55e 38%, transparent)",
+              }}
+            >
+              <Heart className="h-4 w-4" />
+              Stabilize
+            </button>
+          )}
+          <button
+            onClick={handleRoll}
+            disabled={rolling || settled}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+            style={{ background: "#ef4444", color: "#fff" }}
+            title={settled ? status : "Roll a d20 death saving throw"}
+          >
+            <Dices className="h-4 w-4" />
+            {rolling ? "Rolling…" : "Roll Death Save"}
+          </button>
         </div>
       </div>
     </div>
@@ -1401,6 +1468,9 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           <RestPanel char={char} resourceRows={resourceRows} shortRestResourceKeys={shortRestResourceKeys} />
         </div>
 
+        {/* Death saves — auto-surface only while dying (0 HP) */}
+        {char.hitPoints.current === 0 && <DyingPanel char={char} />}
+
         {/* Combat stats strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <StatBox label="Armor Class" value={armorClass} sub={armorName ?? "unarmored"} />
@@ -1409,7 +1479,6 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           <StatBox label="Prof Bonus" value={formatModifier(profBonus)} />
           <StatBox label="Passive Perc" value={passivePerception} />
           <StatBox label="Hit Dice" value={`${char.level}d${hitDie}`} />
-          <DeathSavesBox char={char} />
           {char.inspiration && <StatBox label="Inspiration" value="✦" />}
         </div>
 

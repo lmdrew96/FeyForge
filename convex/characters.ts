@@ -230,8 +230,11 @@ export const updateHp = mutation({
     const character = await ctx.db.get(args.id)
     if (!character || character.userId !== identity.tokenIdentifier) throw new Error("Character not found")
     const newCurrent = Math.max(0, Math.min(character.hitPoints.max, character.hitPoints.current + args.delta))
+    // Regaining any HP from 0 ends the dying state — clear death saves (RAW).
+    const revived = character.hitPoints.current === 0 && newCurrent > 0
     await ctx.db.patch(args.id, {
       hitPoints: { ...character.hitPoints, current: newCurrent },
+      ...(revived ? { deathSaves: { successes: 0, failures: 0 } } : {}),
       updatedAt: Date.now(),
     })
   },
@@ -327,9 +330,12 @@ export const spendHitDie = mutation({
       i === poolIndex ? { ...d, used: d.used + 1 } : d
     )
 
+    // Healing off 0 HP ends the dying state — clear death saves (RAW).
+    const revived = character.hitPoints.current === 0 && newCurrent > 0
     await ctx.db.patch(args.id, {
       hitPoints: { ...character.hitPoints, current: newCurrent },
       hitDice,
+      ...(revived ? { deathSaves: { successes: 0, failures: 0 } } : {}),
       updatedAt: Date.now(),
     })
 
@@ -381,6 +387,60 @@ export const longRest = mutation({
       ...(spellcasting ? { spellcasting } : {}),
       updatedAt: Date.now(),
     })
+  },
+})
+
+// Roll a death saving throw (d20), server-side, per RAW. Only valid while dying
+// (0 HP). 1 = two failures; 2–9 = one failure; 10–19 = one success; 20 = regain
+// 1 HP (conscious again, death saves reset). Three successes = stable; three
+// failures = dead. Returns the roll + resulting outcome so the UI can narrate it.
+export const rollDeathSave = mutation({
+  args: { id: v.id("characters") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const character = await ctx.db.get(args.id)
+    if (!character || character.userId !== identity.tokenIdentifier) {
+      throw new Error("Character not found")
+    }
+    if (character.hitPoints.current > 0) {
+      throw new Error("Death saves only apply while dying (0 HP)")
+    }
+    let { successes, failures } = character.deathSaves
+    if (successes >= 3) throw new Error("Already stable")
+    if (failures >= 3) throw new Error("Already dead")
+
+    const roll = Math.floor(Math.random() * 20) + 1
+
+    // Natural 20: snap back to consciousness at 1 HP, death saves wiped.
+    if (roll === 20) {
+      await ctx.db.patch(args.id, {
+        hitPoints: { ...character.hitPoints, current: 1 },
+        deathSaves: { successes: 0, failures: 0 },
+        updatedAt: Date.now(),
+      })
+      return { roll, outcome: "revived" as const, successes: 0, failures: 0 }
+    }
+
+    if (roll === 1) failures = Math.min(3, failures + 2)
+    else if (roll >= 10) successes = Math.min(3, successes + 1)
+    else failures = Math.min(3, failures + 1)
+
+    await ctx.db.patch(args.id, {
+      deathSaves: { successes, failures },
+      updatedAt: Date.now(),
+    })
+
+    const outcome =
+      failures >= 3
+        ? ("dead" as const)
+        : successes >= 3
+          ? ("stable" as const)
+          : roll >= 10
+            ? ("success" as const)
+            : ("failure" as const)
+
+    return { roll, outcome, successes, failures }
   },
 })
 
