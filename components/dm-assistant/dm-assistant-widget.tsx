@@ -53,11 +53,18 @@ export function DMAssistantWidget() {
   if (!isDmOfActive || onFullAssistant) return null
 
   if (!open) {
+    // The world-map page anchors a zoom/reset control stack in the bottom-right
+    // corner. Lift the launcher above that cluster there so it never covers the
+    // controls; everywhere else it sits in the usual corner spot.
+    const onWorldMap = pathname === "/dm/world-map"
+    const fabPosition = onWorldMap
+      ? "bottom-[calc(12rem+env(safe-area-inset-bottom))] right-4 md:bottom-36 md:right-6"
+      : "bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6"
     return (
       <button
         onClick={() => setOpen(true)}
         aria-label="Open DM Assistant"
-        className="fixed z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6"
+        className={`fixed z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 ${fabPosition}`}
         style={{ background: "var(--scene-accent)", color: "#fff" }}
       >
         <Bot className="h-6 w-6" />
