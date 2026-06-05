@@ -27,6 +27,7 @@ import {
   type GrantedFeatureData,
   type GrantedProficiency,
 } from "@/lib/character/class-grants"
+import { getCircleSpells } from "@/lib/character/circle-of-the-land"
 
 type CharDoc = Doc<"characters">
 type PropDoc = Doc<"characterProperties">
@@ -52,6 +53,8 @@ export interface CharacterDerived {
   companionRows: PropDoc[]
   invocationRows: PropDoc[]
   maneuverRows: PropDoc[]
+  landCircleRow: PropDoc | undefined
+  landCircleTerrain: string | undefined
   casterType: CasterType
   edition: Edition
   subclassId: string | undefined
@@ -140,6 +143,9 @@ export function deriveCharacter(
   const companionRows = myProps.filter((p) => p.type === "companion")
   const invocationRows = myProps.filter((p) => p.type === "invocation")
   const maneuverRows = myProps.filter((p) => p.type === "maneuver")
+  // Circle of the Land stores a single chosen terrain (Druid Land circle).
+  const landCircleRow = myProps.find((p) => p.type === "landCircle")
+  const landCircleTerrain = (landCircleRow?.data as { terrain?: string } | undefined)?.terrain
   const edition = resolveEdition(campaign?.edition)
 
   // Class/subclass "special procedurals" — derived live, never stored (see
@@ -149,7 +155,13 @@ export function deriveCharacter(
   // Effective caster type so Eldritch Knight / Arcane Trickster (third-casters via
   // subclass) get the full spellcasting UI; class-only casters are unaffected.
   const casterType = getEffectiveCasterType(char.characterClass, subclassId)
-  const grantedSpells = getGrantedSpells(char.characterClass, subclassId, char.level, edition)
+  // Subclass-granted always-prepared spells (cleric domain / paladin oath / warlock
+  // patron). Circle of the Land's terrain spells depend on a STORED choice, so they
+  // ride alongside the static grants rather than living in the CLASS_GRANTS table.
+  const grantedSpells = [
+    ...getGrantedSpells(char.characterClass, subclassId, char.level, edition),
+    ...(subclassId === "land" ? getCircleSpells(landCircleTerrain, char.level) : []),
+  ]
   // Channel Divinity options (Turn Undead + the subclass option) split out so they
   // render under the Channel Divinity resource pool as spendable actions; the rest
   // are passive Class Features. CD options use the canonical "Channel Divinity: X" name.
@@ -198,6 +210,8 @@ export function deriveCharacter(
     companionRows,
     invocationRows,
     maneuverRows,
+    landCircleRow,
+    landCircleTerrain,
     subclassId,
     casterType,
     edition,

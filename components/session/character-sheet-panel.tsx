@@ -25,6 +25,7 @@ import { ResourcesSection } from "@/components/character/resources"
 import { WildshapeSection, CompanionsSection } from "@/components/character/creature-sheet"
 import { InvocationsSection } from "@/components/character/invocations-section"
 import { ManeuversSection } from "@/components/character/maneuvers-section"
+import { LandCircleSection } from "@/components/character/land-circle-section"
 
 // In-session character sheet — the play-oriented "act surface" a player needs at
 // the table: roll checks/saves/skills, attack, cast (spend slots), spend class
@@ -66,7 +67,7 @@ export function SessionCharacterSheet({
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    spells, grantedSpells, resourceRows, formRows, companionRows, invocationRows, maneuverRows, subclassId, casterType, edition,
+    spells, grantedSpells, resourceRows, formRows, companionRows, invocationRows, maneuverRows, landCircleRow, landCircleTerrain, subclassId, casterType, edition,
     equippedWeapons, fightingStyleId, armorClass, armorName, nextOrder,
     channelDivinityOptions,
   } = deriveCharacter(char, allProps, campaign)
@@ -166,6 +167,17 @@ export function SessionCharacterSheet({
         subclassId={subclassId}
         level={char.level}
         maneuverRows={maneuverRows}
+        nextOrder={nextOrder}
+      />
+
+      {/* Circle of the Land terrain (druids, Land circle) */}
+      <LandCircleSection
+        characterId={char._id}
+        classId={char.characterClass}
+        subclassId={subclassId}
+        level={char.level}
+        rowId={landCircleRow?._id}
+        terrain={landCircleTerrain}
         nextOrder={nextOrder}
       />
 

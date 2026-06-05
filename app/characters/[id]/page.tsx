@@ -53,6 +53,7 @@ import { ResourcesSection } from "@/components/character/resources"
 import { WildshapeSection, CompanionsSection } from "@/components/character/creature-sheet"
 import { InvocationsSection } from "@/components/character/invocations-section"
 import { ManeuversSection } from "@/components/character/maneuvers-section"
+import { LandCircleSection } from "@/components/character/land-circle-section"
 import { getClassResources, type ResourceRow } from "@/lib/character/resources"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
@@ -1627,7 +1628,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, invocationRows, maneuverRows, subclassId, casterType, edition,
+    items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, invocationRows, maneuverRows, landCircleRow, landCircleTerrain, subclassId, casterType, edition,
     shortRestResourceKeys, equippedWeapons, fightingStyleId,
     armorClass, armorName, nextOrder,
     grantedFeatures, channelDivinityOptions, grantedProficiencies,
@@ -1899,6 +1900,17 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           subclassId={subclassId}
           level={char.level}
           maneuverRows={maneuverRows}
+          nextOrder={nextOrder}
+        />
+
+        {/* Circle of the Land terrain (druids, Land circle, L3+) */}
+        <LandCircleSection
+          characterId={char._id}
+          classId={char.characterClass}
+          subclassId={subclassId}
+          level={char.level}
+          rowId={landCircleRow?._id}
+          terrain={landCircleTerrain}
           nextOrder={nextOrder}
         />
 
