@@ -12,13 +12,14 @@ import { cn } from "@/lib/utils"
 import {
   Sparkles, Play, Square, Radio, Users, Clock, Heart, X,
   ChevronUp, ChevronDown, Shield, Trash2, Package, ScrollText, UserPlus,
-  Map as MapIcon,
+  Map as MapIcon, UserSquare2,
 } from "lucide-react"
 import { toast } from "sonner"
 import { InvitePlayersDialog } from "@/components/invite-players-dialog"
 import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-panel"
 import { DMCaptionControl, PlayerCaptionOverlay } from "@/components/session/captions"
 import { DMCombatTracker, PlayerCombatView } from "@/components/session/combat-tracker"
+import { SessionCharacterSheet } from "@/components/session/character-sheet-panel"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { WorldMapViewer } from "@/components/world-map/map-viewer"
 
@@ -97,17 +98,19 @@ function HpBar({ current, max }: { current: number; max: number }) {
   )
 }
 
-type TabId = "live" | "map" | "notes" | "inventory"
+type TabId = "live" | "sheet" | "map" | "notes" | "inventory"
 
-function SessionTabs({ tab, setTab }: { tab: TabId; setTab: (t: TabId) => void }) {
+function SessionTabs({ tab, setTab, showSheet }: { tab: TabId; setTab: (t: TabId) => void; showSheet?: boolean }) {
+  const tabs = [
+    { id: "live" as TabId, label: "Live", icon: Sparkles },
+    ...(showSheet ? [{ id: "sheet" as TabId, label: "Sheet", icon: UserSquare2 }] : []),
+    { id: "map" as TabId, label: "Map", icon: MapIcon },
+    { id: "notes" as TabId, label: "Notes", icon: ScrollText },
+    { id: "inventory" as TabId, label: "Inventory", icon: Package },
+  ]
   return (
-    <div className="flex gap-1 mb-6 p-1 rounded-lg max-w-lg" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
-      {([
-        { id: "live" as TabId, label: "Live", icon: Sparkles },
-        { id: "map" as TabId, label: "Map", icon: MapIcon },
-        { id: "notes" as TabId, label: "Notes", icon: ScrollText },
-        { id: "inventory" as TabId, label: "Inventory", icon: Package },
-      ] as const).map(({ id, label, icon: Icon }) => (
+    <div className="flex gap-1 mb-6 p-1 rounded-lg max-w-xl" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+      {tabs.map(({ id, label, icon: Icon }) => (
         <button
           key={id}
           onClick={() => setTab(id)}
@@ -1075,12 +1078,18 @@ export default function SessionPage() {
             <div className="animate-pulse rounded-xl h-48" style={{ background: "var(--scene-surface)" }} />
           ) : myPartyMember ? (
             <>
-              <SessionTabs tab={tab} setTab={setTab} />
+              <SessionTabs tab={tab} setTab={setTab} showSheet />
               {tab === "live" && (
                 <ReceiverView
                   sessionId={session._id}
                   campaignId={session.campaignId}
                   myMember={myPartyMember as MyMember}
+                />
+              )}
+              {tab === "sheet" && (
+                <SessionCharacterSheet
+                  characterId={myPartyMember.characterId}
+                  campaignId={session.campaignId}
                 />
               )}
               {tab === "map" && (

@@ -34,19 +34,19 @@ import {
   appliedSummary,
 } from "@/lib/character/feats"
 import { resolveEdition, type Edition } from "@/lib/editions"
+import { deriveCharacter } from "@/lib/character/derive-character"
 import {
-  useDiceStore,
-  rollExpression,
-  type RollMode,
-  type DiceRollResult,
-} from "@/lib/dice-store"
-import { DiceScene, type SceneDie } from "@/components/dice/die-3d-scene"
+  useSheetRoll,
+  RollModeBar,
+  SheetRollCard,
+} from "@/components/character/sheet-roll"
 import {
-  computeArmorClass,
-  equippedArmor,
-  rowToItem,
-} from "@/lib/character/sheet-items"
-import { rowToSpell } from "@/lib/character/sheet-spells"
+  StatBox,
+  AbilityScoresGrid,
+  SavingThrowsCard,
+  SkillsCard,
+  SensesCard,
+} from "@/components/character/stat-blocks"
 import { AttacksSection, InventorySection } from "./inventory"
 import { SpellbookSection } from "@/components/character/spellbook"
 import { ResourcesSection } from "@/components/character/resources"
@@ -56,369 +56,6 @@ import { getClassResources, type ResourceRow } from "@/lib/character/resources"
 
 type CharDoc = Doc<"characters">
 
-function computeStats(char: CharDoc) {
-  const racialBonuses = char.racialBonuses ?? {}
-  const totalAbilities = Object.fromEntries(
-    ABILITIES.map((a) => [a, char.baseAbilities[a] + (racialBonuses[a] ?? 0)])
-  ) as Record<Ability, number>
-
-  const mods = Object.fromEntries(
-    ABILITIES.map((a) => [a, getAbilityModifier(totalAbilities[a])])
-  ) as Record<Ability, number>
-
-  const profBonus = getProficiencyBonus(char.level)
-
-  const saveMods = Object.fromEntries(
-    ABILITIES.map((a) => {
-      const isProficient = char.savingThrowProficiencies.includes(a)
-      return [a, mods[a] + (isProficient ? profBonus : 0)]
-    })
-  ) as Record<Ability, number>
-
-  const skillMods = Object.fromEntries(
-    (Object.keys(SKILLS) as Skill[]).map((skill) => {
-      const ability = SKILLS[skill] as Ability
-      const isExpert = char.skillExpertise.includes(skill)
-      const isProficient = char.skillProficiencies.includes(skill)
-      const bonus = isExpert ? profBonus * 2 : isProficient ? profBonus : 0
-      return [skill, mods[ability] + bonus]
-    })
-  ) as Record<Skill, number>
-
-  const passivePerception = 10 + skillMods.perception
-  const initiative = mods.dexterity
-
-  // AC is computed at the page level from equipped armor (see computeArmorClass),
-  // since it needs the character's item properties, which load separately.
-  return { totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative }
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function StatBox({ label, value, sub, onClick }: { label: string; value: string | number; sub?: string; onClick?: () => void }) {
-  const inner = (
-    <>
-      <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>
-        {label}
-      </div>
-      <div className="text-xl font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
-        {value}
-      </div>
-      {sub && <div className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>{sub}</div>}
-    </>
-  )
-  if (onClick) {
-    return (
-      <button
-        onClick={onClick}
-        className="flex flex-col items-center justify-center rounded-lg p-3 text-center w-full transition-transform active:scale-95 hover:opacity-90"
-        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
-        title={`Roll ${label}`}
-      >
-        {inner}
-      </button>
-    )
-  }
-  return (
-    <div
-      className="flex flex-col items-center justify-center rounded-lg p-3 text-center"
-      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
-    >
-      {inner}
-    </div>
-  )
-}
-
-function AbilityBlock({ ability, total, mod, onRoll }: { ability: Ability; total: number; mod: number; onRoll: () => void }) {
-  return (
-    <button
-      onClick={onRoll}
-      className="flex flex-col items-center rounded-lg py-3 px-2 w-full transition-transform active:scale-95 hover:opacity-90"
-      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
-      title={`Roll ${ABILITY_ABBREVIATIONS[ability]} check`}
-    >
-      <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>
-        {ABILITY_ABBREVIATIONS[ability]}
-      </div>
-      <div
-        className="w-10 h-10 rounded-md flex items-center justify-center text-lg font-bold mb-1"
-        style={{
-          background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))",
-          border: "1px solid color-mix(in srgb, var(--scene-accent) 25%, transparent)",
-          color: "var(--scene-text-primary)",
-          fontFamily: "var(--font-cinzel)",
-        }}
-      >
-        {total}
-      </div>
-      <div className="text-sm font-semibold" style={{ color: "var(--scene-accent)" }}>
-        {formatModifier(mod)}
-      </div>
-    </button>
-  )
-}
-
-// Shared roll-from-sheet hook: rolls 1d20 + the given modifier through the dice
-// engine, honoring the sheet's advantage/disadvantage toggle. Drops the result
-// into the shared history, toasts it, and surfaces it for the on-sheet dice card
-// (with a brief tumble unless the user prefers reduced motion).
-function useSheetRoll() {
-  const addRoll = useDiceStore((s) => s.addRoll)
-  const [mode, setMode] = useState<RollMode>("normal")
-  const [lastRoll, setLastRoll] = useState<DiceRollResult | null>(null)
-  const [rolling, setRolling] = useState(false)
-  const rollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(
-    () => () => {
-      if (rollTimer.current) clearTimeout(rollTimer.current)
-    },
-    [],
-  )
-
-  // Shared tail for every sheet roll: record it, surface the dice card, toast,
-  // and (unless reduced-motion) run the brief tumble. Nat-20/nat-1 flair only
-  // applies to d20 rolls, so damage rolls (a damage die first) never mis-flair.
-  const surface = (result: DiceRollResult) => {
-    addRoll(result)
-    setLastRoll(result)
-    const isD20 = result.terms[0]?.sides === 20
-    const face = result.terms[0]?.rolls[0]
-    const flair =
-      isD20 && face === 20 ? " — nat 20!" : isD20 && face === 1 ? " — nat 1" : ""
-    toast.success(`${result.label ?? "Roll"}: ${result.total}${flair}`)
-
-    const prefersReduced =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (prefersReduced) {
-      setRolling(false)
-      return
-    }
-    setRolling(true)
-    if (rollTimer.current) clearTimeout(rollTimer.current)
-    rollTimer.current = setTimeout(() => setRolling(false), 500)
-  }
-
-  // d20 check/save/attack roll — applies the advantage/disadvantage toggle.
-  const roll = (label: string, mod: number) => {
-    const sign = mod >= 0 ? "+" : "-"
-    const result = rollExpression(`1d20${sign}${Math.abs(mod)}`, { label, mode })
-    if (!result) return
-    surface(result)
-  }
-
-  // Arbitrary expression (e.g. weapon damage "1d8+3"). Damage isn't adv/dis, so
-  // this never passes mode; crit doubles the dice (the engine handles it).
-  const rollExpr = (
-    label: string,
-    expression: string,
-    opts?: { crit?: boolean },
-  ) => {
-    const result = rollExpression(expression, { label, crit: opts?.crit })
-    if (!result) {
-      toast.error(`Couldn't roll "${expression}".`)
-      return
-    }
-    surface(result)
-  }
-
-  return {
-    roll,
-    rollExpr,
-    mode,
-    setMode,
-    lastRoll,
-    rolling,
-    dismiss: () => setLastRoll(null),
-  }
-}
-
-// Sticky advantage/disadvantage selector for every roll made from the sheet.
-// Mirrors the dice page's three-way mode so the mental model carries over.
-const SHEET_ROLL_MODES: RollMode[] = ["normal", "advantage", "disadvantage"]
-const SHEET_MODE_LABEL: Record<RollMode, string> = {
-  normal: "Normal",
-  advantage: "Advantage",
-  disadvantage: "Disadvantage",
-}
-
-function RollModeBar({
-  mode,
-  setMode,
-}: {
-  mode: RollMode
-  setMode: (m: RollMode) => void
-}) {
-  return (
-    <div
-      className="sticky top-12 md:top-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2.5 mb-5"
-      style={{
-        background: "color-mix(in srgb, var(--scene-bg) 88%, transparent)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        borderBottom: "1px solid var(--scene-border)",
-      }}
-    >
-      <div className="flex items-center gap-2 max-w-4xl mx-auto">
-        <span
-          className="text-xs uppercase tracking-widest hidden sm:inline"
-          style={{ color: "var(--scene-text-muted)" }}
-        >
-          Roll mode
-        </span>
-        <div className="flex gap-1.5 flex-1 sm:flex-none">
-          {SHEET_ROLL_MODES.map((m) => {
-            const active = mode === m
-            const accent =
-              m === "disadvantage" ? "#ef4444" : "var(--scene-accent)"
-            return (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className="flex-1 sm:flex-none px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
-                style={{
-                  background: active ? accent : "var(--scene-surface)",
-                  color: active ? "var(--scene-bg)" : "var(--scene-text-muted)",
-                  border: "1px solid var(--scene-border)",
-                }}
-              >
-                {SHEET_MODE_LABEL[m]}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Floating, dismissable card showing the most recent sheet roll as real dice —
-// always visible regardless of scroll position, so a skill rolled at the bottom
-// of the sheet still shows its dice. Sits above the mobile bottom nav.
-function SheetRollCard({
-  result,
-  rolling,
-  onDismiss,
-}: {
-  result: DiceRollResult
-  rolling: boolean
-  onDismiss: () => void
-}) {
-  const dice: SceneDie[] = useMemo(
-    () =>
-      result.terms.flatMap((term) => [
-        ...term.rolls.map((r) => ({ sides: term.sides, value: r, dropped: false })),
-        ...term.dropped.map((r) => ({ sides: term.sides, value: r, dropped: true })),
-      ]),
-    [result],
-  )
-
-  const face = result.terms[0]?.rolls[0]
-  const isNat20 = result.terms[0]?.sides === 20 && face === 20
-  const isNat1 = result.terms[0]?.sides === 20 && face === 1
-  const totalColor = isNat20
-    ? "var(--scene-accent)"
-    : isNat1
-      ? "#ef4444"
-      : "var(--scene-text-primary)"
-
-  return (
-    <div
-      className="fixed z-40 left-3 right-3 md:left-auto md:right-6 md:w-72 bottom-[calc(3.5rem_+_0.75rem_+_env(safe-area-inset-bottom))] md:bottom-6 rounded-xl p-4 shadow-xl"
-      style={{
-        background: "var(--scene-surface)",
-        border: `1px solid ${
-          isNat20
-            ? "var(--scene-accent)"
-            : isNat1
-              ? "#ef4444"
-              : "var(--scene-border)"
-        }`,
-      }}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <span
-          className="text-xs uppercase tracking-widest flex-1 truncate"
-          style={{ color: "var(--scene-text-muted)" }}
-        >
-          {result.label ?? result.expression}
-        </span>
-        {result.isAdvantage && (
-          <span
-            className="text-xs font-semibold"
-            style={{ color: "var(--scene-accent)" }}
-          >
-            ADV
-          </span>
-        )}
-        {result.isDisadvantage && (
-          <span className="text-xs font-semibold" style={{ color: "#ef4444" }}>
-            DIS
-          </span>
-        )}
-        <button
-          onClick={onDismiss}
-          aria-label="Dismiss roll"
-          className="p-0.5 rounded transition-opacity hover:opacity-80"
-          style={{ color: "var(--scene-text-muted)" }}
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <div
-        className="font-bold leading-none text-center"
-        style={{
-          fontFamily: "var(--font-cinzel)",
-          fontSize: "2.75rem",
-          color: totalColor,
-          visibility: rolling ? "hidden" : "visible",
-        }}
-      >
-        {result.total}
-      </div>
-      {isNat20 && (
-        <div
-          className="text-center text-xs font-semibold"
-          style={{ color: "var(--scene-accent)" }}
-        >
-          Natural 20!
-        </div>
-      )}
-      {isNat1 && (
-        <div
-          className="text-center text-xs font-semibold"
-          style={{ color: "#ef4444" }}
-        >
-          Natural 1…
-        </div>
-      )}
-
-      <DiceScene
-        dice={dice}
-        rolling={rolling}
-        showNumbers={dice.length > 1 || result.modifier !== 0}
-      />
-    </div>
-  )
-}
-
-function ProfDot({ level }: { level: "none" | "proficient" | "expert" }) {
-  return (
-    <span
-      className="w-3 h-3 rounded-full flex-shrink-0 inline-block"
-      style={{
-        background: level === "none" ? "transparent" : "var(--scene-accent)",
-        border: level === "none"
-          ? "1.5px solid var(--scene-border)"
-          : level === "expert"
-          ? "2px solid var(--scene-highlight)"
-          : "none",
-      }}
-    />
-  )
-}
 
 function HpEditor({ char }: { char: CharDoc }) {
   const doUpdateHp = useMutation(api.characters.updateHp)
@@ -1975,44 +1612,13 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     )
   }
 
-  const { totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative } = computeStats(char)
-  const raceName = char.subrace ? `${char.subrace} ${char.race}` : char.race
-  const classColor = CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
-  const hitDie = char.hitDice[0]?.diceSize ?? 8
-  // Prefer the value snapshotted at creation (works for homebrew races too); fall
-  // back to the static name lookup for characters built before the snapshot field.
-  const darkvision = char.darkvision ?? getDarkvisionRange(char.race, char.subrace)
-
-  // Inventory: this character's property rows, mapped to flat items the
-  // calculators understand. Drives real AC + the Attacks section.
-  const myProps = (allProps ?? [])
-    .filter((p) => p.characterId === char._id)
-    .sort((a, b) => a.orderIndex - b.orderIndex)
-  const items = myProps.filter((p) => p.type === "item").map(rowToItem)
-  const spells = myProps.filter((p) => p.type === "spell").map(rowToSpell)
-  const resourceRows = myProps.filter((p) => p.type === "classResource")
-  const featRows = myProps.filter((p) => p.type === "feature")
-  const casterType = getCasterType(char.characterClass)
-  const edition = resolveEdition(campaign?.edition)
-  // Keys of this character's short-rest-recharge resources, for the Rest panel's
-  // Short Rest button (derived once; ResourcesSection derives its own for display).
-  const shortRestResourceKeys = getClassResources(char.characterClass, char.level, mods, edition)
-    .filter((r) => r.rechargeOn === "shortRest")
-    .map((r) => r.key)
-  const equippedWeapons = items.filter(
-    (i) => i.active && i.equipped && i.category === "weapon",
-  )
-  // The chosen fighting style (if any), stored as a feature row's data — drives
-  // Defense's +1 AC and Archery's +2 ranged to-hit on the sheet.
-  const fightingStyleId = featRows
-    .map((p) => (p.data as { fightingStyleId?: string } | undefined)?.fightingStyleId)
-    .find(Boolean)
-  // Pass RAW ability scores — computeArmorClass derives the DEX modifier itself.
-  const armorClass = computeArmorClass(char.level, totalAbilities, items, fightingStyleId)
-  const armorName = equippedArmor(items)?.name
-  const nextOrder = myProps.length
-    ? Math.max(...myProps.map((p) => p.orderIndex)) + 1
-    : 0
+  const {
+    totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
+    raceName, classColor, hitDie, darkvision,
+    items, spells, resourceRows, featRows, casterType, edition,
+    shortRestResourceKeys, equippedWeapons, fightingStyleId,
+    armorClass, armorName, nextOrder,
+  } = deriveCharacter(char, allProps, campaign)
 
   return (
     <AppShell>
@@ -2155,137 +1761,28 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
         />
 
         {/* Ability Scores */}
-        <section className="mb-6">
-          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
-            Ability Scores
-          </h2>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {ABILITIES.map((ability) => (
-              <AbilityBlock
-                key={ability}
-                ability={ability}
-                total={totalAbilities[ability]}
-                mod={mods[ability]}
-                onRoll={() => roll(`${ABILITY_ABBREVIATIONS[ability]} check`, mods[ability])}
-              />
-            ))}
-          </div>
-        </section>
+        <AbilityScoresGrid totalAbilities={totalAbilities} mods={mods} roll={roll} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Saving Throws */}
-          <section>
-            <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
-              Saving Throws
-            </h2>
-            <div className="rounded-xl overflow-hidden" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
-              {ABILITIES.map((ability, i) => {
-                const isProficient = char.savingThrowProficiencies.includes(ability)
-                return (
-                  <button
-                    key={ability}
-                    onClick={() => roll(`${ABILITY_ABBREVIATIONS[ability]} save`, saveMods[ability])}
-                    className="flex items-center gap-3 px-4 py-2.5 w-full text-left transition-opacity hover:opacity-80"
-                    style={{ borderBottom: i < ABILITIES.length - 1 ? "1px solid var(--scene-border)" : "none" }}
-                    title={`Roll ${ABILITY_ABBREVIATIONS[ability]} save`}
-                  >
-                    <ProfDot level={isProficient ? "proficient" : "none"} />
-                    <span className="text-sm flex-1" style={{ color: "var(--scene-text-primary)" }}>
-                      {ABILITY_ABBREVIATIONS[ability]}
-                    </span>
-                    <span
-                      className="text-sm font-semibold tabular-nums"
-                      style={{ color: isProficient ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
-                    >
-                      {formatModifier(saveMods[ability])}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-
-          {/* Senses + Spellcasting */}
-          <section>
-            <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
-              Senses
-            </h2>
-            <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-3.5 w-3.5" style={{ color: "var(--scene-text-muted)" }} />
-                  <span className="text-sm" style={{ color: "var(--scene-text-primary)" }}>Passive Perception</span>
-                </div>
-                <span className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>{passivePerception}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Wind className="h-3.5 w-3.5" style={{ color: "var(--scene-text-muted)" }} />
-                  <span className="text-sm" style={{ color: "var(--scene-text-primary)" }}>Speed</span>
-                </div>
-                <span className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>{char.speed} ft</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Eye className="h-3.5 w-3.5" style={{ color: "var(--scene-text-muted)" }} />
-                  <span className="text-sm" style={{ color: "var(--scene-text-primary)" }}>Darkvision</span>
-                </div>
-                <span className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>
-                  {darkvision > 0 ? `${darkvision} ft` : "—"}
-                </span>
-              </div>
-            </div>
-          </section>
+          <SavingThrowsCard
+            savingThrowProficiencies={char.savingThrowProficiencies}
+            saveMods={saveMods}
+            roll={roll}
+          />
+          <SensesCard
+            passivePerception={passivePerception}
+            speed={char.speed}
+            darkvision={darkvision}
+          />
         </div>
 
         {/* Skills */}
-        <section className="mb-6">
-          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
-            Skills
-          </h2>
-          <div className="rounded-xl overflow-hidden" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
-            <div className="grid grid-cols-1 sm:grid-cols-2">
-              {(Object.keys(SKILLS) as Skill[]).map((skill, i, arr) => {
-                const ability = SKILLS[skill] as Ability
-                const isExpert = char.skillExpertise.includes(skill)
-                const isProficient = char.skillProficiencies.includes(skill)
-                const level: "none" | "proficient" | "expert" = isExpert ? "expert" : isProficient ? "proficient" : "none"
-                const half = Math.ceil(arr.length / 2)
-                const isRightCol = i >= half
-                const isLastInLeftCol = i === half - 1
-                const isLastInRightCol = i === arr.length - 1
-                return (
-                  <button
-                    key={skill}
-                    onClick={() => roll(SKILL_DISPLAY_NAMES[skill], skillMods[skill])}
-                    className="flex items-center gap-3 px-4 py-2 w-full text-left transition-opacity hover:opacity-80"
-                    style={{
-                      borderBottom: (!isRightCol && !isLastInLeftCol) || (isRightCol && !isLastInRightCol)
-                        ? "1px solid var(--scene-border)"
-                        : "none",
-                      borderRight: !isRightCol ? "1px solid var(--scene-border)" : "none",
-                    }}
-                    title={`Roll ${SKILL_DISPLAY_NAMES[skill]}`}
-                  >
-                    <ProfDot level={level} />
-                    <span className="text-sm flex-1" style={{ color: "var(--scene-text-primary)" }}>
-                      {SKILL_DISPLAY_NAMES[skill]}
-                    </span>
-                    <span className="text-xs mr-2" style={{ color: "var(--scene-text-muted)" }}>
-                      {ABILITY_ABBREVIATIONS[ability]}
-                    </span>
-                    <span
-                      className="text-sm font-semibold tabular-nums w-8 text-right"
-                      style={{ color: level !== "none" ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
-                    >
-                      {formatModifier(skillMods[skill])}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </section>
+        <SkillsCard
+          skillProficiencies={char.skillProficiencies}
+          skillExpertise={char.skillExpertise}
+          skillMods={skillMods}
+          roll={roll}
+        />
 
         {/* Proficiencies & Languages */}
         <section className="mb-6">
