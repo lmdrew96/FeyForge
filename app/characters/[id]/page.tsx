@@ -23,7 +23,16 @@ import type { Ability, Skill } from "@/lib/character/constants"
 import { getDarkvisionRange } from "@/lib/character/character-data"
 import { getXPProgress, getXPForLevel, getLevelFromXP, getXPToNextLevel } from "@/lib/character/experience"
 import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting, isAsiLevel } from "@/lib/character/leveling"
-import { FEATS, type FeatData } from "@/lib/character/feats"
+import {
+  FEATS,
+  type FeatData,
+  type AppliedGrants,
+  featNeedsChoices,
+  autoResolve,
+  applyGrants,
+  reverseGrants,
+  appliedSummary,
+} from "@/lib/character/feats"
 import { resolveEdition, type Edition } from "@/lib/editions"
 import {
   useDiceStore,
@@ -773,25 +782,35 @@ function incrementHitDice(hitDice: CharDoc["hitDice"], dieSize: number): CharDoc
   return [...hitDice, { diceSize: dieSize, total: 1, used: 0 }]
 }
 
-// Feat picker — searchable list of curated feats. Reused by the level-up flow
-// (ASI vs feat) and the Feats section's standalone "Add feat". onSelect hands the
-// chosen feat back; the caller decides whether to stage it or apply it.
+// Feat picker — searchable list of curated feats with a choice step for feats
+// that require a decision (which ability, skills, expertise, damage type). Reused
+// by the level-up flow and the Feats section. onSelect hands back the feat plus
+// the resolved grants (AppliedGrants) so the caller can bake them in.
 function FeatPicker({
   feats,
   knownIds,
+  char,
   onSelect,
   onClose,
 }: {
   feats: FeatData[]
   knownIds: Set<string>
-  onSelect: (feat: FeatData) => void
+  char: CharDoc
+  onSelect: (feat: FeatData, applied: AppliedGrants) => void
   onClose: () => void
 }) {
   const [query, setQuery] = useState("")
+  const [configuring, setConfiguring] = useState<FeatData | null>(null)
   const q = query.trim().toLowerCase()
   const results = feats
     .filter((f) => (q ? f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q) : true))
     .sort((a, b) => a.name.localeCompare(b.name))
+
+  const pick = (f: FeatData) => {
+    if (knownIds.has(f.id)) return
+    if (featNeedsChoices(f.effects)) setConfiguring(f)
+    else onSelect(f, autoResolve(f, char.level))
+  }
 
   return (
     <div
@@ -805,58 +824,233 @@ function FeatPicker({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
-            Choose a feat
-          </h2>
-          <button onClick={onClose} className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+          <div className="flex items-center gap-2 min-w-0">
+            {configuring && (
+              <button onClick={() => setConfiguring(null)} className="p-1 rounded hover:opacity-80 flex-shrink-0" style={{ color: "var(--scene-text-muted)" }} title="Back to feat list">
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+            <h2 className="text-lg font-bold truncate" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+              {configuring ? configuring.name : "Choose a feat"}
+            </h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:opacity-80 flex-shrink-0" style={{ color: "var(--scene-text-muted)" }}>
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="relative mb-3">
-          <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--scene-text-muted)" }} />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search feats…"
-            autoFocus
-            className="w-full pl-8 pr-3 py-2 rounded-md text-sm bg-transparent outline-none"
-            style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
-          />
-        </div>
+        {configuring ? (
+          <FeatConfig feat={configuring} char={char} onConfirm={(applied) => onSelect(configuring, applied)} />
+        ) : (
+          <>
+            <div className="relative mb-3">
+              <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--scene-text-muted)" }} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search feats…"
+                autoFocus
+                className="w-full pl-8 pr-3 py-2 rounded-md text-sm bg-transparent outline-none"
+                style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+              />
+            </div>
 
-        <div className="flex-1 overflow-y-auto -mx-1 px-1 space-y-1.5">
-          {results.length === 0 ? (
-            <div className="px-1 py-3 text-sm" style={{ color: "var(--scene-text-muted)" }}>No matching feats.</div>
-          ) : (
-            results.map((f) => {
-              const known = knownIds.has(f.id)
-              return (
-                <button
-                  key={f.id}
-                  onClick={() => !known && onSelect(f)}
-                  disabled={known}
-                  className="w-full text-left px-3 py-2.5 rounded-md transition-colors disabled:opacity-50"
-                  style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{f.name}</span>
-                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
-                      {f.category}
-                    </span>
-                    {known && <Check className="h-3.5 w-3.5 ml-auto flex-shrink-0" style={{ color: "var(--scene-accent)" }} />}
-                  </div>
-                  {f.prerequisite && (
-                    <div className="text-[11px] mt-0.5" style={{ color: "var(--scene-accent)" }}>Requires: {f.prerequisite}</div>
-                  )}
-                  <div className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{f.description}</div>
-                </button>
-              )
-            })
-          )}
-        </div>
+            <div className="flex-1 overflow-y-auto -mx-1 px-1 space-y-1.5">
+              {results.length === 0 ? (
+                <div className="px-1 py-3 text-sm" style={{ color: "var(--scene-text-muted)" }}>No matching feats.</div>
+              ) : (
+                results.map((f) => {
+                  const known = knownIds.has(f.id)
+                  const hasChoice = featNeedsChoices(f.effects)
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => pick(f)}
+                      disabled={known}
+                      className="w-full text-left px-3 py-2.5 rounded-md transition-colors disabled:opacity-50"
+                      style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{f.name}</span>
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
+                          {f.category}
+                        </span>
+                        {hasChoice && !known && (
+                          <span className="text-[10px] ml-auto flex-shrink-0" style={{ color: "var(--scene-accent)" }}>choices →</span>
+                        )}
+                        {known && <Check className="h-3.5 w-3.5 ml-auto flex-shrink-0" style={{ color: "var(--scene-accent)" }} />}
+                      </div>
+                      {f.prerequisite && (
+                        <div className="text-[11px] mt-0.5" style={{ color: "var(--scene-accent)" }}>Requires: {f.prerequisite}</div>
+                      )}
+                      <div className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{f.description}</div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
+  )
+}
+
+// Choice step for a feat that requires decisions: pick the +1 ability, skill
+// proficiencies, expertise, and/or a flavor option (e.g. damage type). Resolves
+// to AppliedGrants on confirm.
+function FeatConfig({
+  feat,
+  char,
+  onConfirm,
+}: {
+  feat: FeatData
+  char: CharDoc
+  onConfirm: (applied: AppliedGrants) => void
+}) {
+  const e = feat.effects ?? {}
+  const abilityOpts = e.abilityOptions ?? []
+  const needAbility = abilityOpts.length > 1
+  const [ability, setAbility] = useState<Ability | null>(abilityOpts.length === 1 ? abilityOpts[0] : null)
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [expertise, setExpertise] = useState<Skill[]>([])
+  const [text, setText] = useState<string>("")
+
+  const allSkills = Object.keys(SKILLS) as Skill[]
+  // Skills you can newly gain proficiency in (not already proficient).
+  const skillPool = allSkills.filter((s) => !char.skillProficiencies.includes(s))
+  // Skills eligible for expertise: ones you're proficient in (incl. just-chosen
+  // here) and not already an expert in.
+  const expertisePool = allSkills.filter(
+    (s) => (char.skillProficiencies.includes(s) || skills.includes(s)) && !char.skillExpertise.includes(s),
+  )
+
+  const toggle = (list: Skill[], set: (v: Skill[]) => void, s: Skill, max: number) => {
+    if (list.includes(s)) set(list.filter((x) => x !== s))
+    else if (list.length < max) set([...list, s])
+  }
+
+  const ok =
+    (!needAbility || !!ability) &&
+    (!e.skillChoices || skills.length === e.skillChoices) &&
+    (!e.expertiseChoices || expertise.length === e.expertiseChoices) &&
+    (!e.textChoice || !!text)
+
+  const confirm = () => {
+    const g: AppliedGrants = {}
+    if (ability) g.ability = ability
+    if (e.saveProficiency && ability && !char.savingThrowProficiencies.includes(ability)) g.saveProficiency = ability
+    if (skills.length) g.skillProficiencies = skills
+    if (expertise.length) g.skillExpertise = expertise
+    if (e.hpPerLevel) g.hp = e.hpPerLevel * char.level
+    if (text) g.text = text
+    onConfirm(g)
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto -mx-1 px-1 space-y-4">
+      <p className="text-xs leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{feat.description}</p>
+
+      {needAbility && (
+        <div>
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+            +1 Ability{e.saveProficiency ? " (also grants its saving-throw proficiency)" : ""}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {abilityOpts.map((a) => (
+              <button
+                key={a}
+                onClick={() => setAbility(a)}
+                className="px-3 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+                style={{
+                  background: ability === a ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)" : "var(--scene-bg)",
+                  color: ability === a ? "var(--scene-accent)" : "var(--scene-text-primary)",
+                  border: `1px solid ${ability === a ? "color-mix(in srgb, var(--scene-accent) 40%, transparent)" : "var(--scene-border)"}`,
+                }}
+              >
+                {ABILITY_ABBREVIATIONS[a]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!!e.skillChoices && (
+        <div>
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+            Skill proficiency — pick {e.skillChoices} ({skills.length}/{e.skillChoices})
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {skillPool.map((s) => (
+              <SkillChip key={s} label={SKILL_DISPLAY_NAMES[s]} active={skills.includes(s)} onClick={() => toggle(skills, setSkills, s, e.skillChoices!)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!!e.expertiseChoices && (
+        <div>
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+            Expertise — pick {e.expertiseChoices} ({expertise.length}/{e.expertiseChoices})
+          </div>
+          {expertisePool.length === 0 ? (
+            <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>No eligible skills (need a skill proficiency first).</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {expertisePool.map((s) => (
+                <SkillChip key={s} label={SKILL_DISPLAY_NAMES[s]} active={expertise.includes(s)} onClick={() => toggle(expertise, setExpertise, s, e.expertiseChoices!)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {e.textChoice && (
+        <div>
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>{e.textChoice.label}</div>
+          {e.textChoice.options ? (
+            <div className="flex flex-wrap gap-1.5">
+              {e.textChoice.options.map((o) => (
+                <SkillChip key={o} label={o} active={text === o} onClick={() => setText(o)} />
+              ))}
+            </div>
+          ) : (
+            <input
+              value={text}
+              onChange={(ev) => setText(ev.target.value)}
+              placeholder={e.textChoice.label}
+              className="w-full px-3 py-2 rounded-md text-sm bg-transparent outline-none"
+              style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+            />
+          )}
+        </div>
+      )}
+
+      <button
+        onClick={confirm}
+        disabled={!ok}
+        className="w-full py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+        style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+      >
+        Add {feat.name}
+      </button>
+    </div>
+  )
+}
+
+function SkillChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-2.5 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-80"
+      style={{
+        background: active ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)" : "var(--scene-bg)",
+        color: active ? "var(--scene-accent)" : "var(--scene-text-primary)",
+        border: `1px solid ${active ? "color-mix(in srgb, var(--scene-accent) 40%, transparent)" : "var(--scene-border)"}`,
+      }}
+    >
+      {label}
+    </button>
   )
 }
 
@@ -881,6 +1075,7 @@ function LevelUpDialog({
 }) {
   const doUpdate = useMutation(api.characters.update)
   const addProperty = useMutation(api.characters.addProperty)
+  const updateProperty = useMutation(api.characters.updateProperty)
   const allProps = useQuery(api.characters.listAllProperties)
   const [hpMode, setHpMode] = useState<"average" | "roll">("average")
   const [rolled, setRolled] = useState<number | null>(null)
@@ -900,6 +1095,7 @@ function LevelUpDialog({
   const [choice, setChoice] = useState<"asi" | "feat">("asi")
   const [inc, setInc] = useState<Partial<Record<Ability, number>>>({})
   const [selectedFeat, setSelectedFeat] = useState<FeatData | null>(null)
+  const [selectedApplied, setSelectedApplied] = useState<AppliedGrants | null>(null)
   const [featPickerOpen, setFeatPickerOpen] = useState(false)
 
   const spent = ABILITIES.reduce((n, a) => n + (inc[a] ?? 0), 0)
@@ -941,11 +1137,23 @@ function LevelUpDialog({
     setSaving(true)
     try {
       const applyAsi = isAsi && !skip && choice === "asi" && spent === 2
-      const applyFeat = isAsi && !skip && choice === "feat" && !!selectedFeat
+      const applyFeat = isAsi && !skip && choice === "feat" && !!selectedFeat && !!selectedApplied
+      // Feat grants for the stored fields (ability/saves/skills/expertise). HP is
+      // handled separately below so it stacks with the level-up HP gain.
+      let grants: ReturnType<typeof applyGrants> = {}
+      if (applyFeat && selectedApplied) grants = applyGrants(char, selectedApplied)
+      delete grants.hitPoints
+      const featHp = applyFeat && selectedApplied?.hp ? selectedApplied.hp : 0
+      // Tough already on the sheet → +2 HP at every level-up (RAW). Mutually
+      // exclusive with featHp (can't take Tough you already have).
+      const toughRow = myProps.find(
+        (p) => p.type === "feature" && (p.data as { featId?: string } | undefined)?.featId === "tough",
+      )
+      const toughBonus = toughRow ? 2 : 0
       const newHitPoints = {
         ...char.hitPoints,
-        max: char.hitPoints.max + hpGain,
-        current: char.hitPoints.current + hpGain,
+        max: char.hitPoints.max + hpGain + featHp + toughBonus,
+        current: char.hitPoints.current + hpGain + featHp + toughBonus,
       }
       const spellcasting = char.spellcasting
         ? recomputeSpellcasting(char.spellcasting, classId, newLevel, spellAbilityMod, edition)
@@ -963,17 +1171,28 @@ function LevelUpDialog({
         hitDice: incrementHitDice(char.hitDice, hitDie),
         ...(spellcasting ? { spellcasting } : {}),
         ...(baseAbilities ? { baseAbilities } : {}),
+        ...grants,
       })
-      if (applyFeat && selectedFeat) {
+      // Keep Tough's recorded HP grant in sync with the +2 just added, so removal
+      // later reverses the full amount.
+      if (toughRow) {
+        const data = (toughRow.data ?? {}) as { applied?: AppliedGrants }
+        await updateProperty({
+          id: toughRow._id,
+          data: { ...data, applied: { ...(data.applied ?? {}), hp: (data.applied?.hp ?? 0) + 2 } },
+        })
+      }
+      if (applyFeat && selectedFeat && selectedApplied) {
+        const summary = appliedSummary(selectedApplied)
         await addProperty({
           characterId: char._id,
           type: "feature",
-          name: selectedFeat.name,
-          description: selectedFeat.description,
+          name: selectedApplied.text ? `${selectedFeat.name} (${selectedApplied.text})` : selectedFeat.name,
+          description: summary ? `${selectedFeat.description}\n\n${summary}` : selectedFeat.description,
           source: "feat",
           active: true,
           orderIndex: featNextOrder,
-          data: { featId: selectedFeat.id, category: selectedFeat.category },
+          data: { featId: selectedFeat.id, category: selectedFeat.category, applied: selectedApplied },
         })
       }
       const extra = applyAsi ? " (+ability scores)" : applyFeat ? ` — gained ${selectedFeat!.name}` : ""
@@ -1128,13 +1347,15 @@ function LevelUpDialog({
               <div className="rounded-lg p-3" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
                 <div className="flex items-center gap-2">
                   <Award className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
-                  <span className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{selectedFeat.name}</span>
+                  <span className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
+                    {selectedApplied?.text ? `${selectedFeat.name} (${selectedApplied.text})` : selectedFeat.name}
+                  </span>
                   <button onClick={() => setFeatPickerOpen(true)} className="ml-auto text-xs hover:opacity-80" style={{ color: "var(--scene-accent)" }}>
                     Change
                   </button>
                 </div>
-                {selectedFeat.prerequisite && (
-                  <p className="text-[11px] mt-1" style={{ color: "var(--scene-accent)" }}>Requires: {selectedFeat.prerequisite}</p>
+                {selectedApplied && appliedSummary(selectedApplied) && (
+                  <p className="text-[11px] mt-1 font-medium" style={{ color: "var(--scene-accent)" }}>{appliedSummary(selectedApplied)}</p>
                 )}
                 <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{selectedFeat.description}</p>
               </div>
@@ -1189,7 +1410,8 @@ function LevelUpDialog({
           <FeatPicker
             feats={FEATS}
             knownIds={knownFeatIds}
-            onSelect={(f) => { setSelectedFeat(f); setChoice("feat"); setFeatPickerOpen(false) }}
+            char={char}
+            onSelect={(f, applied) => { setSelectedFeat(f); setSelectedApplied(applied); setChoice("feat"); setFeatPickerOpen(false) }}
             onClose={() => setFeatPickerOpen(false)}
           />
         )}
@@ -1349,33 +1571,37 @@ function CurrencyEditor({ char }: { char: CharDoc }) {
 // "feat") and offers a standalone "Add feat" for feats gained outside level-up
 // (level-1 origin feats, variant-human picks). Homebrew feats merge here later.
 function FeatsSection({
-  characterId,
+  char,
   featRows,
   nextOrder,
 }: {
-  characterId: Id<"characters">
+  char: CharDoc
   featRows: Doc<"characterProperties">[]
   nextOrder: number
 }) {
   const addProperty = useMutation(api.characters.addProperty)
   const removeProperty = useMutation(api.characters.removeProperty)
+  const update = useMutation(api.characters.update)
   const [picking, setPicking] = useState(false)
 
   const knownIds = new Set(
     featRows.map((p) => (p.data as { featId?: string } | undefined)?.featId).filter(Boolean) as string[],
   )
 
-  const handleAdd = async (feat: FeatData) => {
+  const handleAdd = async (feat: FeatData, applied: AppliedGrants) => {
     try {
+      const patch = applyGrants(char, applied)
+      if (Object.keys(patch).length) await update({ id: char._id, ...patch })
+      const summary = appliedSummary(applied)
       await addProperty({
-        characterId,
+        characterId: char._id,
         type: "feature",
-        name: feat.name,
-        description: feat.description,
+        name: applied.text ? `${feat.name} (${applied.text})` : feat.name,
+        description: summary ? `${feat.description}\n\n${summary}` : feat.description,
         source: "feat",
         active: true,
         orderIndex: nextOrder,
-        data: { featId: feat.id, category: feat.category },
+        data: { featId: feat.id, category: feat.category, applied },
       })
       toast.success(`Gained ${feat.name}.`)
       setPicking(false)
@@ -1384,9 +1610,15 @@ function FeatsSection({
     }
   }
 
-  const handleRemove = async (id: Id<"characterProperties">) => {
+  // Reverse the feat's baked-in grants (if any) before removing the row.
+  const handleRemove = async (row: Doc<"characterProperties">) => {
     try {
-      await removeProperty({ id })
+      const applied = (row.data as { applied?: AppliedGrants } | undefined)?.applied
+      if (applied) {
+        const patch = reverseGrants(char, applied)
+        if (Object.keys(patch).length) await update({ id: char._id, ...patch })
+      }
+      await removeProperty({ id: row._id })
       toast.success("Feat removed.")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't remove feat.")
@@ -1428,7 +1660,7 @@ function FeatsSection({
                 )}
               </div>
               <button
-                onClick={() => handleRemove(p._id)}
+                onClick={() => handleRemove(p)}
                 className="p-1.5 rounded transition-opacity hover:opacity-80 flex-shrink-0"
                 style={{ color: "var(--scene-text-muted)" }}
                 title="Remove feat"
@@ -1441,7 +1673,7 @@ function FeatsSection({
       )}
 
       {picking && (
-        <FeatPicker feats={FEATS} knownIds={knownIds} onSelect={handleAdd} onClose={() => setPicking(false)} />
+        <FeatPicker feats={FEATS} knownIds={knownIds} char={char} onSelect={handleAdd} onClose={() => setPicking(false)} />
       )}
     </section>
   )
@@ -2069,7 +2301,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
         <InventorySection characterId={char._id} items={items} nextOrder={nextOrder} />
 
         {/* Feats — ASI-level picks + standalone origin/variant feats */}
-        <FeatsSection characterId={char._id} featRows={featRows} nextOrder={nextOrder} />
+        <FeatsSection char={char} featRows={featRows} nextOrder={nextOrder} />
 
         {/* Custom Properties */}
         <CustomPropertiesSection characterId={char._id} />
