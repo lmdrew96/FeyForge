@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner"
 import { InvitePlayersDialog } from "@/components/invite-players-dialog"
 import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-panel"
+import { DMCaptionControl, PlayerCaptionOverlay } from "@/components/session/captions"
 import { DMCombatTracker, PlayerCombatView } from "@/components/session/combat-tracker"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { WorldMapViewer } from "@/components/world-map/map-viewer"
@@ -924,6 +925,8 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
       <div className="space-y-6">
       <DMAudioPanel sessionId={sessionId} />
 
+      <DMCaptionControl sessionId={sessionId} />
+
       <section>
         <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>Broadcast to Players</h2>
         <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
@@ -1092,6 +1095,8 @@ export default function SessionPage() {
                   myCharacterId={myPartyMember.characterId}
                 />
               )}
+              {/* Fixed overlay — persists across tabs while the player is in the session. */}
+              <PlayerCaptionOverlay sessionId={session._id} />
             </>
           ) : (
             <JoinView sessionId={session._id} />

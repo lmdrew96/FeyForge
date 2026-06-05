@@ -22,6 +22,7 @@ import type * as homebrew from "../homebrew.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_homebrewValidators from "../lib/homebrewValidators.js";
 import type * as libraryShare from "../libraryShare.js";
+import type * as liveCaptions from "../liveCaptions.js";
 import type * as liveCombat from "../liveCombat.js";
 import type * as liveSessions from "../liveSessions.js";
 import type * as migrations from "../migrations.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/homebrewValidators": typeof lib_homebrewValidators;
   libraryShare: typeof libraryShare;
+  liveCaptions: typeof liveCaptions;
   liveCombat: typeof liveCombat;
   liveSessions: typeof liveSessions;
   migrations: typeof migrations;

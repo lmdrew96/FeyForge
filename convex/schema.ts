@@ -758,6 +758,25 @@ export default defineSchema({
     .index("by_sessionId", ["sessionId"])
     .index("by_campaignId", ["campaignId"]),
 
+  // Live captions: finalized speech-to-text lines from the DM, streamed to
+  // players during a live session (AssemblyAI v3). Append-only + high-churn, so
+  // it gets its own table (per the Convex high-churn guideline) rather than
+  // living on partySessions. Rows persist after the session ends, which leaves
+  // the door open to feeding the transcript into session logs later.
+  liveCaptions: defineTable({
+    sessionId: v.id("partySessions"),
+    campaignId: v.id("campaigns"),
+    text: v.string(),
+    createdAt: v.number(),
+    // A session has at most ONE partial row (the in-progress turn), patched live
+    // and throttled, then deleted when the turn finalizes into a real (false) row.
+    // Streaming partials is what makes captions appear continuously instead of
+    // arriving in a wall after each speech pause.
+    isPartial: v.optional(v.boolean()),
+  })
+    .index("by_sessionId", ["sessionId"])
+    .index("by_sessionId_and_isPartial", ["sessionId", "isPartial"]),
+
   users: defineTable({
     clerkId: v.string(),         // tokenIdentifier (full, with issuer prefix)
     clerkUserId: v.string(),     // subject / bare user_xxx ID for webhook lookups
