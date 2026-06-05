@@ -252,13 +252,15 @@ export const removeCombatant = mutation({
 })
 
 // Generic per-combatant patch helper for the HP/condition/initiative mutations.
+// Returns the updated combatant so callers can write its live state through to the
+// linked character/party-member (the "one shared number").
 async function patchCombatant(
   ctx: MutationCtx,
   sessionId: Id<"partySessions">,
   combatantId: string,
   update: (c: Combatant) => Combatant,
   opts?: { resort?: boolean }
-) {
+): Promise<Combatant | undefined> {
   const { combat } = await requireCombatDm(ctx, sessionId)
   const activeId = combat.combatants[combat.activeIndex]?.id
   let next = combat.combatants.map((c) =>
@@ -275,6 +277,52 @@ async function patchCombatant(
     activeIndex: clampIndex(activeIndex, next.length),
     updatedAt: Date.now(),
   })
+  return next.find((c) => c.id === combatantId)
+}
+
+// ── "One shared number" write-through ────────────────────────────────────────
+// During combat the liveCombat combatant is the live authority for a PC's HP,
+// death saves, and conditions. These helpers push that state back onto the linked
+// character + party-member rows so the player's character sheet and MyCharacterPanel
+// never drift from the DM's tracker — and the final state persists after combat
+// ends. All no-op for monster/NPC combatants (no characterId/userId) or a
+// deleted/absent target, so they're always safe to call.
+
+// HP (current + temp) and death saves → the linked character. The character keeps
+// its OWN max (the combatant max is a start-of-combat snapshot); current is clamped
+// into [0, max].
+async function syncCharacterFromCombatant(ctx: MutationCtx, combatant: Combatant) {
+  const characterId = combatant.characterId
+  if (!characterId) return
+  const character = await ctx.db.get(characterId)
+  if (!character) return
+  await ctx.db.patch(characterId, {
+    hitPoints: {
+      max: character.hitPoints.max,
+      current: Math.max(0, Math.min(combatant.hitPoints.current, character.hitPoints.max)),
+      temp: Math.max(0, combatant.hitPoints.temp),
+    },
+    deathSaves: combatant.deathSaves ?? { successes: 0, failures: 0 },
+  })
+}
+
+// Conditions → the player's party-member row (combatant wins in-combat), so their
+// MyCharacterPanel reflects DM-applied conditions live.
+async function syncPartyMemberConditions(
+  ctx: MutationCtx,
+  sessionId: Id<"partySessions">,
+  combatant: Combatant
+) {
+  const userId = combatant.userId
+  if (!userId) return
+  const member = await ctx.db
+    .query("partyMembers")
+    .withIndex("by_sessionId_and_userId", (q) =>
+      q.eq("sessionId", sessionId).eq("userId", userId)
+    )
+    .first()
+  if (!member) return
+  await ctx.db.patch(member._id, { conditions: combatant.conditions })
 }
 
 export const adjustHp = mutation({
@@ -296,6 +344,10 @@ export const adjustHp = mutation({
       combatants: next,
       updatedAt: Date.now(),
     })
+
+    // Write the PC's new HP through to their character sheet (one shared number).
+    const updated = next.find((c) => c.id === args.combatantId)
+    if (updated) await syncCharacterFromCombatant(ctx, updated)
 
     // If a concentrating combatant took damage, surface the CON save DC so the DM
     // can call for it: DC 10 or half the damage taken, whichever is higher.
@@ -367,6 +419,10 @@ export const rollDeathSave = mutation({
     )
     await ctx.db.patch(combat._id, { combatants: next, updatedAt: Date.now() })
 
+    // Persist the revived HP / updated death saves to the character sheet.
+    const updated = next.find((c) => c.id === args.combatantId)
+    if (updated) await syncCharacterFromCombatant(ctx, updated)
+
     return { roll, outcome, successes, failures, name: target.name }
   },
 })
@@ -378,10 +434,11 @@ export const setTempHp = mutation({
     temp: v.number(),
   },
   handler: async (ctx, args) => {
-    await patchCombatant(ctx, args.sessionId, args.combatantId, (c) => ({
+    const updated = await patchCombatant(ctx, args.sessionId, args.combatantId, (c) => ({
       ...c,
       hitPoints: { ...c.hitPoints, temp: Math.max(0, args.temp) },
     }))
+    if (updated) await syncCharacterFromCombatant(ctx, updated)
   },
 })
 
@@ -409,12 +466,13 @@ export const toggleCondition = mutation({
     condition: v.string(),
   },
   handler: async (ctx, args) => {
-    await patchCombatant(ctx, args.sessionId, args.combatantId, (c) => ({
+    const updated = await patchCombatant(ctx, args.sessionId, args.combatantId, (c) => ({
       ...c,
       conditions: c.conditions.includes(args.condition)
         ? c.conditions.filter((x) => x !== args.condition)
         : [...c.conditions, args.condition],
     }))
+    if (updated) await syncPartyMemberConditions(ctx, args.sessionId, updated)
   },
 })
 
@@ -426,13 +484,14 @@ export const setDeathSaves = mutation({
     failures: v.number(),
   },
   handler: async (ctx, args) => {
-    await patchCombatant(ctx, args.sessionId, args.combatantId, (c) => ({
+    const updated = await patchCombatant(ctx, args.sessionId, args.combatantId, (c) => ({
       ...c,
       deathSaves: {
         successes: Math.max(0, Math.min(3, args.successes)),
         failures: Math.max(0, Math.min(3, args.failures)),
       },
     }))
+    if (updated) await syncCharacterFromCombatant(ctx, updated)
   },
 })
 
