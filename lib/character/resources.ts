@@ -9,9 +9,10 @@
  * card, and no level-up recompute — `max` grows automatically with level and
  * `used` just clamps. Rows are created lazily on first spend (used 0 = no row).
  *
- * SCOPE (v1): class-level resources only. Subclass-gated pools (Battlemaster
- * Superiority Dice, the per-subclass Channel Divinity OPTIONS) are out — subclass
- * isn't reliably readable for curated classes. Wild Shape USES are tracked here;
+ * SCOPE: class-level resources, plus subclass-gated pools where the resolved
+ * subclassId is passed in (Battle Master Superiority Dice). Per-subclass Channel
+ * Divinity OPTIONS are surfaced through the grant system, not here. Wild Shape USES
+ * are tracked here;
  * the forms themselves live in the alternate-form work (lib/character/creatures.ts).
  * Custom maxima from magic items/feats stay in the freeform Custom Properties section.
  *
@@ -30,6 +31,7 @@
 
 import type { Ability } from "./constants"
 import type { Edition } from "../editions"
+import { superiorityDice } from "./maneuvers"
 
 export type RechargeOn = "shortRest" | "longRest"
 
@@ -99,6 +101,7 @@ export function getClassResources(
   level: number,
   mods: Record<Ability, number>,
   edition: Edition,
+  subclassId?: string,
 ): ClassResource[] {
   const id = classId.toLowerCase()
   const l = clampLevel(level)
@@ -158,6 +161,17 @@ export function getClassResources(
                 max: l >= 17 ? 2 : 1,
                 rechargeOn: "shortRest" as const,
                 description: "Take one additional action on your turn.",
+              },
+            ]
+          : []),
+        ...(subclassId === "battle-master" && l >= 3
+          ? [
+              {
+                key: "superiority-dice",
+                name: "Superiority Dice",
+                max: superiorityDice(l).count,
+                rechargeOn: "shortRest" as const,
+                description: `${superiorityDice(l).count}d${superiorityDice(l).dieSize} to fuel maneuvers. Regain on a short or long rest.`,
               },
             ]
           : []),

@@ -52,6 +52,7 @@ import { SpellbookSection } from "@/components/character/spellbook"
 import { ResourcesSection } from "@/components/character/resources"
 import { WildshapeSection, CompanionsSection } from "@/components/character/creature-sheet"
 import { InvocationsSection } from "@/components/character/invocations-section"
+import { ManeuversSection } from "@/components/character/maneuvers-section"
 import { getClassResources, type ResourceRow } from "@/lib/character/resources"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
@@ -1617,7 +1618,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, invocationRows, casterType, edition,
+    items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, invocationRows, maneuverRows, subclassId, casterType, edition,
     shortRestResourceKeys, equippedWeapons, fightingStyleId,
     armorClass, armorName, nextOrder,
     grantedFeatures, channelDivinityOptions, grantedProficiencies,
@@ -1739,6 +1740,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               level={char.level}
               mods={mods}
               edition={edition}
+              subclassId={subclassId}
               resourceRows={resourceRows}
               nextOrder={nextOrder}
               resourceOptions={{ "channel-divinity": channelDivinityOptions }}
@@ -1877,6 +1879,16 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           classId={char.characterClass}
           level={char.level}
           invocationRows={invocationRows}
+          nextOrder={nextOrder}
+        />
+
+        {/* Battle Master maneuvers (fighters) */}
+        <ManeuversSection
+          characterId={char._id}
+          classId={char.characterClass}
+          subclassId={subclassId}
+          level={char.level}
+          maneuverRows={maneuverRows}
           nextOrder={nextOrder}
         />
 

@@ -51,8 +51,10 @@ export interface CharacterDerived {
   formRows: PropDoc[]
   companionRows: PropDoc[]
   invocationRows: PropDoc[]
+  maneuverRows: PropDoc[]
   casterType: CasterType
   edition: Edition
+  subclassId: string | undefined
   shortRestResourceKeys: string[]
   equippedWeapons: SheetItem[]
   fightingStyleId: string | undefined
@@ -137,6 +139,7 @@ export function deriveCharacter(
   const formRows = myProps.filter((p) => p.type === "alternateForm")
   const companionRows = myProps.filter((p) => p.type === "companion")
   const invocationRows = myProps.filter((p) => p.type === "invocation")
+  const maneuverRows = myProps.filter((p) => p.type === "maneuver")
   const casterType = getCasterType(char.characterClass)
   const edition = resolveEdition(campaign?.edition)
 
@@ -158,6 +161,7 @@ export function deriveCharacter(
     char.level,
     mods,
     edition,
+    subclassId,
   )
     .filter((r) => r.rechargeOn === "shortRest")
     .map((r) => r.key)
@@ -191,6 +195,8 @@ export function deriveCharacter(
     formRows,
     companionRows,
     invocationRows,
+    maneuverRows,
+    subclassId,
     casterType,
     edition,
     shortRestResourceKeys,

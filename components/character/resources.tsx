@@ -163,6 +163,7 @@ export function ResourcesSection({
   level,
   mods,
   edition,
+  subclassId,
   resourceRows,
   nextOrder,
   resourceOptions,
@@ -172,6 +173,7 @@ export function ResourcesSection({
   level: number
   mods: Record<Ability, number>
   edition: Edition
+  subclassId?: string
   resourceRows: ResourceRow[]
   nextOrder: number
   resourceOptions?: Record<string, ResourceOption[]>
@@ -179,7 +181,7 @@ export function ResourcesSection({
   const addProperty = useMutation(api.characters.addProperty)
   const updateProperty = useMutation(api.characters.updateProperty)
 
-  const resources = mergeResources(getClassResources(classId, level, mods, edition), resourceRows)
+  const resources = mergeResources(getClassResources(classId, level, mods, edition, subclassId), resourceRows)
   if (resources.length === 0) return null
 
   // Persist a new spend count for one resource. Creates the backing row lazily on
