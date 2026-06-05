@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { SceneBackdrop } from "@/components/scene-backdrop"
+import { DMAssistantWidget } from "@/components/dm-assistant/dm-assistant-widget"
 
 type NavChild = { label: string; href: string; icon: React.ElementType }
 type NavItem = {
@@ -393,6 +394,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         ))}
       </nav>
+
+      {/* Global DM Assistant launcher — self-gates to the DM of the active
+          campaign and hides itself on the full /dm/assistant page. */}
+      <DMAssistantWidget />
     </div>
   )
 }
