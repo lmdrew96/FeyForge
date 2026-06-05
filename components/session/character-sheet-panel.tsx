@@ -65,6 +65,7 @@ export function SessionCharacterSheet({
     raceName, classColor, hitDie, darkvision,
     spells, grantedSpells, resourceRows, casterType, edition,
     equippedWeapons, fightingStyleId, armorClass, armorName, nextOrder,
+    channelDivinityOptions,
   } = deriveCharacter(char, allProps, campaign)
 
   return (
@@ -142,6 +143,7 @@ export function SessionCharacterSheet({
         edition={edition}
         resourceRows={resourceRows}
         nextOrder={nextOrder}
+        resourceOptions={{ "channel-divinity": channelDivinityOptions }}
       />
 
       {/* Spellcasting — slots, save DC/attack, cast from the spellbook. Casters

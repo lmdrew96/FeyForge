@@ -27,13 +27,24 @@ import {
 const rechargeLabel = (r: SheetResource["rechargeOn"]): string =>
   r === "shortRest" ? "short rest" : "long rest"
 
+// An action that spends one use of a resource (e.g. a Channel Divinity option —
+// Turn Undead, Preserve Life). Rendered as a "Use" button under the resource pool
+// it draws from. Keyed into ResourcesSection by resource key (e.g. "channel-divinity").
+export interface ResourceOption {
+  id: string
+  name: string
+  description: string
+}
+
 // One resource card. Count resources get ±1 steppers; pool resources get a "spend
 // N" amount input. Holds its own `amount` state so each pool card is independent.
 function ResourceCard({
   res,
+  options,
   onSetUsed,
 }: {
   res: SheetResource
+  options?: ResourceOption[]
   onSetUsed: (next: number) => void
 }) {
   const [amount, setAmount] = useState(1)
@@ -44,9 +55,10 @@ function ResourceCard({
 
   return (
     <div
-      className="rounded-xl p-3 flex items-center gap-3"
+      className="rounded-xl p-3"
       style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
     >
+      <div className="flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium truncate" style={{ color: "var(--scene-text-primary)" }}>
@@ -115,6 +127,32 @@ function ResourceCard({
           <Plus className="h-4 w-4" />
         </button>
       </div>
+      </div>
+
+      {options && options.length > 0 && (
+        <div className="mt-3 pt-3 space-y-2" style={{ borderTop: "1px solid var(--scene-border)" }}>
+          <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--scene-text-muted)" }}>
+            Options · each spends one use
+          </div>
+          {options.map((opt) => (
+            <div key={opt.id} className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{opt.name}</div>
+                <p className="text-[11px] leading-snug" style={{ color: "var(--scene-text-muted)" }}>{opt.description}</p>
+              </div>
+              <button
+                onClick={() => onSetUsed(res.used + 1)}
+                disabled={spendDisabled}
+                title="Spend one use"
+                className="px-2.5 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-25 flex-shrink-0"
+                style={{ background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)", color: "var(--scene-accent)" }}
+              >
+                Use
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -127,6 +165,7 @@ export function ResourcesSection({
   edition,
   resourceRows,
   nextOrder,
+  resourceOptions,
 }: {
   characterId: Id<"characters">
   classId: string
@@ -135,6 +174,7 @@ export function ResourcesSection({
   edition: Edition
   resourceRows: ResourceRow[]
   nextOrder: number
+  resourceOptions?: Record<string, ResourceOption[]>
 }) {
   const addProperty = useMutation(api.characters.addProperty)
   const updateProperty = useMutation(api.characters.updateProperty)
@@ -177,7 +217,7 @@ export function ResourcesSection({
 
       <div className="grid gap-2">
         {resources.map((res) => (
-          <ResourceCard key={res.key} res={res} onSetUsed={(next) => setUsed(res, next)} />
+          <ResourceCard key={res.key} res={res} options={resourceOptions?.[res.key]} onSetUsed={(next) => setUsed(res, next)} />
         ))}
       </div>
     </section>

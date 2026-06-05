@@ -1618,7 +1618,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     items, spells, grantedSpells, resourceRows, featRows, casterType, edition,
     shortRestResourceKeys, equippedWeapons, fightingStyleId,
     armorClass, armorName, nextOrder,
-    grantedFeatures, grantedProficiencies,
+    grantedFeatures, channelDivinityOptions, grantedProficiencies,
   } = deriveCharacter(char, allProps, campaign)
 
   // Merge subclass-granted bonus proficiencies into the displayed lists
@@ -1739,6 +1739,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               edition={edition}
               resourceRows={resourceRows}
               nextOrder={nextOrder}
+              resourceOptions={{ "channel-divinity": channelDivinityOptions }}
             />
           </div>
           <RestPanel char={char} resourceRows={resourceRows} shortRestResourceKeys={shortRestResourceKeys} />

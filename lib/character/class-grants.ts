@@ -110,6 +110,14 @@ const domainSpells = (
 
 const CLASS_GRANTS: Record<string, ClassGrantTable> = {
   cleric: {
+    // Base cleric features shared by every domain. Turn Undead is a Channel
+    // Divinity option (it spends the shared pool, like the domain options);
+    // Destroy Undead is a passive upgrade to it. CD options follow the canonical
+    // "Channel Divinity: X" naming so deriveCharacter can route them to the pool.
+    base: [
+      gFeature(2, "cleric-turn-undead", "Channel Divinity: Turn Undead", "As an action, present your holy symbol — each undead within 30 feet that can see or hear you must make a Wisdom saving throw or be turned for 1 minute, forced to move away from you and unable to take reactions."),
+      gFeature(5, "cleric-destroy-undead", "Destroy Undead", "When an undead fails its saving throw against your Turn Undead, it is instantly destroyed if its challenge rating is at or below your Destroy Undead threshold, which rises as you gain cleric levels."),
+    ],
     subclasses: {
       life: [
         gProf(1, "armor", "Heavy armor"),

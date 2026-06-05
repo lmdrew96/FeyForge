@@ -58,6 +58,7 @@ export interface CharacterDerived {
   nextOrder: number
   grantedSpells: GrantedSpellRef[]
   grantedFeatures: (GrantedFeatureData & { level: number })[]
+  channelDivinityOptions: (GrantedFeatureData & { level: number })[]
   grantedProficiencies: GrantedProficiency[]
 }
 
@@ -138,7 +139,12 @@ export function deriveCharacter(
   // or free text, so resolve it to a canonical subclass id first.
   const subclassId = getSubclassId(char.characterClass, char.subclass)
   const grantedSpells = getGrantedSpells(char.characterClass, subclassId, char.level, edition)
-  const grantedFeatures = getGrantedFeatures(char.characterClass, subclassId, char.level, edition)
+  // Channel Divinity options (Turn Undead + the subclass option) split out so they
+  // render under the Channel Divinity resource pool as spendable actions; the rest
+  // are passive Class Features. CD options use the canonical "Channel Divinity: X" name.
+  const allGrantedFeatures = getGrantedFeatures(char.characterClass, subclassId, char.level, edition)
+  const channelDivinityOptions = allGrantedFeatures.filter((f) => f.name.startsWith("Channel Divinity:"))
+  const grantedFeatures = allGrantedFeatures.filter((f) => !f.name.startsWith("Channel Divinity:"))
   const grantedProficiencies = getGrantedProficiencies(char.characterClass, subclassId, char.level, edition)
 
   const shortRestResourceKeys = getClassResources(
@@ -186,6 +192,7 @@ export function deriveCharacter(
     nextOrder,
     grantedSpells,
     grantedFeatures,
+    channelDivinityOptions,
     grantedProficiencies,
   }
 }
