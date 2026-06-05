@@ -31,6 +31,7 @@ import {
   type PrepMode,
 } from "@/lib/character/leveling"
 import type { Edition } from "@/lib/editions"
+import type { GrantedSpellRef } from "@/lib/character/class-grants"
 import {
   groupSpellsByLevel,
   spellLevelLabel,
@@ -57,6 +58,7 @@ export function SpellbookSection({
   level,
   edition,
   spells,
+  grantedSpells,
   nextOrder,
   roll,
 }: {
@@ -66,6 +68,7 @@ export function SpellbookSection({
   level: number
   edition: Edition
   spells: SheetSpell[]
+  grantedSpells?: GrantedSpellRef[]
   nextOrder: number
   roll: RollFn
 }) {
@@ -272,6 +275,41 @@ export function SpellbookSection({
           {showLeveledChip && (
             <CountChip label={limits.leveledLabel} have={leveledCount} max={limits.leveled} />
           )}
+        </div>
+      )}
+
+      {/* Always-prepared spells granted by class/subclass (e.g. cleric domain
+          spells). Read-only and separate from the player's prepared list — they
+          don't count against the prepare budget. Derived live, never stored. */}
+      {grantedSpells && grantedSpells.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+              Always Prepared
+            </span>
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+              style={{ background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)", color: "var(--scene-accent)" }}
+            >
+              Subclass
+            </span>
+          </div>
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+            {grantedSpells.map((g, i) => (
+              <div
+                key={`${g.name}-${g.spellLevel}-${i}`}
+                className="flex items-center gap-3 px-4 py-2"
+                style={{ borderBottom: i < grantedSpells.length - 1 ? "1px solid var(--scene-border)" : "none" }}
+              >
+                <Sparkles className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+                <span className="text-sm flex-1 capitalize" style={{ color: "var(--scene-text-primary)" }}>{g.name}</span>
+                <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>{spellLevelLabel(g.spellLevel)}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs mt-1.5" style={{ color: "var(--scene-text-muted)" }}>
+            Granted by your subclass — always prepared, and they don&apos;t count against the spells you prepare. Cast them with your slots.
+          </p>
         </div>
       )}
 

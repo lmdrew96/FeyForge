@@ -8,7 +8,7 @@ import {
   type Ability,
   type Skill,
 } from "@/lib/character/constants"
-import { getDarkvisionRange } from "@/lib/character/character-data"
+import { getDarkvisionRange, getSubclassId } from "@/lib/character/character-data"
 import { getCasterType, type CasterType } from "@/lib/character/leveling"
 import { resolveEdition, type Edition } from "@/lib/editions"
 import {
@@ -19,6 +19,14 @@ import {
 } from "@/lib/character/sheet-items"
 import { rowToSpell, type SheetSpell } from "@/lib/character/sheet-spells"
 import { getClassResources } from "@/lib/character/resources"
+import {
+  getGrantedSpells,
+  getGrantedFeatures,
+  getGrantedProficiencies,
+  type GrantedSpellRef,
+  type GrantedFeatureData,
+  type GrantedProficiency,
+} from "@/lib/character/class-grants"
 
 type CharDoc = Doc<"characters">
 type PropDoc = Doc<"characterProperties">
@@ -48,6 +56,9 @@ export interface CharacterDerived {
   armorClass: number
   armorName: string | undefined
   nextOrder: number
+  grantedSpells: GrantedSpellRef[]
+  grantedFeatures: (GrantedFeatureData & { level: number })[]
+  grantedProficiencies: GrantedProficiency[]
 }
 
 // Pure ability/skill/save derivation from a character's stored fields. The sheet
@@ -122,6 +133,14 @@ export function deriveCharacter(
   const casterType = getCasterType(char.characterClass)
   const edition = resolveEdition(campaign?.edition)
 
+  // Class/subclass "special procedurals" — derived live, never stored (see
+  // lib/character/class-grants.ts). char.subclass may be a display name, an id,
+  // or free text, so resolve it to a canonical subclass id first.
+  const subclassId = getSubclassId(char.characterClass, char.subclass)
+  const grantedSpells = getGrantedSpells(char.characterClass, subclassId, char.level, edition)
+  const grantedFeatures = getGrantedFeatures(char.characterClass, subclassId, char.level, edition)
+  const grantedProficiencies = getGrantedProficiencies(char.characterClass, subclassId, char.level, edition)
+
   const shortRestResourceKeys = getClassResources(
     char.characterClass,
     char.level,
@@ -165,5 +184,8 @@ export function deriveCharacter(
     armorClass,
     armorName,
     nextOrder,
+    grantedSpells,
+    grantedFeatures,
+    grantedProficiencies,
   }
 }

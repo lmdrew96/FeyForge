@@ -63,7 +63,7 @@ export function SessionCharacterSheet({
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    spells, resourceRows, casterType, edition,
+    spells, grantedSpells, resourceRows, casterType, edition,
     equippedWeapons, fightingStyleId, armorClass, armorName, nextOrder,
   } = deriveCharacter(char, allProps, campaign)
 
@@ -154,6 +154,7 @@ export function SessionCharacterSheet({
           level={char.level}
           edition={edition}
           spells={spells}
+          grantedSpells={grantedSpells}
           nextOrder={nextOrder}
           roll={roll}
         />

@@ -1615,10 +1615,19 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    items, spells, resourceRows, featRows, casterType, edition,
+    items, spells, grantedSpells, resourceRows, featRows, casterType, edition,
     shortRestResourceKeys, equippedWeapons, fightingStyleId,
     armorClass, armorName, nextOrder,
+    grantedFeatures, grantedProficiencies,
   } = deriveCharacter(char, allProps, campaign)
+
+  // Merge subclass-granted bonus proficiencies into the displayed lists
+  // (derive-live; deduped case-insensitively against what the class already has).
+  const mergeProf = (base: string[], kind: "armor" | "weapon" | "tool") => {
+    const extra = grantedProficiencies.filter((p) => p.kind === kind).map((p) => p.value)
+    const seen = new Set(base.map((s) => s.toLowerCase()))
+    return [...base, ...extra.filter((e) => !seen.has(e.toLowerCase()))]
+  }
 
   return (
     <AppShell>
@@ -1794,9 +1803,9 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
             style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
           >
             {[
-              { label: "Armor", items: char.armorProficiencies },
-              { label: "Weapons", items: char.weaponProficiencies },
-              { label: "Tools", items: char.toolProficiencies },
+              { label: "Armor", items: mergeProf(char.armorProficiencies, "armor") },
+              { label: "Weapons", items: mergeProf(char.weaponProficiencies, "weapon") },
+              { label: "Tools", items: mergeProf(char.toolProficiencies, "tool") },
               { label: "Languages", items: char.languages },
             ].filter(({ items }) => items.length > 0).map(({ label, items }) => (
               <div key={label}>
@@ -1851,6 +1860,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               level={char.level}
               edition={edition}
               spells={spells}
+              grantedSpells={grantedSpells}
               nextOrder={nextOrder}
               roll={roll}
             />
@@ -1860,6 +1870,30 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
 
         {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}
         <InventorySection characterId={char._id} items={items} nextOrder={nextOrder} />
+
+        {/* Class Features — granted by class/subclass (read-only, derived live
+            from class-grants; e.g. cleric domain features). */}
+        {grantedFeatures.length > 0 && (
+          <section className="mb-6">
+            <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+              Class Features
+            </h2>
+            <div className="space-y-2">
+              {grantedFeatures.map((f) => (
+                <div key={f.id} className="rounded-lg px-4 py-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>{f.name}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>Lv {f.level}</span>
+                    {f.uses && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "color-mix(in srgb, var(--scene-accent) 12%, transparent)", color: "var(--scene-accent)" }}>{f.uses}</span>
+                    )}
+                  </div>
+                  <p className="text-sm leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{f.description}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Feats — ASI-level picks + standalone origin/variant feats */}
         <FeatsSection char={char} featRows={featRows} nextOrder={nextOrder} />

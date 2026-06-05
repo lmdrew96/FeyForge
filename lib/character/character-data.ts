@@ -797,6 +797,20 @@ export function getClassById(id: string): ClassData | undefined {
   return CLASSES.find((c) => c.id === id)
 }
 
+// Resolve a character's stored subclass — which may be a display NAME ("Life
+// Domain"), an id ("life"), or free text from the edit/AI paths — to its
+// canonical subclass id for a class. Case-insensitive, accepts id or name.
+// Returns undefined for homebrew/unmatched strings (grants simply don't apply).
+export function getSubclassId(classId: string, subclassNameOrId?: string): string | undefined {
+  if (!subclassNameOrId) return undefined
+  const cls = CLASSES.find((c) => c.id.toLowerCase() === classId.toLowerCase())
+  if (!cls?.subclasses) return undefined
+  const needle = subclassNameOrId.trim().toLowerCase()
+  return cls.subclasses.find(
+    (s) => s.id.toLowerCase() === needle || s.name.toLowerCase() === needle,
+  )?.id
+}
+
 export function getBackgroundById(id: string): BackgroundData | undefined {
   return BACKGROUNDS.find((b) => b.id === id)
 }
