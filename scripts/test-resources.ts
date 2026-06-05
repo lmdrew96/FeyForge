@@ -29,7 +29,8 @@ check("rage L3 = 3", find("barbarian", 3, "rage")?.max, 3)
 check("rage L6 = 4", find("barbarian", 6, "rage")?.max, 4)
 check("rage L11 = 4", find("barbarian", 11, "rage")?.max, 4)
 check("rage L12 = 5", find("barbarian", 12, "rage")?.max, 5)
-check("rage L17 = 5", find("barbarian", 17, "rage")?.max, 5)
+check("rage L16 = 5", find("barbarian", 16, "rage")?.max, 5)
+check("rage L17 = 6", find("barbarian", 17, "rage")?.max, 6)
 check("rage L18 = 6", find("barbarian", 18, "rage")?.max, 6)
 check("rage L20 unlimited", find("barbarian", 20, "rage")?.unlimited, true)
 check("rage recharges long rest", find("barbarian", 1, "rage")?.rechargeOn, "longRest")
@@ -74,6 +75,39 @@ check("lay on hands is a pool", find("paladin", 1, "lay-on-hands")?.pool, true)
 check("sorcery points is a pool", find("sorcerer", 2, "sorcery-points")?.pool, true)
 check("rage is not a pool", find("barbarian", 1, "rage")?.pool, undefined)
 check("ki is not a pool", find("monk", 2, "ki")?.pool, undefined)
+
+// ─── 2024 (PHB) edition deltas — verified vs the 2024 PHB ─────────────────────
+const find24 = (cls: string, level: number, key: string, cha = 0) =>
+  getClassResources(cls, level, mods(cha), "2024").find((r) => r.key === key)
+
+// Fighter Second Wind: 2 → 3 at L4 → 4 at L10 (2014 was a flat 1).
+check("2024 second wind L1 = 2", find24("fighter", 1, "second-wind")?.max, 2)
+check("2024 second wind L4 = 3", find24("fighter", 4, "second-wind")?.max, 3)
+check("2024 second wind L10 = 4", find24("fighter", 10, "second-wind")?.max, 4)
+check("2024 action surge L17 = 2 (unchanged)", find24("fighter", 17, "action-surge")?.max, 2)
+
+// Cleric Channel Divinity: 2 → 3 at L6 → 4 at L18 (2014 was 1/2/3).
+check("2024 cleric CD L2 = 2", find24("cleric", 2, "channel-divinity")?.max, 2)
+check("2024 cleric CD L6 = 3", find24("cleric", 6, "channel-divinity")?.max, 3)
+check("2024 cleric CD L18 = 4", find24("cleric", 18, "channel-divinity")?.max, 4)
+
+// Paladin Channel Divinity: 2 at L3 → 3 at L11 (2014 was a flat 1).
+check("2024 paladin CD L3 = 2", find24("paladin", 3, "channel-divinity")?.max, 2)
+check("2024 paladin CD L11 = 3", find24("paladin", 11, "channel-divinity")?.max, 3)
+
+// Monk Ki → "Focus Points" (same key + count = monk level).
+check("2024 monk label = Focus Points", find24("monk", 5, "ki")?.name, "Focus Points")
+check("2024 monk key still 'ki'", find24("monk", 5, "ki")?.key, "ki")
+check("2024 focus points L10 = 10", find24("monk", 10, "ki")?.max, 10)
+
+// Barbarian Rage: same counts, but L20 is capped (NOT unlimited) in 2024.
+check("2024 rage L17 = 6", find24("barbarian", 17, "rage")?.max, 6)
+check("2024 rage L20 not unlimited", find24("barbarian", 20, "rage")?.unlimited, false)
+
+// Edition-stable resources are unchanged in 2024.
+check("2024 sorcery points L20 = 20 (unchanged)", find24("sorcerer", 20, "sorcery-points")?.max, 20)
+check("2024 lay on hands L8 = 40 (unchanged)", find24("paladin", 8, "lay-on-hands")?.max, 40)
+check("2024 bardic inspiration = CHA (unchanged)", find24("bard", 3, "bardic-inspiration", 3)?.max, 3)
 
 // Non-resource classes return [].
 check("wizard = no resources", res("wizard", 20).length, 0)

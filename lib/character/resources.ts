@@ -15,12 +15,17 @@
  * alternate-form work. Custom maxima from magic items/feats stay in the freeform
  * Custom Properties section.
  *
- * EDITION: the `edition` param is threaded from day one, but v1 returns 2014 (SRD
- * 5.1) data for BOTH editions — the 2024 deltas (Ki→Focus Points, Second Wind /
- * Channel Divinity counts, Bardic recharge timing) are a soft, follow-up data pass,
- * exactly as spell prepared-counts shipped 2014-first. All values below are SRD 5.1
- * verified (Rage + Channel Divinity cross-checked vs 5thsrd.org; Ki/Sorcery Points/
- * Lay on Hands are rules-definitional).
+ * EDITION: `getClassResources` branches on `edition`. The 2024 deltas (verified
+ * vs the 2024 PHB, not memory) are:
+ *   • Fighter Second Wind — 2 uses, → 3 at L4, → 4 at L10 (2014: 1).
+ *   • Cleric Channel Divinity — 2 → 3 (L6) → 4 (L18) (2014: 1 → 2 → 3).
+ *   • Paladin Channel Divinity — 2 (L3) → 3 (L11) (2014: 1).
+ *   • Monk Ki renamed "Focus Points" (same count = monk level).
+ *   • Barbarian Rage — same per-level counts, but L20 is capped at 6 (2014: Unlimited).
+ * Resource KEYS are edition-stable, so a stored `used` row carries across editions;
+ * only counts/labels differ. Bardic Inspiration, Sorcery Points, Lay on Hands and
+ * Action Surge are edition-stable (verified) and unchanged. 2014 values are SRD 5.1
+ * (Rage + Channel Divinity cross-checked vs 5thsrd.org).
  */
 
 import type { Ability } from "./constants"
@@ -63,12 +68,24 @@ export type SheetResource = ClassResource & { used: number; rowId?: string }
 
 const clampLevel = (level: number): number => Math.max(1, Math.min(20, Math.round(level)))
 
-// Barbarian Rages per long rest by level (SRD 5.1). Level 20 is "Unlimited" — we
-// surface 6 as the nominal max but flag `unlimited` so the UI drops the cap.
-const RAGE_BY_LEVEL = [2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6]
+// Barbarian Rages per long rest by level. The per-level counts are identical in
+// 2014 (SRD 5.1) and 2024 (PHB) — 2/3/4/5/6 at L1/3/6/12/17. They diverge only at
+// L20: 2014 grants "Unlimited" (the `unlimited` flag drops the UI cap), 2024 caps
+// at 6. (The nominal max surfaced at L20 is 6 either way.)
+const RAGE_BY_LEVEL = [2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6]
 
-// Cleric Channel Divinity uses between rests (SRD 5.1): 1 → 2 at L6 → 3 at L18.
-const clericChannelDivinity = (l: number): number => (l >= 18 ? 3 : l >= 6 ? 2 : 1)
+// Cleric Channel Divinity uses between rests. 2014 (SRD 5.1): 1 → 2 at L6 → 3 at
+// L18. 2024 (PHB): 2 → 3 at L6 → 4 at L18.
+const clericChannelDivinity = (l: number, edition: Edition): number =>
+  edition === "2024" ? (l >= 18 ? 4 : l >= 6 ? 3 : 2) : l >= 18 ? 3 : l >= 6 ? 2 : 1
+
+// Fighter Second Wind uses. 2014: a single use. 2024 (PHB): 2 → 3 at L4 → 4 at L10.
+const secondWindUses = (l: number, edition: Edition): number =>
+  edition === "2024" ? (l >= 10 ? 4 : l >= 4 ? 3 : 2) : 1
+
+// Paladin Channel Divinity uses (from L3). 2014: a single use. 2024: 2 → 3 at L11.
+const paladinChannelDivinity = (l: number, edition: Edition): number =>
+  edition === "2024" ? (l >= 11 ? 3 : 2) : 1
 
 /**
  * The class resources a character has at a given level. Returns [] for classes
@@ -81,7 +98,7 @@ export function getClassResources(
   classId: string,
   level: number,
   mods: Record<Ability, number>,
-  _edition: Edition,
+  edition: Edition,
 ): ClassResource[] {
   const id = classId.toLowerCase()
   const l = clampLevel(level)
@@ -94,7 +111,8 @@ export function getClassResources(
           name: "Rage",
           max: RAGE_BY_LEVEL[l - 1],
           rechargeOn: "longRest",
-          unlimited: l >= 20,
+          // 2014 grants unlimited rages at L20; 2024 keeps the cap (6).
+          unlimited: edition !== "2024" && l >= 20,
           description: "Bonus damage, resistance to physical damage. Recharges on a long rest.",
         },
       ]
@@ -102,8 +120,8 @@ export function getClassResources(
       return l >= 2
         ? [
             {
-              key: "ki",
-              name: "Ki",
+              key: "ki", // stable key; 2024 renames the display label to Focus Points.
+              name: edition === "2024" ? "Focus Points" : "Ki",
               max: l,
               rechargeOn: "shortRest",
               description: "Powers Flurry of Blows, Patient Defense, Step of the Wind, and more.",
@@ -128,7 +146,7 @@ export function getClassResources(
         {
           key: "second-wind",
           name: "Second Wind",
-          max: 1,
+          max: secondWindUses(l, edition),
           rechargeOn: "shortRest",
           description: "Bonus action: regain 1d10 + fighter level HP.",
         },
@@ -161,7 +179,7 @@ export function getClassResources(
             {
               key: "channel-divinity",
               name: "Channel Divinity",
-              max: clericChannelDivinity(l),
+              max: clericChannelDivinity(l, edition),
               rechargeOn: "shortRest",
               description: "Turn Undead and your domain's Channel Divinity options.",
             },
@@ -182,7 +200,7 @@ export function getClassResources(
               {
                 key: "channel-divinity",
                 name: "Channel Divinity",
-                max: 1,
+                max: paladinChannelDivinity(l, edition),
                 rechargeOn: "shortRest" as const,
                 description: "Your Sacred Oath's Channel Divinity options.",
               },
