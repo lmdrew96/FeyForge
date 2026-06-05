@@ -101,6 +101,22 @@ const domainSpells = (
   gSpell(9, l9[0], 5), gSpell(9, l9[1], 5),
 ]
 
+// Paladin oath spells: 2 always-prepared spells at paladin levels 3/5/9/13/17, of
+// spell level 1/2/3/4/5 (half-caster cadence). Oaths are taken at level 3.
+const oathSpells = (
+  l3: [string, string],
+  l5: [string, string],
+  l9: [string, string],
+  l13: [string, string],
+  l17: [string, string],
+): Grant[] => [
+  gSpell(3, l3[0], 1), gSpell(3, l3[1], 1),
+  gSpell(5, l5[0], 2), gSpell(5, l5[1], 2),
+  gSpell(9, l9[0], 3), gSpell(9, l9[1], 3),
+  gSpell(13, l13[0], 4), gSpell(13, l13[1], 4),
+  gSpell(17, l17[0], 5), gSpell(17, l17[1], 5),
+]
+
 // ── The grant tables (2014 ruleset) ─────────────────────────────────────────────
 // NOTE: 2024 deltas (Cleric subclass moves to level 3; some revised domain spells)
 // are NOT yet populated — the engine is edition-aware (each Grant takes an optional
@@ -216,6 +232,55 @@ const CLASS_GRANTS: Record<string, ClassGrantTable> = {
           ["call lightning", "sleet storm"],
           ["control water", "ice storm"],
           ["destructive wave", "insect plague"],
+        ),
+      ],
+    },
+  },
+  paladin: {
+    // Oaths are taken at level 3. Oath spells are always prepared; the two Channel
+    // Divinity options per oath ride the shared Channel Divinity pool (named
+    // "Channel Divinity: X" so deriveCharacter routes them there, like the cleric).
+    subclasses: {
+      devotion: [
+        gFeature(3, "paladin-devotion-sacred-weapon", "Channel Divinity: Sacred Weapon", "For 1 minute, add your Charisma modifier to attack rolls with a weapon you imbue, which also sheds bright light."),
+        gFeature(3, "paladin-devotion-turn-unholy", "Channel Divinity: Turn the Unholy", "Each fiend or undead within 30 feet that can see or hear you must make a Wisdom save or be turned for 1 minute."),
+        gFeature(7, "paladin-devotion-aura", "Aura of Devotion", "You and friendly creatures within 10 feet can't be charmed while you're conscious (range grows to 30 feet at 18th level)."),
+        gFeature(15, "paladin-devotion-purity", "Purity of Spirit", "You are always under the effects of a protection from evil and good spell."),
+        gFeature(20, "paladin-devotion-nimbus", "Holy Nimbus", "As an action, emit an aura of sunlight that burns fiends and undead and aids your saves against their spells. Once per long rest."),
+        ...oathSpells(
+          ["protection from evil and good", "sanctuary"],
+          ["lesser restoration", "zone of truth"],
+          ["beacon of hope", "dispel magic"],
+          ["freedom of movement", "guardian of faith"],
+          ["commune", "flame strike"],
+        ),
+      ],
+      ancients: [
+        gFeature(3, "paladin-ancients-natures-wrath", "Channel Divinity: Nature's Wrath", "Spectral vines restrain a creature within 10 feet until it escapes with a Strength or Dexterity save."),
+        gFeature(3, "paladin-ancients-turn-faithless", "Channel Divinity: Turn the Faithless", "Each fey or fiend within 30 feet that can see or hear you must make a Wisdom save or be turned for 1 minute."),
+        gFeature(7, "paladin-ancients-aura", "Aura of Warding", "You and friendly creatures within 10 feet have resistance to damage from spells (range grows to 30 feet at 18th level)."),
+        gFeature(15, "paladin-ancients-sentinel", "Undying Sentinel", "When you drop to 0 hit points and don't die outright, you can drop to 1 instead. Once per long rest."),
+        gFeature(20, "paladin-ancients-elder", "Elder Champion", "As an action, transform to regain hit points each turn, cast paladin spells faster, and weaken enemies' saves against your magic. Once per long rest."),
+        ...oathSpells(
+          ["ensnaring strike", "speak with animals"],
+          ["moonbeam", "misty step"],
+          ["plant growth", "protection from energy"],
+          ["ice storm", "stoneskin"],
+          ["commune with nature", "tree stride"],
+        ),
+      ],
+      vengeance: [
+        gFeature(3, "paladin-vengeance-abjure", "Channel Divinity: Abjure Enemy", "A creature within 60 feet must make a Wisdom save or be frightened and slowed for 1 minute."),
+        gFeature(3, "paladin-vengeance-vow", "Channel Divinity: Vow of Enmity", "As a bonus action, gain advantage on attack rolls against one creature you can see within 10 feet for 1 minute."),
+        gFeature(7, "paladin-vengeance-avenger", "Relentless Avenger", "When you hit a creature with an opportunity attack, you can move up to half your speed without provoking attacks."),
+        gFeature(15, "paladin-vengeance-soul", "Soul of Vengeance", "When a creature under your Vow of Enmity makes an attack, you can use your reaction to make a melee attack against it."),
+        gFeature(20, "paladin-vengeance-angel", "Avenging Angel", "As an action, gain flight and a frightful aura for 1 hour. Once per long rest."),
+        ...oathSpells(
+          ["bane", "hunter's mark"],
+          ["hold person", "misty step"],
+          ["haste", "protection from energy"],
+          ["banishment", "dimension door"],
+          ["hold monster", "scrying"],
         ),
       ],
     },
