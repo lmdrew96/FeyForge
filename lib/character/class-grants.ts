@@ -117,6 +117,12 @@ const oathSpells = (
   gSpell(17, l17[0], 5), gSpell(17, l17[1], 5),
 ]
 
+// Warlock patron expanded spells: 2 spells added to your options at warlock levels
+// 1/3/5/7/9, of spell level 1/2/3/4/5 — the same cadence as cleric domain spells.
+// Modeled here as always-prepared (like domain/oath spells); they're cast with your
+// Pact Magic slots and don't count against your spells-known budget.
+const patronSpells = domainSpells
+
 // ── The grant tables (2014 ruleset) ─────────────────────────────────────────────
 // NOTE: 2024 deltas (Cleric subclass moves to level 3; some revised domain spells)
 // are NOT yet populated — the engine is edition-aware (each Grant takes an optional
@@ -281,6 +287,52 @@ const CLASS_GRANTS: Record<string, ClassGrantTable> = {
           ["haste", "protection from energy"],
           ["banishment", "dimension door"],
           ["hold monster", "scrying"],
+        ),
+      ],
+    },
+  },
+  warlock: {
+    // Patrons grant expanded spells (always-prepared, cast with Pact Magic slots)
+    // plus signature features at warlock levels 1/6/10/14. Limited-use features note
+    // their cadence in `uses` (descriptive — Pact lacks a tracked pool today).
+    subclasses: {
+      fiend: [
+        gFeature(1, "warlock-fiend-blessing", "Dark One's Blessing", "When you reduce a hostile creature to 0 hit points, you gain temporary hit points equal to your Charisma modifier + your warlock level (minimum 1)."),
+        gFeature(6, "warlock-fiend-luck", "Dark One's Own Luck", "Add a d10 to one ability check or saving throw, after you roll but before the outcome is revealed.", "1 per short or long rest"),
+        gFeature(10, "warlock-fiend-resilience", "Fiendish Resilience", "After a short or long rest, choose one damage type to gain resistance to until you pick another; it doesn't apply to damage from magical or silvered weapons."),
+        gFeature(14, "warlock-fiend-hurl", "Hurl Through Hell", "When you hit a creature with an attack, you can banish it through the Lower Planes; at the end of your next turn it returns and, unless it's a fiend, takes 10d10 psychic damage.", "1 per long rest"),
+        ...patronSpells(
+          ["burning hands", "command"],
+          ["blindness/deafness", "scorching ray"],
+          ["fireball", "stinking cloud"],
+          ["fire shield", "wall of fire"],
+          ["flame strike", "hallow"],
+        ),
+      ],
+      archfey: [
+        gFeature(1, "warlock-archfey-presence", "Fey Presence", "As an action, force each creature in a 10-foot cube around you to make a Wisdom save or be charmed or frightened (your choice) until the end of your next turn.", "1 per short or long rest"),
+        gFeature(6, "warlock-archfey-escape", "Misty Escape", "As a reaction when you take damage, turn invisible and teleport up to 60 feet; you stay invisible until the end of your next turn or until you attack or cast a spell.", "1 per short or long rest"),
+        gFeature(10, "warlock-archfey-defenses", "Beguiling Defenses", "You can't be charmed, and when a creature tries to charm you, you can turn the effect back on it (Wisdom save or charmed for 1 minute, taking psychic damage each turn)."),
+        gFeature(14, "warlock-archfey-delirium", "Dark Delirium", "As an action, plunge a creature within 60 feet into an illusory realm (Wisdom save); for up to 1 minute it's charmed or frightened and perceives nothing but the illusion.", "1 per short or long rest"),
+        ...patronSpells(
+          ["faerie fire", "sleep"],
+          ["calm emotions", "phantasmal force"],
+          ["blink", "plant growth"],
+          ["dominate beast", "greater invisibility"],
+          ["dominate person", "seeming"],
+        ),
+      ],
+      "great-old-one": [
+        gFeature(1, "warlock-goo-mind", "Awakened Mind", "You can telepathically speak to any creature you can see within 30 feet, in any language it understands."),
+        gFeature(6, "warlock-goo-ward", "Entropic Ward", "As a reaction when a creature attacks you, impose disadvantage on the roll; if it misses, your next attack against it before the end of your next turn has advantage.", "1 per short or long rest"),
+        gFeature(10, "warlock-goo-shield", "Thought Shield", "Your thoughts can't be read unless you allow it, you have resistance to psychic damage, and a creature that deals psychic damage to you takes the same amount."),
+        gFeature(14, "warlock-goo-thrall", "Create Thrall", "You can touch an incapacitated humanoid to charm it indefinitely; it serves as your thrall, and you can communicate telepathically with it across any distance on the same plane."),
+        ...patronSpells(
+          ["dissonant whispers", "tasha's hideous laughter"],
+          ["detect thoughts", "phantasmal force"],
+          ["clairvoyance", "sending"],
+          ["dominate beast", "evard's black tentacles"],
+          ["dominate person", "telekinesis"],
         ),
       ],
     },
