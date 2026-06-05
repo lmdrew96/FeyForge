@@ -52,18 +52,6 @@ export const listAllReviewComments = query({
   },
 })
 
-export const listMyReviewComments = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-    return await ctx.db
-      .query("libraryReviewComments")
-      .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
-      .take(200)
-  },
-})
-
 export const deleteReviewComment = mutation({
   args: { trackId: v.id("audioTracks") },
   handler: async (ctx, args) => {

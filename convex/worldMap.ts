@@ -391,26 +391,6 @@ export const setCampaignMapWithPins = mutation({
 })
 
 // Update only the campaign map's metadata (name, scale) without replacing it.
-export const updateCampaignMap = mutation({
-  args: {
-    campaignId: v.id("campaigns"),
-    name: v.optional(v.string()),
-    scaleMilesPerPx: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    await requireDm(ctx, args.campaignId)
-    const map = await ctx.db
-      .query("worldMaps")
-      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
-      .first()
-    if (!map) throw new Error("No map to update")
-    const patch: Record<string, unknown> = { updatedAt: Date.now() }
-    if (args.name !== undefined) patch.name = args.name
-    if (args.scaleMilesPerPx !== undefined) patch.scaleMilesPerPx = args.scaleMilesPerPx
-    await ctx.db.patch(map._id, patch)
-  },
-})
-
 // Fog of war settings on the campaign map. DM-only. Affects the player view only
 // (DM always sees the full map). fogEnabled toggles the shroud; fogRevealRadius
 // is the clearing radius as a % of the map's shorter side. Radius is clamped to

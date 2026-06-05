@@ -27,19 +27,6 @@ export const list = query({
   },
 })
 
-export const get = query({
-  args: { entryId: v.id("wikiEntries") },
-  handler: async (ctx, args) => {
-    const entry = await ctx.db.get(args.entryId)
-    if (!entry) return null
-    const m = await getMembership(ctx, entry.campaignId)
-    if (!m) return null
-    // Players can only read revealed entries.
-    if (m.member.role !== "dm" && entry.isRevealed !== true) return null
-    return entry
-  },
-})
-
 // ── Writes (DM-only) ─────────────────────────────────────────────────────────
 
 export const create = mutation({

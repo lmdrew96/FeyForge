@@ -12,7 +12,6 @@ import type * as admin from "../admin.js";
 import type * as aiUsage from "../aiUsage.js";
 import type * as audio from "../audio.js";
 import type * as campaignMembers from "../campaignMembers.js";
-import type * as campaignScenes from "../campaignScenes.js";
 import type * as campaignWeb from "../campaignWeb.js";
 import type * as campaigns from "../campaigns.js";
 import type * as characters from "../characters.js";
@@ -47,7 +46,6 @@ declare const fullApi: ApiFromModules<{
   aiUsage: typeof aiUsage;
   audio: typeof audio;
   campaignMembers: typeof campaignMembers;
-  campaignScenes: typeof campaignScenes;
   campaignWeb: typeof campaignWeb;
   campaigns: typeof campaigns;
   characters: typeof characters;

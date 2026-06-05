@@ -71,6 +71,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
   const doSetInitiative = useMutation(api.liveCombat.setInitiative)
   const doSetDeathSaves = useMutation(api.liveCombat.setDeathSaves)
   const doRollDeathSave = useMutation(api.liveCombat.rollDeathSave)
+  const doSetTempHp = useMutation(api.liveCombat.setTempHp)
 
   // Apply HP damage/heal; if a concentrating combatant was hit, prompt the save.
   const handleAdjustHp = async (combatantId: string, amount: number) => {
@@ -82,6 +83,15 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
     } catch {
       toast.error("Failed to update HP.")
     }
+  }
+
+  // Set temporary HP (absolute value, doesn't stack with current/max). RAW: temp
+  // HP from a new source replaces rather than adds, so a direct set is correct.
+  const handleSetTempHp = (combatantId: string, currentTemp: number) => {
+    const input = window.prompt("Set temporary HP:", String(currentTemp))
+    if (input === null) return
+    const temp = Math.max(0, Math.floor(Number(input)) || 0)
+    doSetTempHp({ sessionId, combatantId, temp }).catch(() => toast.error("Failed to set temp HP."))
   }
 
   const handleRollDeathSave = async (combatantId: string) => {
@@ -485,6 +495,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
                     <HpButton label="−1" color="#ef4444" onClick={() => handleAdjustHp(c.id, -1)} />
                     <HpButton label="+1" color="var(--scene-accent)" onClick={() => handleAdjustHp(c.id, 1)} />
                     <HpButton label="+5" color="var(--scene-accent)" onClick={() => handleAdjustHp(c.id, 5)} />
+                    <HpButton label="TMP" color="var(--scene-highlight)" onClick={() => handleSetTempHp(c.id, hp.temp)} />
                   </div>
                 )}
 
