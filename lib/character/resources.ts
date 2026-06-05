@@ -11,9 +11,9 @@
  *
  * SCOPE (v1): class-level resources only. Subclass-gated pools (Battlemaster
  * Superiority Dice, the per-subclass Channel Divinity OPTIONS) are out — subclass
- * isn't reliably readable for curated classes. Wild Shape is deferred to the
- * alternate-form work. Custom maxima from magic items/feats stay in the freeform
- * Custom Properties section.
+ * isn't reliably readable for curated classes. Wild Shape USES are tracked here;
+ * the forms themselves live in the alternate-form work (lib/character/creatures.ts).
+ * Custom maxima from magic items/feats stay in the freeform Custom Properties section.
  *
  * EDITION: `getClassResources` branches on `edition`. The 2024 deltas (verified
  * vs the 2024 PHB, not memory) are:
@@ -207,6 +207,18 @@ export function getClassResources(
             ]
           : []),
       ]
+    case "druid":
+      return l >= 2
+        ? [
+            {
+              key: "wild-shape",
+              name: "Wild Shape",
+              max: 2,
+              rechargeOn: "shortRest",
+              description: "Transform into a beast you've seen before. Recharges on a short or long rest.",
+            },
+          ]
+        : []
     default:
       return []
   }

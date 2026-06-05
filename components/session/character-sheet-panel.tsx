@@ -22,6 +22,7 @@ import {
 import { AttacksSection } from "@/app/characters/[id]/inventory"
 import { SpellbookSection } from "@/components/character/spellbook"
 import { ResourcesSection } from "@/components/character/resources"
+import { WildshapeSection, CompanionsSection } from "@/components/character/creature-sheet"
 
 // In-session character sheet — the play-oriented "act surface" a player needs at
 // the table: roll checks/saves/skills, attack, cast (spend slots), spend class
@@ -63,7 +64,7 @@ export function SessionCharacterSheet({
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    spells, grantedSpells, resourceRows, casterType, edition,
+    spells, grantedSpells, resourceRows, formRows, companionRows, casterType, edition,
     equippedWeapons, fightingStyleId, armorClass, armorName, nextOrder,
     channelDivinityOptions,
   } = deriveCharacter(char, allProps, campaign)
@@ -144,6 +145,31 @@ export function SessionCharacterSheet({
         resourceRows={resourceRows}
         nextOrder={nextOrder}
         resourceOptions={{ "channel-divinity": channelDivinityOptions }}
+      />
+
+      {/* Wild Shape (druids) + Companions — usable in the session (roll the form's
+          or companion's attacks, track their HP). */}
+      <WildshapeSection
+        characterId={char._id}
+        classId={char.characterClass}
+        level={char.level}
+        subclass={char.subclass}
+        formRows={formRows}
+        mentalAbilities={{
+          intelligence: totalAbilities.intelligence,
+          wisdom: totalAbilities.wisdom,
+          charisma: totalAbilities.charisma,
+        }}
+        nextOrder={nextOrder}
+        roll={roll}
+        rollExpr={rollExpr}
+      />
+      <CompanionsSection
+        characterId={char._id}
+        companionRows={companionRows}
+        nextOrder={nextOrder}
+        roll={roll}
+        rollExpr={rollExpr}
       />
 
       {/* Spellcasting — slots, save DC/attack, cast from the spellbook. Casters

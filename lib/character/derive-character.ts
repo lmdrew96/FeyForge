@@ -48,6 +48,8 @@ export interface CharacterDerived {
   spells: SheetSpell[]
   resourceRows: PropDoc[]
   featRows: PropDoc[]
+  formRows: PropDoc[]
+  companionRows: PropDoc[]
   casterType: CasterType
   edition: Edition
   shortRestResourceKeys: string[]
@@ -131,6 +133,8 @@ export function deriveCharacter(
   const spells = myProps.filter((p) => p.type === "spell").map(rowToSpell)
   const resourceRows = myProps.filter((p) => p.type === "classResource")
   const featRows = myProps.filter((p) => p.type === "feature")
+  const formRows = myProps.filter((p) => p.type === "alternateForm")
+  const companionRows = myProps.filter((p) => p.type === "companion")
   const casterType = getCasterType(char.characterClass)
   const edition = resolveEdition(campaign?.edition)
 
@@ -182,6 +186,8 @@ export function deriveCharacter(
     spells,
     resourceRows,
     featRows,
+    formRows,
+    companionRows,
     casterType,
     edition,
     shortRestResourceKeys,

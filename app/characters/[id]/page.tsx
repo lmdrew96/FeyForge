@@ -50,6 +50,7 @@ import {
 import { AttacksSection, InventorySection } from "./inventory"
 import { SpellbookSection } from "@/components/character/spellbook"
 import { ResourcesSection } from "@/components/character/resources"
+import { WildshapeSection, CompanionsSection } from "@/components/character/creature-sheet"
 import { getClassResources, type ResourceRow } from "@/lib/character/resources"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
@@ -1615,7 +1616,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    items, spells, grantedSpells, resourceRows, featRows, casterType, edition,
+    items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, casterType, edition,
     shortRestResourceKeys, equippedWeapons, fightingStyleId,
     armorClass, armorName, nextOrder,
     grantedFeatures, channelDivinityOptions, grantedProficiencies,
@@ -1868,6 +1869,31 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           ) : (
             <EnableSpellcastingCard char={char} edition={edition} />
           ))}
+
+        {/* Wild Shape (druids L2+) + Companions — creature stat blocks attached to
+            the character; derived live from alternateForm/companion property rows. */}
+        <WildshapeSection
+          characterId={char._id}
+          classId={char.characterClass}
+          level={char.level}
+          subclass={char.subclass}
+          formRows={formRows}
+          mentalAbilities={{
+            intelligence: totalAbilities.intelligence,
+            wisdom: totalAbilities.wisdom,
+            charisma: totalAbilities.charisma,
+          }}
+          nextOrder={nextOrder}
+          roll={roll}
+          rollExpr={rollExpr}
+        />
+        <CompanionsSection
+          characterId={char._id}
+          companionRows={companionRows}
+          nextOrder={nextOrder}
+          roll={roll}
+          rollExpr={rollExpr}
+        />
 
         {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}
         <InventorySection characterId={char._id} items={items} nextOrder={nextOrder} />
