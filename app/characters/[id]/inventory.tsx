@@ -82,7 +82,14 @@ export function AttacksSection({
   const attacks = useMemo(
     () =>
       weapons.map((w) =>
-        weaponAttackInfo(level, weaponProficiencies, abilities, w, fightingStyleId),
+        weaponAttackInfo(
+          level,
+          weaponProficiencies,
+          abilities,
+          w,
+          fightingStyleId,
+          weapons.length === 1,
+        ),
       ),
     [weapons, level, weaponProficiencies, abilities, fightingStyleId],
   )

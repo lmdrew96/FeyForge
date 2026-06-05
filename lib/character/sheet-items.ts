@@ -216,14 +216,21 @@ export function isProficientWithWeapon(
 
 // Derive the to-hit bonus + damage expression(s) for an equipped weapon.
 // IMPORTANT: pass raw ability SCORES — the calculators derive modifiers.
-// The Archery fighting style adds +2 to ranged weapon attack rolls; pass the
-// character's chosen style id.
+// Fighting styles wired here:
+//   Archery → +2 to ranged weapon attack rolls.
+//   Dueling → +2 to damage with a one-handed melee weapon when it's the only
+//     weapon wielded. Pass `isOnlyWeapon` (true when exactly one weapon is
+//     equipped — a shield doesn't count, it's armor). RAW it requires one hand,
+//     so it boosts the one-handed damage expr only, never the versatile
+//     (two-handed) expr, and never a weapon with the two-handed property.
+// Pass the character's chosen style id to enable either.
 export function weaponAttackInfo(
   level: number,
   weaponProficiencies: string[],
   abilities: AbilityScores,
   item: SheetItem,
   fightingStyleId?: string,
+  isOnlyWeapon?: boolean,
 ): WeaponAttack {
   const props = item.properties ?? []
   // Ranged weapons (ammunition) use DEX; everything else (incl. thrown melee)
@@ -244,18 +251,30 @@ export function weaponAttackInfo(
     ) + magic + archeryBonus
   const damageBonus = calculateDamageBonus(abilities, props, isMelee) + magic
 
-  const expr = (dice: string | undefined): string => {
+  // Dueling: +2 damage to a one-handed melee weapon used alone. A two-handed
+  // weapon can't be wielded one-handed, so it never qualifies — and the bonus
+  // applies to the one-handed damage only, not the versatile two-handed expr.
+  const duelingApplies =
+    fightingStyleId === "dueling" &&
+    isMelee &&
+    !!isOnlyWeapon &&
+    !props.includes("two-handed")
+  const duelingBonus = duelingApplies ? 2 : 0
+
+  const expr = (dice: string | undefined, bonus: number): string => {
     if (!dice) return ""
-    if (damageBonus === 0) return dice
-    return `${dice}${damageBonus >= 0 ? "+" : "-"}${Math.abs(damageBonus)}`
+    if (bonus === 0) return dice
+    return `${dice}${bonus >= 0 ? "+" : "-"}${Math.abs(bonus)}`
   }
 
   return {
     id: item.id,
     name: item.name,
     attackBonus,
-    damageExpr: expr(item.damageDice),
-    versatileExpr: item.versatileDamage ? expr(item.versatileDamage) : undefined,
+    damageExpr: expr(item.damageDice, damageBonus + duelingBonus),
+    versatileExpr: item.versatileDamage
+      ? expr(item.versatileDamage, damageBonus)
+      : undefined,
     damageType: item.damageType,
     isMelee,
     isProficient,
