@@ -400,3 +400,21 @@ export function recomputeSpellcasting(
     cantripsKnown: getCantripsKnown(classId, newLevel),
   }
 }
+
+// Levels at which a class gains an Ability Score Improvement (and thus may take a
+// feat instead). Standard progression is 4/8/12/16/19; Fighter gains two extra
+// (6, 14) and Rogue one extra (10). Identical in the 2014 and 2024 rulesets.
+export function getAsiLevels(classId: string): number[] {
+  switch (classId.toLowerCase()) {
+    case "fighter":
+      return [4, 6, 8, 12, 14, 16, 19]
+    case "rogue":
+      return [4, 8, 10, 12, 16, 19]
+    default:
+      return [4, 8, 12, 16, 19]
+  }
+}
+
+export function isAsiLevel(classId: string, level: number): boolean {
+  return getAsiLevels(classId).includes(level)
+}

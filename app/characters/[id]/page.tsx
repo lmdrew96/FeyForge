@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X, Sparkles, Skull, Dices } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X, Sparkles, Skull, Dices, Award, Search, Check } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -22,7 +22,8 @@ import {
 import type { Ability, Skill } from "@/lib/character/constants"
 import { getDarkvisionRange } from "@/lib/character/character-data"
 import { getXPProgress, getXPForLevel, getLevelFromXP, getXPToNextLevel } from "@/lib/character/experience"
-import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting } from "@/lib/character/leveling"
+import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting, isAsiLevel } from "@/lib/character/leveling"
+import { FEATS, type FeatData } from "@/lib/character/feats"
 import { resolveEdition, type Edition } from "@/lib/editions"
 import {
   useDiceStore,
@@ -772,9 +773,97 @@ function incrementHitDice(hitDice: CharDoc["hitDice"], dieSize: number): CharDoc
   return [...hitDice, { diceSize: dieSize, total: 1, used: 0 }]
 }
 
+// Feat picker — searchable list of curated feats. Reused by the level-up flow
+// (ASI vs feat) and the Feats section's standalone "Add feat". onSelect hands the
+// chosen feat back; the caller decides whether to stage it or apply it.
+function FeatPicker({
+  feats,
+  knownIds,
+  onSelect,
+  onClose,
+}: {
+  feats: FeatData[]
+  knownIds: Set<string>
+  onSelect: (feat: FeatData) => void
+  onClose: () => void
+}) {
+  const [query, setQuery] = useState("")
+  const q = query.trim().toLowerCase()
+  const results = feats
+    .filter((f) => (q ? f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q) : true))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.6)" }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-xl p-5 w-full max-w-md max-h-[85vh] flex flex-col"
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+            Choose a feat
+          </h2>
+          <button onClick={onClose} className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="relative mb-3">
+          <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--scene-text-muted)" }} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search feats…"
+            autoFocus
+            className="w-full pl-8 pr-3 py-2 rounded-md text-sm bg-transparent outline-none"
+            style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto -mx-1 px-1 space-y-1.5">
+          {results.length === 0 ? (
+            <div className="px-1 py-3 text-sm" style={{ color: "var(--scene-text-muted)" }}>No matching feats.</div>
+          ) : (
+            results.map((f) => {
+              const known = knownIds.has(f.id)
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => !known && onSelect(f)}
+                  disabled={known}
+                  className="w-full text-left px-3 py-2.5 rounded-md transition-colors disabled:opacity-50"
+                  style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{f.name}</span>
+                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
+                      {f.category}
+                    </span>
+                    {known && <Check className="h-3.5 w-3.5 ml-auto flex-shrink-0" style={{ color: "var(--scene-accent)" }} />}
+                  </div>
+                  {f.prerequisite && (
+                    <div className="text-[11px] mt-0.5" style={{ color: "var(--scene-accent)" }}>Requires: {f.prerequisite}</div>
+                  )}
+                  <div className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{f.description}</div>
+                </button>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Level-up modal. Bumps level, gains HP (average or rolled), adds a hit die,
-// rescales caster slots + DC/attack (see lib/character/leveling.ts). New class
-// features are a guided manual step (add via Custom Properties below).
+// rescales caster slots + DC/attack (see lib/character/leveling.ts). At ASI
+// levels it also offers an Ability Score Improvement vs feat choice. Other new
+// class features are a guided manual step (add via Custom Properties below).
 function LevelUpDialog({
   char,
   hitDie,
@@ -791,6 +880,8 @@ function LevelUpDialog({
   onClose: () => void
 }) {
   const doUpdate = useMutation(api.characters.update)
+  const addProperty = useMutation(api.characters.addProperty)
+  const allProps = useQuery(api.characters.listAllProperties)
   const [hpMode, setHpMode] = useState<"average" | "roll">("average")
   const [rolled, setRolled] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -798,6 +889,42 @@ function LevelUpDialog({
   const newLevel = Math.min(20, char.level + 1)
   const classId = char.characterClass.toLowerCase()
   const casterType = getCasterType(classId)
+
+  // ASI / feat choice — only at this class's ASI levels (4/8/12/16/19, +Fighter/Rogue extras).
+  const isAsi = isAsiLevel(classId, newLevel)
+  const racialBonuses = (char.racialBonuses ?? {}) as Partial<Record<Ability, number>>
+  const totals = Object.fromEntries(
+    ABILITIES.map((a) => [a, char.baseAbilities[a] + (racialBonuses[a] ?? 0)]),
+  ) as Record<Ability, number>
+
+  const [choice, setChoice] = useState<"asi" | "feat">("asi")
+  const [inc, setInc] = useState<Partial<Record<Ability, number>>>({})
+  const [selectedFeat, setSelectedFeat] = useState<FeatData | null>(null)
+  const [featPickerOpen, setFeatPickerOpen] = useState(false)
+
+  const spent = ABILITIES.reduce((n, a) => n + (inc[a] ?? 0), 0)
+  const canApply = choice === "asi" ? spent === 2 : !!selectedFeat
+
+  // +1/−1 an ability's pending ASI increase, capped at a 2-point budget, max +2
+  // to any one ability, and never past a total score of 20 (RAW).
+  const bump = (a: Ability, d: number) =>
+    setInc((prev) => {
+      const next = (prev[a] ?? 0) + d
+      if (next < 0 || next > 2) return prev
+      const others = ABILITIES.reduce((n, x) => n + (x === a ? 0 : prev[x] ?? 0), 0)
+      if (others + next > 2) return prev
+      if (d > 0 && totals[a] + next > 20) return prev
+      return { ...prev, [a]: next }
+    })
+
+  const myProps = (allProps ?? []).filter((p) => p.characterId === char._id)
+  const knownFeatIds = new Set(
+    myProps
+      .filter((p) => p.type === "feature")
+      .map((p) => (p.data as { featId?: string } | undefined)?.featId)
+      .filter(Boolean) as string[],
+  )
+  const featNextOrder = myProps.length ? Math.max(...myProps.map((p) => p.orderIndex)) + 1 : 0
 
   const rollHp = () => {
     setRolled(Math.floor(Math.random() * hitDie) + 1)
@@ -810,9 +937,11 @@ function LevelUpDialog({
   const newProf = getProficiencyBonus(newLevel)
   const profChanged = newProf !== oldProf
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (skip = false) => {
     setSaving(true)
     try {
+      const applyAsi = isAsi && !skip && choice === "asi" && spent === 2
+      const applyFeat = isAsi && !skip && choice === "feat" && !!selectedFeat
       const newHitPoints = {
         ...char.hitPoints,
         max: char.hitPoints.max + hpGain,
@@ -821,6 +950,11 @@ function LevelUpDialog({
       const spellcasting = char.spellcasting
         ? recomputeSpellcasting(char.spellcasting, classId, newLevel, spellAbilityMod, edition)
         : undefined
+      let baseAbilities: typeof char.baseAbilities | undefined
+      if (applyAsi) {
+        baseAbilities = { ...char.baseAbilities }
+        for (const a of ABILITIES) baseAbilities[a] = char.baseAbilities[a] + (inc[a] ?? 0)
+      }
       await doUpdate({
         id: char._id,
         level: newLevel,
@@ -828,8 +962,22 @@ function LevelUpDialog({
         hitPoints: newHitPoints,
         hitDice: incrementHitDice(char.hitDice, hitDie),
         ...(spellcasting ? { spellcasting } : {}),
+        ...(baseAbilities ? { baseAbilities } : {}),
       })
-      toast.success(`Leveled up to ${newLevel}! +${hpGain} HP.`)
+      if (applyFeat && selectedFeat) {
+        await addProperty({
+          characterId: char._id,
+          type: "feature",
+          name: selectedFeat.name,
+          description: selectedFeat.description,
+          source: "feat",
+          active: true,
+          orderIndex: featNextOrder,
+          data: { featId: selectedFeat.id, category: selectedFeat.category },
+        })
+      }
+      const extra = applyAsi ? " (+ability scores)" : applyFeat ? ` — gained ${selectedFeat!.name}` : ""
+      toast.success(`Leveled up to ${newLevel}! +${hpGain} HP${extra}.`)
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't level up.")
@@ -907,6 +1055,101 @@ function LevelUpDialog({
           )}
         </ul>
 
+        {/* ASI vs feat — only at ASI levels */}
+        {isAsi && (
+          <div className="mb-4">
+            <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-accent)" }}>
+              Ability Score Improvement
+            </div>
+            <div className="flex gap-2 mb-3">
+              {(["asi", "feat"] as const).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setChoice(c)}
+                  className="flex-1 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-90"
+                  style={{
+                    background: choice === c ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)" : "var(--scene-bg)",
+                    color: choice === c ? "var(--scene-accent)" : "var(--scene-text-primary)",
+                    border: `1px solid ${choice === c ? "color-mix(in srgb, var(--scene-accent) 40%, transparent)" : "var(--scene-border)"}`,
+                  }}
+                >
+                  {c === "asi" ? "Ability Scores" : "Feat"}
+                </button>
+              ))}
+            </div>
+
+            {choice === "asi" ? (
+              <div>
+                <p className="text-xs mb-2" style={{ color: spent === 2 ? "var(--scene-text-muted)" : "var(--scene-accent)" }}>
+                  {spent === 2 ? "2 points assigned." : `Assign ${2 - spent} more ${2 - spent === 1 ? "point" : "points"} — +2 to one ability or +1 to two.`}
+                </p>
+                <div className="space-y-1.5">
+                  {ABILITIES.map((a) => {
+                    const add = inc[a] ?? 0
+                    const newScore = totals[a] + add
+                    const canInc = spent < 2 && add < 2 && newScore < 20
+                    return (
+                      <div key={a} className="flex items-center gap-2">
+                        <span className="text-xs uppercase tracking-wider w-10" style={{ color: "var(--scene-text-muted)" }}>
+                          {ABILITY_ABBREVIATIONS[a]}
+                        </span>
+                        <span className="text-sm tabular-nums" style={{ color: "var(--scene-text-primary)" }}>
+                          {totals[a]}
+                          {add > 0 && <span style={{ color: "var(--scene-accent)" }}> → {newScore}</span>}
+                        </span>
+                        <div className="ml-auto flex items-center gap-1.5">
+                          <button
+                            onClick={() => bump(a, -1)}
+                            disabled={add <= 0}
+                            className="w-7 h-7 rounded text-sm font-bold transition-opacity hover:opacity-80 disabled:opacity-30"
+                            style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+                          >
+                            −
+                          </button>
+                          <span className="w-5 text-center text-sm tabular-nums" style={{ color: add > 0 ? "var(--scene-accent)" : "var(--scene-text-muted)" }}>
+                            +{add}
+                          </span>
+                          <button
+                            onClick={() => bump(a, +1)}
+                            disabled={!canInc}
+                            className="w-7 h-7 rounded text-sm font-bold transition-opacity hover:opacity-80 disabled:opacity-30"
+                            style={{ background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--scene-accent) 32%, transparent)", color: "var(--scene-accent)" }}
+                            title={newScore >= 20 ? "Already at 20 (RAW cap)" : undefined}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : selectedFeat ? (
+              <div className="rounded-lg p-3" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
+                <div className="flex items-center gap-2">
+                  <Award className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+                  <span className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{selectedFeat.name}</span>
+                  <button onClick={() => setFeatPickerOpen(true)} className="ml-auto text-xs hover:opacity-80" style={{ color: "var(--scene-accent)" }}>
+                    Change
+                  </button>
+                </div>
+                {selectedFeat.prerequisite && (
+                  <p className="text-[11px] mt-1" style={{ color: "var(--scene-accent)" }}>Requires: {selectedFeat.prerequisite}</p>
+                )}
+                <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{selectedFeat.description}</p>
+              </div>
+            ) : (
+              <button
+                onClick={() => setFeatPickerOpen(true)}
+                className="w-full py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+                style={{ background: "var(--scene-bg)", border: "1px dashed var(--scene-border)", color: "var(--scene-accent)" }}
+              >
+                Choose a feat…
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Features reminder */}
         <p className="text-xs rounded-lg p-3 mb-4" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}>
           New class features at this level aren&apos;t added automatically — add them as Custom Properties below the sheet (check your class for level {newLevel}).
@@ -922,14 +1165,34 @@ function LevelUpDialog({
             Cancel
           </button>
           <button
-            onClick={handleConfirm}
-            disabled={saving}
+            onClick={() => handleConfirm(false)}
+            disabled={saving || (isAsi && !canApply)}
             className="flex-1 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
             style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+            title={isAsi && !canApply ? (choice === "asi" ? "Assign 2 ability points first" : "Choose a feat first") : undefined}
           >
             {saving ? "Leveling…" : `Level up to ${newLevel}`}
           </button>
         </div>
+        {isAsi && (
+          <button
+            onClick={() => handleConfirm(true)}
+            disabled={saving}
+            className="w-full mt-2 py-1.5 text-xs transition-opacity hover:opacity-80 disabled:opacity-50"
+            style={{ color: "var(--scene-text-muted)" }}
+          >
+            Skip for now — choose your ASI or feat later
+          </button>
+        )}
+
+        {featPickerOpen && (
+          <FeatPicker
+            feats={FEATS}
+            knownIds={knownFeatIds}
+            onSelect={(f) => { setSelectedFeat(f); setChoice("feat"); setFeatPickerOpen(false) }}
+            onClose={() => setFeatPickerOpen(false)}
+          />
+        )}
       </div>
     </div>
   )
@@ -1079,6 +1342,108 @@ function CurrencyEditor({ char }: { char: CharDoc }) {
         </div>
       ))}
     </div>
+  )
+}
+
+// Feats section — renders the character's feat features (type "feature", source
+// "feat") and offers a standalone "Add feat" for feats gained outside level-up
+// (level-1 origin feats, variant-human picks). Homebrew feats merge here later.
+function FeatsSection({
+  characterId,
+  featRows,
+  nextOrder,
+}: {
+  characterId: Id<"characters">
+  featRows: Doc<"characterProperties">[]
+  nextOrder: number
+}) {
+  const addProperty = useMutation(api.characters.addProperty)
+  const removeProperty = useMutation(api.characters.removeProperty)
+  const [picking, setPicking] = useState(false)
+
+  const knownIds = new Set(
+    featRows.map((p) => (p.data as { featId?: string } | undefined)?.featId).filter(Boolean) as string[],
+  )
+
+  const handleAdd = async (feat: FeatData) => {
+    try {
+      await addProperty({
+        characterId,
+        type: "feature",
+        name: feat.name,
+        description: feat.description,
+        source: "feat",
+        active: true,
+        orderIndex: nextOrder,
+        data: { featId: feat.id, category: feat.category },
+      })
+      toast.success(`Gained ${feat.name}.`)
+      setPicking(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add feat.")
+    }
+  }
+
+  const handleRemove = async (id: Id<"characterProperties">) => {
+    try {
+      await removeProperty({ id })
+      toast.success("Feat removed.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't remove feat.")
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+          Feats
+        </h2>
+        <button
+          onClick={() => setPicking(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+          style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+        >
+          <Plus className="h-4 w-4" /> Add feat
+        </button>
+      </div>
+
+      {featRows.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+          No feats yet. Gain one by choosing &ldquo;Feat&rdquo; at an ASI level on level-up, or add one directly.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {featRows.map((p) => (
+            <div
+              key={p._id}
+              className="flex items-start gap-3 rounded-lg px-4 py-3"
+              style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+            >
+              <Award className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{p.name}</p>
+                {p.description && (
+                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{p.description}</p>
+                )}
+              </div>
+              <button
+                onClick={() => handleRemove(p._id)}
+                className="p-1.5 rounded transition-opacity hover:opacity-80 flex-shrink-0"
+                style={{ color: "var(--scene-text-muted)" }}
+                title="Remove feat"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {picking && (
+        <FeatPicker feats={FEATS} knownIds={knownIds} onSelect={handleAdd} onClose={() => setPicking(false)} />
+      )}
+    </section>
   )
 }
 
@@ -1336,6 +1701,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const items = myProps.filter((p) => p.type === "item").map(rowToItem)
   const spells = myProps.filter((p) => p.type === "spell").map(rowToSpell)
   const resourceRows = myProps.filter((p) => p.type === "classResource")
+  const featRows = myProps.filter((p) => p.type === "feature")
   const casterType = getCasterType(char.characterClass)
   const edition = resolveEdition(campaign?.edition)
   // Keys of this character's short-rest-recharge resources, for the Rest panel's
@@ -1701,6 +2067,9 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
 
         {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}
         <InventorySection characterId={char._id} items={items} nextOrder={nextOrder} />
+
+        {/* Feats — ASI-level picks + standalone origin/variant feats */}
+        <FeatsSection characterId={char._id} featRows={featRows} nextOrder={nextOrder} />
 
         {/* Custom Properties */}
         <CustomPropertiesSection characterId={char._id} />
