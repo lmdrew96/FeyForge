@@ -18,7 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ALIGNMENTS } from "@/lib/character/constants"
+import { ALIGNMENTS, getAbilityModifier, type Ability } from "@/lib/character/constants"
+import { hpGainForLevel, recomputeSpellcasting } from "@/lib/character/leveling"
+import { resolveEdition } from "@/lib/editions"
 import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -149,6 +151,12 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
 
   const char = useQuery(api.characters.get, { id: characterId })
   const updateCharacter = useMutation(api.characters.update)
+  // Campaign edition drives spell-slot recompute when level changes (defaults to
+  // 2024 for no-campaign / non-member, matching the sheet).
+  const campaign = useQuery(
+    api.campaigns.get,
+    char?.campaignId ? { campaignId: char.campaignId } : "skip",
+  )
 
   const [draft, setDraft] = useState<EditState | null>(null)
   const [saving, setSaving] = useState(false)
@@ -205,6 +213,25 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
 
   const setField = <K extends keyof EditState>(key: K, value: EditState[K]) => {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
+  }
+
+  // Level ↔ HP/hit-dice/slots linkage. Average HP per level (avg hit-die roll +
+  // CON, min 1) — the same value the level-up flow uses in "average" mode.
+  const hitDie = char.hitDice[0]?.diceSize ?? 8
+  const conMod = getAbilityModifier(char.baseAbilities.constitution + (char.racialBonuses?.constitution ?? 0))
+  const perLevelHp = hpGainForLevel(hitDie, conMod)
+  const edition = resolveEdition(campaign?.edition)
+
+  // Changing the level field recomputes Max HP relative to the SAVED character
+  // (not compounding across edits), so lowering level reduces HP and raising it
+  // restores it. The user can still hand-tweak Max HP afterward.
+  const handleLevelChange = (raw: number) => {
+    const newLevel = Math.min(20, Math.max(1, Math.floor(raw) || 1))
+    setDraft((prev) =>
+      prev
+        ? { ...prev, level: newLevel, hpMax: Math.max(1, char.hitPoints.max + (newLevel - char.level) * perLevelHp) }
+        : prev,
+    )
   }
 
   const handleGenerateBackstory = async () => {
@@ -324,12 +351,35 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
         current: Math.min(char.hitPoints.current, draft.hpMax),
       }
 
+      // When level changes, keep derived combat stats in step (matching the
+      // level-up flow): one hit die per level, and recomputed spell slots.
+      const levelChanged = draft.level !== char.level
+      const newHitDice = levelChanged
+        ? [{ diceSize: hitDie, total: draft.level, used: Math.min(char.hitDice[0]?.used ?? 0, draft.level) }]
+        : char.hitDice
+      let newSpellcasting: ReturnType<typeof recomputeSpellcasting> | undefined
+      if (levelChanged && char.spellcasting) {
+        const ability = char.spellcasting.ability as Ability
+        const abilityMod = getAbilityModifier(
+          char.baseAbilities[ability] + ((char.racialBonuses as Partial<Record<Ability, number>> | undefined)?.[ability] ?? 0),
+        )
+        newSpellcasting = recomputeSpellcasting(
+          char.spellcasting,
+          char.characterClass.toLowerCase(),
+          draft.level,
+          abilityMod,
+          edition,
+        )
+      }
+
       await updateCharacter({
         id: characterId,
         name,
         playerName: draft.playerName.trim() || undefined,
         level: draft.level,
         experiencePoints: draft.experiencePoints,
+        hitDice: newHitDice,
+        ...(newSpellcasting ? { spellcasting: newSpellcasting } : {}),
         alignment: draft.alignment || undefined,
         background: draft.background.trim() || undefined,
         age: draft.age.trim() || undefined,
@@ -415,8 +465,13 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
                 min={1}
                 max={20}
                 value={draft.level}
-                onChange={(e) => setField("level", Number(e.target.value) || 1)}
+                onChange={(e) => handleLevelChange(Number(e.target.value))}
               />
+              {draft.level !== char.level && (
+                <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  Max HP, hit dice{char.spellcasting ? ", and spell slots" : ""} adjust for level {draft.level} on save.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="char-xp">Experience points</Label>
