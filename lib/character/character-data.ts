@@ -715,6 +715,17 @@ export interface QuickRollResult {
   startingChoice?: "equipment" | "gold"
 }
 
+// Auto-pick a complete level-1 skill set: the background's fixed proficiencies
+// plus a random valid selection of the class's skill choices. Shared by Quick
+// Roll and From Concept (neither has an interactive skill picker) so both reach
+// the same class+background skill coverage the Guided/Normal builders produce.
+export function autoPickSkillProficiencies(characterClass: ClassData, background: BackgroundData): Skill[] {
+  const bgSkills = background.skillProficiencies
+  const shuffled = [...characterClass.skillChoices.options].sort(() => Math.random() - 0.5)
+  const classSkills = shuffled.slice(0, characterClass.skillChoices.count)
+  return [...new Set([...bgSkills, ...classSkills])] as Skill[]
+}
+
 export function quickRollCharacter(): QuickRollResult {
   const race = pick(RACES)
   const subrace = race.subraces ? pick(race.subraces) : undefined
@@ -753,12 +764,7 @@ export function quickRollCharacter(): QuickRollResult {
     ...(subrace?.abilityBonuses ?? {}),
   }
 
-  const bgSkills = background.skillProficiencies
-  const classOpts = characterClass.skillChoices.options
-  const classCount = characterClass.skillChoices.count
-  const shuffled = [...classOpts].sort(() => Math.random() - 0.5)
-  const classSkills = shuffled.slice(0, classCount)
-  const skillProficiencies = [...new Set([...bgSkills, ...classSkills])] as Skill[]
+  const skillProficiencies = autoPickSkillProficiencies(characterClass, background)
 
   return { name, race, subrace, characterClass, background, baseAbilities, racialBonuses, skillProficiencies }
 }
