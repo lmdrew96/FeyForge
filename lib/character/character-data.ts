@@ -710,6 +710,9 @@ export interface QuickRollResult {
   }
   racialBonuses: Partial<Record<Ability, number>>
   skillProficiencies: Skill[]
+  // Creation-time equipment decision. Only the interactive builders set this;
+  // Quick Roll / From Concept default to the equipment package.
+  startingChoice?: "equipment" | "gold"
 }
 
 export function quickRollCharacter(): QuickRollResult {

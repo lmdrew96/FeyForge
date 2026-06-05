@@ -16,6 +16,8 @@ import {
 } from "@/lib/character/constants"
 import { ArrowRight, ArrowLeft, RefreshCw, Shield } from "lucide-react"
 import { GuidedCompanion } from "@/components/character/guided-companion"
+import { StartingEquipmentStep } from "./starting-equipment-step"
+import type { StartingChoice } from "@/lib/character/starting-equipment"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -67,7 +69,7 @@ const CLASS_GUIDED_HINT: Record<string, string> = {
   wizard: "The broadest spell list in the game. Wizards can do almost anything — but they're fragile and require managing a spellbook. Rewarding long-term.",
 }
 
-const STEPS = ["Class", "Race", "Background", "Abilities", "Skills", "Name"] as const
+const STEPS = ["Class", "Race", "Background", "Abilities", "Skills", "Equipment", "Name"] as const
 type StepName = typeof STEPS[number]
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -92,6 +94,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
     intelligence: 0, wisdom: 0, charisma: 0,
   })
   const [selectedSkills, setSelectedSkills] = useState<Skill[]>([])
+  const [startingChoice, setStartingChoice] = useState<StartingChoice>("equipment")
 
   // ── Content (curated SRD + homebrew you own or that's shared to your campaigns) ─
   const homebrew = useQuery(api.homebrew.listForBuilder)
@@ -152,7 +155,8 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
     !!backgroundId,                                        // 2: Background
     allAssigned,                                           // 3: Abilities
     selectedSkills.length === skillCount,                  // 4: Skills
-    !!name.trim(),                                         // 5: Name
+    true,                                                  // 5: Equipment (defaults to package)
+    !!name.trim(),                                         // 6: Name
   ]
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -199,6 +203,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       baseAbilities: { ...assignments } as Record<Ability, number>,
       racialBonuses,
       skillProficiencies: allSkills,
+      startingChoice,
     })
   }
 
@@ -805,17 +810,33 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
     return lines.join("\n")
   }, [step, cls, race, subrace, background, assignments, racialBonuses, selectedSkills])
 
+  const StepEquipment = () => {
+    if (!cls) return null
+    return (
+      <div>
+        <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+          Gear up.
+        </h2>
+        <p className="text-sm mb-6" style={{ color: "var(--scene-text-muted)" }}>
+          Take your class&rsquo;s starting equipment, or take gold to buy your own.
+        </p>
+        <StartingEquipmentStep classId={classId} value={startingChoice} onChange={setStartingChoice} />
+        <Nav />
+      </div>
+    )
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  const steps = [StepClass, StepRace, StepBackground, StepAbilities, StepSkills, StepName]
+  const steps = [StepClass, StepRace, StepBackground, StepAbilities, StepSkills, StepEquipment, StepName]
   const CurrentStep = steps[step]
 
   return (
     <div className="max-w-2xl mx-auto">
       <Progress />
 
-      {/* Summary strip — hidden on Name step (step 5) which has its own full preview */}
-      {step < 5 && (classId || raceId || backgroundId) && (
+      {/* Summary strip — hidden on Name step (last) which has its own full preview */}
+      {step < STEPS.length - 1 && (classId || raceId || backgroundId) && (
         <div
           className="mb-6 rounded-xl px-4 py-3 space-y-2.5"
           style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}

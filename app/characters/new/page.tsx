@@ -19,6 +19,7 @@ import {
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
 import type { Ability } from "@/lib/character/constants"
 import { initSpellcasting } from "@/lib/character/leveling"
+import { getStartingLoadout } from "@/lib/character/starting-equipment"
 import { DEFAULT_EDITION } from "@/lib/editions"
 import { NormalBuilder } from "./normal-builder"
 import { GuidedFlow } from "./guided-flow"
@@ -323,6 +324,7 @@ function QuickRollPreview({
 export default function NewCharacterPage() {
   const router = useRouter()
   const createCharacter = useMutation(api.characters.create)
+  const addProperty = useMutation(api.characters.addProperty)
   const [mode, setMode] = useState<CreationMode>("choose")
   const [rolled, setRolled] = useState<QuickRollResult | null>(null)
   const [rollCount, setRollCount] = useState(0)
@@ -362,7 +364,10 @@ export default function NewCharacterPage() {
       // sheet's edition-aware recompute corrects once they join a 2014 campaign.
       const spellcasting = initSpellcasting(characterClass.id, 1, baseAbilities, DEFAULT_EDITION, racialBonuses) ?? undefined
 
-      await createCharacter({
+      const choice = result.startingChoice ?? "equipment"
+      const loadout = getStartingLoadout(characterClass.id, background.equipment, choice)
+
+      const newId = await createCharacter({
         name,
         race: race.name,
         subrace: subrace?.name,
@@ -386,9 +391,22 @@ export default function NewCharacterPage() {
         weaponProficiencies: characterClass.weaponProficiencies,
         toolProficiencies: characterClass.toolProficiencies,
         languages: race.languages,
-        currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+        currency: { cp: 0, sp: 0, ep: 0, gp: loadout.gold, pp: 0 },
         spellcasting,
       })
+      await Promise.all(
+        loadout.items.map((it, i) =>
+          addProperty({
+            characterId: newId,
+            type: "item",
+            name: it.name,
+            active: true,
+            equipped: it.equipped ?? false,
+            orderIndex: i,
+            data: it.data,
+          }),
+        ),
+      )
       toast.success(`${name} is ready to adventure!`)
       router.push("/characters")
     } catch {
@@ -464,9 +482,12 @@ export default function NewCharacterPage() {
     // Edition unknown at creation (no campaign) → DEFAULT_EDITION; see saveCharacter.
     const spellcasting = initSpellcasting(cls.id, 1, baseAbilities, DEFAULT_EDITION, racialBonuses) ?? undefined
 
+    // From Concept defaults to the equipment package (no interactive choice).
+    const loadout = getStartingLoadout(cls.id, background.equipment, "equipment")
+
     setSaving(true)
     try {
-      await createCharacter({
+      const newId = await createCharacter({
         name: finalName,
         race: race.name,
         subrace: subrace?.name,
@@ -490,9 +511,22 @@ export default function NewCharacterPage() {
         weaponProficiencies: cls.weaponProficiencies,
         toolProficiencies: cls.toolProficiencies,
         languages: race.languages,
-        currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+        currency: { cp: 0, sp: 0, ep: 0, gp: loadout.gold, pp: 0 },
         spellcasting,
       })
+      await Promise.all(
+        loadout.items.map((it, i) =>
+          addProperty({
+            characterId: newId,
+            type: "item",
+            name: it.name,
+            active: true,
+            equipped: it.equipped ?? false,
+            orderIndex: i,
+            data: it.data,
+          }),
+        ),
+      )
       toast.success(`${finalName} is ready to adventure!`)
       setConceptOpen(false)
       router.push("/characters")

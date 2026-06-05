@@ -16,6 +16,8 @@ import {
 } from "@/lib/character/constants"
 import { ArrowRight, Sparkles, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { StartingEquipmentStep } from "./starting-equipment-step"
+import type { StartingChoice } from "@/lib/character/starting-equipment"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -187,6 +189,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
     intelligence: 0, wisdom: 0, charisma: 0,
   })
   const [selectedSkills, setSelectedSkills] = useState<Skill[]>([])
+  const [startingChoice, setStartingChoice] = useState<StartingChoice>("equipment")
 
   // ── Content (curated SRD + homebrew you own or that's shared to your campaigns) ─
   const homebrew = useQuery(api.homebrew.listForBuilder)
@@ -331,6 +334,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
       baseAbilities: { ...assignments } as Record<Ability, number>,
       racialBonuses,
       skillProficiencies: allSkills,
+      startingChoice,
     })
   }
 
@@ -846,6 +850,16 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
               )
             })}
           </div>
+        </section>
+      )}
+
+      {/* ── Starting Equipment ───────────────────────────────────────────────── */}
+      {cls && (
+        <section>
+          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+            Starting Equipment
+          </h2>
+          <StartingEquipmentStep classId={classId} value={startingChoice} onChange={setStartingChoice} />
         </section>
       )}
 
