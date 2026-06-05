@@ -20,7 +20,7 @@ import {
   getProficiencyBonus,
 } from "@/lib/character/constants"
 import type { Ability, Skill } from "@/lib/character/constants"
-import { getDarkvisionRange } from "@/lib/character/character-data"
+import { getDarkvisionRange, getFightingStylesAtLevel } from "@/lib/character/character-data"
 import { getXPProgress, getXPForLevel, getLevelFromXP, getXPToNextLevel } from "@/lib/character/experience"
 import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting, isAsiLevel } from "@/lib/character/leveling"
 import {
@@ -1097,6 +1097,7 @@ function LevelUpDialog({
   const [selectedFeat, setSelectedFeat] = useState<FeatData | null>(null)
   const [selectedApplied, setSelectedApplied] = useState<AppliedGrants | null>(null)
   const [featPickerOpen, setFeatPickerOpen] = useState(false)
+  const [fightingStyleId, setFightingStyleId] = useState("")
 
   const spent = ABILITIES.reduce((n, a) => n + (inc[a] ?? 0), 0)
   const canApply = choice === "asi" ? spent === 2 : !!selectedFeat
@@ -1121,6 +1122,16 @@ function LevelUpDialog({
       .filter(Boolean) as string[],
   )
   const featNextOrder = myProps.length ? Math.max(...myProps.map((p) => p.orderIndex)) + 1 : 0
+
+  // Fighting style gained at THIS level (Paladin/Ranger @ 2; Fighter @ 1 is the
+  // creation pick). Offer it only if the character doesn't already have one — that
+  // also backfills Fighters built before the style picker shipped.
+  const hasFightingStyle = myProps.some(
+    (p) => p.type === "feature" && !!(p.data as { fightingStyleId?: string } | undefined)?.fightingStyleId,
+  )
+  const fightingStyleOptions = getFightingStylesAtLevel(classId, newLevel)
+  const needsFightingStyle = fightingStyleOptions.length > 0 && !hasFightingStyle
+  const selectedFightingStyle = fightingStyleOptions.find((s) => s.id === fightingStyleId)
 
   const rollHp = () => {
     setRolled(Math.floor(Math.random() * hitDie) + 1)
@@ -1195,7 +1206,22 @@ function LevelUpDialog({
           data: { featId: selectedFeat.id, category: selectedFeat.category, applied: selectedApplied },
         })
       }
-      const extra = applyAsi ? " (+ability scores)" : applyFeat ? ` — gained ${selectedFeat!.name}` : ""
+      // Fighting style (Paladin/Ranger @ 2) → a descriptive feature, like the
+      // Fighter's creation pick. Applies regardless of the ASI skip path.
+      if (needsFightingStyle && selectedFightingStyle) {
+        await addProperty({
+          characterId: char._id,
+          type: "feature",
+          name: `Fighting Style: ${selectedFightingStyle.name}`,
+          description: selectedFightingStyle.description,
+          source: "Fighting Style",
+          active: true,
+          orderIndex: featNextOrder + (applyFeat ? 1 : 0),
+          data: { fightingStyleId: selectedFightingStyle.id },
+        })
+      }
+      const styleExtra = needsFightingStyle && selectedFightingStyle ? ` — Fighting Style: ${selectedFightingStyle.name}` : ""
+      const extra = (applyAsi ? " (+ability scores)" : applyFeat ? ` — gained ${selectedFeat!.name}` : "") + styleExtra
       toast.success(`Leveled up to ${newLevel}! +${hpGain} HP${extra}.`)
       onClose()
     } catch (err) {
@@ -1371,6 +1397,34 @@ function LevelUpDialog({
           </div>
         )}
 
+        {/* Fighting Style — Paladin/Ranger at level 2 (required choice) */}
+        {needsFightingStyle && (
+          <div className="mb-4">
+            <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-accent)" }}>
+              Fighting Style
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {fightingStyleOptions.map((fs) => (
+                <button
+                  key={fs.id}
+                  onClick={() => setFightingStyleId((prev) => (prev === fs.id ? "" : fs.id))}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{
+                    background: fightingStyleId === fs.id ? "var(--scene-accent)" : "var(--scene-bg)",
+                    color: fightingStyleId === fs.id ? "var(--scene-bg)" : "var(--scene-text-primary)",
+                    border: `1px solid ${fightingStyleId === fs.id ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                  }}
+                >
+                  {fs.name}
+                </button>
+              ))}
+            </div>
+            {selectedFightingStyle && (
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>{selectedFightingStyle.description}</p>
+            )}
+          </div>
+        )}
+
         {/* Features reminder */}
         <p className="text-xs rounded-lg p-3 mb-4" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-muted)" }}>
           New class features at this level aren&apos;t added automatically — add them as Custom Properties below the sheet (check your class for level {newLevel}).
@@ -1387,10 +1441,14 @@ function LevelUpDialog({
           </button>
           <button
             onClick={() => handleConfirm(false)}
-            disabled={saving || (isAsi && !canApply)}
+            disabled={saving || (isAsi && !canApply) || (needsFightingStyle && !fightingStyleId)}
             className="flex-1 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
             style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
-            title={isAsi && !canApply ? (choice === "asi" ? "Assign 2 ability points first" : "Choose a feat first") : undefined}
+            title={
+              isAsi && !canApply
+                ? choice === "asi" ? "Assign 2 ability points first" : "Choose a feat first"
+                : needsFightingStyle && !fightingStyleId ? "Choose a fighting style first" : undefined
+            }
           >
             {saving ? "Leveling…" : `Level up to ${newLevel}`}
           </button>
@@ -1944,8 +2002,13 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
   const equippedWeapons = items.filter(
     (i) => i.active && i.equipped && i.category === "weapon",
   )
+  // The chosen fighting style (if any), stored as a feature row's data — drives
+  // Defense's +1 AC and Archery's +2 ranged to-hit on the sheet.
+  const fightingStyleId = featRows
+    .map((p) => (p.data as { fightingStyleId?: string } | undefined)?.fightingStyleId)
+    .find(Boolean)
   // Pass RAW ability scores — computeArmorClass derives the DEX modifier itself.
-  const armorClass = computeArmorClass(char.level, totalAbilities, items)
+  const armorClass = computeArmorClass(char.level, totalAbilities, items, fightingStyleId)
   const armorName = equippedArmor(items)?.name
   const nextOrder = myProps.length
     ? Math.max(...myProps.map((p) => p.orderIndex)) + 1
@@ -2086,6 +2149,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           weaponProficiencies={char.weaponProficiencies}
           abilities={totalAbilities}
           weapons={equippedWeapons}
+          fightingStyleId={fightingStyleId}
           roll={roll}
           rollExpr={rollExpr}
         />

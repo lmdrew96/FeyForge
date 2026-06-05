@@ -529,12 +529,29 @@ export const FIGHTING_STYLES: FightingStyleData[] = [
   { id: "two-weapon", name: "Two-Weapon Fighting", description: "When you fight with two weapons, you can add your ability modifier to the damage of the second attack." },
 ]
 
+// The level at which a class gains its Fighting Style choice. Fighter at level 1
+// (chosen in the builders at creation); Paladin and Ranger at level 2 (chosen via
+// the level-up modal). Classes not listed never get one. Homebrew class ids miss
+// the map and correctly get none.
+const FIGHTING_STYLE_LEVEL: Record<string, number> = {
+  fighter: 1,
+  paladin: 2,
+  ranger: 2,
+}
+
+// Fighting styles available to a class once it has reached a given level. Returns
+// the full SRD list when the class qualifies at/above its style level, else [].
+// Pairs with a "already has one" check at the call site so the choice is offered
+// exactly once (the level-up modal does this).
+export function getFightingStylesAtLevel(classId: string, level: number): FightingStyleData[] {
+  const styleLevel = FIGHTING_STYLE_LEVEL[classId]
+  return styleLevel !== undefined && level >= styleLevel ? FIGHTING_STYLES : []
+}
+
 // Fighting styles a class chooses at character CREATION (level 1). Only the
-// Fighter qualifies in both rulesets — Paladin/Ranger gain theirs at level 2,
-// which is handled later via level-up, not at creation. Keyed by class id so
-// homebrew classes (which never match) correctly get none.
+// Fighter qualifies — Paladin/Ranger gain theirs at level 2 via level-up.
 export function getCreationFightingStyles(classId: string): FightingStyleData[] {
-  return classId === "fighter" ? FIGHTING_STYLES : []
+  return getFightingStylesAtLevel(classId, 1)
 }
 
 // ─── Backgrounds ──────────────────────────────────────────────────────────────

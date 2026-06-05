@@ -154,15 +154,20 @@ export function rowToItem(row: ItemRow): SheetItem {
 // Returns 10+DEX when nothing is equipped, so it's always safe to call.
 // IMPORTANT: pass raw ability SCORES here, not modifiers — calculateArmorClass
 // derives the DEX modifier itself.
+// The Defense fighting style adds +1 AC while wearing armor (a shield alone
+// doesn't count — RAW requires armor); pass the character's chosen style id.
 export function computeArmorClass(
   level: number,
   abilities: AbilityScores,
   items: SheetItem[],
+  fightingStyleId?: string,
 ): number {
-  return calculateArmorClass(
+  const base = calculateArmorClass(
     { level, properties: items } as unknown as Character,
     abilities,
   )
+  const defenseBonus = fightingStyleId === "defense" && equippedArmor(items) ? 1 : 0
+  return base + defenseBonus
 }
 
 // The equipped body armor (not a shield), for labelling the AC box.
@@ -211,11 +216,14 @@ export function isProficientWithWeapon(
 
 // Derive the to-hit bonus + damage expression(s) for an equipped weapon.
 // IMPORTANT: pass raw ability SCORES — the calculators derive modifiers.
+// The Archery fighting style adds +2 to ranged weapon attack rolls; pass the
+// character's chosen style id.
 export function weaponAttackInfo(
   level: number,
   weaponProficiencies: string[],
   abilities: AbilityScores,
   item: SheetItem,
+  fightingStyleId?: string,
 ): WeaponAttack {
   const props = item.properties ?? []
   // Ranged weapons (ammunition) use DEX; everything else (incl. thrown melee)
@@ -224,6 +232,7 @@ export function weaponAttackInfo(
   const isProficient =
     item.proficient ?? isProficientWithWeapon(weaponProficiencies, item)
   const magic = item.magicBonus ?? 0
+  const archeryBonus = fightingStyleId === "archery" && !isMelee ? 2 : 0
 
   const attackBonus =
     calculateAttackBonus(
@@ -232,7 +241,7 @@ export function weaponAttackInfo(
       props,
       isProficient,
       isMelee,
-    ) + magic
+    ) + magic + archeryBonus
   const damageBonus = calculateDamageBonus(abilities, props, isMelee) + magic
 
   const expr = (dice: string | undefined): string => {

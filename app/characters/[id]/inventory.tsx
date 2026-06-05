@@ -65,6 +65,7 @@ export function AttacksSection({
   weaponProficiencies,
   abilities,
   weapons,
+  fightingStyleId,
   roll,
   rollExpr,
 }: {
@@ -72,6 +73,7 @@ export function AttacksSection({
   weaponProficiencies: string[]
   abilities: AbilityScores
   weapons: SheetItem[]
+  fightingStyleId?: string
   roll: SheetRollFn
   rollExpr: SheetRollExprFn
 }) {
@@ -80,9 +82,9 @@ export function AttacksSection({
   const attacks = useMemo(
     () =>
       weapons.map((w) =>
-        weaponAttackInfo(level, weaponProficiencies, abilities, w),
+        weaponAttackInfo(level, weaponProficiencies, abilities, w, fightingStyleId),
       ),
-    [weapons, level, weaponProficiencies, abilities],
+    [weapons, level, weaponProficiencies, abilities, fightingStyleId],
   )
 
   const rollDamage = (label: string, expr: string) => {
