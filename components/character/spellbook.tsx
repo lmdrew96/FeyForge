@@ -669,7 +669,7 @@ function SpellPicker({
           />
         </div>
 
-        <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+        <div className="flex flex-wrap gap-1.5 mb-3">
           {levelFilters.map((f) => {
             const active = levelFilter === f.value
             return (
