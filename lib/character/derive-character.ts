@@ -9,7 +9,7 @@ import {
   type Skill,
 } from "@/lib/character/constants"
 import { getDarkvisionRange, getSubclassId } from "@/lib/character/character-data"
-import { getCasterType, type CasterType } from "@/lib/character/leveling"
+import { getEffectiveCasterType, type CasterType } from "@/lib/character/leveling"
 import { resolveEdition, type Edition } from "@/lib/editions"
 import {
   computeArmorClass,
@@ -140,13 +140,15 @@ export function deriveCharacter(
   const companionRows = myProps.filter((p) => p.type === "companion")
   const invocationRows = myProps.filter((p) => p.type === "invocation")
   const maneuverRows = myProps.filter((p) => p.type === "maneuver")
-  const casterType = getCasterType(char.characterClass)
   const edition = resolveEdition(campaign?.edition)
 
   // Class/subclass "special procedurals" — derived live, never stored (see
   // lib/character/class-grants.ts). char.subclass may be a display name, an id,
   // or free text, so resolve it to a canonical subclass id first.
   const subclassId = getSubclassId(char.characterClass, char.subclass)
+  // Effective caster type so Eldritch Knight / Arcane Trickster (third-casters via
+  // subclass) get the full spellcasting UI; class-only casters are unaffected.
+  const casterType = getEffectiveCasterType(char.characterClass, subclassId)
   const grantedSpells = getGrantedSpells(char.characterClass, subclassId, char.level, edition)
   // Channel Divinity options (Turn Undead + the subclass option) split out so they
   // render under the Channel Divinity resource pool as spendable actions; the rest

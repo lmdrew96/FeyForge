@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ALIGNMENTS, getAbilityModifier, type Ability } from "@/lib/character/constants"
-import { CLASSES } from "@/lib/character/character-data"
+import { CLASSES, getSubclassId } from "@/lib/character/character-data"
 import { hpGainForLevel, recomputeSpellcasting } from "@/lib/character/leveling"
 import { resolveEdition } from "@/lib/editions"
 import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2 } from "lucide-react"
@@ -376,6 +376,7 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
           draft.level,
           abilityMod,
           edition,
+          getSubclassId(char.characterClass, char.subclass),
         )
       }
 

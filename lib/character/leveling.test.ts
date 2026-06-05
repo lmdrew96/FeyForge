@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest"
 import {
   getCasterType,
+  getEffectiveCasterType,
+  getSpellListSource,
   getSpellSlotsForClassLevel,
   getPactSlots,
   getCantripsKnown,
+  getSpellLimits,
   maxSpellLevel,
 } from "./leveling"
 
@@ -82,6 +85,64 @@ describe("getCantripsKnown", () => {
   it("is 0 for classes without cantrips", () => {
     expect(getCantripsKnown("paladin", 5)).toBe(0)
     expect(getCantripsKnown("fighter", 20)).toBe(0)
+  })
+})
+
+describe("third-casters (Eldritch Knight / Arcane Trickster)", () => {
+  it("resolves a third caster type only via the subclass", () => {
+    expect(getEffectiveCasterType("fighter")).toBe("none")
+    expect(getEffectiveCasterType("fighter", "eldritch-knight")).toBe("third")
+    expect(getEffectiveCasterType("rogue", "arcane-trickster")).toBe("third")
+    expect(getEffectiveCasterType("rogue", "thief")).toBe("none")
+  })
+
+  it("draws from the wizard spell list", () => {
+    expect(getSpellListSource("fighter", "eldritch-knight")).toBe("wizard")
+    expect(getSpellListSource("rogue", "arcane-trickster")).toBe("wizard")
+    expect(getSpellListSource("wizard")).toBe("wizard")
+    expect(getSpellListSource("rogue", "thief")).toBe("rogue")
+  })
+
+  it("has no slots before level 3, then the third-caster progression", () => {
+    expect(getSpellSlotsForClassLevel("fighter", 2, "2014", "eldritch-knight")).toEqual([])
+    expect(getSpellSlotsForClassLevel("fighter", 3, "2014", "eldritch-knight")).toEqual([
+      { level: 1, total: 2 },
+    ])
+    expect(getSpellSlotsForClassLevel("rogue", 7, "2014", "arcane-trickster")).toEqual([
+      { level: 1, total: 4 },
+      { level: 2, total: 2 },
+    ])
+  })
+
+  it("tops out at 4th-level slots at level 20", () => {
+    const slots = getSpellSlotsForClassLevel("fighter", 20, "2014", "eldritch-knight")
+    expect(slots).toEqual([
+      { level: 1, total: 4 },
+      { level: 2, total: 3 },
+      { level: 3, total: 3 },
+      { level: 4, total: 1 },
+    ])
+  })
+
+  it("is edition-stable", () => {
+    expect(getSpellSlotsForClassLevel("fighter", 13, "2014", "eldritch-knight")).toEqual(
+      getSpellSlotsForClassLevel("fighter", 13, "2024", "eldritch-knight"),
+    )
+  })
+
+  it("gives the Arcane Trickster one more cantrip than the Eldritch Knight", () => {
+    expect(getCantripsKnown("fighter", 3, "eldritch-knight")).toBe(2)
+    expect(getCantripsKnown("fighter", 10, "eldritch-knight")).toBe(3)
+    expect(getCantripsKnown("rogue", 3, "arcane-trickster")).toBe(3)
+    expect(getCantripsKnown("rogue", 10, "arcane-trickster")).toBe(4)
+  })
+
+  it("reports a known-spell limit that starts at level 3", () => {
+    expect(getSpellLimits("fighter", 2, 0, "2014", "eldritch-knight")?.leveled).toBe(0)
+    const l3 = getSpellLimits("fighter", 3, 0, "2014", "eldritch-knight")
+    expect(l3?.leveledLabel).toBe("Spells known")
+    expect(l3?.leveled).toBe(3)
+    expect(getSpellLimits("rogue", 20, 0, "2014", "arcane-trickster")?.leveled).toBe(13)
   })
 })
 

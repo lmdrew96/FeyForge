@@ -201,6 +201,7 @@ export function SessionCharacterSheet({
           characterId={char._id}
           spellcasting={char.spellcasting}
           classId={char.characterClass}
+          subclassId={subclassId}
           level={char.level}
           edition={edition}
           spells={spells}

@@ -27,6 +27,7 @@ import { formatModifier, getProficiencyBonus } from "@/lib/character/constants"
 import {
   getCastingDescriptor,
   getSpellLimits,
+  getSpellListSource,
   maxSpellLevel,
   type PrepMode,
 } from "@/lib/character/leveling"
@@ -55,6 +56,7 @@ export function SpellbookSection({
   characterId,
   spellcasting,
   classId,
+  subclassId,
   level,
   edition,
   spells,
@@ -65,6 +67,7 @@ export function SpellbookSection({
   characterId: Id<"characters">
   spellcasting: SpellcastingBlock
   classId: string
+  subclassId?: string
   level: number
   edition: Edition
   spells: SheetSpell[]
@@ -79,15 +82,26 @@ export function SpellbookSection({
 
   const [picking, setPicking] = useState(false)
 
-  const desc = getCastingDescriptor(classId)
+  const desc = getCastingDescriptor(classId, subclassId)
   const prepMode: PrepMode = desc.prepMode ?? "known"
   const isPact = desc.casterType === "pact"
+  const isThird = desc.casterType === "third"
+
+  // Third-casters (Eldritch Knight / Arcane Trickster) draw from the wizard list;
+  // everyone else from their own class list. A soft note nudges toward their
+  // favored schools without hard-blocking the pick.
+  const spellListClass = getSpellListSource(classId, subclassId)
+  const pickerNote = isThird
+    ? subclassId === "arcane-trickster"
+      ? "Arcane Tricksters learn from the wizard list — mainly enchantment & illusion, plus a couple of free picks from any school."
+      : "Eldritch Knights learn from the wizard list — mainly abjuration & evocation, plus a couple of free picks from any school."
+    : undefined
 
   // Spellcasting ability modifier, recovered from the stored attack bonus
   // (= prof + mod) so we don't need the raw ability scores here. Drives the
   // prepared-count guidance.
   const abilityMod = spellcasting.spellAttackBonus - getProficiencyBonus(level)
-  const limits = getSpellLimits(classId, level, abilityMod, edition)
+  const limits = getSpellLimits(classId, level, abilityMod, edition, subclassId)
   const maxLevel = maxSpellLevel(spellcasting.spellSlots)
 
   // Counts for the guidance chips. The COUNT-source follows the UI (whether the
@@ -350,7 +364,8 @@ export function SpellbookSection({
 
       {picking && (
         <SpellPicker
-          classId={classId}
+          classId={spellListClass}
+          note={pickerNote}
           maxLevel={maxLevel}
           knownSlugs={knownSlugs}
           onAdd={addSpell}
@@ -598,12 +613,14 @@ function SpellRowItem({
 // can add several at once; already-added spells show as added. Mirrors SrdSearch.
 function SpellPicker({
   classId,
+  note,
   maxLevel,
   knownSlugs,
   onAdd,
   onClose,
 }: {
   classId: string
+  note?: string
   maxLevel: number
   knownSlugs: Set<string>
   onAdd: (data: StoredSpellData, name: string) => Promise<void>
@@ -694,6 +711,12 @@ function SpellPicker({
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {note && (
+          <p className="text-xs mb-3 -mt-1" style={{ color: "var(--scene-text-muted)" }}>
+            {note}
+          </p>
+        )}
 
         <div className="relative mb-3">
           <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--scene-text-muted)" }} />

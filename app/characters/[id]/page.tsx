@@ -20,9 +20,9 @@ import {
   getProficiencyBonus,
 } from "@/lib/character/constants"
 import type { Ability, Skill } from "@/lib/character/constants"
-import { getDarkvisionRange, getFightingStylesAtLevel } from "@/lib/character/character-data"
+import { getDarkvisionRange, getFightingStylesAtLevel, getSubclassId } from "@/lib/character/character-data"
 import { getXPProgress, getXPForLevel, getLevelFromXP, getXPToNextLevel } from "@/lib/character/experience"
-import { getCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting, isAsiLevel } from "@/lib/character/leveling"
+import { getEffectiveCasterType, hpGainForLevel, avgHitDieRoll, recomputeSpellcasting, initSpellcasting, isAsiLevel } from "@/lib/character/leveling"
 import {
   FEATS,
   type FeatData,
@@ -723,7 +723,9 @@ function LevelUpDialog({
 
   const newLevel = Math.min(20, char.level + 1)
   const classId = char.characterClass.toLowerCase()
-  const casterType = getCasterType(classId)
+  // Effective so EK/AT (third-casters) get spell-slot recompute + caster hints.
+  const levelUpSubclassId = getSubclassId(classId, char.subclass)
+  const casterType = getEffectiveCasterType(classId, levelUpSubclassId)
 
   // ASI / feat choice — only at this class's ASI levels (4/8/12/16/19, +Fighter/Rogue extras).
   const isAsi = isAsiLevel(classId, newLevel)
@@ -807,7 +809,7 @@ function LevelUpDialog({
         current: char.hitPoints.current + hpGain + featHp + toughBonus,
       }
       const spellcasting = char.spellcasting
-        ? recomputeSpellcasting(char.spellcasting, classId, newLevel, spellAbilityMod, edition)
+        ? recomputeSpellcasting(char.spellcasting, classId, newLevel, spellAbilityMod, edition, levelUpSubclassId)
         : undefined
       let baseAbilities: typeof char.baseAbilities | undefined
       if (applyAsi) {
@@ -929,7 +931,7 @@ function LevelUpDialog({
           {profChanged && (
             <li>• Proficiency bonus +{oldProf} → <span style={{ color: "var(--scene-accent)" }}>+{newProf}</span> (saves, skills, attacks rescale)</li>
           )}
-          {(casterType === "full" || casterType === "half") && char.spellcasting && (
+          {(casterType === "full" || casterType === "half" || casterType === "third") && char.spellcasting && (
             <li>• Spell slots updated for level {newLevel}{profChanged ? "; spell save DC & attack rescaled" : ""}</li>
           )}
           {casterType === "pact" && char.spellcasting && (
@@ -1535,8 +1537,13 @@ function EnableSpellcastingCard({ char, edition }: { char: CharDoc; edition: Edi
   const doUpdate = useMutation(api.characters.update)
   const [saving, setSaving] = useState(false)
 
+  // Resolve the subclass so EK/AT get their third-caster block, and so the prompt
+  // names the source correctly (the subclass, not the base class, grants it).
+  const subclassId = getSubclassId(char.characterClass, char.subclass)
+  const isThird = getEffectiveCasterType(char.characterClass, subclassId) === "third"
+
   const handleEnable = async () => {
-    const block = initSpellcasting(char.characterClass, char.level, char.baseAbilities, edition, char.racialBonuses)
+    const block = initSpellcasting(char.characterClass, char.level, char.baseAbilities, edition, char.racialBonuses, subclassId)
     if (!block) return
     setSaving(true)
     try {
@@ -1559,8 +1566,10 @@ function EnableSpellcastingCard({ char, edition }: { char: CharDoc; edition: Edi
         style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
       >
         <p className="text-sm flex-1" style={{ color: "var(--scene-text-muted)" }}>
-          {char.characterClass} is a spellcasting class. Enable spell tracking to manage spell slots,
-          your spell save DC &amp; attack, and a spellbook.
+          {isThird
+            ? `${char.subclass || "Your subclass"} grants spellcasting (a third-caster who learns from the wizard list).`
+            : `${char.characterClass} is a spellcasting class.`}{" "}
+          Enable spell tracking to manage spell slots, your spell save DC &amp; attack, and a spellbook.
         </p>
         <button
           onClick={handleEnable}
@@ -1862,6 +1871,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               characterId={char._id}
               spellcasting={char.spellcasting}
               classId={char.characterClass}
+              subclassId={subclassId}
               level={char.level}
               edition={edition}
               spells={spells}

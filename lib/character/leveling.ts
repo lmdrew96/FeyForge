@@ -13,7 +13,11 @@ import { getProficiencyBonus, getAbilityModifier, type Ability } from "./constan
 import type { AbilityScores } from "./types"
 import type { Edition } from "../editions"
 
-export type CasterType = "full" | "half" | "pact" | "none"
+// "third" = subclass third-casters (Eldritch Knight / Arcane Trickster) — a
+// non-caster class that gains a one-third-progression caster via its subclass.
+// It's never returned by the class-only getCasterType (a fighter/rogue is "none"
+// at the class level); getEffectiveCasterType resolves it from the subclass.
+export type CasterType = "full" | "half" | "third" | "pact" | "none"
 
 const FULL_CASTERS = new Set(["bard", "cleric", "druid", "sorcerer", "wizard"])
 const HALF_CASTERS = new Set(["paladin", "ranger"])
@@ -25,6 +29,31 @@ export function getCasterType(classId: string): CasterType {
   if (HALF_CASTERS.has(id)) return "half"
   if (PACT_CASTERS.has(id)) return "pact"
   return "none"
+}
+
+// Subclasses that turn a non-caster class into a third-caster. Both learn from the
+// WIZARD spell list and cast with INTELLIGENCE; the Eldritch Knight favors
+// abjuration/evocation and the Arcane Trickster enchantment/illusion (plus a few
+// free picks), enforced softly in the picker. `cantrips` is [levels 3–9, level 10+];
+// the Arcane Trickster gets one extra cantrip (Mage Hand Legerdemain).
+const THIRD_CASTERS: Record<string, { spellListClass: string; cantrips: [number, number] }> = {
+  "eldritch-knight": { spellListClass: "wizard", cantrips: [2, 3] },
+  "arcane-trickster": { spellListClass: "wizard", cantrips: [3, 4] },
+}
+
+// The caster type a character ACTUALLY has, accounting for spellcasting subclasses.
+// `subclassId` must be the resolved id (see getSubclassId). Eldritch Knight / Arcane
+// Trickster → "third"; everyone else is class-determined.
+export function getEffectiveCasterType(classId: string, subclassId?: string): CasterType {
+  if (subclassId && THIRD_CASTERS[subclassId]) return "third"
+  return getCasterType(classId)
+}
+
+// Which class's spell list a caster draws from. Third-casters (EK/AT) learn from
+// the wizard list; everyone else from their own. Drives the spell picker's fetch.
+export function getSpellListSource(classId: string, subclassId?: string): string {
+  if (subclassId && THIRD_CASTERS[subclassId]) return THIRD_CASTERS[subclassId].spellListClass
+  return classId.toLowerCase()
 }
 
 // How a class manages its spells — drives the spellbook UI branch:
@@ -68,10 +97,12 @@ export interface CastingDescriptor {
 // homebrew/unknown class resolves to a non-caster. No persistence: the sheet, the
 // init helper, and the level-up recompute all re-derive this, so there's nothing
 // to migrate and nothing to drift.
-export function getCastingDescriptor(classId: string): CastingDescriptor {
+export function getCastingDescriptor(classId: string, subclassId?: string): CastingDescriptor {
   const id = classId.toLowerCase()
-  const casterType = getCasterType(id)
+  const casterType = getEffectiveCasterType(id, subclassId)
   if (casterType === "none") return { casterType, prepMode: null, ability: null }
+  // EK/AT: a fixed set learned from the wizard list, no daily prep, INT-based.
+  if (casterType === "third") return { casterType, prepMode: "known", ability: "intelligence" }
   return {
     casterType,
     prepMode: PREP_MODE[id] ?? "known",
@@ -138,6 +169,39 @@ const HALF_CASTER_SLOTS_2024: Record<number, number[]> = {
   1: [2, 0, 0, 0, 0],
 }
 
+// Third-caster spell slots per spell level [1st..4th], by CHARACTER level (Eldritch
+// Knight / Arcane Trickster). Spellcasting begins at level 3 (when the subclass is
+// chosen) and tops out at 4th-level slots. SRD/PHB third-caster progression,
+// identical across 2014 and 2024. Levels 1-2 have no slots (pre-subclass).
+const THIRD_CASTER_SLOTS: Record<number, number[]> = {
+  1: [0, 0, 0, 0],
+  2: [0, 0, 0, 0],
+  3: [2, 0, 0, 0],
+  4: [3, 0, 0, 0],
+  5: [3, 0, 0, 0],
+  6: [3, 0, 0, 0],
+  7: [4, 2, 0, 0],
+  8: [4, 2, 0, 0],
+  9: [4, 2, 0, 0],
+  10: [4, 3, 0, 0],
+  11: [4, 3, 0, 0],
+  12: [4, 3, 0, 0],
+  13: [4, 3, 2, 0],
+  14: [4, 3, 2, 0],
+  15: [4, 3, 2, 0],
+  16: [4, 3, 3, 0],
+  17: [4, 3, 3, 0],
+  18: [4, 3, 3, 0],
+  19: [4, 3, 3, 1],
+  20: [4, 3, 3, 1],
+}
+
+// Third-caster spells known by character level (index 0 = level 1). EK and AT share
+// this progression (verified vs the PHB third-caster table); 0 until level 3.
+const THIRD_CASTER_SPELLS_KNOWN: number[] = [
+  0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13,
+]
+
 export interface SpellSlot {
   level: number
   total: number
@@ -155,10 +219,18 @@ export function getSpellSlotsForClassLevel(
   classId: string,
   level: number,
   edition: Edition,
+  subclassId?: string,
 ): { level: number; total: number }[] {
-  const type = getCasterType(classId)
+  const type = getEffectiveCasterType(classId, subclassId)
   const halfTable = edition === "2024" ? HALF_CASTER_SLOTS_2024 : HALF_CASTER_SLOTS
-  const table = type === "full" ? FULL_CASTER_SLOTS : type === "half" ? halfTable : null
+  const table =
+    type === "full"
+      ? FULL_CASTER_SLOTS
+      : type === "half"
+        ? halfTable
+        : type === "third"
+          ? THIRD_CASTER_SLOTS
+          : null
   if (!table) return []
   return table[clampLevel(level)]
     .map((total, i) => ({ level: i + 1, total }))
@@ -195,10 +267,15 @@ const CANTRIPS_KNOWN: Record<string, [l1to3: number, l4to9: number, l10plus: num
   wizard: [3, 4, 5],
 }
 
-export function getCantripsKnown(classId: string, level: number): number {
+export function getCantripsKnown(classId: string, level: number, subclassId?: string): number {
+  const l = clampLevel(level)
+  // Third-casters (EK/AT) gain cantrips at level 3, then one more at level 10.
+  if (subclassId && THIRD_CASTERS[subclassId]) {
+    const [low, high] = THIRD_CASTERS[subclassId].cantrips
+    return l >= 10 ? high : l >= 3 ? low : 0
+  }
   const t = CANTRIPS_KNOWN[classId.toLowerCase()]
   if (!t) return 0
-  const l = clampLevel(level)
   return l >= 10 ? t[2] : l >= 4 ? t[1] : t[0]
 }
 
@@ -259,12 +336,18 @@ export function getSpellLimits(
   level: number,
   abilityMod: number,
   edition: Edition,
+  subclassId?: string,
 ): SpellLimits | null {
   const id = classId.toLowerCase()
-  const desc = getCastingDescriptor(id)
+  const desc = getCastingDescriptor(id, subclassId)
   if (desc.casterType === "none") return null
   const l = clampLevel(level)
-  const cantrips = getCantripsKnown(id, level)
+  const cantrips = getCantripsKnown(id, level, subclassId)
+
+  // Third-casters (EK/AT) learn a fixed known set in BOTH editions.
+  if (desc.casterType === "third") {
+    return { cantrips, leveledLabel: "Spells known", leveled: THIRD_CASTER_SPELLS_KNOWN[l - 1] ?? 0 }
+  }
 
   if (edition === "2024") {
     // casterType is full | half | pact here (none returned null above).
@@ -318,8 +401,9 @@ export function initSpellcasting(
   baseAbilities: AbilityScores,
   edition: Edition,
   racialBonuses?: Partial<AbilityScores>,
+  subclassId?: string,
 ): InitializedSpellcasting | null {
-  const desc = getCastingDescriptor(classId)
+  const desc = getCastingDescriptor(classId, subclassId)
   if (desc.casterType === "none" || !desc.ability) return null
 
   const score = baseAbilities[desc.ability] + (racialBonuses?.[desc.ability] ?? 0)
@@ -328,14 +412,14 @@ export function initSpellcasting(
   const spellSlots =
     desc.casterType === "pact"
       ? getPactSlots(level)
-      : getSpellSlotsForClassLevel(classId, level, edition).map((s) => ({ ...s, used: 0 }))
+      : getSpellSlotsForClassLevel(classId, level, edition, subclassId).map((s) => ({ ...s, used: 0 }))
 
   return {
     ability: desc.ability,
     spellSaveDC: 8 + prof + mod,
     spellAttackBonus: prof + mod,
     spellSlots,
-    cantripsKnown: getCantripsKnown(classId, level),
+    cantripsKnown: getCantripsKnown(classId, level, subclassId),
   }
 }
 
@@ -374,13 +458,14 @@ export function recomputeSpellcasting(
   newLevel: number,
   abilityMod: number,
   edition: Edition,
+  subclassId?: string,
 ): RecomputedSpellcasting {
   const prof = getProficiencyBonus(newLevel)
-  const type = getCasterType(classId)
+  const type = getEffectiveCasterType(classId, subclassId)
 
   let spellSlots = existing.spellSlots
-  if (type === "full" || type === "half") {
-    const totals = getSpellSlotsForClassLevel(classId, newLevel, edition)
+  if (type === "full" || type === "half" || type === "third") {
+    const totals = getSpellSlotsForClassLevel(classId, newLevel, edition, subclassId)
     spellSlots = totals.map(({ level, total }) => {
       const prev = existing.spellSlots.find((s) => s.level === level)
       return { level, total, used: Math.min(prev?.used ?? 0, total) }
@@ -397,7 +482,7 @@ export function recomputeSpellcasting(
     spellSaveDC: 8 + prof + abilityMod,
     spellAttackBonus: prof + abilityMod,
     spellSlots,
-    cantripsKnown: getCantripsKnown(classId, newLevel),
+    cantripsKnown: getCantripsKnown(classId, newLevel, subclassId),
   }
 }
 
