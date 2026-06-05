@@ -15,6 +15,7 @@ import {
   autoPickSkillProficiencies,
   generateName,
   deriveDarkvision,
+  getCreationFightingStyles,
   type QuickRollResult,
 } from "@/lib/character/character-data"
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
@@ -408,6 +409,19 @@ export default function NewCharacterPage() {
           }),
         ),
       )
+      // Fighting style (Fighter L1) → a descriptive feature, like a class feature.
+      if (result.fightingStyle) {
+        await addProperty({
+          characterId: newId,
+          type: "feature",
+          name: `Fighting Style: ${result.fightingStyle.name}`,
+          description: result.fightingStyle.description,
+          source: "Fighting Style",
+          active: true,
+          orderIndex: 0,
+          data: { fightingStyleId: result.fightingStyle.id },
+        })
+      }
       toast.success(`${name} is ready to adventure!`)
       router.push("/characters")
     } catch {
@@ -486,6 +500,13 @@ export default function NewCharacterPage() {
     // From Concept defaults to the equipment package (no interactive choice).
     const loadout = getStartingLoadout(cls.id, background.equipment, "equipment")
 
+    // Fighting style (Fighter L1): the AI build doesn't pick one, so auto-pick for
+    // parity with Quick Roll (both non-interactive builders auto-resolve choices).
+    const styleOptions = getCreationFightingStyles(cls.id)
+    const fightingStyle = styleOptions.length
+      ? styleOptions[Math.floor(Math.random() * styleOptions.length)]
+      : undefined
+
     setSaving(true)
     try {
       const newId = await createCharacter({
@@ -528,6 +549,18 @@ export default function NewCharacterPage() {
           }),
         ),
       )
+      if (fightingStyle) {
+        await addProperty({
+          characterId: newId,
+          type: "feature",
+          name: `Fighting Style: ${fightingStyle.name}`,
+          description: fightingStyle.description,
+          source: "Fighting Style",
+          active: true,
+          orderIndex: 0,
+          data: { fightingStyleId: fightingStyle.id },
+        })
+      }
       toast.success(`${finalName} is ready to adventure!`)
       setConceptOpen(false)
       router.push("/characters")

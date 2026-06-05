@@ -507,6 +507,36 @@ export const CLASSES: ClassData[] = BASE_CLASSES.map((c) => ({
   subclasses: CURATED_SUBCLASSES[c.id] ?? c.subclasses,
 }))
 
+// ─── Fighting Styles ──────────────────────────────────────────────────────────
+
+export interface FightingStyleData {
+  id: string
+  name: string
+  description: string
+}
+
+// The six core SRD 5.1 Fighter fighting styles (also valid in the 2024 ruleset).
+// Names + game mechanics aren't copyrightable; descriptions are original
+// paraphrases (same posture as the curated subclasses + feats). Stored on the
+// character as a descriptive feature — the numeric effects aren't auto-applied to
+// the sheet (consistent with how subclass/class features stay manual here).
+export const FIGHTING_STYLES: FightingStyleData[] = [
+  { id: "archery", name: "Archery", description: "You gain a +2 bonus to attack rolls you make with ranged weapons." },
+  { id: "defense", name: "Defense", description: "While you are wearing armor, you gain a +1 bonus to AC." },
+  { id: "dueling", name: "Dueling", description: "When wielding a melee weapon in one hand and no other weapon, you gain a +2 bonus to damage rolls with that weapon." },
+  { id: "great-weapon", name: "Great Weapon Fighting", description: "When you roll a 1 or 2 on a damage die for an attack with a two-handed or versatile melee weapon, you can reroll the die and must use the new roll." },
+  { id: "protection", name: "Protection", description: "When a creature you can see attacks a target other than you within 5 feet of you, you can use your reaction to impose disadvantage on the attack roll. You must be wielding a shield." },
+  { id: "two-weapon", name: "Two-Weapon Fighting", description: "When you fight with two weapons, you can add your ability modifier to the damage of the second attack." },
+]
+
+// Fighting styles a class chooses at character CREATION (level 1). Only the
+// Fighter qualifies in both rulesets — Paladin/Ranger gain theirs at level 2,
+// which is handled later via level-up, not at creation. Keyed by class id so
+// homebrew classes (which never match) correctly get none.
+export function getCreationFightingStyles(classId: string): FightingStyleData[] {
+  return classId === "fighter" ? FIGHTING_STYLES : []
+}
+
 // ─── Backgrounds ──────────────────────────────────────────────────────────────
 
 export interface BackgroundData {
@@ -778,6 +808,9 @@ export interface QuickRollResult {
   subrace?: SubraceData
   characterClass: ClassData
   subclass?: SubclassData
+  // Level-1 fighting style (Fighter only). Auto-picked by Quick Roll / From
+  // Concept; chosen interactively in the Guided / Normal builders.
+  fightingStyle?: FightingStyleData
   background: BackgroundData
   baseAbilities: {
     strength: number
@@ -845,6 +878,8 @@ export function quickRollCharacter(): QuickRollResult {
 
   const skillProficiencies = autoPickSkillProficiencies(characterClass, background)
   const subclass = characterClass.subclasses?.length ? pick(characterClass.subclasses) : undefined
+  const styleOptions = getCreationFightingStyles(characterClass.id)
+  const fightingStyle = styleOptions.length ? pick(styleOptions) : undefined
 
-  return { name, race, subrace, characterClass, subclass, background, baseAbilities, racialBonuses, skillProficiencies }
+  return { name, race, subrace, characterClass, subclass, fightingStyle, background, baseAbilities, racialBonuses, skillProficiencies }
 }

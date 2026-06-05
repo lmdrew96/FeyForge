@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { RACES, CLASSES, BACKGROUNDS, generateName } from "@/lib/character/character-data"
+import { RACES, CLASSES, BACKGROUNDS, generateName, getCreationFightingStyles } from "@/lib/character/character-data"
 import type { QuickRollResult } from "@/lib/character/character-data"
 import { partitionHomebrew } from "@/lib/homebrew"
 import {
@@ -85,6 +85,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const [step, setStep] = useState(0)
   const [classId, setClassId] = useState("")
   const [subclassId, setSubclassId] = useState("")
+  const [fightingStyleId, setFightingStyleId] = useState("")
   const [raceId, setRaceId] = useState("")
   const [subraceId, setSubraceId] = useState("")
   const [backgroundId, setBackgroundId] = useState("")
@@ -110,6 +111,8 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
 
   const cls = useMemo(() => allClasses.find(c => c.id === classId), [allClasses, classId])
   const subclass = useMemo(() => cls?.subclasses?.find(s => s.id === subclassId), [cls, subclassId])
+  const fightingStyleOptions = useMemo(() => getCreationFightingStyles(classId), [classId])
+  const fightingStyle = useMemo(() => fightingStyleOptions.find(s => s.id === fightingStyleId), [fightingStyleOptions, fightingStyleId])
   const race = useMemo(() => allRaces.find(r => r.id === raceId), [allRaces, raceId])
   const subrace = useMemo(() => race?.subraces?.find(s => s.id === subraceId), [race, subraceId])
   const background = useMemo(() => allBackgrounds.find(b => b.id === backgroundId), [allBackgrounds, backgroundId])
@@ -199,6 +202,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       subrace,
       characterClass: cls,
       subclass,
+      fightingStyle,
       background,
       baseAbilities: { ...assignments } as Record<Ability, number>,
       racialBonuses,
@@ -352,6 +356,34 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
               </div>
               {subclass && (
                 <p className="mt-2 text-xs" style={{ color: "var(--scene-text-muted)" }}>{subclass.description}</p>
+              )}
+            </div>
+          )}
+
+          {/* Fighting Style picker (Fighter at level 1) */}
+          {fightingStyleOptions.length > 0 && (
+            <div className="pt-1">
+              <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+                Fighting Style
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {fightingStyleOptions.map(fs => (
+                  <button
+                    key={fs.id}
+                    onClick={() => setFightingStyleId(prev => prev === fs.id ? "" : fs.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      background: fightingStyleId === fs.id ? "var(--scene-highlight)" : "var(--scene-surface)",
+                      color: fightingStyleId === fs.id ? "#fff" : "var(--scene-text-primary)",
+                      border: `1px solid ${fightingStyleId === fs.id ? "var(--scene-highlight)" : "var(--scene-border)"}`,
+                    }}
+                  >
+                    {fs.name}
+                  </button>
+                ))}
+              </div>
+              {fightingStyle && (
+                <p className="mt-2 text-xs" style={{ color: "var(--scene-text-muted)" }}>{fightingStyle.description}</p>
               )}
             </div>
           )}
