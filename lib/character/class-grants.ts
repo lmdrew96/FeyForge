@@ -285,6 +285,200 @@ const CLASS_GRANTS: Record<string, ClassGrantTable> = {
       ],
     },
   },
+  // ── Passive-feature subclasses (signature features; descriptive) ──────────────
+  barbarian: {
+    subclasses: {
+      berserker: [
+        gFeature(3, "barb-berserker-frenzy", "Frenzy", "While raging, you can make a single melee weapon attack as a bonus action on each of your turns. When your rage ends, you suffer one level of exhaustion."),
+        gFeature(6, "barb-berserker-mindless", "Mindless Rage", "You can't be charmed or frightened while raging; a charm or fright already on you is suspended for the duration."),
+        gFeature(10, "barb-berserker-intimidating", "Intimidating Presence", "Use your action to frighten a creature within 30 feet with a Wisdom save against your save DC."),
+        gFeature(14, "barb-berserker-retaliation", "Retaliation", "When you take damage from a creature within 5 feet, use your reaction to make a melee weapon attack against it."),
+      ],
+      "totem-warrior": [
+        gFeature(3, "barb-totem-seeker", "Spirit Seeker", "You can cast the beast sense and speak with animals spells as rituals."),
+        gFeature(3, "barb-totem-spirit", "Totem Spirit", "Choose a totem. Bear: resistance to all damage except psychic while raging. Eagle: enemies have disadvantage on opportunity attacks against you, and you can Dash as a bonus action. Wolf: allies have advantage on melee attacks against enemies within 5 feet of you."),
+        gFeature(6, "barb-totem-aspect", "Aspect of the Beast", "Gain a beast aspect — Bear (carrying capacity), Eagle (keen sight), or Wolf (tracking and stealth for your pack)."),
+        gFeature(14, "barb-totem-attunement", "Totemic Attunement", "Gain a powerful totem benefit, such as forcing nearby enemies to attack you (Bear)."),
+      ],
+    },
+  },
+  bard: {
+    subclasses: {
+      lore: [
+        gFeature(3, "bard-lore-prof", "Bonus Proficiencies", "Gain proficiency with three skills of your choice."),
+        gFeature(3, "bard-lore-cutting", "Cutting Words", "When a creature within 60 feet makes an attack, ability check, or damage roll, use your reaction to expend a Bardic Inspiration die and subtract it from the roll."),
+        gFeature(6, "bard-lore-secrets", "Additional Magical Secrets", "Learn two spells of your choice from any class; they count as bard spells for you."),
+        gFeature(14, "bard-lore-peerless", "Peerless Skill", "When you make an ability check, you can expend a Bardic Inspiration die and add it to the roll."),
+      ],
+      valor: [
+        gFeature(3, "bard-valor-prof", "Bonus Proficiencies", "Gain proficiency with medium armor, shields, and martial weapons."),
+        gFeature(3, "bard-valor-inspiration", "Combat Inspiration", "A creature holding your Bardic Inspiration die can add it to a weapon's damage roll, or to its AC against one attack."),
+        gFeature(6, "bard-valor-extra-attack", "Extra Attack", "You can attack twice, instead of once, whenever you take the Attack action on your turn."),
+        gFeature(14, "bard-valor-battle-magic", "Battle Magic", "When you use your action to cast a bard spell, you can make one weapon attack as a bonus action."),
+      ],
+    },
+  },
+  druid: {
+    subclasses: {
+      land: [
+        gFeature(2, "druid-land-recovery", "Natural Recovery", "On a short rest, recover expended spell slots with a combined level up to half your druid level (no slot of 6th level or higher)."),
+        gFeature(3, "druid-land-spells", "Circle Spells", "Your bond with the land grants additional always-prepared spells, chosen by terrain (arctic, coast, desert, forest, grassland, mountain, swamp, or Underdark)."),
+        gFeature(6, "druid-land-stride", "Land's Stride", "Moving through nonmagical difficult terrain costs no extra movement, and you have advantage on saves against plants that magically impede movement."),
+        gFeature(10, "druid-land-ward", "Nature's Ward", "You can't be charmed or frightened by elementals or fey, and you're immune to poison and disease."),
+      ],
+      moon: [
+        gFeature(2, "druid-moon-combat", "Combat Wild Shape", "You can Wild Shape as a bonus action, and while transformed you can spend a spell slot as a bonus action to regain 1d8 hit points per level of the slot."),
+        gFeature(2, "druid-moon-forms", "Circle Forms", "You can Wild Shape into beasts of a higher challenge rating (reflected in the Wild Shape CR limit)."),
+        gFeature(6, "druid-moon-primal", "Primal Strike", "Your attacks in beast form count as magical for overcoming resistance and immunity to nonmagical damage."),
+        gFeature(10, "druid-moon-elemental", "Elemental Wild Shape", "You can expend two uses of Wild Shape at once to transform into an air, earth, fire, or water elemental."),
+      ],
+    },
+  },
+  fighter: {
+    subclasses: {
+      champion: [
+        gFeature(3, "fighter-champion-crit", "Improved Critical", "Your weapon attacks score a critical hit on a roll of 19 or 20."),
+        gFeature(7, "fighter-champion-athlete", "Remarkable Athlete", "Add half your proficiency bonus to Strength, Dexterity, and Constitution checks that don't already use it, and your running long jump distance increases."),
+        gFeature(10, "fighter-champion-style", "Additional Fighting Style", "Choose a second Fighting Style option."),
+        gFeature(15, "fighter-champion-superior", "Superior Critical", "Your weapon attacks score a critical hit on a roll of 18-20."),
+      ],
+      "battle-master": [
+        gFeature(7, "fighter-bm-know-enemy", "Know Your Enemy", "Spend 1 minute observing a creature to learn how its capabilities compare to yours (such as Strength, Dexterity, AC, and current hit points)."),
+        gFeature(15, "fighter-bm-relentless", "Relentless", "When you roll initiative and have no superiority dice, you regain one."),
+      ],
+      "eldritch-knight": [
+        gFeature(3, "fighter-ek-bond", "Weapon Bond", "Bond with up to two weapons; you can't be disarmed of a bonded weapon, and you can summon it to your hand as a bonus action if it's on the same plane."),
+        gFeature(7, "fighter-ek-war-magic", "War Magic", "When you use your action to cast a cantrip, you can make one weapon attack as a bonus action."),
+        gFeature(10, "fighter-ek-strike", "Eldritch Strike", "When you hit a creature with a weapon attack, it has disadvantage on the next saving throw it makes against a spell you cast before the end of your next turn."),
+        gFeature(18, "fighter-ek-improved-war", "Improved War Magic", "When you use your action to cast a spell, you can make one weapon attack as a bonus action."),
+      ],
+    },
+  },
+  monk: {
+    subclasses: {
+      "open-hand": [
+        gFeature(3, "monk-openhand-technique", "Open Hand Technique", "When you hit with a Flurry of Blows attack, you can impose one effect: knock the target prone, push it 15 feet, or deny it reactions until the end of your next turn."),
+        gFeature(6, "monk-openhand-wholeness", "Wholeness of Body", "As an action, regain hit points equal to three times your monk level. Once per long rest."),
+        gFeature(11, "monk-openhand-tranquility", "Tranquility", "At the end of a long rest, gain the effect of a sanctuary spell until your next long rest begins (it ends early if you attack or cast a harmful spell)."),
+        gFeature(17, "monk-openhand-quivering", "Quivering Palm", "Spend 3 ki when you hit a creature to set up lethal vibrations; later, end them to force a Constitution save or reduce the creature to 0 hit points."),
+      ],
+      shadow: [
+        gFeature(3, "monk-shadow-arts", "Shadow Arts", "Spend 2 ki to cast darkness, darkvision, pass without trace, or silence; you also know the minor illusion cantrip."),
+        gFeature(6, "monk-shadow-step", "Shadow Step", "When you're in dim light or darkness, teleport up to 60 feet to an unoccupied space you can see that's also in dim light or darkness, gaining advantage on your next melee attack."),
+        gFeature(11, "monk-shadow-cloak", "Cloak of Shadows", "In dim light or darkness, become invisible until you make an attack, cast a spell, or step into bright light."),
+        gFeature(17, "monk-shadow-opportunist", "Opportunist", "When a creature within 5 feet is hit by another creature's attack, use your reaction to make a melee attack against it."),
+      ],
+      "four-elements": [
+        gFeature(3, "monk-elements-disciple", "Disciple of the Elements", "Learn elemental disciplines that let you spend ki to create magical effects, such as casting burning hands or shoving a creature with elemental force; you learn more as you level."),
+      ],
+    },
+  },
+  ranger: {
+    subclasses: {
+      hunter: [
+        gFeature(3, "ranger-hunter-prey", "Hunter's Prey", "Choose Colossus Slayer (an extra 1d8 against a damaged target, once per turn), Giant Killer (a reaction attack against Large-or-bigger attackers), or Horde Breaker (an extra attack against a second nearby creature)."),
+        gFeature(7, "ranger-hunter-defense", "Defensive Tactics", "Choose Escape the Horde, Multiattack Defense, or Steel Will to shore up a weakness."),
+        gFeature(11, "ranger-hunter-multiattack", "Multiattack", "Choose Volley (attack many creatures in an area) or Whirlwind Attack (strike every creature around you)."),
+        gFeature(15, "ranger-hunter-defense2", "Superior Hunter's Defense", "Choose a powerful defensive option such as Evasion, Stand Against the Tide, or Uncanny Dodge."),
+      ],
+      "beast-master": [
+        gFeature(3, "ranger-beast-companion", "Ranger's Companion", "Gain a beast companion that fights alongside you and obeys your commands — track it in the Companions section."),
+        gFeature(7, "ranger-beast-training", "Exceptional Training", "Your companion can Dash, Disengage, Dodge, or Help as a bonus action, and its attacks count as magical."),
+        gFeature(11, "ranger-beast-fury", "Bestial Fury", "Your companion can make two attacks when you command it to take the Attack action."),
+        gFeature(15, "ranger-beast-share", "Share Spells", "When you cast a spell targeting yourself, you can also affect your companion if it's within 30 feet."),
+      ],
+    },
+  },
+  rogue: {
+    subclasses: {
+      thief: [
+        gFeature(3, "rogue-thief-fast-hands", "Fast Hands", "Use your Cunning Action bonus action to make a Sleight of Hand check, use thieves' tools to disarm a trap or pick a lock, or take the Use an Object action."),
+        gFeature(3, "rogue-thief-second-story", "Second-Story Work", "Climbing costs no extra movement, and your running jump distance increases by your Dexterity modifier (in feet)."),
+        gFeature(9, "rogue-thief-supreme-sneak", "Supreme Sneak", "You have advantage on Stealth checks if you move no more than half your speed on the same turn."),
+        gFeature(13, "rogue-thief-umd", "Use Magic Device", "You ignore all class, race, and level requirements on the use of magic items."),
+      ],
+      assassin: [
+        gFeature(3, "rogue-assassin-prof", "Bonus Proficiencies", "Gain proficiency with the disguise kit and the poisoner's kit."),
+        gFeature(3, "rogue-assassin-assassinate", "Assassinate", "You have advantage on attacks against any creature that hasn't taken a turn yet in combat, and any hit against a surprised creature is a critical hit."),
+        gFeature(9, "rogue-assassin-infiltration", "Infiltration Expertise", "Spend time and money to establish a convincing false identity, complete with documentation and acquaintances."),
+        gFeature(17, "rogue-assassin-death-strike", "Death Strike", "When you hit a surprised creature, it must make a Constitution save or take double damage from the attack."),
+      ],
+      "arcane-trickster": [
+        gFeature(3, "rogue-at-mage-hand", "Mage Hand Legerdemain", "Your spectral hand is invisible and can stow or retrieve objects, pick locks, and disarm traps at a distance."),
+        gFeature(9, "rogue-at-ambush", "Magical Ambush", "If you're hidden from a creature when you cast a spell on it, it has disadvantage on any save it makes against the spell this turn."),
+        gFeature(13, "rogue-at-versatile", "Versatile Trickster", "Use your mage hand to distract a creature, gaining advantage on attack rolls against it until the end of your turn."),
+        gFeature(17, "rogue-at-spell-thief", "Spell Thief", "When a creature casts a spell that targets you, use your reaction to attempt to steal knowledge of that spell."),
+      ],
+    },
+  },
+  sorcerer: {
+    subclasses: {
+      "draconic-bloodline": [
+        gFeature(1, "sorc-draconic-ancestor", "Dragon Ancestor", "Choose a dragon type; you can speak Draconic and double your proficiency bonus on Charisma checks when interacting with dragons."),
+        gFeature(1, "sorc-draconic-resilience", "Draconic Resilience", "Your hit point maximum increases by 1 per sorcerer level, and while you aren't wearing armor your AC equals 13 + your Dexterity modifier."),
+        gFeature(6, "sorc-draconic-affinity", "Elemental Affinity", "When you cast a spell dealing your ancestry's damage type, add your Charisma modifier to one damage roll; you can also spend 1 sorcery point for an hour of resistance to that type."),
+        gFeature(14, "sorc-draconic-wings", "Dragon Wings", "Sprout draconic wings as a bonus action, gaining a flying speed equal to your current speed."),
+      ],
+      "wild-magic": [
+        gFeature(1, "sorc-wild-surge", "Wild Magic Surge", "Your untamed magic can surge; after you cast a sorcerer spell of 1st level or higher, the DM may have you roll on the Wild Magic Surge table."),
+        gFeature(1, "sorc-wild-tides", "Tides of Chaos", "Gain advantage on one attack roll, ability check, or saving throw; you regain its use after the DM has you roll on the surge table."),
+        gFeature(6, "sorc-wild-bend-luck", "Bend Luck", "When another creature you can see makes an attack, check, or save, spend 2 sorcery points to add or subtract 1d4 from the roll."),
+        gFeature(14, "sorc-wild-controlled", "Controlled Chaos", "When you roll on the Wild Magic Surge table, you can roll twice and use either result."),
+      ],
+    },
+  },
+  wizard: {
+    subclasses: {
+      evocation: [
+        gFeature(2, "wiz-evocation-savant", "Evocation Savant", "Halve the time and gold needed to copy evocation spells into your spellbook."),
+        gFeature(2, "wiz-evocation-sculpt", "Sculpt Spells", "When you cast an evocation spell affecting others you can see, choose creatures equal to 1 + the spell's level to automatically succeed their saves and take no damage."),
+        gFeature(6, "wiz-evocation-potent", "Potent Cantrip", "Your damaging cantrips affect creatures that succeed on their saving throw, dealing half damage instead of none."),
+        gFeature(10, "wiz-evocation-empowered", "Empowered Evocation", "Add your Intelligence modifier to one damage roll of any wizard evocation spell you cast."),
+      ],
+      abjuration: [
+        gFeature(2, "wiz-abjuration-savant", "Abjuration Savant", "Halve the time and gold needed to copy abjuration spells into your spellbook."),
+        gFeature(2, "wiz-abjuration-ward", "Arcane Ward", "Casting an abjuration spell of 1st level or higher creates a magical ward that absorbs damage; casting more abjuration spells recharges it."),
+        gFeature(6, "wiz-abjuration-projected", "Projected Ward", "When a creature you can see within 30 feet takes damage, use your reaction to absorb it with your Arcane Ward instead."),
+        gFeature(14, "wiz-abjuration-resistance", "Spell Resistance", "You have advantage on saving throws against spells, and resistance to the damage they deal."),
+      ],
+      conjuration: [
+        gFeature(2, "wiz-conjuration-savant", "Conjuration Savant", "Halve the time and gold needed to copy conjuration spells into your spellbook."),
+        gFeature(2, "wiz-conjuration-minor", "Minor Conjuration", "Conjure an inanimate object up to 3 feet on a side that lasts up to 1 hour."),
+        gFeature(6, "wiz-conjuration-benign", "Benign Transposition", "Teleport up to 30 feet, or swap places with a willing creature you can see within range."),
+        gFeature(10, "wiz-conjuration-focused", "Focused Conjuration", "Your concentration on a conjuration spell can't be broken as a result of taking damage."),
+      ],
+      divination: [
+        gFeature(2, "wiz-divination-savant", "Divination Savant", "Halve the time and gold needed to copy divination spells into your spellbook."),
+        gFeature(2, "wiz-divination-portent", "Portent", "After a long rest, roll two d20s and record them; you can replace any attack roll, save, or ability check — yours or one you can see — with a foretold roll."),
+        gFeature(6, "wiz-divination-expert", "Expert Divination", "Casting a divination spell of 2nd level or higher refunds a spell slot of a lower level."),
+        gFeature(14, "wiz-divination-portent2", "Greater Portent", "You roll three d20s for your Portent feature instead of two."),
+      ],
+      enchantment: [
+        gFeature(2, "wiz-enchantment-savant", "Enchantment Savant", "Halve the time and gold needed to copy enchantment spells into your spellbook."),
+        gFeature(2, "wiz-enchantment-gaze", "Hypnotic Gaze", "As an action, charm a creature within 5 feet (Wisdom save) so it's incapacitated and dazed while you maintain the gaze each turn."),
+        gFeature(6, "wiz-enchantment-instinctive", "Instinctive Charm", "When a creature within 30 feet attacks you, use your reaction to redirect the attack to another creature (Wisdom save)."),
+        gFeature(10, "wiz-enchantment-split", "Split Enchantment", "When you cast a single-target enchantment spell, you can have it target a second creature."),
+      ],
+      illusion: [
+        gFeature(2, "wiz-illusion-savant", "Illusion Savant", "Halve the time and gold needed to copy illusion spells into your spellbook."),
+        gFeature(2, "wiz-illusion-minor", "Improved Minor Illusion", "You know the minor illusion cantrip and can create both a sound and an image with a single casting of it."),
+        gFeature(6, "wiz-illusion-malleable", "Malleable Illusions", "Use an action to change the nature of an illusion spell you cast that has a duration and that you can see."),
+        gFeature(10, "wiz-illusion-self", "Illusory Self", "When a creature hits you with an attack, use your reaction to interpose an illusory duplicate and cause the attack to miss."),
+      ],
+      necromancy: [
+        gFeature(2, "wiz-necromancy-savant", "Necromancy Savant", "Halve the time and gold needed to copy necromancy spells into your spellbook."),
+        gFeature(2, "wiz-necromancy-harvest", "Grim Harvest", "When you kill a creature with a spell, regain hit points equal to twice the spell's level (three times for a necromancy spell)."),
+        gFeature(6, "wiz-necromancy-thralls", "Undead Thralls", "Learn the animate dead spell; undead you create with it are tougher and hit harder, and you can animate one additional creature."),
+        gFeature(10, "wiz-necromancy-inured", "Inured to Undeath", "You're resistant to necrotic damage, and your hit point maximum can't be reduced."),
+      ],
+      transmutation: [
+        gFeature(2, "wiz-transmutation-savant", "Transmutation Savant", "Halve the time and gold needed to copy transmutation spells into your spellbook."),
+        gFeature(2, "wiz-transmutation-minor", "Minor Alchemy", "Temporarily transform one nonmagical material into another similar one (such as wood into stone) for up to 1 hour."),
+        gFeature(6, "wiz-transmutation-stone", "Transmuter's Stone", "Create a stone that grants whoever carries it a benefit: darkvision, +10 feet of speed, proficiency in Constitution saves, or resistance to a damage type."),
+        gFeature(10, "wiz-transmutation-shape", "Shapechanger", "Learn the polymorph spell; you can cast it on yourself without a slot to become a beast of challenge rating 1 or lower, once per short rest."),
+      ],
+    },
+  },
 }
 
 // ── Engine ──────────────────────────────────────────────────────────────────────
