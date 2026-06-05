@@ -139,7 +139,7 @@ export const getCombat = query({
         isActive: index === combat.activeIndex,
         isMine: c.userId === userId,
       }
-      const showExact = isDM || c.type === "pc"
+      const showExact = isDM || c.type === "pc" || c.userId === userId
       if (showExact) {
         return { ...base, hitPoints: c.hitPoints, healthBand: undefined }
       }
@@ -157,6 +157,62 @@ export const getCombat = query({
       activeIndex: combat.activeIndex,
       combatants,
     }
+  },
+})
+
+const abilityMod = (score: number): number => Math.floor((score - 10) / 2)
+
+// Party members' addable creatures for the combat tracker: each PC's currently-
+// ACTIVE Wild Shape form + all their companions, flattened across the party. The DM
+// drops one in as its own combatant (separate-combatant model — see the wildshape/
+// companions Stage 2). Membership-gated; reads the stored alternateForm/companion
+// property blobs (lib/character/creatures.ts shape).
+export const listAddableCreatures = query({
+  args: { sessionId: v.id("partySessions") },
+  handler: async (ctx, args) => {
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) return []
+    const members = await ctx.db
+      .query("partyMembers")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .collect()
+
+    const creatures: Array<{
+      ownerUserId: string
+      ownerName: string
+      kind: "form" | "companion"
+      name: string
+      currentHp: number
+      maxHp: number
+      ac: number
+      initiativeBonus: number
+    }> = []
+
+    for (const member of members) {
+      const char = await ctx.db.get(member.characterId)
+      if (!char) continue
+      const props = await ctx.db
+        .query("characterProperties")
+        .withIndex("by_characterId", (q) => q.eq("characterId", member.characterId))
+        .collect()
+      for (const p of props) {
+        const d = (p.data ?? {}) as Record<string, unknown>
+        const ac = typeof d.ac === "number" ? d.ac : 10
+        const maxHp = typeof d.maxHp === "number" ? d.maxHp : 1
+        const currentHp = typeof d.currentHp === "number" ? d.currentHp : maxHp
+        const abilities = (d.abilities ?? {}) as Record<string, number>
+        const initiativeBonus = abilityMod(typeof abilities.dexterity === "number" ? abilities.dexterity : 10)
+        const creatureName = typeof d.creatureName === "string" ? d.creatureName : p.name
+
+        if (p.type === "alternateForm" && d.active === true) {
+          creatures.push({ ownerUserId: member.userId, ownerName: char.name, kind: "form", name: creatureName, currentHp, maxHp, ac, initiativeBonus })
+        } else if (p.type === "companion") {
+          const customName = typeof d.customName === "string" && d.customName ? d.customName : creatureName
+          creatures.push({ ownerUserId: member.userId, ownerName: char.name, kind: "companion", name: customName, currentHp, maxHp, ac, initiativeBonus })
+        }
+      }
+    }
+    return creatures
   },
 })
 
@@ -313,6 +369,9 @@ async function syncPartyMemberConditions(
   sessionId: Id<"partySessions">,
   combatant: Combatant
 ) {
+  // PC combatants only. A companion/form combatant may carry the owner's userId so
+  // they can see its HP, but its conditions must NOT bleed onto the owner's character.
+  if (combatant.type !== "pc") return
   const userId = combatant.userId
   if (!userId) return
   const member = await ctx.db

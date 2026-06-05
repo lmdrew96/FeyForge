@@ -53,6 +53,7 @@ const rollD20 = () => Math.floor(Math.random() * 20) + 1
 export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionId; campaignId: Id<"campaigns"> }) {
   const combat = useQuery(api.liveCombat.getCombat, { sessionId })
   const partyMembers = useQuery(api.liveSessions.getPartyMembers, { sessionId })
+  const addableCreatures = useQuery(api.liveCombat.listAddableCreatures, { sessionId })
   // Saved encounters for THIS campaign — loadable into combat (generate→save→run).
   const savedEncounters = useQuery(api.encounters.list)
   const campaignEncounters = useMemo(
@@ -179,6 +180,32 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
       setMonsterInit("")
     } catch {
       toast.error("Failed to add combatant.")
+    }
+  }
+
+  // Drop a player's active Wild Shape form or companion into initiative as its OWN
+  // combatant (separate-combatant model). type "npc" + the owner's userId (so they
+  // see exact HP) but NO characterId — the HP→character sync no-ops, so the druid's
+  // real HP is never touched.
+  const handleAddCreature = async (cr: NonNullable<typeof addableCreatures>[number]) => {
+    try {
+      await doAdd({
+        sessionId,
+        combatant: {
+          id: crypto.randomUUID(),
+          name: `${cr.name} (${cr.ownerName})`,
+          type: "npc",
+          initiative: rollD20() + cr.initiativeBonus,
+          initiativeBonus: cr.initiativeBonus,
+          armorClass: cr.ac,
+          hitPoints: { current: cr.currentHp, max: cr.maxHp, temp: 0 },
+          conditions: [],
+          userId: cr.ownerUserId,
+        },
+      })
+      toast.success(`${cr.name} joined the fight.`)
+    } catch {
+      toast.error("Failed to add creature.")
     }
   }
 
@@ -568,6 +595,27 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
           )
         })}
       </div>
+
+      {/* Party creatures — drop a player's active Wild Shape form or companion in */}
+      {addableCreatures && addableCreatures.length > 0 && (
+        <div className="rounded-xl p-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+          <p className="text-[11px] uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>Party creatures</p>
+          <div className="flex flex-wrap gap-2">
+            {addableCreatures.map((cr, i) => (
+              <button
+                key={`${cr.ownerUserId}-${cr.name}-${i}`}
+                onClick={() => handleAddCreature(cr)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-opacity hover:opacity-80"
+                style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+              >
+                <Plus className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
+                {cr.name}
+                <span style={{ color: "var(--scene-text-muted)" }}>· {cr.ownerName} · {cr.kind === "form" ? "Wild Shape" : "companion"}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Add monster */}
       <div className="rounded-xl p-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
