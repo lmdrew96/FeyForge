@@ -15,6 +15,7 @@
 
 import { useState } from "react"
 import { Footprints, Route as RouteIcon, Ship, X } from "lucide-react"
+import type { JourneyLeg } from "./use-journey-planner"
 
 export type MapRoute = { group: string; points: number[][]; miles?: number }
 
@@ -59,9 +60,12 @@ export const styleForGroup = (g: string): GroupStyle => GROUP_STYLE[g] ?? GROUP_
 
 const pointsAttr = (pts: number[][]): string => pts.map((p) => `${p[0]},${p[1]}`).join(" ")
 
-// The network (faint) + the planned journey (bold), inside the map's transform layer.
-export function RoutesSvg({ routes, journey }: { routes: MapRoute[]; journey?: number[][] | null }) {
-  const dimmed = !!journey && journey.length >= 2
+// The network (faint) + the planned journey (bold), inside the map's transform
+// layer. `legs` is one polyline per journey leg — a broken/blocked leg simply
+// contributes none, so found legs still draw while the rest of the chain is unset.
+export function RoutesSvg({ routes, legs }: { routes: MapRoute[]; legs?: number[][][] | null }) {
+  const drawn = (legs ?? []).filter((p) => p.length >= 2)
+  const dimmed = drawn.length > 0
   return (
     <svg
       viewBox="0 0 100 100"
@@ -90,11 +94,11 @@ export function RoutesSvg({ routes, journey }: { routes: MapRoute[]; journey?: n
           )
         })}
 
-      {/* Planned journey — halo under a bold accent line. */}
-      {dimmed && (
-        <>
+      {/* Planned journey — halo under a bold accent line, drawn per leg. */}
+      {drawn.map((pts, i) => (
+        <g key={i}>
           <polyline
-            points={pointsAttr(journey!)}
+            points={pointsAttr(pts)}
             fill="none"
             stroke="#fff"
             strokeWidth={6}
@@ -104,7 +108,7 @@ export function RoutesSvg({ routes, journey }: { routes: MapRoute[]; journey?: n
             opacity={0.55}
           />
           <polyline
-            points={pointsAttr(journey!)}
+            points={pointsAttr(pts)}
             fill="none"
             stroke="var(--scene-accent)"
             strokeWidth={3.5}
@@ -112,8 +116,8 @@ export function RoutesSvg({ routes, journey }: { routes: MapRoute[]; journey?: n
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"
           />
-        </>
-      )}
+        </g>
+      ))}
     </svg>
   )
 }
@@ -174,42 +178,49 @@ function Seg({
 
 const MODE_CHIP: Record<TravelMode, string> = { foot: "Foot", mounted: "Mount", cart: "Cart", ship: "Ship" }
 
-// The journey-planner prompt/result card (mount in the viewport corner). Travel
-// options (mode / pace / hours per day) sit up top so they can be set before the
-// route is even drawn; the route + travel time fill in below. "No route" is a real,
-// common outcome (disconnected landmasses, or a non-port picked for sea travel) and
-// reads as intentional, not an error.
+// The journey-planner itinerary card (mount in the viewport corner). Journey-wide
+// travel settings (foot pace / vessel / hours per day) sit up top; below, each leg
+// shows its OWN mode toggle + distance + days, then a summed total. Tap towns on the
+// map to chain stops. "No route" / "isn't a port" are real, common PER-LEG outcomes
+// (disconnected landmasses, or a non-port picked for a sea leg) and read as
+// intentional, not errors.
 export function JourneyCard({
-  fromName,
-  toName,
-  found,
-  miles,
-  mode,
-  onModeChange,
+  originName,
+  waypointCount,
+  legs,
+  totalMiles,
   hasWater,
-  seaBlockedBy,
+  onSetLegMode,
+  onRemoveLast,
   onClear,
 }: {
-  fromName: string | null
-  toName: string | null
-  found: boolean
-  miles: number | null
-  mode: TravelMode
-  onModeChange: (m: TravelMode) => void
-  hasWater: boolean // map has a sea network → Ship mode is usable
-  seaBlockedBy?: string | null // a non-port endpoint chosen for sea travel
+  originName: string | null
+  waypointCount: number
+  legs: JourneyLeg[]
+  totalMiles: number | null
+  hasWater: boolean // map has a sea network → Ship legs are usable
+  onSetLegMode: (legIndex: number, mode: TravelMode) => void
+  onRemoveLast: () => void
   onClear: () => void
 }) {
   const [footPace, setFootPace] = useState<FootPace>("normal")
   const [shipKind, setShipKind] = useState<ShipKind>("sailing")
   const [hoursPerDay, setHoursPerDay] = useState(8)
-
-  const mph = speedMph(mode, footPace, shipKind)
-  const milesPerDay = mph * hoursPerDay
-  const days = miles != null ? Math.round((miles / milesPerDay) * 10) / 10 : null
-  const bySea = mode === "ship"
-  const forcedMarch = hoursPerDay > 8 && (mode === "foot" || mode === "mounted")
   const setHours = (n: number) => setHoursPerDay(Math.max(1, Math.min(24, n)))
+
+  // Each leg's days come from ITS mode × the journey-wide pace/vessel/hours.
+  const legDays = (leg: JourneyLeg): number | null => {
+    if (leg.miles == null) return null
+    const milesPerDay = speedMph(leg.mode, footPace, shipKind) * hoursPerDay
+    return Math.round((leg.miles / milesPerDay) * 10) / 10
+  }
+  const totalDays = Math.round(legs.reduce((sum, leg) => sum + (legDays(leg) ?? 0), 0) * 10) / 10
+
+  const planning = waypointCount >= 2
+  const anyFoot = legs.some((l) => l.mode === "foot")
+  const anyShip = legs.some((l) => l.mode === "ship")
+  const hasMeasuredLeg = legs.some((l) => l.miles != null)
+  const forcedMarch = hoursPerDay > 8 && legs.some((l) => l.mode === "foot" || l.mode === "mounted")
 
   const fieldStyle = {
     background: "color-mix(in srgb, var(--scene-text-primary) 7%, transparent)",
@@ -219,7 +230,7 @@ export function JourneyCard({
 
   return (
     <div
-      className="w-72 rounded-xl border p-3 shadow-2xl"
+      className="flex max-h-[70vh] w-72 flex-col rounded-xl border p-3 shadow-2xl"
       style={{ background: "var(--scene-surface)", borderColor: "var(--scene-border)" }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -234,24 +245,10 @@ export function JourneyCard({
         </button>
       </div>
 
-      {/* Travel options */}
+      {/* Journey-wide travel settings. Foot pace shows while a foot leg exists (or no
+          leg yet, as the default); vessel when a ship leg exists; hours always. */}
       <div className="mt-2 space-y-1.5">
-        <div className="flex gap-1">
-          {(["foot", "mounted", "cart", "ship"] as TravelMode[]).map((m) => (
-            <Seg
-              key={m}
-              active={mode === m}
-              disabled={m === "ship" && !hasWater}
-              onClick={() => onModeChange(m)}
-              title={m === "ship" && !hasWater ? "This map has no sea routes" : MODE_LABEL[m]}
-            >
-              {MODE_CHIP[m]}
-            </Seg>
-          ))}
-        </div>
-
-        {/* Sub-option: foot pace, or vessel for ship. Mounted/cart are single-rate. */}
-        {mode === "foot" && (
+        {(!planning || anyFoot) && (
           <div className="flex gap-1">
             {(["slow", "normal", "fast"] as FootPace[]).map((p) => (
               <Seg key={p} active={footPace === p} onClick={() => setFootPace(p)}>
@@ -260,7 +257,7 @@ export function JourneyCard({
             ))}
           </div>
         )}
-        {mode === "ship" && (
+        {anyShip && (
           <select
             value={shipKind}
             onChange={(e) => setShipKind(e.target.value as ShipKind)}
@@ -306,72 +303,96 @@ export function JourneyCard({
 
       <div className="my-2 border-t" style={{ borderColor: "var(--scene-border)" }} />
 
-      {/* Step prompt until both ends are chosen. */}
-      {!fromName && (
+      {/* Step prompt until a journey exists (≥ 2 waypoints). */}
+      {waypointCount === 0 && (
         <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
-          Tap a {bySea ? "port" : "town"} to set your <span style={{ color: "var(--scene-text-primary)" }}>origin</span>.
+          Tap a town to set your <span style={{ color: "var(--scene-text-primary)" }}>origin</span>.
         </p>
       )}
-      {fromName && !toName && (
+      {waypointCount === 1 && (
         <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
-          From <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{fromName}</span> — now tap a{" "}
-          <span style={{ color: "var(--scene-text-primary)" }}>destination</span>.
+          From <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{originName}</span> — tap the next{" "}
+          <span style={{ color: "var(--scene-text-primary)" }}>stop</span>.
         </p>
       )}
 
-      {fromName && toName && (
-        <>
-          <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
-            {fromName} → {toName}
-          </p>
-          {bySea && seaBlockedBy ? (
-            <p className="mt-1.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-              <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{seaBlockedBy}</span> isn&apos;t a
-              port — pick coastal ports for sea travel.
-            </p>
-          ) : !found ? (
-            <p className="mt-1.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-              {bySea
-                ? "No sea route — these ports aren't connected by sea."
-                : "No overland route — they're on separate landmasses, or the journey needs sea travel."}
-            </p>
-          ) : miles == null ? (
-            <p className="mt-1.5 text-xs italic" style={{ color: "var(--scene-text-muted)" }}>
-              Route found — distance unknown (no map scale set).
-            </p>
-          ) : (
-            <>
-              <p className="mt-1 text-lg font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-accent)" }}>
-                {miles.toLocaleString()} mi by {bySea ? "sea" : "road"}
-              </p>
-              {days != null && (
-                <div className="mt-1.5 space-y-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-                  <div className="flex items-center justify-between">
+      {/* Itinerary — one block per leg, then a summed total. */}
+      {planning && (
+        <div className="-mx-1 flex-1 space-y-2 overflow-y-auto px-1">
+          {legs.map((leg, i) => {
+            const days = legDays(leg)
+            return (
+              <div
+                key={`${leg.fromId}-${leg.toId}-${i}`}
+                className="rounded-lg p-2"
+                style={{ background: "color-mix(in srgb, var(--scene-text-primary) 4%, transparent)", border: "1px solid var(--scene-border)" }}
+              >
+                <p className="text-xs font-medium" style={{ color: "var(--scene-text-primary)" }}>
+                  <span style={{ color: "var(--scene-text-muted)" }}>{i + 1}.</span> {leg.fromName} → {leg.toName}
+                </p>
+                <div className="mt-1.5 flex gap-1">
+                  {(["foot", "mounted", "cart", "ship"] as TravelMode[]).map((m) => (
+                    <Seg
+                      key={m}
+                      active={leg.mode === m}
+                      disabled={m === "ship" && !hasWater}
+                      onClick={() => onSetLegMode(i, m)}
+                      title={m === "ship" && !hasWater ? "This map has no sea routes" : MODE_LABEL[m]}
+                    >
+                      {MODE_CHIP[m]}
+                    </Seg>
+                  ))}
+                </div>
+                <div className="mt-1.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  {leg.seaBlockedBy ? (
                     <span>
-                      {MODE_LABEL[mode]}
-                      {mode === "foot" ? ` · ${footPace}` : mode === "ship" ? ` · ${SHIP_LABEL[shipKind].toLowerCase()}` : ""}
+                      <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{leg.seaBlockedBy}</span> isn&apos;t a port — pick ports for sea legs.
                     </span>
-                    <span className="font-semibold" style={{ color: "var(--scene-text-primary)" }}>
-                      {days} {days === 1 ? "day" : "days"}
+                  ) : !leg.found ? (
+                    <span>{leg.mode === "ship" ? "No sea route between these ports." : "No overland route — separate landmasses."}</span>
+                  ) : leg.miles == null ? (
+                    <span className="italic">Route found — distance unknown (no map scale).</span>
+                  ) : (
+                    <span>
+                      <span className="font-semibold" style={{ color: "var(--scene-accent)" }}>{leg.miles.toLocaleString()} mi</span> by{" "}
+                      {leg.mode === "ship" ? "sea" : "road"}
+                      {days != null && (
+                        <span style={{ color: "var(--scene-text-primary)" }}> · {days} {days === 1 ? "day" : "days"}</span>
+                      )}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between opacity-80">
-                    <span>{hoursPerDay} h/day</span>
-                    <span>≈ {Math.round(milesPerDay)} mi/day</span>
-                  </div>
-                  {forcedMarch && (
-                    <p className="pt-0.5 text-[10px] opacity-80">
-                      Past 8 h/day is a forced march — Con saves each extra hour or gain exhaustion (5e).
-                    </p>
-                  )}
-                  {bySea && hoursPerDay <= 8 && (
-                    <p className="pt-0.5 text-[10px] opacity-70">Crews sail in shifts — raise hours/day for long voyages.</p>
                   )}
                 </div>
-              )}
-            </>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Total + actions. */}
+      {planning && (
+        <div className="mt-2 border-t pt-2" style={{ borderColor: "var(--scene-border)" }}>
+          {hasMeasuredLeg && totalMiles != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+                Total
+              </span>
+              <span className="font-bold" style={{ color: "var(--scene-accent)" }}>
+                {totalMiles.toLocaleString()} mi · {totalDays} {totalDays === 1 ? "day" : "days"}
+              </span>
+            </div>
           )}
-        </>
+          {forcedMarch && (
+            <p className="mt-1 text-[10px] opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+              Past 8 h/day on land is a forced march — Con saves each extra hour or gain exhaustion (5e).
+            </p>
+          )}
+          <div className="mt-2 flex items-center justify-between text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+            <span>Tap a town to add a stop.</span>
+            <button onClick={onRemoveLast} className="rounded px-1.5 py-0.5 font-medium hover:opacity-80" style={fieldStyle}>
+              Remove last
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

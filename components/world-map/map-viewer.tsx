@@ -26,8 +26,8 @@ import { toast } from "sonner"
 import { Crown, Eye, EyeOff, Globe, ListFilter, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
 import { FogOverlay } from "./fog-overlay"
 import { decodeFogMask } from "./fog-mask"
-import { JourneyCard, RoutesLegend, RoutesSvg, type TravelMode } from "./routes-overlay"
-import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
+import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
+import { useJourneyPlanner } from "./use-journey-planner"
 import { RealmsFaithsPanel } from "./realms-faiths-panel"
 import { COMBAT_POI_KINDS, EncounterGenerator } from "./encounter-generator"
 import { SaveNpcButton } from "./save-npc-button"
@@ -58,9 +58,6 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   // Travel routes are heavy + lazy — only fetched when journey mode is on. In that
   // mode the network draws faint and tapping two town pins plans a road route.
   const [showRoutes, setShowRoutes] = useState(false)
-  const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
-  const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
-  const [travelMode, setTravelMode] = useState<TravelMode>("foot")
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
   // Realms & faiths panel — lazy, opened from the toolbar.
   const [wbOpen, setWbOpen] = useState(false)
@@ -149,33 +146,15 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     }
   }, [filterKeys, visibleLocations, selectedId])
 
-  // Separate land + sea graphs, built once per loaded route set; Dijkstra runs on
-  // one per journey depending on mode. The result feeds the bold path + the card.
-  const landGraph = useMemo(
-    () => (routes && map ? buildRouteGraph(routes, map.width, map.height, "land") : null),
-    [routes, map],
-  )
-  const waterGraph = useMemo(
-    () => (routes && map ? buildRouteGraph(routes, map.width, map.height, "water") : null),
-    [routes, map],
-  )
-  const hasWater = useMemo(() => (routes ?? []).some((r) => r.group === "searoutes"), [routes])
-  const journey = useMemo(() => {
-    if (!journeyFrom || !journeyTo) return null
-    const f = (locations ?? []).find((l) => l._id === journeyFrom)
-    const t = (locations ?? []).find((l) => l._id === journeyTo)
-    if (!f || !t) return null
-    // Ship travel embarks only from ports — the Port tag is the guard (see DM page).
-    if (travelMode === "ship") {
-      if (!f.town?.features?.includes("Port")) return { found: false, miles: null, points: null, seaBlockedBy: f.name }
-      if (!t.town?.features?.includes("Port")) return { found: false, miles: null, points: null, seaBlockedBy: t.name }
-    }
-    const graph = travelMode === "ship" ? waterGraph : landGraph
-    if (!graph) return null
-    const res = planRoute(graph, [f.x, f.y], [t.x, t.y])
-    const miles = res && map?.scaleMilesPerPx ? Math.round(res.px * map.scaleMilesPerPx) : null
-    return { found: !!res, miles, points: res?.points ?? null, seaBlockedBy: null as string | null }
-  }, [landGraph, waterGraph, travelMode, journeyFrom, journeyTo, locations, map])
+  // Multi-leg journey planner (shared with the DM page). map may still be loading,
+  // so width/height/scale are passed optionally — the hook no-ops until they're set.
+  const planner = useJourneyPlanner({
+    routes,
+    locations,
+    width: map?.width,
+    height: map?.height,
+    scaleMilesPerPx: map?.scaleMilesPerPx,
+  })
 
   // ── Pan / zoom (read-only: no placement, move, or paint) ────────────────────
   const handleWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
@@ -228,19 +207,10 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     }
   }
 
-  // Journey mode: first tap = origin, second = destination, third starts over.
-  const pickJourney = (loc: MapLocation) => {
-    if (!journeyFrom || journeyTo) {
-      setJourneyFrom(loc._id)
-      setJourneyTo(null)
-    } else {
-      setJourneyTo(loc._id)
-    }
-  }
+  // Journey mode: each town tap appends a waypoint to the chain.
   const toggleRoutes = () => {
     setShowRoutes((s) => !s)
-    setJourneyFrom(null)
-    setJourneyTo(null)
+    planner.clear()
     setSelectedId(null)
     setShowPins(true) // journey planning needs tappable town pins
     setFilterKeys(new Set()) // …and all towns visible, not a filtered subset
@@ -341,7 +311,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
               paintedCells={maskCells}
             />
             {showRoutes && routes && (
-              <RoutesSvg routes={routes} journey={journey?.points ?? null} />
+              <RoutesSvg routes={routes} legs={planner.itinerary?.legPoints ?? null} />
             )}
             {showPins &&
               visibleLocations.map((loc) => (
@@ -352,10 +322,10 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
                   isDM={isDM}
                   selected={
                     showRoutes
-                      ? loc._id === journeyFrom || loc._id === journeyTo
+                      ? planner.isWaypoint(loc._id)
                       : loc._id === selectedId
                   }
-                  onSelect={() => (showRoutes ? pickJourney(loc) : jumpToLocation(loc))}
+                  onSelect={() => (showRoutes ? planner.addWaypoint(loc) : jumpToLocation(loc))}
                 />
               ))}
           </div>
@@ -405,7 +375,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           </button>
           <button
             onClick={toggleRoutes}
-            title="Plan a journey — show the road network and tap two towns for the route + travel time"
+            title="Plan a journey — show the route network and tap towns to chain stops with travel time"
             className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
             style={{
               background: showRoutes ? "var(--scene-accent)" : "var(--scene-surface)",
@@ -436,15 +406,14 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
         {showRoutes && (
           <div className="absolute bottom-4 left-4 z-20">
             <JourneyCard
-              fromName={journeyFrom ? locations.find((l) => l._id === journeyFrom)?.name ?? null : null}
-              toName={journeyTo ? locations.find((l) => l._id === journeyTo)?.name ?? null : null}
-              found={journey?.found ?? false}
-              miles={journey?.miles ?? null}
-              mode={travelMode}
-              onModeChange={setTravelMode}
-              hasWater={hasWater}
-              seaBlockedBy={journey?.seaBlockedBy ?? null}
-              onClear={() => { setJourneyFrom(null); setJourneyTo(null) }}
+              originName={planner.originName}
+              waypointCount={planner.waypointCount}
+              legs={planner.itinerary?.legs ?? []}
+              totalMiles={planner.itinerary?.totalMiles ?? null}
+              hasWater={planner.hasWater}
+              onSetLegMode={planner.setLegMode}
+              onRemoveLast={planner.removeLast}
+              onClear={planner.clear}
             />
           </div>
         )}

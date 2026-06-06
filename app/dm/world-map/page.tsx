@@ -33,8 +33,8 @@ import {
   isMaskEmpty,
   paintBrush,
 } from "@/components/world-map/fog-mask"
-import { JourneyCard, RoutesLegend, RoutesSvg, type TravelMode } from "@/components/world-map/routes-overlay"
-import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
+import { JourneyCard, RoutesLegend, RoutesSvg } from "@/components/world-map/routes-overlay"
+import { useJourneyPlanner } from "@/components/world-map/use-journey-planner"
 import { RealmsFaithsPanel } from "@/components/world-map/realms-faiths-panel"
 import { PinsPanel, filterByKeys } from "@/components/world-map/pins-panel"
 import {
@@ -480,9 +480,6 @@ function MapWorkspace({
   // Current width of the detail overlay, mirrored as the --panel-w CSS var so the
   // map's right-edge zoom controls slide left of the panel instead of hiding under it.
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
-  const [journeyFrom, setJourneyFrom] = useState<LocationId | null>(null)
-  const [journeyTo, setJourneyTo] = useState<LocationId | null>(null)
-  const [travelMode, setTravelMode] = useState<TravelMode>("foot")
   const [placing, setPlacing] = useState(false)
   const [movingId, setMovingId] = useState<LocationId | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -498,36 +495,15 @@ function MapWorkspace({
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
   const [wbOpen, setWbOpen] = useState(false)
   const worldbuilding = useQuery(api.worldMap.getWorldbuilding, wbOpen ? { campaignId } : "skip")
-  // Separate land + sea graphs; the journey routes over one depending on mode.
-  const landGraph = useMemo(
-    () => (routes ? buildRouteGraph(routes, map.width, map.height, "land") : null),
-    [routes, map.width, map.height],
-  )
-  const waterGraph = useMemo(
-    () => (routes ? buildRouteGraph(routes, map.width, map.height, "water") : null),
-    [routes, map.width, map.height],
-  )
-  const hasWater = useMemo(() => (routes ?? []).some((r) => r.group === "searoutes"), [routes])
-  const journey = useMemo(() => {
-    if (!journeyFrom || !journeyTo) return null
-    const f = locations.find((l) => l._id === journeyFrom)
-    const t = locations.find((l) => l._id === journeyTo)
-    if (!f || !t) return null
-    // Ship travel embarks only from ports — this is the guard. A non-port (or a pin
-    // with no gazetteer at all) would otherwise snap to a distant sea node and report
-    // a confident, wrong distance. Block it with a clear reason instead; an explicit
-    // Port tag (Azgaar-imported OR set in the editor) is then trusted to connect to
-    // the nearest sea lane however far offshore it sits.
-    if (travelMode === "ship") {
-      if (!f.town?.features?.includes("Port")) return { found: false, miles: null, points: null, seaBlockedBy: f.name }
-      if (!t.town?.features?.includes("Port")) return { found: false, miles: null, points: null, seaBlockedBy: t.name }
-    }
-    const graph = travelMode === "ship" ? waterGraph : landGraph
-    if (!graph) return null
-    const res = planRoute(graph, [f.x, f.y], [t.x, t.y])
-    const miles = res && map.scaleMilesPerPx ? Math.round(res.px * map.scaleMilesPerPx) : null
-    return { found: !!res, miles, points: res?.points ?? null, seaBlockedBy: null as string | null }
-  }, [landGraph, waterGraph, travelMode, journeyFrom, journeyTo, locations, map.scaleMilesPerPx])
+  // Multi-leg journey planner (shared with the in-session viewer). Owns the waypoint
+  // chain, per-leg mode, land/sea routing, and the summed itinerary.
+  const planner = useJourneyPlanner({
+    routes,
+    locations,
+    width: map.width,
+    height: map.height,
+    scaleMilesPerPx: map.scaleMilesPerPx,
+  })
 
   // AI: flesh out the pin's player + DM notes into the draft for review (never
   // saved silently). Confirms before clobbering notes the DM already wrote.
@@ -889,20 +865,11 @@ function MapWorkspace({
 
   const activeMode = (placing || movingId !== null || painting) && isDM
 
-  // Journey mode (Travel toggle): first town tap = origin, second = destination.
+  // Journey mode (Travel toggle): each town tap appends a waypoint to the chain.
   // Turning it on exits the authoring modes so a town tap plans a route, not a pin.
-  const pickJourney = (loc: MapLocation) => {
-    if (!journeyFrom || journeyTo) {
-      setJourneyFrom(loc._id)
-      setJourneyTo(null)
-    } else {
-      setJourneyTo(loc._id)
-    }
-  }
   const toggleRoutes = () => {
     setShowRoutes((s) => !s)
-    setJourneyFrom(null)
-    setJourneyTo(null)
+    planner.clear()
     setSelectedId(null)
     setPlacing(false)
     setMovingId(null)
@@ -998,7 +965,7 @@ function MapWorkspace({
             <ToolbarButton
               onClick={toggleRoutes}
               active={showRoutes}
-              title="Plan a journey — show the road network and tap two towns"
+              title="Plan a journey — show the route network and tap towns to chain stops"
             >
               <RouteIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Travel</span>
@@ -1068,7 +1035,7 @@ function MapWorkspace({
                 paintedCells={maskCells}
               />
               {showRoutes && routes && (
-                <RoutesSvg routes={routes} journey={journey?.points ?? null} />
+                <RoutesSvg routes={routes} legs={planner.itinerary?.legPoints ?? null} />
               )}
               {showPins &&
                 visibleLocations.map((loc) => (
@@ -1079,10 +1046,10 @@ function MapWorkspace({
                     isDM={isDM}
                     selected={
                       showRoutes
-                        ? loc._id === journeyFrom || loc._id === journeyTo
+                        ? planner.isWaypoint(loc._id)
                         : loc._id === selectedId
                     }
-                    onSelect={() => (showRoutes ? pickJourney(loc) : jumpToLocation(loc))}
+                    onSelect={() => (showRoutes ? planner.addWaypoint(loc) : jumpToLocation(loc))}
                   />
                 ))}
             </div>
@@ -1110,15 +1077,14 @@ function MapWorkspace({
           {showRoutes && (
             <div className="absolute bottom-4 left-4 z-20">
               <JourneyCard
-                fromName={journeyFrom ? locations.find((l) => l._id === journeyFrom)?.name ?? null : null}
-                toName={journeyTo ? locations.find((l) => l._id === journeyTo)?.name ?? null : null}
-                found={journey?.found ?? false}
-                miles={journey?.miles ?? null}
-                mode={travelMode}
-                onModeChange={setTravelMode}
-                hasWater={hasWater}
-                seaBlockedBy={journey?.seaBlockedBy ?? null}
-                onClear={() => { setJourneyFrom(null); setJourneyTo(null) }}
+                originName={planner.originName}
+                waypointCount={planner.waypointCount}
+                legs={planner.itinerary?.legs ?? []}
+                totalMiles={planner.itinerary?.totalMiles ?? null}
+                hasWater={planner.hasWater}
+                onSetLegMode={planner.setLegMode}
+                onRemoveLast={planner.removeLast}
+                onClear={planner.clear}
               />
             </div>
           )}
