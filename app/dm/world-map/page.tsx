@@ -1168,7 +1168,7 @@ function MapWorkspace({
       {/* Detail sheet (mobile) */}
       {selected && (
         <div
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl lg:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t p-4 pb-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] md:pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl lg:hidden"
           style={{ borderColor: "var(--scene-border)", background: "var(--scene-surface)" }}
         >
           <LocationDetail

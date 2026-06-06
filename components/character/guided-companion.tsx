@@ -70,7 +70,7 @@ export function GuidedCompanion({ characterState }: GuidedCompanionProps) {
       {/* Floating trigger */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all hover:opacity-90 active:scale-95"
+        className="fixed bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] right-6 z-40 md:bottom-6 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all hover:opacity-90 active:scale-95"
         style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
         aria-label="Open character companion"
       >

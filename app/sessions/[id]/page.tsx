@@ -562,7 +562,7 @@ export default function SessionDetailPage({
           </div>
         </FieldGroup>
 
-        <div className="flex items-center justify-end gap-3 mt-8 sticky bottom-4">
+        <div className="flex items-center justify-end gap-3 mt-8 sticky bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] md:bottom-4">
           <Button
             variant="outline"
             onClick={() => router.push("/sessions")}
