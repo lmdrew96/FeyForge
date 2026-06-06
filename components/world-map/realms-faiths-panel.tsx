@@ -71,9 +71,12 @@ export function RealmsFaithsPanel({
     >
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       {/* Bottom sheet on mobile (map + backdrop stay visible above → tap to
-          dismiss), right-side panel on desktop. Matches the detail + filter panels. */}
+          dismiss), right-side panel on desktop. Matches the detail + filter panels.
+          The mobile bottom nav paints over this overlay (it's a sibling of <main>,
+          which is z-10, so z-[60] here can't escape it), so pad past it (3.5rem nav
+          + 1rem) until md, where the nav is gone. */}
       <div
-        className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)] shadow-2xl sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none sm:border-t-0 sm:border-l sm:pb-0"
+        className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t pb-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] shadow-2xl sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none sm:border-t-0 sm:border-l md:pb-0"
         style={{ background: "var(--scene-surface)", borderColor: "var(--scene-border)" }}
       >
         <div

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { Drama, Music, Swords } from "lucide-react"
 
 export default async function HomePage() {
   const { userId } = await auth()
@@ -86,23 +87,23 @@ export default async function HomePage() {
         <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8">
           {[
             {
-              icon: "🎵",
+              icon: Music,
               title: "Scene-Synced Audio",
               body: "Ambience, explore, and combat tracks crossfade in real time as the intensity slider moves. Players hear exactly what the DM is hearing.",
             },
             {
-              icon: "🎭",
+              icon: Drama,
               title: "Live Scene Control",
               body: "Activate a scene and the whole table's UI shifts — palette, accent, borders. Visual atmosphere as a live instrument.",
             },
             {
-              icon: "⚔️",
+              icon: Swords,
               title: "Party in Real Time",
               body: "Party members, conditions, HP, inventory, and DM broadcasts — all live, no refresh, no Discord coordination.",
             },
-          ].map(({ icon, title, body }) => (
+          ].map(({ icon: Icon, title, body }) => (
             <div key={title} className="space-y-3">
-              <div className="text-3xl">{icon}</div>
+              <Icon className="h-8 w-8" strokeWidth={1.5} style={{ color: "#7b68c8" }} />
               <h3
                 className="font-semibold text-base"
                 style={{ fontFamily: "var(--font-cinzel)", color: "#e8e0f8" }}

@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -620,6 +621,25 @@ function MapWorkspace({
 
   const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
 
+  // Default/reset view = fill the frame HEIGHT, not the browser's contain default
+  // (which fits a wide map to width, leaving it tiny on a portrait phone). The
+  // base <img> is contain-sized, so offsetHeight is its scale-1 height; scaling
+  // clientHeight/offsetHeight makes it exactly fill vertically. ≈1 (no-op) on wide
+  // desktop frames where height already binds. Pan recenters.
+  const fitToView = useCallback(() => {
+    const img = imgRef.current
+    const vp = viewportRef.current
+    if (!img || !vp || !img.offsetHeight) return
+    setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, vp.clientHeight / img.offsetHeight)))
+    setPan({ x: 0, y: 0 })
+  }, [])
+
+  // Cached images may be `complete` before React fires onLoad, so fit on mount too
+  // (and whenever the map image changes). onLoad covers the fresh-load path.
+  useEffect(() => {
+    if (imgRef.current?.complete) fitToView()
+  }, [fitToView, map.imageStorageKey])
+
   // Live refs so the pinch handler reads current zoom/pan between renders.
   const zoomRef = useRef(zoom)
   zoomRef.current = zoom
@@ -1143,6 +1163,7 @@ function MapWorkspace({
                 src={toImageUrl(map.imageStorageKey)}
                 alt={map.name}
                 draggable={false}
+                onLoad={fitToView}
                 className="block max-h-[calc(100dvh-7rem)] max-w-full lg:max-h-[calc(100vh-7rem)]"
               />
               {/* Fog of war: shroud over the map with soft clearings around
@@ -1195,7 +1216,7 @@ function MapWorkspace({
             <ZoomButton onClick={() => setZoom((z) => clampZoom(z / 1.25))} title="Zoom out">
               <ZoomOut className="h-4 w-4" />
             </ZoomButton>
-            <ZoomButton onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }} title="Reset view">
+            <ZoomButton onClick={fitToView} title="Reset view">
               <Maximize className="h-4 w-4" />
             </ZoomButton>
           </div>

@@ -12,6 +12,7 @@
 // full viewport the way the standalone DM page does.
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -84,6 +85,23 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   const dragState = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null)
 
   const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
+
+  // Default/reset view = fill the frame HEIGHT, not the browser's contain default
+  // (which fits a wide map to width, leaving it tiny on a portrait phone). Matches
+  // the DM page; ≈1 (no-op) where height already binds. Pan recenters.
+  const fitToView = useCallback(() => {
+    const img = imgRef.current
+    const vp = viewportRef.current
+    if (!img || !vp || !img.offsetHeight) return
+    setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, vp.clientHeight / img.offsetHeight)))
+    setPan({ x: 0, y: 0 })
+  }, [])
+
+  // Cached images may be `complete` before React fires onLoad, so fit on mount too
+  // (and whenever the map image changes). onLoad covers the fresh-load path.
+  useEffect(() => {
+    if (imgRef.current?.complete) fitToView()
+  }, [fitToView, map?.imageStorageKey])
 
   // Live refs so the pinch handler reads current zoom/pan (pointer moves can fire
   // between renders). Assigning during render is the sanctioned "latest value" use.
@@ -319,6 +337,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
               src={toImageUrl(map.imageStorageKey)}
               alt={map.name}
               draggable={false}
+              onLoad={fitToView}
               className="block max-h-[70vh] max-w-full"
             />
             <FogOverlay
@@ -358,7 +377,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           <ZoomButton onClick={() => setZoom((z) => clampZoom(z / 1.25))} title="Zoom out">
             <ZoomOut className="h-4 w-4" />
           </ZoomButton>
-          <ZoomButton onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }} title="Reset view">
+          <ZoomButton onClick={fitToView} title="Reset view">
             <Maximize className="h-4 w-4" />
           </ZoomButton>
         </div>
