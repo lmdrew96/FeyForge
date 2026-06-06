@@ -1630,7 +1630,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     raceName, classColor, hitDie, darkvision,
     items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, invocationRows, maneuverRows, landCircleRow, landCircleTerrain, subclassId, casterType, edition,
     shortRestResourceKeys, equippedWeapons, fightingStyleId,
-    armorClass, armorName, nextOrder,
+    armorClass, critRange, armorName, nextOrder,
     grantedFeatures, channelDivinityOptions, grantedProficiencies,
   } = deriveCharacter(char, allProps, campaign)
 
@@ -1780,6 +1780,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           abilities={totalAbilities}
           weapons={equippedWeapons}
           fightingStyleId={fightingStyleId}
+          critRange={critRange}
           roll={roll}
           rollExpr={rollExpr}
         />

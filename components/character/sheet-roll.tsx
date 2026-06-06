@@ -22,8 +22,10 @@ const SHEET_MODE_LABEL: Record<RollMode, string> = {
   disadvantage: "Disadvantage",
 }
 
-// d20 check/save/attack roll — applies the advantage/disadvantage toggle.
-export type SheetRollFn = (label: string, mod: number) => void
+// d20 check/save/attack roll — applies the advantage/disadvantage toggle. Returns
+// the roll result (or null on failure) so callers like attacks can read the
+// natural d20 (e.g. to detect a crit at the character's crit range).
+export type SheetRollFn = (label: string, mod: number) => DiceRollResult | null
 // Arbitrary expression (e.g. weapon damage "1d8+3"), optionally a crit.
 export type SheetRollExprFn = (
   label: string,
@@ -86,8 +88,9 @@ export function useSheetRoll(): SheetRoll {
   const roll: SheetRollFn = (label, mod) => {
     const sign = mod >= 0 ? "+" : "-"
     const result = rollExpression(`1d20${sign}${Math.abs(mod)}`, { label, mode })
-    if (!result) return
+    if (!result) return null
     surface(result)
+    return result
   }
 
   // Arbitrary expression (e.g. weapon damage "1d8+3"). Damage isn't adv/dis, so

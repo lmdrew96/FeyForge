@@ -68,7 +68,7 @@ export function SessionCharacterSheet({
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
     spells, grantedSpells, resourceRows, formRows, companionRows, invocationRows, maneuverRows, landCircleRow, landCircleTerrain, subclassId, casterType, edition,
-    equippedWeapons, fightingStyleId, armorClass, armorName, nextOrder,
+    equippedWeapons, fightingStyleId, armorClass, critRange, armorName, nextOrder,
     channelDivinityOptions,
   } = deriveCharacter(char, allProps, campaign)
 
@@ -134,6 +134,7 @@ export function SessionCharacterSheet({
         abilities={totalAbilities}
         weapons={equippedWeapons}
         fightingStyleId={fightingStyleId}
+        critRange={critRange}
         roll={roll}
         rollExpr={rollExpr}
       />

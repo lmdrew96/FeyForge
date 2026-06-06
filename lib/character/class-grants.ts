@@ -588,3 +588,34 @@ export function getGrantedProficiencies(
     g.kind === "proficiency" ? [g.proficiency] : [],
   )
 }
+
+// ── Numeric auto-apply: subclass features that change a sheet number ─────────────
+// Most feature grants are descriptive, but a few are pure numbers the sheet should
+// compute so the player never has to remember them. These derive-live from
+// (class, subclass, level) — no stored state, so they auto-correct and apply to
+// characters built before the feature.
+
+/**
+ * The lowest d20 face on which this character's WEAPON attacks score a critical
+ * hit (20 normally). The Champion fighter's Improved Critical lowers it to 19 at
+ * level 3, and Superior Critical to 18 at level 15. Edition-stable.
+ */
+export function getCritRange(
+  classId: string,
+  subclassId: string | undefined,
+  level: number,
+): number {
+  if (classId.toLowerCase() === "fighter" && subclassId === "champion") {
+    if (level >= 15) return 18
+    if (level >= 3) return 19
+  }
+  return 20
+}
+
+/**
+ * Whether the character has the Draconic Bloodline sorcerer's Draconic Resilience
+ * (gained at level 1) — its unarmored AC = 13 + Dex is applied in computeArmorClass.
+ */
+export function hasDraconicResilience(classId: string, subclassId: string | undefined): boolean {
+  return classId.toLowerCase() === "sorcerer" && subclassId === "draconic-bloodline"
+}

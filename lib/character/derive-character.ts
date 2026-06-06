@@ -23,6 +23,8 @@ import {
   getGrantedSpells,
   getGrantedFeatures,
   getGrantedProficiencies,
+  getCritRange,
+  hasDraconicResilience,
   type GrantedSpellRef,
   type GrantedFeatureData,
   type GrantedProficiency,
@@ -62,6 +64,7 @@ export interface CharacterDerived {
   equippedWeapons: SheetItem[]
   fightingStyleId: string | undefined
   armorClass: number
+  critRange: number
   armorName: string | undefined
   nextOrder: number
   grantedSpells: GrantedSpellRef[]
@@ -188,8 +191,12 @@ export function deriveCharacter(
   const fightingStyleId = featRows
     .map((p) => (p.data as { fightingStyleId?: string } | undefined)?.fightingStyleId)
     .find(Boolean)
+  // Numeric subclass auto-applies (derive-live, see class-grants): Draconic
+  // Resilience bumps unarmored AC to 13 + Dex; Champion lowers the crit threshold.
+  const draconicResilience = hasDraconicResilience(char.characterClass, subclassId)
+  const critRange = getCritRange(char.characterClass, subclassId, char.level)
   // Pass RAW ability scores — computeArmorClass derives the DEX modifier itself.
-  const armorClass = computeArmorClass(char.level, totalAbilities, items, fightingStyleId)
+  const armorClass = computeArmorClass(char.level, totalAbilities, items, fightingStyleId, draconicResilience)
   const armorName = equippedArmor(items)?.name
   const nextOrder = myProps.length
     ? Math.max(...myProps.map((p) => p.orderIndex)) + 1
@@ -219,6 +226,7 @@ export function deriveCharacter(
     equippedWeapons,
     fightingStyleId,
     armorClass,
+    critRange,
     armorName,
     nextOrder,
     grantedSpells,

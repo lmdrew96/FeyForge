@@ -161,13 +161,18 @@ export function computeArmorClass(
   abilities: AbilityScores,
   items: SheetItem[],
   fightingStyleId?: string,
+  draconicResilience?: boolean,
 ): number {
   const base = calculateArmorClass(
     { level, properties: items } as unknown as Character,
     abilities,
   )
   const defenseBonus = fightingStyleId === "defense" && equippedArmor(items) ? 1 : 0
-  return base + defenseBonus
+  // Draconic Resilience: while not wearing armor, AC is 13 + Dex instead of the
+  // 10 + Dex unarmored default (a flat +3). A shield still stacks (it's already
+  // counted in `base`); body armor overrides it, so only apply when unarmored.
+  const draconicBonus = draconicResilience && !equippedArmor(items) ? 3 : 0
+  return base + defenseBonus + draconicBonus
 }
 
 // The equipped body armor (not a shield), for labelling the AC box.
