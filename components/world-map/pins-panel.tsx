@@ -93,9 +93,15 @@ export function PinsPanel({
   }, [locations, activeKeys, query, sortByType])
 
   return (
-    <div className="fixed inset-0 z-[60] flex justify-end" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center sm:items-stretch sm:justify-end"
+      style={{ background: "rgba(0,0,0,0.4)" }}
+      onClick={onClose}
+    >
+      {/* Bottom sheet on mobile (partial height, map visible above), right-side
+          panel on desktop — matches the pin detail's bottom-sheet behavior. */}
       <aside
-        className="flex h-full w-full max-w-sm flex-col border-l shadow-2xl"
+        className="flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)] shadow-2xl sm:h-full sm:max-h-none sm:max-w-sm sm:rounded-none sm:border-t-0 sm:border-l sm:pb-0"
         style={{ borderColor: "var(--scene-border)", background: "var(--scene-surface)" }}
         onClick={(e) => e.stopPropagation()}
       >
