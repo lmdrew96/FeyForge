@@ -1014,6 +1014,7 @@ function PlayerWaiting() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SessionPage() {
+  const router = useRouter()
   const [tab, setTab] = useState<TabId>("live")
 
   const context = useQuery(api.campaignMembers.getMyCampaignContext)
@@ -1023,6 +1024,24 @@ export default function SessionPage() {
     api.liveSessions.getMyPartyMember,
     !isDM && session ? { sessionId: session._id } : "skip"
   )
+
+  // When the DM ends the session, getMyCampaignContext reactively flips
+  // session → null. For a player that would otherwise drop them on the
+  // "Awaiting the DM" screen; instead send them back to the dashboard. We only
+  // redirect on a real present→absent transition (tracked via the ref) so a
+  // player who lands here with no live session still sees the waiting view.
+  const wasInSessionRef = useRef(false)
+  useEffect(() => {
+    if (isDM) return // DM stays put and gets the recap toast
+    if (context === undefined) return // still loading — not an "ended" signal
+    if (session) {
+      wasInSessionRef.current = true
+    } else if (wasInSessionRef.current) {
+      wasInSessionRef.current = false
+      toast.info("The DM ended the session.")
+      router.push("/dashboard")
+    }
+  }, [session, isDM, context, router])
 
   // Widen to a dashboard when the live OR map tab is showing the
   // Conductor/Receiver. JoinView, DMReadyView, PlayerWaiting and the loading
