@@ -23,7 +23,7 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { Crown, Eye, EyeOff, Globe, ListFilter, Loader2, Maximize, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
+import { Crown, Eye, EyeOff, Globe, ListFilter, Loader2, Maximize, MoreHorizontal, Route as RouteIcon, ZoomIn, ZoomOut } from "lucide-react"
 import { FogOverlay } from "./fog-overlay"
 import { decodeFogMask } from "./fog-mask"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "./routes-overlay"
@@ -61,6 +61,9 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
   // Realms & faiths panel — lazy, opened from the toolbar.
   const [wbOpen, setWbOpen] = useState(false)
+  // Mobile-only "More" dropdown: keep pin visibility + filter on the bar, tuck
+  // Travel + Realms behind it (matches the DM map toolbar).
+  const [moreOpen, setMoreOpen] = useState(false)
   const worldbuilding = useQuery(api.worldMap.getWorldbuilding, wbOpen ? { campaignId } : "skip")
 
   // View transform
@@ -373,28 +376,76 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             <ListFilter className="h-4 w-4" />
             <span className="hidden sm:inline">List</span>
           </button>
-          <button
-            onClick={toggleRoutes}
-            title="Plan a journey — show the route network and tap towns to chain stops with travel time"
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
-            style={{
-              background: showRoutes ? "var(--scene-accent)" : "var(--scene-surface)",
-              color: showRoutes ? "#fff" : "var(--scene-text-primary)",
-              border: `1px solid ${showRoutes ? "var(--scene-accent)" : "var(--scene-border)"}`,
-            }}
-          >
-            <RouteIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Travel</span>
-          </button>
-          <button
-            onClick={() => setWbOpen(true)}
-            title="Realms &amp; Faiths — the world's kingdoms and religions"
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
-            style={{ background: "var(--scene-surface)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
-          >
-            <Crown className="h-4 w-4" />
-            <span className="hidden sm:inline">Realms</span>
-          </button>
+          {/* Desktop: Travel + Realms inline in the stack. */}
+          <div className="hidden flex-col items-end gap-1 sm:flex">
+            <button
+              onClick={toggleRoutes}
+              title="Plan a journey — show the route network and tap towns to chain stops with travel time"
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+              style={{
+                background: showRoutes ? "var(--scene-accent)" : "var(--scene-surface)",
+                color: showRoutes ? "#fff" : "var(--scene-text-primary)",
+                border: `1px solid ${showRoutes ? "var(--scene-accent)" : "var(--scene-border)"}`,
+              }}
+            >
+              <RouteIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Travel</span>
+            </button>
+            <button
+              onClick={() => setWbOpen(true)}
+              title="Realms &amp; Faiths — the world's kingdoms and religions"
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+              style={{ background: "var(--scene-surface)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+            >
+              <Crown className="h-4 w-4" />
+              <span className="hidden sm:inline">Realms</span>
+            </button>
+          </div>
+
+          {/* Mobile: Travel + Realms collapse into a "More" dropdown. */}
+          <div className="relative sm:hidden">
+            <button
+              onClick={() => setMoreOpen((o) => !o)}
+              title="More tools"
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+              style={{
+                background: moreOpen || showRoutes ? "var(--scene-accent)" : "var(--scene-surface)",
+                color: moreOpen || showRoutes ? "#fff" : "var(--scene-text-primary)",
+                border: `1px solid ${moreOpen || showRoutes ? "var(--scene-accent)" : "var(--scene-border)"}`,
+              }}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+            {moreOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                <div
+                  className="absolute right-0 top-full z-50 mt-1 flex w-44 flex-col gap-0.5 rounded-xl p-2 shadow-2xl"
+                  style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+                >
+                  <button
+                    onClick={() => { toggleRoutes(); setMoreOpen(false) }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                    style={{
+                      background: showRoutes ? "var(--scene-accent)" : "transparent",
+                      color: showRoutes ? "#fff" : "var(--scene-text-primary)",
+                    }}
+                  >
+                    <RouteIcon className="h-4 w-4" />
+                    Plan a journey
+                  </button>
+                  <button
+                    onClick={() => { setWbOpen(true); setMoreOpen(false) }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+                    style={{ background: "transparent", color: "var(--scene-text-primary)" }}
+                  >
+                    <Crown className="h-4 w-4" />
+                    Realms &amp; Faiths
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {showRoutes && routes && routes.length > 0 && (

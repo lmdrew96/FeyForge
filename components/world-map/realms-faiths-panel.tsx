@@ -64,10 +64,16 @@ export function RealmsFaithsPanel({
   const empty = realms.length === 0 && faiths.length === 0
 
   return (
-    <div className="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center sm:items-stretch sm:justify-end"
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      {/* Bottom sheet on mobile (map + backdrop stay visible above → tap to
+          dismiss), right-side panel on desktop. Matches the detail + filter panels. */}
       <div
-        className="relative z-10 flex h-full w-full max-w-md flex-col border-l shadow-2xl"
+        className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)] shadow-2xl sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none sm:border-t-0 sm:border-l sm:pb-0"
         style={{ background: "var(--scene-surface)", borderColor: "var(--scene-border)" }}
       >
         <div
@@ -86,7 +92,7 @@ export function RealmsFaithsPanel({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {empty ? (
             <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
               No realms or faiths recorded for this map. Re-import the world to populate them.
