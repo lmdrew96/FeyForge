@@ -193,6 +193,7 @@ export function JourneyCard({
   onSetLegMode,
   onRemoveLast,
   onClear,
+  onClose,
 }: {
   originName: string | null
   waypointCount: number
@@ -201,7 +202,8 @@ export function JourneyCard({
   hasWater: boolean // map has a sea network → Ship legs are usable
   onSetLegMode: (legIndex: number, mode: TravelMode) => void
   onRemoveLast: () => void
-  onClear: () => void
+  onClear: () => void // reset the waypoints (stay in travel mode)
+  onClose: () => void // exit travel mode entirely (the X / panel close)
 }) {
   const [footPace, setFootPace] = useState<FootPace>("normal")
   const [shipKind, setShipKind] = useState<ShipKind>("sailing")
@@ -230,7 +232,7 @@ export function JourneyCard({
 
   return (
     <div
-      className="flex max-h-[70vh] w-72 flex-col rounded-xl border p-3 shadow-2xl"
+      className="flex max-h-[60vh] w-full flex-col rounded-t-2xl border p-3 shadow-2xl sm:max-h-[70vh] sm:w-72 sm:rounded-xl"
       style={{ background: "var(--scene-surface)", borderColor: "var(--scene-border)" }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -240,7 +242,7 @@ export function JourneyCard({
             Plan a journey
           </span>
         </div>
-        <button onClick={onClear} aria-label="Clear" className="rounded p-0.5 hover:opacity-70" style={{ color: "var(--scene-text-muted)" }}>
+        <button onClick={onClose} aria-label="Close" title="Exit travel mode" className="rounded p-0.5 hover:opacity-70" style={{ color: "var(--scene-text-muted)" }}>
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -386,11 +388,16 @@ export function JourneyCard({
               Past 8 h/day on land is a forced march — Con saves each extra hour or gain exhaustion (5e).
             </p>
           )}
-          <div className="mt-2 flex items-center justify-between text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
-            <span>Tap a town to add a stop.</span>
-            <button onClick={onRemoveLast} className="rounded px-1.5 py-0.5 font-medium hover:opacity-80" style={fieldStyle}>
-              Remove last
-            </button>
+          <div className="mt-2 flex items-center justify-between gap-2 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+            <span className="min-w-0 flex-1 truncate">Tap a town to add a stop.</span>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button onClick={onClear} className="rounded px-1.5 py-0.5 font-medium hover:opacity-80" style={fieldStyle}>
+                Clear
+              </button>
+              <button onClick={onRemoveLast} className="rounded px-1.5 py-0.5 font-medium hover:opacity-80" style={fieldStyle}>
+                Remove last
+              </button>
+            </div>
           </div>
         </div>
       )}

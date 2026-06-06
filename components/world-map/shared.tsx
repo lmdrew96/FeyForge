@@ -701,6 +701,75 @@ export function panToAnchorZoom(
   )
 }
 
+// ── Pinch-to-zoom (touch) ───────────────────────────────────────────────────────
+// The map viewport uses pointer events with touch-action:none, so each finger is a
+// pointer. This hook tracks up to two and, on a 2-finger gesture, zooms by the ratio
+// of their spread — anchored at the pinch midpoint via panToAnchorZoom (same math as
+// the wheel handler). Zoom/pan are read from refs so the per-move math uses live
+// values; the new zoom is derived from the gesture-start snapshot so rapid moves
+// don't compound stale state. Compose it into a surface's existing pointer handlers:
+// onPointerDown returns true once pinching (skip your pan/placement), onPointerMove
+// returns true when it consumed the move, onPointerEnd returns true if the lifted
+// pointer was part of a multitouch gesture (skip your tap/click).
+export function usePinchZoom(opts: {
+  zoomRef: { current: number }
+  panRef: { current: { x: number; y: number } }
+  setZoom: (z: number) => void
+  setPan: (p: { x: number; y: number }) => void
+  clampZoom: (z: number) => number
+  imgRef: { current: HTMLImageElement | null }
+  viewportRef: { current: HTMLElement | null }
+}) {
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{
+    startDist: number
+    startZoom: number
+    startPan: { x: number; y: number }
+    mid: { clientX: number; clientY: number }
+  } | null>(null)
+
+  const spread = () => {
+    const [a, b] = [...pointers.current.values()]
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 }
+  }
+
+  const onPointerDown = (e: { pointerId: number; clientX: number; clientY: number }): boolean => {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size === 2) {
+      const s = spread()
+      pinch.current = {
+        startDist: s.dist,
+        startZoom: opts.zoomRef.current,
+        startPan: opts.panRef.current,
+        mid: { clientX: s.midX, clientY: s.midY },
+      }
+    }
+    return pinch.current != null
+  }
+
+  const onPointerMove = (e: { pointerId: number; clientX: number; clientY: number }): boolean => {
+    if (!pointers.current.has(e.pointerId)) return pinch.current != null
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const p = pinch.current
+    if (!p || pointers.current.size < 2) return p != null
+    if (p.startDist > 0) {
+      const nz = opts.clampZoom(p.startZoom * (spread().dist / p.startDist))
+      opts.setPan(panToAnchorZoom(p.mid, p.startZoom, nz, p.startPan, opts.imgRef.current, opts.viewportRef.current))
+      opts.setZoom(nz)
+    }
+    return true
+  }
+
+  const onPointerEnd = (e: { pointerId: number }): boolean => {
+    const wasMulti = pointers.current.size >= 2 || pinch.current != null
+    pointers.current.delete(e.pointerId)
+    if (pointers.current.size < 2) pinch.current = null
+    return wasMulti
+  }
+
+  return { onPointerDown, onPointerMove, onPointerEnd }
+}
+
 // ── Resizable pin-detail sidebar ────────────────────────────────────────────────
 // The desktop detail panel, widened by dragging its left edge. Width persists to
 // localStorage so it sticks across sessions and both map surfaces (DM editor +

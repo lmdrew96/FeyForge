@@ -37,6 +37,7 @@ import { computeSurroundings } from "@/lib/worldMap/surroundings"
 import {
   clampPanToViewport,
   panToAnchorZoom,
+  usePinchZoom,
   ResizableDetailAside,
   PANEL_DEFAULT,
   DEFAULT_FOG_RADIUS,
@@ -83,6 +84,14 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   const dragState = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null)
 
   const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
+
+  // Live refs so the pinch handler reads current zoom/pan (pointer moves can fire
+  // between renders). Assigning during render is the sanctioned "latest value" use.
+  const zoomRef = useRef(zoom)
+  zoomRef.current = zoom
+  const panRef = useRef(pan)
+  panRef.current = pan
+  const pinch = usePinchZoom({ zoomRef, panRef, setZoom, setPan, clampZoom, imgRef, viewportRef })
 
   // Pull pan back into bounds whenever zoom changes (matches the DM page).
   useEffect(() => {
@@ -168,11 +177,16 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   }
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    dragState.current = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y, moved: false }
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    if (pinch.onPointerDown(e)) {
+      dragState.current = null // a second finger landed — pinch, not pan
+      return
+    }
+    dragState.current = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y, moved: false }
   }
 
   const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (pinch.onPointerMove(e)) return
     const d = dragState.current
     if (!d) return
     const dx = e.clientX - d.sx
@@ -181,7 +195,8 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     setPan(clampPanToViewport({ x: d.px + dx, y: d.py + dy }, zoom, imgRef.current, viewportRef.current))
   }
 
-  const endPointer = () => {
+  const endPointer = (e: ReactPointerEvent<HTMLDivElement>) => {
+    pinch.onPointerEnd(e)
     dragState.current = null
   }
 
@@ -287,6 +302,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endPointer}
+          onPointerCancel={endPointer}
           onPointerLeave={endPointer}
         >
           {/* Transform layer shrink-wraps the image so pin %s resolve against the
@@ -455,7 +471,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
         )}
 
         {showRoutes && (
-          <div className="absolute bottom-4 left-4 z-20">
+          <div className="absolute inset-x-0 bottom-0 z-20 sm:inset-x-auto sm:bottom-4 sm:left-4">
             <JourneyCard
               originName={planner.originName}
               waypointCount={planner.waypointCount}
@@ -465,6 +481,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
               onSetLegMode={planner.setLegMode}
               onRemoveLast={planner.removeLast}
               onClear={planner.clear}
+              onClose={toggleRoutes}
             />
           </div>
         )}

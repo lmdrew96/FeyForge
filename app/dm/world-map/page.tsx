@@ -80,6 +80,7 @@ import {
   DEFAULT_FOG_RADIUS,
   clampPanToViewport,
   panToAnchorZoom,
+  usePinchZoom,
   ResizableDetailAside,
   PANEL_DEFAULT,
   LocationMarker,
@@ -619,6 +620,13 @@ function MapWorkspace({
 
   const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
 
+  // Live refs so the pinch handler reads current zoom/pan between renders.
+  const zoomRef = useRef(zoom)
+  zoomRef.current = zoom
+  const panRef = useRef(pan)
+  panRef.current = pan
+  const pinch = usePinchZoom({ zoomRef, panRef, setZoom, setPan, clampZoom, imgRef, viewportRef })
+
   // Whenever zoom changes (wheel, buttons, reset, centering), pull pan back into
   // bounds — zooming out should reclaim empty edge space rather than stranding the
   // map off-center. Drag-time clamping is handled inline in handlePointerMove.
@@ -649,6 +657,13 @@ function MapWorkspace({
   }
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (pinch.onPointerDown(e)) {
+      // A second finger landed — this is a pinch-zoom, not a pan/paint/place.
+      ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+      dragState.current = null
+      paintingRef.current = false
+      return
+    }
     if (painting) {
       // Start a paint stroke — capture so a drag off the image still tracks.
       paintingRef.current = true
@@ -662,6 +677,7 @@ function MapWorkspace({
   }
 
   const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (pinch.onPointerMove(e)) return
     if (paintingRef.current) {
       applyBrushAt(e.clientX, e.clientY)
       return
@@ -674,7 +690,8 @@ function MapWorkspace({
     setPan(clampPanToViewport({ x: d.px + dx, y: d.py + dy }, zoom, imgRef.current, viewportRef.current))
   }
 
-  const endPointer = () => {
+  const endPointer = (e: ReactPointerEvent<HTMLDivElement>) => {
+    pinch.onPointerEnd(e)
     dragState.current = null
   }
 
@@ -1097,14 +1114,19 @@ function MapWorkspace({
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={(e) => {
+              if (pinch.onPointerEnd(e)) {
+                dragState.current = null
+                return // a pinch finger lifted — not a place/click
+              }
               if (paintingRef.current) {
                 paintingRef.current = false
                 if (pendingRef.current) flushFog()
                 return
               }
               handleViewportClick(e)
-              endPointer()
+              dragState.current = null
             }}
+            onPointerCancel={endPointer}
             onPointerLeave={endPointer}
           >
             {/* Transform layer shrink-wraps the image so pin %s and click %s
@@ -1157,7 +1179,16 @@ function MapWorkspace({
           {/* Zoom controls — slide left of the detail overlay when a pin is open.
               On mobile the workspace is full-height (h-[100dvh]) so lift above the
               fixed bottom nav; reset at md where the nav is gone. */}
-          <div className="absolute bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] right-4 flex flex-col gap-1 md:bottom-4 lg:right-[calc(var(--panel-w)_+_1rem)]">
+          <div
+            className={cn(
+              "absolute right-4 flex flex-col gap-1 md:bottom-4 lg:right-[calc(var(--panel-w)_+_1rem)]",
+              // The journey panel is a full-width bottom sheet on mobile, so move the
+              // zoom controls to the top-right while travel mode is on (no pinch-zoom).
+              showRoutes
+                ? "top-4 sm:top-auto sm:bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))]"
+                : "bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))]",
+            )}
+          >
             <ZoomButton onClick={() => setZoom((z) => clampZoom(z * 1.25))} title="Zoom in">
               <ZoomIn className="h-4 w-4" />
             </ZoomButton>
@@ -1176,7 +1207,7 @@ function MapWorkspace({
           )}
 
           {showRoutes && (
-            <div className="absolute bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] left-4 z-20 md:bottom-4">
+            <div className="absolute inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 sm:inset-x-auto sm:left-4 md:bottom-4">
               <JourneyCard
                 originName={planner.originName}
                 waypointCount={planner.waypointCount}
@@ -1186,6 +1217,7 @@ function MapWorkspace({
                 onSetLegMode={planner.setLegMode}
                 onRemoveLast={planner.removeLast}
                 onClear={planner.clear}
+                onClose={toggleRoutes}
               />
             </div>
           )}
@@ -1537,12 +1569,22 @@ function WorldEventsControl({
             )}
             style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
           >
-            <span
-              className="text-sm font-bold"
-              style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
-            >
-              Active World Events
-            </span>
+            <div className="flex items-start justify-between gap-2">
+              <span
+                className="text-sm font-bold"
+                style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+              >
+                Active World Events
+              </span>
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="-mr-1 -mt-1 rounded p-1 hover:opacity-70"
+                style={{ color: "var(--scene-text-muted)" }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
             <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
               Brewing conflicts, plagues, and disasters across this world — DM-only hooks to seed your story.
             </p>
