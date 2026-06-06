@@ -69,6 +69,7 @@ import {
   Eraser,
   Check,
   Sparkles,
+  MoreHorizontal,
 } from "lucide-react"
 import {
   toImageUrl,
@@ -494,6 +495,9 @@ function MapWorkspace({
   // Travel routes (roads/trails/searoutes) — lazy, only fetched when toggled on.
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
   const [wbOpen, setWbOpen] = useState(false)
+  // Mobile-only "More" dropdown holding the secondary toolbar tools (the bar keeps
+  // just pin visibility + filter; everything else collapses here below sm).
+  const [moreOpen, setMoreOpen] = useState(false)
   const worldbuilding = useQuery(api.worldMap.getWorldbuilding, wbOpen ? { campaignId } : "skip")
   // Multi-leg journey planner (shared with the in-session viewer). Owns the waypoint
   // chain, per-leg mode, land/sea routing, and the summed itinerary.
@@ -913,27 +917,7 @@ function MapWorkspace({
         </div>
         {isDM && (
           <div className="flex shrink-0 items-center gap-2">
-            <ToolbarButton
-              onClick={() => {
-                setPaintMode("off")
-                setPlacing((p) => !p)
-              }}
-              active={placing}
-              title="Add a location"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">{placing ? "Placing…" : "Add"}</span>
-            </ToolbarButton>
-            <FogControl
-              fogEnabled={map.fogEnabled ?? false}
-              fogRadius={fogRadius}
-              previewing={fogPreview}
-              painting={painting}
-              onToggleFog={handleToggleFog}
-              onRadius={handleFogRadius}
-              onTogglePreview={() => setFogPreview((p) => !p)}
-              onStartPaint={startPaint}
-            />
+            {/* Always on the bar: pin visibility + filtering. */}
             <ToolbarButton
               onClick={togglePins}
               active={!showPins}
@@ -954,30 +938,145 @@ function MapWorkspace({
               <ListFilter className="h-4 w-4" />
               <span className="hidden sm:inline">List</span>
             </ToolbarButton>
-            {(map.worldEvents?.length ?? 0) > 0 && (
-              <WorldEventsControl
-                events={map.worldEvents!}
-                locations={locations}
-                onJumpTo={jumpToLocation}
-                onAddTown={addEventTown}
+
+            {/* Desktop: the rest of the tools inline. */}
+            <div className="hidden items-center gap-2 sm:flex">
+              <ToolbarButton
+                onClick={() => {
+                  setPaintMode("off")
+                  setPlacing((p) => !p)
+                }}
+                active={placing}
+                title="Add a location"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">{placing ? "Placing…" : "Add"}</span>
+              </ToolbarButton>
+              <FogControl
+                fogEnabled={map.fogEnabled ?? false}
+                fogRadius={fogRadius}
+                previewing={fogPreview}
+                painting={painting}
+                onToggleFog={handleToggleFog}
+                onRadius={handleFogRadius}
+                onTogglePreview={() => setFogPreview((p) => !p)}
+                onStartPaint={startPaint}
               />
-            )}
-            <ToolbarButton
-              onClick={toggleRoutes}
-              active={showRoutes}
-              title="Plan a journey — show the route network and tap towns to chain stops"
-            >
-              <RouteIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Travel</span>
-            </ToolbarButton>
-            <ToolbarButton onClick={() => setWbOpen(true)} title="Realms & Faiths — the world's kingdoms and religions">
-              <Crown className="h-4 w-4" />
-              <span className="hidden sm:inline">Realms</span>
-            </ToolbarButton>
-            <ToolbarButton onClick={onChangeMap} title="Switch to a different map">
-              <ImageIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Change map</span>
-            </ToolbarButton>
+              {(map.worldEvents?.length ?? 0) > 0 && (
+                <WorldEventsControl
+                  events={map.worldEvents!}
+                  locations={locations}
+                  onJumpTo={jumpToLocation}
+                  onAddTown={addEventTown}
+                />
+              )}
+              <ToolbarButton
+                onClick={toggleRoutes}
+                active={showRoutes}
+                title="Plan a journey — show the route network and tap towns to chain stops"
+              >
+                <RouteIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Travel</span>
+              </ToolbarButton>
+              <ToolbarButton onClick={() => setWbOpen(true)} title="Realms & Faiths — the world's kingdoms and religions">
+                <Crown className="h-4 w-4" />
+                <span className="hidden sm:inline">Realms</span>
+              </ToolbarButton>
+              <ToolbarButton onClick={onChangeMap} title="Switch to a different map">
+                <ImageIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Change map</span>
+              </ToolbarButton>
+            </div>
+
+            {/* Mobile: everything else collapses into a "More" dropdown so the bar
+                can't overflow. Simple actions close the menu on tap; Fog / Events
+                open their own controls as a centered sheet (menu mode). */}
+            <div className="relative sm:hidden">
+              <ToolbarButton
+                onClick={() => setMoreOpen((o) => !o)}
+                active={moreOpen || placing || showRoutes || (map.fogEnabled ?? false) || painting}
+                title="More tools"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </ToolbarButton>
+              {moreOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                  <div
+                    className="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-0.5 rounded-xl p-2 shadow-2xl"
+                    style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+                  >
+                    <ToolbarButton
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setPaintMode("off")
+                        setPlacing((p) => !p)
+                        setMoreOpen(false)
+                      }}
+                      active={placing}
+                      title="Add a location"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {placing ? "Placing…" : "Add location"}
+                    </ToolbarButton>
+                    <FogControl
+                      menu
+                      fogEnabled={map.fogEnabled ?? false}
+                      fogRadius={fogRadius}
+                      previewing={fogPreview}
+                      painting={painting}
+                      onToggleFog={handleToggleFog}
+                      onRadius={handleFogRadius}
+                      onTogglePreview={() => setFogPreview((p) => !p)}
+                      onStartPaint={startPaint}
+                    />
+                    {(map.worldEvents?.length ?? 0) > 0 && (
+                      <WorldEventsControl
+                        menu
+                        events={map.worldEvents!}
+                        locations={locations}
+                        onJumpTo={jumpToLocation}
+                        onAddTown={addEventTown}
+                      />
+                    )}
+                    <ToolbarButton
+                      className="w-full justify-start"
+                      onClick={() => {
+                        toggleRoutes()
+                        setMoreOpen(false)
+                      }}
+                      active={showRoutes}
+                      title="Plan a journey — show the route network and tap towns to chain stops"
+                    >
+                      <RouteIcon className="h-4 w-4" />
+                      Plan a journey
+                    </ToolbarButton>
+                    <ToolbarButton
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setWbOpen(true)
+                        setMoreOpen(false)
+                      }}
+                      title="Realms & Faiths — the world's kingdoms and religions"
+                    >
+                      <Crown className="h-4 w-4" />
+                      Realms &amp; Faiths
+                    </ToolbarButton>
+                    <ToolbarButton
+                      className="w-full justify-start"
+                      onClick={() => {
+                        onChangeMap()
+                        setMoreOpen(false)
+                      }}
+                      title="Switch to a different map"
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                      Change map
+                    </ToolbarButton>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1390,11 +1489,15 @@ function WorldEventsControl({
   locations,
   onJumpTo,
   onAddTown,
+  menu,
 }: {
   events: { name: string; type: string; cellCount?: number; places?: EventPlace[] }[]
   locations: MapLocation[]
   onJumpTo: (loc: MapLocation) => void
   onAddTown: (place: EventPlace) => void
+  // In `menu` mode (the mobile More dropdown): full-width labeled trigger + the
+  // event list opens as a centered sheet instead of an anchored popover.
+  menu?: boolean
 }) {
   const [open, setOpen] = useState(false)
   // Match an affected town to an existing pin by name AND near-exact coords (the
@@ -1407,9 +1510,14 @@ function WorldEventsControl({
     )
   return (
     <div className="relative">
-      <ToolbarButton onClick={() => setOpen((o) => !o)} active={open} title="Active world events">
+      <ToolbarButton
+        onClick={() => setOpen((o) => !o)}
+        active={open}
+        title="Active world events"
+        className={menu ? "w-full justify-start" : undefined}
+      >
         <Swords className="h-4 w-4" />
-        <span className="hidden sm:inline">Events</span>
+        <span className={menu ? "" : "hidden sm:inline"}>Events</span>
         <span
           className="ml-1 rounded-full px-1.5 text-[10px] font-bold leading-tight"
           style={{ background: "var(--scene-accent)", color: "#fff" }}
@@ -1421,7 +1529,12 @@ function WorldEventsControl({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-full z-50 mt-2 max-h-[60vh] w-72 overflow-y-auto rounded-xl p-4 shadow-2xl"
+            className={cn(
+              "z-50 max-h-[70vh] overflow-y-auto rounded-xl p-4 shadow-2xl",
+              menu
+                ? "fixed left-1/2 top-1/2 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2"
+                : "absolute right-0 top-full mt-2 w-72",
+            )}
             style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
           >
             <span
@@ -1515,6 +1628,7 @@ function FogControl({
   onRadius,
   onTogglePreview,
   onStartPaint,
+  menu,
 }: {
   fogEnabled: boolean
   fogRadius: number
@@ -1524,20 +1638,33 @@ function FogControl({
   onRadius: (radius: number) => void
   onTogglePreview: () => void
   onStartPaint: () => void
+  // In `menu` mode (the mobile More dropdown) the trigger is a full-width labeled
+  // row and the controls open as a centered sheet instead of an anchored popover.
+  menu?: boolean
 }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
-      <ToolbarButton onClick={() => setOpen((o) => !o)} active={fogEnabled || painting} title="Fog of war">
+      <ToolbarButton
+        onClick={() => setOpen((o) => !o)}
+        active={fogEnabled || painting}
+        title="Fog of war"
+        className={menu ? "w-full justify-start" : undefined}
+      >
         <CloudFog className="h-4 w-4" />
-        <span className="hidden sm:inline">Fog</span>
+        <span className={menu ? "" : "hidden sm:inline"}>Fog</span>
       </ToolbarButton>
       {open && (
         <>
           {/* Click-away backdrop. */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl p-4 shadow-2xl"
+            className={cn(
+              "z-50 rounded-xl p-4 shadow-2xl",
+              menu
+                ? "fixed left-1/2 top-1/2 w-[calc(100vw-2rem)] max-w-xs -translate-x-1/2 -translate-y-1/2"
+                : "absolute right-0 top-full mt-2 w-64",
+            )}
             style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
           >
             <div className="flex items-center justify-between gap-2">
@@ -1745,13 +1872,16 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
 }
 
 function ToolbarButton({
-  children, onClick, active, title,
-}: { children: React.ReactNode; onClick: () => void; active?: boolean; title?: string }) {
+  children, onClick, active, title, className,
+}: { children: React.ReactNode; onClick: () => void; active?: boolean; title?: string; className?: string }) {
   return (
     <button
       onClick={onClick}
       title={title}
-      className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90",
+        className,
+      )}
       style={{
         background: active ? "var(--scene-accent)" : "var(--scene-surface)",
         color: active ? "#fff" : "var(--scene-text-primary)",
