@@ -65,6 +65,12 @@ export interface CharacterDerived {
   fightingStyleId: string | undefined
   armorClass: number
   critRange: number
+  // Draconic Resilience +1 HP/level: how much SHOULD be baked into max HP (level
+  // if a draconic sorcerer, else 0) and the marker row tracking how much IS baked.
+  // A reconciliation card applies the delta — kept in stored max so combat (which
+  // reads stored max server-side) stays consistent.
+  draconicHpExpected: number
+  draconicHpRow: PropDoc | undefined
   armorName: string | undefined
   nextOrder: number
   grantedSpells: GrantedSpellRef[]
@@ -195,6 +201,14 @@ export function deriveCharacter(
   // Resilience bumps unarmored AC to 13 + Dex; Champion lowers the crit threshold.
   const draconicResilience = hasDraconicResilience(char.characterClass, subclassId)
   const critRange = getCritRange(char.characterClass, subclassId, char.level)
+  // Draconic Resilience grants +1 max HP per sorcerer level. Expected = level when
+  // active; the marker row records how much is currently baked into stored max.
+  const draconicHpExpected = draconicResilience ? char.level : 0
+  const draconicHpRow = myProps.find(
+    (p) =>
+      p.type === "hpAdjustment" &&
+      (p.data as { source?: string } | undefined)?.source === "draconic-resilience",
+  )
   // Pass RAW ability scores — computeArmorClass derives the DEX modifier itself.
   const armorClass = computeArmorClass(char.level, totalAbilities, items, fightingStyleId, draconicResilience)
   const armorName = equippedArmor(items)?.name
@@ -227,6 +241,8 @@ export function deriveCharacter(
     fightingStyleId,
     armorClass,
     critRange,
+    draconicHpExpected,
+    draconicHpRow,
     armorName,
     nextOrder,
     grantedSpells,

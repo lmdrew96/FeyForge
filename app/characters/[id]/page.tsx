@@ -1586,6 +1586,104 @@ function EnableSpellcastingCard({ char, edition }: { char: CharDoc; edition: Edi
   )
 }
 
+// Draconic Resilience (Draconic Bloodline sorcerer) grants +1 max HP per level.
+// HP must live in STORED max — combat reads it server-side — so this reconciles
+// the stored value against the expected bonus and bakes the delta on one tap (the
+// "put the action where it's seen" half of patch 742cf763). Idempotent: it tracks
+// the applied amount in a hidden `hpAdjustment` marker, so it handles new levels,
+// the retroactive backfill for existing sorcerers, and reversal if the subclass
+// changes away. Renders nothing when stored max is already correct.
+function DraconicResilienceCard({
+  char,
+  row,
+  expected,
+  nextOrder,
+}: {
+  char: CharDoc
+  row: Doc<"characterProperties"> | undefined
+  expected: number
+  nextOrder: number
+}) {
+  const doUpdate = useMutation(api.characters.update)
+  const addProperty = useMutation(api.characters.addProperty)
+  const updateProperty = useMutation(api.characters.updateProperty)
+  const removeProperty = useMutation(api.characters.removeProperty)
+  const [saving, setSaving] = useState(false)
+
+  const applied = (row?.data as { hp?: number } | undefined)?.hp ?? 0
+  const delta = expected - applied
+  if (delta === 0) return null
+
+  const handleApply = async () => {
+    setSaving(true)
+    try {
+      const newMax = Math.max(1, char.hitPoints.max + delta)
+      // Gaining HP raises current too; losing it only clamps current to the new max.
+      const newCurrent =
+        delta > 0 ? char.hitPoints.current + delta : Math.min(char.hitPoints.current, newMax)
+      await doUpdate({
+        id: char._id,
+        hitPoints: { ...char.hitPoints, max: newMax, current: newCurrent },
+      })
+      if (expected === 0) {
+        if (row) await removeProperty({ id: row._id })
+      } else if (row) {
+        await updateProperty({ id: row._id, data: { source: "draconic-resilience", hp: expected } })
+      } else {
+        await addProperty({
+          characterId: char._id,
+          type: "hpAdjustment",
+          name: "Draconic Resilience HP",
+          active: true,
+          orderIndex: nextOrder,
+          source: "subclass",
+          data: { source: "draconic-resilience", hp: expected },
+        })
+      }
+      toast.success(
+        delta > 0
+          ? `Draconic Resilience applied — +${delta} max HP.`
+          : `Draconic Resilience removed — ${delta} max HP.`,
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update HP.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const removing = expected === 0
+  return (
+    <div
+      className="rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center gap-3"
+      style={{
+        background: "var(--scene-surface)",
+        border: "1px solid color-mix(in srgb, var(--scene-accent) 40%, var(--scene-border))",
+      }}
+    >
+      <div className="flex-1">
+        <div className="text-sm font-semibold mb-0.5" style={{ color: "var(--scene-text-primary)" }}>
+          Draconic Resilience
+        </div>
+        <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+          {removing
+            ? `Your max HP still includes +${applied} from Draconic Resilience, but this character no longer has it. Remove it to correct your hit points.`
+            : `Draconic Resilience adds +1 max HP per sorcerer level (+${expected} at level ${char.level})${applied > 0 ? `; ${applied} is applied` : ""}. Bake it into your hit points so combat stays in sync.`}
+        </p>
+      </div>
+      <button
+        onClick={handleApply}
+        disabled={saving}
+        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50 flex-shrink-0"
+        style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+      >
+        <Sparkles className="h-4 w-4" />
+        {saving ? "Saving…" : removing ? `Remove ${delta} HP` : `Apply +${delta} HP`}
+      </button>
+    </div>
+  )
+}
+
 export default function CharacterSheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const char = useQuery(api.characters.get, { id: id as Id<"characters"> })
@@ -1630,7 +1728,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     raceName, classColor, hitDie, darkvision,
     items, spells, grantedSpells, resourceRows, featRows, formRows, companionRows, invocationRows, maneuverRows, landCircleRow, landCircleTerrain, subclassId, casterType, edition,
     shortRestResourceKeys, equippedWeapons, fightingStyleId,
-    armorClass, critRange, armorName, nextOrder,
+    armorClass, critRange, draconicHpExpected, draconicHpRow, armorName, nextOrder,
     grantedFeatures, channelDivinityOptions, grantedProficiencies,
   } = deriveCharacter(char, allProps, campaign)
 
@@ -1758,6 +1856,14 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           </div>
           <RestPanel char={char} resourceRows={resourceRows} shortRestResourceKeys={shortRestResourceKeys} />
         </div>
+
+        {/* Draconic Resilience — bake +1 HP/level into stored max (combat-safe). */}
+        <DraconicResilienceCard
+          char={char}
+          row={draconicHpRow}
+          expected={draconicHpExpected}
+          nextOrder={nextOrder}
+        />
 
         {/* Death saves — auto-surface only while dying (0 HP) */}
         {char.hitPoints.current === 0 && <DyingPanel char={char} />}
