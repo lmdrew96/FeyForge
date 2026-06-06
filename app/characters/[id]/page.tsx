@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X, Sparkles, Skull, Dices, Award, Search, Check } from "lucide-react"
+import { ArrowLeft, Heart, Pencil, Shield, Zap, Wind, Plus, Trash2, Moon, Eye, ChevronsUp, X, Sparkles, Skull, Dices, Award, Search, Check, Swords, Package, ScrollText, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -1684,6 +1684,47 @@ function DraconicResilienceCard({
   )
 }
 
+// ── Sheet tabs ────────────────────────────────────────────────────────────────
+// Chunk the full sheet into intent-based groups so it isn't one endless scroll
+// (a named ND anti-pattern). Mirrors the scene-styled tab pattern from the live
+// session page. Nothing is removed — every section is one tap away.
+
+type SheetTab = "play" | "abilities" | "spells" | "inventory" | "bio"
+
+const SHEET_TABS: { id: SheetTab; label: string; icon: LucideIcon }[] = [
+  { id: "play", label: "Play", icon: Swords },
+  { id: "abilities", label: "Abilities", icon: Dices },
+  { id: "spells", label: "Spells & Features", icon: Sparkles },
+  { id: "inventory", label: "Inventory", icon: Package },
+  { id: "bio", label: "Bio", icon: ScrollText },
+]
+
+const SHEET_TAB_STORAGE_KEY = "feyforge:sheet-tab"
+
+function SheetTabs({ tab, setTab }: { tab: SheetTab; setTab: (t: SheetTab) => void }) {
+  return (
+    <div
+      className="flex gap-1 mb-6 p-1 rounded-lg overflow-x-auto"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      {SHEET_TABS.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          onClick={() => setTab(id)}
+          className="flex-1 min-w-fit flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap"
+          style={{
+            background: tab === id ? "var(--scene-accent)" : "transparent",
+            color: tab === id ? "var(--scene-bg)" : "var(--scene-text-muted)",
+          }}
+        >
+          <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function CharacterSheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const char = useQuery(api.characters.get, { id: id as Id<"characters"> })
@@ -1697,6 +1738,20 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
     api.campaigns.get,
     char?.campaignId ? { campaignId: char.campaignId } : "skip",
   )
+
+  // Active sheet tab. Default to "play"; restore the last-viewed tab after mount
+  // (read in an effect, not initial state, to avoid an SSR hydration mismatch).
+  const [sheetTab, setSheetTab] = useState<SheetTab>("play")
+  useEffect(() => {
+    const saved = localStorage.getItem(SHEET_TAB_STORAGE_KEY)
+    if (saved && SHEET_TABS.some((t) => t.id === saved)) {
+      setSheetTab(saved as SheetTab)
+    }
+  }, [])
+  const selectTab = (t: SheetTab) => {
+    setSheetTab(t)
+    try { localStorage.setItem(SHEET_TAB_STORAGE_KEY, t) } catch { /* storage may be unavailable */ }
+  }
 
   if (char === undefined) {
     return (
@@ -1768,15 +1823,9 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           </Link>
         </div>
 
-        {/* Roll mode toggle — applies advantage/disadvantage to every sheet roll */}
-        <RollModeBar mode={mode} setMode={setMode} />
-        {lastRoll && (
-          <SheetRollCard result={lastRoll} rolling={rolling} onDismiss={dismiss} />
-        )}
-
-        {/* Header */}
+        {/* Header — identity, pinned above the tabs */}
         <div
-          className="rounded-xl p-5 mb-6"
+          className="rounded-xl p-5 mb-4"
           style={{
             background: "color-mix(in srgb, var(--scene-accent) 6%, var(--scene-surface))",
             border: "1px solid color-mix(in srgb, var(--scene-accent) 20%, var(--scene-border))",
@@ -1827,6 +1876,19 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
+        {/* Roll mode toggle + last roll — pinned so a roll from any tab shows
+            its result in the same place. */}
+        <RollModeBar mode={mode} setMode={setMode} />
+        {lastRoll && (
+          <SheetRollCard result={lastRoll} rolling={rolling} onDismiss={dismiss} />
+        )}
+
+        {/* Tabbed sections — the full sheet chunked into intent groups so it isn't
+            one endless scroll. The active tab is remembered (selectTab). */}
+        <SheetTabs tab={sheetTab} setTab={selectTab} />
+
+        {/* ⚔ Play — at-the-table essentials */}
+        {sheetTab === "play" && (<>
         {/* Experience + Level Up */}
         <ExperienceCard
           char={char}
@@ -1879,7 +1941,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           {char.inspiration && <StatBox label="Inspiration" value="✦" />}
         </div>
 
-        {/* Attacks — derived from equipped weapons in the Inventory below */}
+        {/* Attacks — derived from equipped weapons in the Inventory tab */}
         <AttacksSection
           level={char.level}
           weaponProficiencies={char.weaponProficiencies}
@@ -1890,7 +1952,10 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           roll={roll}
           rollExpr={rollExpr}
         />
+        </>)}
 
+        {/* 🎲 Abilities — scores, saves, skills, proficiencies */}
+        {sheetTab === "abilities" && (<>
         {/* Ability Scores */}
         <AbilityScoresGrid totalAbilities={totalAbilities} mods={mods} roll={roll} />
 
@@ -1937,38 +2002,10 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
             ))}
           </div>
         </section>
+        </>)}
 
-        {/* Personality */}
-        {(char.personalityTraits || char.ideals || char.bonds || char.flaws || char.backstory) && (
-          <section className="mb-6">
-            <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
-              Personality
-            </h2>
-            <div className="space-y-3">
-              {[
-                { label: "Personality Traits", value: char.personalityTraits },
-                { label: "Ideals", value: char.ideals },
-                { label: "Bonds", value: char.bonds },
-                { label: "Flaws", value: char.flaws },
-                { label: "Backstory", value: char.backstory },
-              ].filter(({ value }) => !!value).map(({ label, value }) => (
-                <div key={label} className="rounded-lg px-4 py-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
-                  <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>{label}</div>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--scene-text-primary)" }}>{value}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Currency */}
-        <section>
-          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
-            Currency
-          </h2>
-          <CurrencyEditor char={char} />
-        </section>
-
+        {/* ✨ Spells & Features — class powers, features, feats */}
+        {sheetTab === "spells" && (<>
         {/* Spellcasting — slots, spell save DC/attack, and the spellbook. Casters
             without a block yet (built before this feature) get a one-tap enable card.
             Gated on the CURRENT class being a caster, so a stale block from a class
@@ -2046,9 +2083,6 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           rollExpr={rollExpr}
         />
 
-        {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}
-        <InventorySection characterId={char._id} items={items} nextOrder={nextOrder} />
-
         {/* Class Features — granted by class/subclass (read-only, derived live
             from class-grants; e.g. cleric domain features). */}
         {grantedFeatures.length > 0 && (
@@ -2075,9 +2109,50 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
 
         {/* Feats — ASI-level picks + standalone origin/variant feats */}
         <FeatsSection char={char} featRows={featRows} nextOrder={nextOrder} />
+        </>)}
+
+        {/* 🎒 Inventory — gear and coin */}
+        {sheetTab === "inventory" && (<>
+        {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}
+        <InventorySection characterId={char._id} items={items} nextOrder={nextOrder} />
+
+        {/* Currency */}
+        <section>
+          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+            Currency
+          </h2>
+          <CurrencyEditor char={char} />
+        </section>
+        </>)}
+
+        {/* 📜 Bio — personality and custom notes */}
+        {sheetTab === "bio" && (<>
+        {/* Personality */}
+        {(char.personalityTraits || char.ideals || char.bonds || char.flaws || char.backstory) && (
+          <section className="mb-6">
+            <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+              Personality
+            </h2>
+            <div className="space-y-3">
+              {[
+                { label: "Personality Traits", value: char.personalityTraits },
+                { label: "Ideals", value: char.ideals },
+                { label: "Bonds", value: char.bonds },
+                { label: "Flaws", value: char.flaws },
+                { label: "Backstory", value: char.backstory },
+              ].filter(({ value }) => !!value).map(({ label, value }) => (
+                <div key={label} className="rounded-lg px-4 py-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+                  <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>{label}</div>
+                  <p className="text-sm leading-relaxed" style={{ color: "var(--scene-text-primary)" }}>{value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Custom Properties */}
         <CustomPropertiesSection characterId={char._id} />
+        </>)}
 
       </div>
     </AppShell>
