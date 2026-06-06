@@ -932,7 +932,7 @@ function MapWorkspace({
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col lg:h-screen">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div
         className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6"
@@ -1198,16 +1198,14 @@ function MapWorkspace({
           </div>
 
           {/* Zoom controls — slide left of the detail overlay when a pin is open.
-              On mobile the workspace is full-height (h-[100dvh]) so lift above the
-              fixed bottom nav; reset at md where the nav is gone. */}
+              The workspace fills main's content box (which already reserves the
+              fixed bottom nav), so a plain bottom-4 sits just above the nav. */}
           <div
             className={cn(
               "absolute right-4 flex flex-col gap-1 md:bottom-4 lg:right-[calc(var(--panel-w)_+_1rem)]",
               // The journey panel is a full-width bottom sheet on mobile, so move the
               // zoom controls to the top-right while travel mode is on (no pinch-zoom).
-              showRoutes
-                ? "top-4 sm:top-auto sm:bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))]"
-                : "bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))]",
+              showRoutes ? "top-4 sm:top-auto sm:bottom-4" : "bottom-4",
             )}
           >
             <ZoomButton onClick={() => setZoom((z) => clampZoom(z * 1.25))} title="Zoom in">
@@ -1228,7 +1226,7 @@ function MapWorkspace({
           )}
 
           {showRoutes && (
-            <div className="absolute inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 sm:inset-x-auto sm:left-4 md:bottom-4">
+            <div className="absolute inset-x-0 bottom-0 z-20 sm:inset-x-auto sm:left-4 sm:bottom-4">
               <JourneyCard
                 originName={planner.originName}
                 waypointCount={planner.waypointCount}
