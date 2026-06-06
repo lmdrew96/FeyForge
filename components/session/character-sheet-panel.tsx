@@ -27,6 +27,7 @@ import { WildshapeSection, CompanionsSection } from "@/components/character/crea
 import { InvocationsSection } from "@/components/character/invocations-section"
 import { ManeuversSection } from "@/components/character/maneuvers-section"
 import { LandCircleSection } from "@/components/character/land-circle-section"
+import { HpEditor, RestPanel, DyingPanel } from "@/components/character/rest-panel"
 
 // Two-tab split for the in-session sheet: things you DO (Actions) vs numbers you
 // ROLL (Stats). HP/AC stay pinned in the combat strip above both tabs. Lighter
@@ -116,7 +117,7 @@ export function SessionCharacterSheet({
   const {
     totalAbilities, mods, profBonus, saveMods, skillMods, passivePerception, initiative,
     raceName, classColor, hitDie, darkvision,
-    spells, grantedSpells, resourceRows, formRows, companionRows, invocationRows, maneuverRows, landCircleRow, landCircleTerrain, subclassId, casterType, edition,
+    spells, grantedSpells, resourceRows, shortRestResourceKeys, formRows, companionRows, invocationRows, maneuverRows, landCircleRow, landCircleTerrain, subclassId, casterType, edition,
     equippedWeapons, fightingStyleId, armorClass, critRange, armorName, nextOrder,
     channelDivinityOptions,
   } = deriveCharacter(char, allProps, campaign)
@@ -175,6 +176,11 @@ export function SessionCharacterSheet({
         <StatBox label="Hit Dice" value={`${char.level}d${hitDie}`} />
         {char.inspiration && <StatBox label="Inspiration" value="✦" />}
       </div>
+
+      {/* Death saves — pinned above the tabs (NOT tab-gated) so a dying player
+          always sees them, whichever tab is open. Auto-surfaces only at 0 HP;
+          regaining any HP clears it server-side, so it disappears on heal. */}
+      {char.hitPoints.current === 0 && <DyingPanel char={char} />}
 
       {/* HP/AC stay pinned in the strip above — visible on both tabs. */}
       <SessionSheetTabs tab={sheetTab} setTab={selectTab} />
@@ -277,6 +283,15 @@ export function SessionCharacterSheet({
           roll={roll}
         />
       )}
+
+      {/* Rest & recovery — edit HP + take a short/long rest mid-session. Kept at
+          the bottom of Actions: combat-frequent actions (attack, cast, resources)
+          lead; rest is a between-fights action. Same components + mutations as the
+          full standalone sheet, so HP / slots / hit dice can't drift between them. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 items-start">
+        <HpEditor char={char} />
+        <RestPanel char={char} resourceRows={resourceRows} shortRestResourceKeys={shortRestResourceKeys} />
+      </div>
       </>)}
 
       {/* 🎲 Stats — ability scores, saves, senses, skills */}
