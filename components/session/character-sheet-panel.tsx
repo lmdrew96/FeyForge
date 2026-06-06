@@ -1,9 +1,10 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { Shield } from "lucide-react"
+import { Shield, Swords, Dices, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CLASS_COLORS, formatModifier } from "@/lib/character/constants"
 import { deriveCharacter } from "@/lib/character/derive-character"
@@ -27,6 +28,43 @@ import { InvocationsSection } from "@/components/character/invocations-section"
 import { ManeuversSection } from "@/components/character/maneuvers-section"
 import { LandCircleSection } from "@/components/character/land-circle-section"
 
+// Two-tab split for the in-session sheet: things you DO (Actions) vs numbers you
+// ROLL (Stats). HP/AC stay pinned in the combat strip above both tabs. Lighter
+// than the standalone sheet's 5 tabs — a live surface wants fast access, not deep
+// nesting. The active tab is remembered separately from the standalone sheet.
+type SessionSheetTab = "actions" | "stats"
+
+const SESSION_SHEET_TABS: { id: SessionSheetTab; label: string; icon: LucideIcon }[] = [
+  { id: "actions", label: "Actions", icon: Swords },
+  { id: "stats", label: "Stats", icon: Dices },
+]
+
+const SESSION_SHEET_TAB_KEY = "feyforge:session-sheet-tab"
+
+function SessionSheetTabs({ tab, setTab }: { tab: SessionSheetTab; setTab: (t: SessionSheetTab) => void }) {
+  return (
+    <div
+      className="flex gap-1 mb-6 p-1 rounded-lg"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      {SESSION_SHEET_TABS.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          onClick={() => setTab(id)}
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all"
+          style={{
+            background: tab === id ? "var(--scene-accent)" : "transparent",
+            color: tab === id ? "var(--scene-bg)" : "var(--scene-text-muted)",
+          }}
+        >
+          <Icon className="h-3.5 w-3.5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // In-session character sheet — the play-oriented "act surface" a player needs at
 // the table: roll checks/saves/skills, attack, cast (spend slots), spend class
 // resources. Deliberately NOT the full standalone sheet — no level-up, feat
@@ -45,6 +83,17 @@ export function SessionCharacterSheet({
   const campaign = useQuery(api.campaigns.get, { campaignId })
   // Hooks must run on every render — call before any early return (Rules of Hooks).
   const { roll, rollExpr, mode, setMode, lastRoll, rolling, dismiss } = useSheetRoll()
+
+  // Active tab. Default "actions"; restore after mount to avoid a hydration mismatch.
+  const [sheetTab, setSheetTab] = useState<SessionSheetTab>("actions")
+  useEffect(() => {
+    const saved = localStorage.getItem(SESSION_SHEET_TAB_KEY)
+    if (saved === "actions" || saved === "stats") setSheetTab(saved)
+  }, [])
+  const selectTab = (t: SessionSheetTab) => {
+    setSheetTab(t)
+    try { localStorage.setItem(SESSION_SHEET_TAB_KEY, t) } catch { /* storage may be unavailable */ }
+  }
 
   if (char === undefined) {
     return (
@@ -127,6 +176,11 @@ export function SessionCharacterSheet({
         {char.inspiration && <StatBox label="Inspiration" value="✦" />}
       </div>
 
+      {/* HP/AC stay pinned in the strip above — visible on both tabs. */}
+      <SessionSheetTabs tab={sheetTab} setTab={selectTab} />
+
+      {/* ⚔ Actions — attack, cast, spend resources */}
+      {sheetTab === "actions" && (<>
       {/* Attacks — most-used in combat, kept near the top */}
       <AttacksSection
         level={char.level}
@@ -223,7 +277,10 @@ export function SessionCharacterSheet({
           roll={roll}
         />
       )}
+      </>)}
 
+      {/* 🎲 Stats — ability scores, saves, senses, skills */}
+      {sheetTab === "stats" && (<>
       {/* Ability Scores */}
       <AbilityScoresGrid totalAbilities={totalAbilities} mods={mods} roll={roll} />
 
@@ -247,6 +304,7 @@ export function SessionCharacterSheet({
         skillMods={skillMods}
         roll={roll}
       />
+      </>)}
     </div>
   )
 }
