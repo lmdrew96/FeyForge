@@ -386,7 +386,7 @@ export default function CampaignWebPage() {
 
   return (
     <AppShell>
-      <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+      <div className="flex h-[calc(100dvh-3rem-3.5rem-env(safe-area-inset-bottom))] overflow-hidden md:h-[calc(100vh-4rem)]">
 
         {/* Sidebar */}
         <aside

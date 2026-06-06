@@ -251,7 +251,7 @@ function StatBlockCard({
       </div>
 
       {/* Abilities */}
-      <div className="grid grid-cols-6 gap-1 mb-3">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 mb-3">
         {ABILITIES.map((a) => (
           <div key={a} className="text-center rounded-md py-1" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
             <div className="text-[9px] uppercase tracking-wider" style={{ color: "var(--scene-text-muted)" }}>{ABILITY_ABBREVIATIONS[a]}</div>

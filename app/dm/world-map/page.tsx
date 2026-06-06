@@ -1055,8 +1055,10 @@ function MapWorkspace({
             </div>
           </div>
 
-          {/* Zoom controls — slide left of the detail overlay when a pin is open. */}
-          <div className="absolute bottom-4 right-4 flex flex-col gap-1 lg:right-[calc(var(--panel-w)_+_1rem)]">
+          {/* Zoom controls — slide left of the detail overlay when a pin is open.
+              On mobile the workspace is full-height (h-[100dvh]) so lift above the
+              fixed bottom nav; reset at md where the nav is gone. */}
+          <div className="absolute bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] right-4 flex flex-col gap-1 md:bottom-4 lg:right-[calc(var(--panel-w)_+_1rem)]">
             <ZoomButton onClick={() => setZoom((z) => clampZoom(z * 1.25))} title="Zoom in">
               <ZoomIn className="h-4 w-4" />
             </ZoomButton>
@@ -1075,7 +1077,7 @@ function MapWorkspace({
           )}
 
           {showRoutes && (
-            <div className="absolute bottom-4 left-4 z-20">
+            <div className="absolute bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] left-4 z-20 md:bottom-4">
               <JourneyCard
                 originName={planner.originName}
                 waypointCount={planner.waypointCount}

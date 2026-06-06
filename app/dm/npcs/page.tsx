@@ -174,7 +174,7 @@ function StatBlock({ stats }: { stats: NonNullable<NpcDoc["stats"]> }) {
         <span>AC {stats.ac}</span>
         <span>HP {stats.hp}</span>
       </div>
-      <div className="grid grid-cols-6 gap-1 text-center">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 text-center">
         {ABILITY_KEYS.map((k) => (
           <div
             key={k}

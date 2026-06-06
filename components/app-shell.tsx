@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     href === "/dashboard" ? pathname === href : pathname.startsWith(href)
 
   return (
-    <div className="relative flex h-screen overflow-hidden" style={{ background: "var(--scene-bg)" }}>
+    <div className="relative flex h-[100dvh] overflow-hidden" style={{ background: "var(--scene-bg)" }}>
       <SceneBackdrop />
 
       {/* Desktop sidebar */}
