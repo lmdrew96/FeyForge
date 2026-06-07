@@ -98,13 +98,13 @@ export function PinsPanel({
       style={{ background: "rgba(0,0,0,0.4)" }}
       onClick={onClose}
     >
-      {/* Bottom sheet on mobile (partial height, map visible above), right-side
-          panel on desktop — matches the pin detail's bottom-sheet behavior. The
-          mobile bottom nav sits above this overlay's stacking context (it's a
-          sibling of <main>, which is z-10), so pad past it (3.5rem nav + 1rem)
-          until md, where the nav is gone. */}
+      {/* Bottom sheet on mobile, right-side panel on desktop. The fixed top bar
+          AND bottom nav both paint over this overlay (z-[60] is trapped in
+          <main>'s z-10 stacking context). Cap the height to clear the top bar
+          (3rem + 1rem) — dvh, NOT vh, so iOS's large-vh can't push the header (the
+          X) up behind the bar — and pad past the nav (3.5rem + 1rem) until md. */}
       <aside
-        className="flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t pb-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] shadow-2xl sm:h-full sm:max-h-none sm:max-w-sm sm:rounded-none sm:border-t-0 sm:border-l md:pb-0"
+        className="flex max-h-[calc(100dvh-4rem)] w-full flex-col rounded-t-2xl border-t pb-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] shadow-2xl sm:h-full sm:max-h-none sm:max-w-sm sm:rounded-none sm:border-t-0 sm:border-l md:pb-0"
         style={{ borderColor: "var(--scene-border)", background: "var(--scene-surface)" }}
         onClick={(e) => e.stopPropagation()}
       >
