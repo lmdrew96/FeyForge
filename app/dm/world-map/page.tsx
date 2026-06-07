@@ -1177,7 +1177,7 @@ function MapWorkspace({
                 paintedCells={maskCells}
               />
               {showRoutes && routes && (
-                <RoutesSvg routes={routes} legs={planner.itinerary?.legPoints ?? null} />
+                <RoutesSvg routes={routes} segments={planner.itinerary?.journeySegments ?? null} />
               )}
               {showPins &&
                 visibleLocations.map((loc) => (
@@ -1227,17 +1227,7 @@ function MapWorkspace({
 
           {showRoutes && (
             <div className="absolute inset-x-0 bottom-0 z-20 sm:inset-x-auto sm:left-4 sm:bottom-4">
-              <JourneyCard
-                originName={planner.originName}
-                waypointCount={planner.waypointCount}
-                legs={planner.itinerary?.legs ?? []}
-                totalMiles={planner.itinerary?.totalMiles ?? null}
-                hasWater={planner.hasWater}
-                onSetLegMode={planner.setLegMode}
-                onRemoveLast={planner.removeLast}
-                onClear={planner.clear}
-                onClose={toggleRoutes}
-              />
+              <JourneyCard planner={planner} onClose={toggleRoutes} />
             </div>
           )}
 

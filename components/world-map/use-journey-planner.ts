@@ -1,41 +1,52 @@
 "use client"
 
-// ── Multi-leg journey planner ─────────────────────────────────────────────────
-// A real D&D journey often chains modes — caravan overland to a port, then sail
-// port → port — so the planner is a list of WAYPOINTS, not a single from→to pair.
-// Each waypoint after the first defines a LEG, and every leg keeps its OWN travel
-// mode (the leg's mode decides whether it routes over the land graph or the sea
-// graph). Tap a town to append the next stop; the itinerary sums per-leg distance
-// and the card turns each leg's miles into days.
+// ── Multi-leg journey planner (Phase-1 GPS) ───────────────────────────────────
+// A real D&D journey chains stops, so the planner is a list of WAYPOINTS. Routing is
+// now a single cost-weighted MULTIMODAL search per leg (lib/worldMap/routing.ts):
+// land + water compete on TIME, so a short sea hop beats a long land detour, and a
+// journey-wide capability PROFILE (no boats / own craft / chartered) decides which
+// surfaces are usable. Each leg's surface is an OUTPUT, not an input — the old
+// per-leg mode toggle is gone. The multi-stop waypoint chain is unchanged.
 //
 // This hook is the single home for that state + routing so both surfaces (the DM
-// page and the in-session viewer) share one implementation — they used to carry
-// near-identical journey state each. The pure graph/Dijkstra engine stays in
-// lib/worldMap/routing.ts; this is just the React-stateful, map-aware layer.
+// page and the in-session viewer) share one implementation. The pure graph/Dijkstra
+// engine stays in lib/worldMap/routing.ts; this is the React-stateful, map-aware layer.
 
 import { useCallback, useMemo, useState } from "react"
-import { buildRouteGraph, planRoute } from "@/lib/worldMap/routing"
-import type { MapRoute, TravelMode } from "./routes-overlay"
+import { buildTravelGraph, planJourney } from "@/lib/worldMap/routing"
+import type { PathSegment, WaterCapability } from "@/lib/worldMap/routing"
+import { landSpeedMph, waterSpeedMph } from "./routes-overlay"
+import type { FootPace, LandMode, MapRoute, ShipKind } from "./routes-overlay"
 import type { LocationId, MapLocation } from "./shared"
+
+// Journey-wide travel settings. land (+ footPace) and water capability drive BOTH the
+// router (which surfaces are usable + how fast) and the days reported per leg.
+export type TravelProfile = {
+  land: LandMode
+  footPace: FootPace
+  water: WaterCapability
+  shipKind: ShipKind
+  hoursPerDay: number
+}
 
 export type JourneyLeg = {
   fromId: LocationId
   toId: LocationId
   fromName: string
   toName: string
-  mode: TravelMode
   found: boolean
-  miles: number | null
-  points: number[][] | null
-  // A non-port endpoint chosen for a Ship leg — the leg is blocked with a reason
-  // rather than snapping to a distant sea node and reporting a confident wrong mile.
-  seaBlockedBy: string | null
+  miles: number | null // total leg miles (land + water); null when the map has no scale
+  landMiles: number // 0 when no scale / no land travel
+  waterMiles: number // 0 when no scale / no water travel
+  crossings: number // # of sea crossings the router chose
+  segments: PathSegment[] // per-surface runs for the overlay
+  noPathReason: string | null // informative message when no route exists under the profile
 }
 
 export type Itinerary = {
   legs: JourneyLeg[]
   totalMiles: number | null // Σ of the measurable legs; null if none can be measured
-  legPoints: number[][][] // each found leg's polyline (% space) for RoutesSvg
+  journeySegments: PathSegment[] // every leg's runs, flattened, for RoutesSvg
 }
 
 export type JourneyPlanner = {
@@ -43,19 +54,34 @@ export type JourneyPlanner = {
   originName: string | null
   lastName: string | null
   itinerary: Itinerary | null // null until there are ≥ 2 waypoints (≥ 1 leg)
-  hasWater: boolean // map has a sea network → Ship legs are usable
+  hasWater: boolean // map has a sea network → boat capabilities are usable
+  profile: TravelProfile
   addWaypoint: (loc: MapLocation) => void
-  setLegMode: (legIndex: number, mode: TravelMode) => void
   removeLast: () => void
   clear: () => void
   isWaypoint: (id: LocationId) => boolean
+  setLandMode: (m: LandMode) => void
+  setFootPace: (p: FootPace) => void
+  setWater: (w: WaterCapability) => void
+  setShipKind: (k: ShipKind) => void
+  setHoursPerDay: (h: number) => void
 }
 
-// Waypoint ids and per-leg modes are kept in ONE state object so a single tap
-// updates both atomically — nesting one setState inside another's updater would
-// double-fire under React StrictMode and desync the two arrays. Invariant:
-// modes.length === max(0, ids.length - 1).
-type JourneyState = { ids: LocationId[]; modes: TravelMode[] }
+const DEFAULT_PROFILE: TravelProfile = {
+  land: "foot",
+  footPace: "normal",
+  // A small boat by default so coastal + overseas towns "just work" out of the box
+  // (the original felt bug). Switch to "No boats" to force a strictly overland route.
+  water: "own-craft",
+  shipKind: "sailing",
+  hoursPerDay: 8,
+}
+
+// Waypoint ids + the journey-wide profile live in ONE state object so each update is
+// atomic — a nested setState inside another updater double-fires under StrictMode.
+// Unlike the old per-leg `modes`, the profile is journey-wide, so there's no per-leg
+// array whose length must track ids.
+type JourneyState = { ids: LocationId[]; profile: TravelProfile }
 
 export function useJourneyPlanner({
   routes,
@@ -70,18 +96,21 @@ export function useJourneyPlanner({
   height: number | undefined
   scaleMilesPerPx: number | null | undefined
 }): JourneyPlanner {
-  const [state, setState] = useState<JourneyState>({ ids: [], modes: [] })
+  const [state, setState] = useState<JourneyState>({ ids: [], profile: DEFAULT_PROFILE })
+  const { ids, profile } = state
 
-  // Separate land + sea graphs, built once per loaded route set; each leg routes
-  // over one depending on its mode. They meet only at ports.
-  const landGraph = useMemo(
-    () => (routes && width && height ? buildRouteGraph(routes, width, height, "land") : null),
-    [routes, width, height],
-  )
-  const waterGraph = useMemo(
-    () => (routes && width && height ? buildRouteGraph(routes, width, height, "water") : null),
-    [routes, width, height],
-  )
+  // One unified land+water graph, rebuilt when the route set / map dims / pins change.
+  // Coastal pins seed the land↔sea connectors (the Port flag gates chartered embark).
+  const graph = useMemo(() => {
+    if (!routes || !width || !height) return null
+    const pins = (locations ?? []).map((l) => ({
+      x: l.x,
+      y: l.y,
+      isPort: !!l.town?.features?.includes("Port"),
+    }))
+    return buildTravelGraph(routes, width, height, pins)
+  }, [routes, locations, width, height])
+
   const hasWater = useMemo(() => (routes ?? []).some((r) => r.group === "searoutes"), [routes])
 
   const locById = useMemo(() => {
@@ -90,91 +119,88 @@ export function useJourneyPlanner({
     return m
   }, [locations])
 
-  // Append a stop. The first waypoint is just the origin; from the second on, each
-  // tap also births a leg, defaulting its mode to the previous leg's (explicit, no
-  // auto-switching). Re-tapping the current last stop is a no-op.
+  // Append a stop. Re-tapping the current last stop is a no-op. (Profile is untouched.)
   const addWaypoint = useCallback((loc: MapLocation) => {
-    setState(({ ids, modes }) => {
-      if (ids.length > 0 && ids[ids.length - 1] === loc._id) return { ids, modes }
-      const nextModes = ids.length >= 1 ? [...modes, modes[modes.length - 1] ?? "foot"] : modes
-      return { ids: [...ids, loc._id], modes: nextModes }
+    setState((s) => {
+      if (s.ids.length > 0 && s.ids[s.ids.length - 1] === loc._id) return s
+      return { ...s, ids: [...s.ids, loc._id] }
     })
   }, [])
-
-  const setLegMode = useCallback((legIndex: number, mode: TravelMode) => {
-    setState((s) => ({ ids: s.ids, modes: s.modes.map((m, i) => (i === legIndex ? mode : m)) }))
-  }, [])
-
   const removeLast = useCallback(() => {
-    setState(({ ids, modes }) => {
-      if (ids.length === 0) return { ids, modes }
-      return { ids: ids.slice(0, -1), modes: ids.length >= 2 ? modes.slice(0, -1) : modes }
-    })
+    setState((s) => (s.ids.length === 0 ? s : { ...s, ids: s.ids.slice(0, -1) }))
   }, [])
+  const clear = useCallback(() => setState((s) => ({ ...s, ids: [] })), [])
+  const isWaypoint = useCallback((id: LocationId) => ids.includes(id), [ids])
 
-  const clear = useCallback(() => setState({ ids: [], modes: [] }), [])
-
-  const isWaypoint = useCallback((id: LocationId) => state.ids.includes(id), [state.ids])
+  const setLandMode = useCallback((m: LandMode) => setState((s) => ({ ...s, profile: { ...s.profile, land: m } })), [])
+  const setFootPace = useCallback((p: FootPace) => setState((s) => ({ ...s, profile: { ...s.profile, footPace: p } })), [])
+  const setWater = useCallback((w: WaterCapability) => setState((s) => ({ ...s, profile: { ...s.profile, water: w } })), [])
+  const setShipKind = useCallback((k: ShipKind) => setState((s) => ({ ...s, profile: { ...s.profile, shipKind: k } })), [])
+  const setHoursPerDay = useCallback(
+    (h: number) => setState((s) => ({ ...s, profile: { ...s.profile, hoursPerDay: Math.max(1, Math.min(24, h)) } })),
+    [],
+  )
 
   const itinerary = useMemo<Itinerary | null>(() => {
-    if (state.ids.length < 2) return null
+    if (ids.length < 2) return null
+    const landSpeed = landSpeedMph(profile.land, profile.footPace)
+    const waterSpeed = waterSpeedMph(profile.water, profile.shipKind)
     const legs: JourneyLeg[] = []
-    for (let i = 0; i < state.ids.length - 1; i++) {
-      const f = locById.get(state.ids[i])
-      const t = locById.get(state.ids[i + 1])
+    for (let i = 0; i < ids.length - 1; i++) {
+      const f = locById.get(ids[i])
+      const t = locById.get(ids[i + 1])
       if (!f || !t) continue
-      const mode = state.modes[i] ?? "foot"
-      const base: JourneyLeg = {
-        fromId: f._id,
-        toId: t._id,
-        fromName: f.name,
-        toName: t.name,
-        mode,
-        found: false,
-        miles: null,
-        points: null,
-        seaBlockedBy: null,
-      }
-      // Ship legs embark only from ports (the explicit Port tag is the guard, not a
-      // snap-distance threshold). Block with a reason instead of a wrong distance.
-      if (mode === "ship") {
-        if (!f.town?.features?.includes("Port")) {
-          legs.push({ ...base, seaBlockedBy: f.name })
-          continue
-        }
-        if (!t.town?.features?.includes("Port")) {
-          legs.push({ ...base, seaBlockedBy: t.name })
-          continue
-        }
-      }
-      const graph = mode === "ship" ? waterGraph : landGraph
-      if (!graph) {
-        legs.push(base)
+      const base = { fromId: f._id, toId: t._id, fromName: f.name, toName: t.name }
+      const res = graph
+        ? planJourney(graph, [f.x, f.y], [t.x, t.y], { water: profile.water, landSpeed, waterSpeed })
+        : null
+      if (!res) {
+        // Informative, never a dead end: tell the DM the obvious next action.
+        const reason =
+          profile.water === "none"
+            ? hasWater
+              ? "No land route — enable a boat to try a sea crossing."
+              : "No overland route — separate landmasses."
+            : "No route reaches there yet — no sea lane links these coasts."
+        legs.push({ ...base, found: false, miles: null, landMiles: 0, waterMiles: 0, crossings: 0, segments: [], noPathReason: reason })
         continue
       }
-      const res = planRoute(graph, [f.x, f.y], [t.x, t.y])
-      const miles = res && scaleMilesPerPx ? Math.round(res.px * scaleMilesPerPx) : null
-      legs.push({ ...base, found: !!res, miles, points: res?.points ?? null })
+      const scale = scaleMilesPerPx ?? null
+      legs.push({
+        ...base,
+        found: true,
+        miles: scale ? Math.round(res.px * scale) : null,
+        landMiles: scale ? res.landPx * scale : 0,
+        waterMiles: scale ? res.waterPx * scale : 0,
+        crossings: res.crossings,
+        segments: res.segments,
+        noPathReason: null,
+      })
     }
     const measurable = legs.filter((l) => l.miles != null)
     const totalMiles = measurable.length ? measurable.reduce((s, l) => s + (l.miles ?? 0), 0) : null
-    const legPoints = legs.filter((l) => l.points && l.points.length >= 2).map((l) => l.points as number[][])
-    return { legs, totalMiles, legPoints }
-  }, [state.ids, state.modes, landGraph, waterGraph, locById, scaleMilesPerPx])
+    const journeySegments = legs.flatMap((l) => l.segments)
+    return { legs, totalMiles, journeySegments }
+  }, [ids, profile, graph, locById, scaleMilesPerPx, hasWater])
 
-  const originName = state.ids.length ? locById.get(state.ids[0])?.name ?? null : null
-  const lastName = state.ids.length ? locById.get(state.ids[state.ids.length - 1])?.name ?? null : null
+  const originName = ids.length ? locById.get(ids[0])?.name ?? null : null
+  const lastName = ids.length ? locById.get(ids[ids.length - 1])?.name ?? null : null
 
   return {
-    waypointCount: state.ids.length,
+    waypointCount: ids.length,
     originName,
     lastName,
     itinerary,
     hasWater,
+    profile,
     addWaypoint,
-    setLegMode,
     removeLast,
     clear,
     isWaypoint,
+    setLandMode,
+    setFootPace,
+    setWater,
+    setShipKind,
+    setHoursPerDay,
   }
 }

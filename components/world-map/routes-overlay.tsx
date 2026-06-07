@@ -3,9 +3,10 @@
 // ── Travel routes overlay + journey planner ──────────────────────────────────
 // Azgaar stores the road/sea network as hundreds of short segments. Drawn raw they
 // look fragmented, so the network renders FAINT (context only, non-interactive) and
-// the real interaction is point-to-point: tap two towns and the shortest road path
+// the real interaction is point-to-point GPS: tap two towns and the FASTEST route
 // between them is computed (lib/worldMap/routing.ts) and drawn BOLD, with the total
-// distance + travel time. Used by both the DM page and the in-session viewer.
+// distance + travel time. Land and water are one cost-weighted graph, so the search
+// auto-picks a short sea hop over a long land detour. Used by DM page + in-session.
 //
 // Split for the pan/zoom transform: the lines (RoutesSvg) mount INSIDE the transform
 // layer so they track the map; the legend/card/prompt mount OUTSIDE it (fixed in the
@@ -13,9 +14,9 @@
 // preserveAspectRatio="none" and vector-effect non-scaling-stroke keeps line width a
 // constant SCREEN size at any zoom.
 
-import { useState } from "react"
 import { Footprints, Route as RouteIcon, Ship, X } from "lucide-react"
-import type { JourneyLeg } from "./use-journey-planner"
+import type { PathSegment, WaterCapability } from "@/lib/worldMap/routing"
+import type { JourneyLeg, JourneyPlanner } from "./use-journey-planner"
 
 export type MapRoute = { group: string; points: number[][]; miles?: number }
 
@@ -24,8 +25,9 @@ export type MapRoute = { group: string; points: number[][]; miles?: number }
 // per day → total days. On foot reproduces the canonical PHB overland pace exactly
 // at the default 8-hour day (slow 18 / normal 24 / fast 30 mi/day). Ship rates are
 // the SRD waterborne-vehicle speeds. Mounted/cart are sustained-overland
-// conventions (5e doesn't table a daily rate for them).
-export type TravelMode = "foot" | "mounted" | "cart" | "ship"
+// conventions (5e doesn't table a daily rate for them). The router prices each
+// surface by these speeds so the faster surface wins on TIME, not distance.
+export type LandMode = "foot" | "mounted" | "cart"
 export type FootPace = "slow" | "normal" | "fast"
 export type ShipKind = "rowboat" | "sailing" | "longship" | "galley"
 
@@ -33,13 +35,16 @@ const FOOT_MPH: Record<FootPace, number> = { slow: 2.25, normal: 3, fast: 3.75 }
 const SHIP_MPH: Record<ShipKind, number> = { rowboat: 1.5, sailing: 2, longship: 3, galley: 4 }
 const MOUNTED_MPH = 5 // riding horse, sustained with rests (~40 mi / 8-hr day)
 const CART_MPH = 3 // horse-drawn wagon on a road (~24 mi / 8-hr day)
+const OWN_CRAFT_MPH = 1.5 // a borrowed skiff / raft — slow, but it crosses
 
-export const MODE_LABEL: Record<TravelMode, string> = {
-  foot: "On foot",
-  mounted: "Mounted",
-  cart: "Cart",
-  ship: "By ship",
+export const LAND_LABEL: Record<LandMode, string> = { foot: "On foot", mounted: "Mounted", cart: "Cart" }
+export const WATER_LABEL: Record<WaterCapability, string> = {
+  none: "No boats",
+  "own-craft": "Own boat",
+  chartered: "Charter",
 }
+// Vessels offered when chartering (own-craft is a fixed slow speed, no choice).
+export const CHARTER_KINDS: ShipKind[] = ["sailing", "longship", "galley"]
 export const SHIP_LABEL: Record<ShipKind, string> = {
   rowboat: "Rowboat",
   sailing: "Sailing ship",
@@ -47,8 +52,13 @@ export const SHIP_LABEL: Record<ShipKind, string> = {
   galley: "Galley",
 }
 
-const speedMph = (mode: TravelMode, pace: FootPace, ship: ShipKind): number =>
-  mode === "foot" ? FOOT_MPH[pace] : mode === "mounted" ? MOUNTED_MPH : mode === "cart" ? CART_MPH : SHIP_MPH[ship]
+// Effective land/water speeds (mph) for the active profile — used by BOTH the router
+// (path selection) and the card (days), so the chosen route and its reported time
+// always agree.
+export const landSpeedMph = (mode: LandMode, pace: FootPace): number =>
+  mode === "foot" ? FOOT_MPH[pace] : mode === "mounted" ? MOUNTED_MPH : CART_MPH
+export const waterSpeedMph = (water: WaterCapability, ship: ShipKind): number =>
+  water === "chartered" ? SHIP_MPH[ship] : water === "own-craft" ? OWN_CRAFT_MPH : 0
 
 type GroupStyle = { stroke: string; width: number; dash?: string; label: string; icon: typeof RouteIcon }
 const GROUP_STYLE: Record<string, GroupStyle> = {
@@ -61,10 +71,11 @@ export const styleForGroup = (g: string): GroupStyle => GROUP_STYLE[g] ?? GROUP_
 const pointsAttr = (pts: number[][]): string => pts.map((p) => `${p[0]},${p[1]}`).join(" ")
 
 // The network (faint) + the planned journey (bold), inside the map's transform
-// layer. `legs` is one polyline per journey leg — a broken/blocked leg simply
-// contributes none, so found legs still draw while the rest of the chain is unset.
-export function RoutesSvg({ routes, legs }: { routes: MapRoute[]; legs?: number[][][] | null }) {
-  const drawn = (legs ?? []).filter((p) => p.length >= 2)
+// layer. `segments` is the chosen route split into per-surface runs — land draws as a
+// solid accent line, water (sea hops + connectors) as a dashed one, so the player can
+// see where the crossing is.
+export function RoutesSvg({ routes, segments }: { routes: MapRoute[]; segments?: PathSegment[] | null }) {
+  const drawn = (segments ?? []).filter((s) => s.points.length >= 2)
   const dimmed = drawn.length > 0
   return (
     <svg
@@ -94,11 +105,11 @@ export function RoutesSvg({ routes, legs }: { routes: MapRoute[]; legs?: number[
           )
         })}
 
-      {/* Planned journey — halo under a bold accent line, drawn per leg. */}
-      {drawn.map((pts, i) => (
+      {/* Planned journey — halo under a bold accent line, one run per surface. */}
+      {drawn.map((seg, i) => (
         <g key={i}>
           <polyline
-            points={pointsAttr(pts)}
+            points={pointsAttr(seg.points)}
             fill="none"
             stroke="#fff"
             strokeWidth={6}
@@ -108,10 +119,11 @@ export function RoutesSvg({ routes, legs }: { routes: MapRoute[]; legs?: number[
             opacity={0.55}
           />
           <polyline
-            points={pointsAttr(pts)}
+            points={pointsAttr(seg.points)}
             fill="none"
             stroke="var(--scene-accent)"
             strokeWidth={3.5}
+            strokeDasharray={seg.surface === "water" ? "2 2.5" : undefined}
             strokeLinecap="round"
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"
@@ -176,53 +188,38 @@ function Seg({
   )
 }
 
-const MODE_CHIP: Record<TravelMode, string> = { foot: "Foot", mounted: "Mount", cart: "Cart", ship: "Ship" }
+// One-line summary of what the router CHOSE for a leg (mode is an output now).
+const describeLeg = (leg: JourneyLeg): string => {
+  const sea = leg.crossings > 0 ? `${leg.crossings} sea crossing${leg.crossings === 1 ? "" : "s"}` : ""
+  if (leg.landMiles > 0 && sea) return `road + ${sea}`
+  return sea || "overland"
+}
 
-// The journey-planner itinerary card (mount in the viewport corner). Journey-wide
-// travel settings (foot pace / vessel / hours per day) sit up top; below, each leg
-// shows its OWN mode toggle + distance + days, then a summed total. Tap towns on the
-// map to chain stops. "No route" / "isn't a port" are real, common PER-LEG outcomes
-// (disconnected landmasses, or a non-port picked for a sea leg) and read as
-// intentional, not errors.
-export function JourneyCard({
-  originName,
-  waypointCount,
-  legs,
-  totalMiles,
-  hasWater,
-  onSetLegMode,
-  onRemoveLast,
-  onClear,
-  onClose,
-}: {
-  originName: string | null
-  waypointCount: number
-  legs: JourneyLeg[]
-  totalMiles: number | null
-  hasWater: boolean // map has a sea network → Ship legs are usable
-  onSetLegMode: (legIndex: number, mode: TravelMode) => void
-  onRemoveLast: () => void
-  onClear: () => void // reset the waypoints (stay in travel mode)
-  onClose: () => void // exit travel mode entirely (the X / panel close)
-}) {
-  const [footPace, setFootPace] = useState<FootPace>("normal")
-  const [shipKind, setShipKind] = useState<ShipKind>("sailing")
-  const [hoursPerDay, setHoursPerDay] = useState(8)
-  const setHours = (n: number) => setHoursPerDay(Math.max(1, Math.min(24, n)))
+// The journey-planner itinerary card (mount in the viewport corner). The GPS model:
+// pick a journey-wide TRAVEL PROFILE (land mode + water capability) up top; each leg's
+// surface is an OUTPUT the router chose, shown with distance + days. Tap towns on the
+// map to chain stops. "No route" reasons are real, informative outcomes — never a
+// dead end. The multi-stop WAYPOINT structure is unchanged; only mode is now auto.
+export function JourneyCard({ planner, onClose }: { planner: JourneyPlanner; onClose: () => void }) {
+  const { originName, waypointCount, itinerary, hasWater, profile } = planner
+  const legs = itinerary?.legs ?? []
+  const totalMiles = itinerary?.totalMiles ?? null
 
-  // Each leg's days come from ITS mode × the journey-wide pace/vessel/hours.
+  const landSpeed = landSpeedMph(profile.land, profile.footPace)
+  const waterSpeed = waterSpeedMph(profile.water, profile.shipKind)
+
+  // Each leg's days come from ITS land/water miles × the journey-wide speeds.
   const legDays = (leg: JourneyLeg): number | null => {
     if (leg.miles == null) return null
-    const milesPerDay = speedMph(leg.mode, footPace, shipKind) * hoursPerDay
-    return Math.round((leg.miles / milesPerDay) * 10) / 10
+    const water = waterSpeed > 0 ? leg.waterMiles / waterSpeed : 0
+    const days = (leg.landMiles / landSpeed + water) / profile.hoursPerDay
+    return Math.round(days * 10) / 10
   }
   const totalDays = Math.round(legs.reduce((sum, leg) => sum + (legDays(leg) ?? 0), 0) * 10) / 10
 
   const planning = waypointCount >= 2
-  const anyFoot = legs.some((l) => l.mode === "foot")
-  const anyShip = legs.some((l) => l.mode === "ship")
   const hasMeasuredLeg = legs.some((l) => l.miles != null)
-  const forcedMarch = hoursPerDay > 8 && legs.some((l) => l.mode === "foot" || l.mode === "mounted")
+  const forcedMarch = profile.hoursPerDay > 8 && legs.some((l) => l.landMiles > 0)
 
   const fieldStyle = {
     background: "color-mix(in srgb, var(--scene-text-primary) 7%, transparent)",
@@ -247,26 +244,46 @@ export function JourneyCard({
         </button>
       </div>
 
-      {/* Journey-wide travel settings. Foot pace shows while a foot leg exists (or no
-          leg yet, as the default); vessel when a ship leg exists; hours always. */}
+      {/* Journey-wide travel profile. Land mode (+ foot pace) and water capability
+          decide which surfaces the router may use and how fast it travels them. */}
       <div className="mt-2 space-y-1.5">
-        {(!planning || anyFoot) && (
+        <div className="flex gap-1">
+          {(["foot", "mounted", "cart"] as LandMode[]).map((m) => (
+            <Seg key={m} active={profile.land === m} onClick={() => planner.setLandMode(m)} title={LAND_LABEL[m]}>
+              {m === "foot" ? "Foot" : m === "mounted" ? "Mount" : "Cart"}
+            </Seg>
+          ))}
+        </div>
+        {profile.land === "foot" && (
           <div className="flex gap-1">
             {(["slow", "normal", "fast"] as FootPace[]).map((p) => (
-              <Seg key={p} active={footPace === p} onClick={() => setFootPace(p)}>
+              <Seg key={p} active={profile.footPace === p} onClick={() => planner.setFootPace(p)}>
                 {p[0].toUpperCase() + p.slice(1)}
               </Seg>
             ))}
           </div>
         )}
-        {anyShip && (
+        <div className="flex gap-1">
+          {(["none", "own-craft", "chartered"] as WaterCapability[]).map((w) => (
+            <Seg
+              key={w}
+              active={profile.water === w}
+              disabled={w !== "none" && !hasWater}
+              onClick={() => planner.setWater(w)}
+              title={w !== "none" && !hasWater ? "This map has no sea routes" : WATER_LABEL[w]}
+            >
+              {WATER_LABEL[w]}
+            </Seg>
+          ))}
+        </div>
+        {profile.water === "chartered" && hasWater && (
           <select
-            value={shipKind}
-            onChange={(e) => setShipKind(e.target.value as ShipKind)}
+            value={profile.shipKind}
+            onChange={(e) => planner.setShipKind(e.target.value as ShipKind)}
             className="w-full cursor-pointer rounded-md px-2 py-1 text-[11px] outline-none"
             style={fieldStyle}
           >
-            {(["rowboat", "sailing", "longship", "galley"] as ShipKind[]).map((k) => (
+            {CHARTER_KINDS.map((k) => (
               <option key={k} value={k}>
                 {SHIP_LABEL[k]} · {SHIP_MPH[k]} mph
               </option>
@@ -281,7 +298,7 @@ export function JourneyCard({
           </span>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setHours(hoursPerDay - 1)}
+              onClick={() => planner.setHoursPerDay(profile.hoursPerDay - 1)}
               className="grid h-6 w-6 place-items-center rounded-md text-sm leading-none hover:opacity-80"
               style={fieldStyle}
               aria-label="Fewer hours"
@@ -289,10 +306,10 @@ export function JourneyCard({
               −
             </button>
             <span className="w-8 text-center text-xs font-semibold" style={{ color: "var(--scene-text-primary)" }}>
-              {hoursPerDay} h
+              {profile.hoursPerDay} h
             </span>
             <button
-              onClick={() => setHours(hoursPerDay + 1)}
+              onClick={() => planner.setHoursPerDay(profile.hoursPerDay + 1)}
               className="grid h-6 w-6 place-items-center rounded-md text-sm leading-none hover:opacity-80"
               style={fieldStyle}
               aria-label="More hours"
@@ -318,7 +335,7 @@ export function JourneyCard({
         </p>
       )}
 
-      {/* Itinerary — one block per leg, then a summed total. */}
+      {/* Itinerary — one block per leg (router-chosen surface), then a summed total. */}
       {planning && (
         <div className="-mx-1 flex-1 space-y-2 overflow-y-auto px-1">
           {legs.map((leg, i) => {
@@ -332,35 +349,18 @@ export function JourneyCard({
                 <p className="text-xs font-medium" style={{ color: "var(--scene-text-primary)" }}>
                   <span style={{ color: "var(--scene-text-muted)" }}>{i + 1}.</span> {leg.fromName} → {leg.toName}
                 </p>
-                <div className="mt-1.5 flex gap-1">
-                  {(["foot", "mounted", "cart", "ship"] as TravelMode[]).map((m) => (
-                    <Seg
-                      key={m}
-                      active={leg.mode === m}
-                      disabled={m === "ship" && !hasWater}
-                      onClick={() => onSetLegMode(i, m)}
-                      title={m === "ship" && !hasWater ? "This map has no sea routes" : MODE_LABEL[m]}
-                    >
-                      {MODE_CHIP[m]}
-                    </Seg>
-                  ))}
-                </div>
-                <div className="mt-1.5 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-                  {leg.seaBlockedBy ? (
-                    <span>
-                      <span className="font-medium" style={{ color: "var(--scene-text-primary)" }}>{leg.seaBlockedBy}</span> isn&apos;t a port — pick ports for sea legs.
-                    </span>
-                  ) : !leg.found ? (
-                    <span>{leg.mode === "ship" ? "No sea route between these ports." : "No overland route — separate landmasses."}</span>
+                <div className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  {leg.noPathReason ? (
+                    <span>{leg.noPathReason}</span>
                   ) : leg.miles == null ? (
                     <span className="italic">Route found — distance unknown (no map scale).</span>
                   ) : (
                     <span>
-                      <span className="font-semibold" style={{ color: "var(--scene-accent)" }}>{leg.miles.toLocaleString()} mi</span> by{" "}
-                      {leg.mode === "ship" ? "sea" : "road"}
+                      <span className="font-semibold" style={{ color: "var(--scene-accent)" }}>{leg.miles.toLocaleString()} mi</span>
                       {days != null && (
                         <span style={{ color: "var(--scene-text-primary)" }}> · {days} {days === 1 ? "day" : "days"}</span>
                       )}
+                      <span> — {describeLeg(leg)}</span>
                     </span>
                   )}
                 </div>
@@ -391,10 +391,10 @@ export function JourneyCard({
           <div className="mt-2 flex items-center justify-between gap-2 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
             <span className="min-w-0 flex-1 truncate">Tap a town to add a stop.</span>
             <div className="flex shrink-0 items-center gap-1.5">
-              <button onClick={onClear} className="rounded px-1.5 py-0.5 font-medium hover:opacity-80" style={fieldStyle}>
+              <button onClick={planner.clear} className="rounded px-1.5 py-0.5 font-medium hover:opacity-80" style={fieldStyle}>
                 Clear
               </button>
-              <button onClick={onRemoveLast} className="rounded px-1.5 py-0.5 font-medium hover:opacity-80" style={fieldStyle}>
+              <button onClick={planner.removeLast} className="rounded px-1.5 py-0.5 font-medium hover:opacity-80" style={fieldStyle}>
                 Remove last
               </button>
             </div>
