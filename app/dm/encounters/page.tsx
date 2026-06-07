@@ -9,6 +9,7 @@ import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { type Edition, EDITIONS, DEFAULT_EDITION, EDITION_LABELS, resolveEdition } from "@/lib/editions"
 import { computeEncounter, crToXp } from "@/lib/encounter"
+import { partitionHomebrew, type HomebrewMonster } from "@/lib/homebrew"
 import { toast } from "sonner"
 import { BookMarked, Search, Plus, Minus, Save, Trash2, Users, Skull, Swords, ChevronDown, ChevronRight } from "lucide-react"
 import { EncounterDetails, DifficultyBadge, difficultyColor, hasEncounterDetails } from "@/components/encounters/encounter-details"
@@ -30,12 +31,21 @@ interface SelectedMonster {
   challengeRating: string
   cr: number
   quantity: number
+  // Homebrew monsters carry their stat line inline — there's no open5e entry to
+  // resolve AC/HP/Dex from at save time. SRD monsters leave this undefined.
+  homebrew?: { armorClass: number; hitPoints: number; dexMod: number }
 }
 
 export default function EncounterCalculatorPage() {
   const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
   const campaigns = useQuery(api.campaigns.list)
   const characters = useQuery(api.characters.list)
+  // Homebrew monsters (own + campaign-shared) merge into the monster search.
+  const homebrewDocs = useQuery(api.homebrew.listForBuilder)
+  const homebrewMonsters = useMemo(
+    () => partitionHomebrew(homebrewDocs).monsters,
+    [homebrewDocs]
+  )
 
   const activeCampaign = campaigns?.find((c) => c._id === activeCampaignId) ?? null
   const campaignChars = useMemo(
@@ -92,11 +102,40 @@ export default function EncounterCalculatorPage() {
     return allMonsters.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 40)
   }, [query, allMonsters])
 
+  const homebrewMatches = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return homebrewMonsters.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 10)
+  }, [query, homebrewMonsters])
+
   const addMonster = (m: Open5eMonster) => {
     setSelected((prev) => {
       const existing = prev.find((s) => s.slug === m.slug)
       if (existing) return prev.map((s) => (s.slug === m.slug ? { ...s, quantity: s.quantity + 1 } : s))
       return [...prev, { slug: m.slug, name: m.name, challengeRating: m.challenge_rating, cr: m.cr, quantity: 1 }]
+    })
+    setQuery("")
+  }
+
+  const addHomebrewMonster = (m: HomebrewMonster) => {
+    setSelected((prev) => {
+      const existing = prev.find((s) => s.slug === m.id)
+      if (existing) return prev.map((s) => (s.slug === m.id ? { ...s, quantity: s.quantity + 1 } : s))
+      return [
+        ...prev,
+        {
+          slug: m.id,
+          name: m.name,
+          challengeRating: m.challengeRating,
+          cr: m.cr,
+          quantity: 1,
+          homebrew: {
+            armorClass: m.armorClass,
+            hitPoints: m.hitPoints,
+            dexMod: Math.floor((m.dexterity - 10) / 2),
+          },
+        },
+      ]
     })
     setQuery("")
   }
@@ -139,9 +178,9 @@ export default function EncounterCalculatorPage() {
     const name = encName.trim() || `Encounter — ${totalMonsters} monster${totalMonsters === 1 ? "" : "s"}`
     const combatants = selected.flatMap((s) => {
       const full = allMonsters.find((m) => m.slug === s.slug)
-      const ac = full?.armor_class ?? 10
-      const hp = full?.hit_points ?? 1
-      const dexMod = full ? Math.floor((full.dexterity - 10) / 2) : 0
+      const ac = s.homebrew?.armorClass ?? full?.armor_class ?? 10
+      const hp = s.homebrew?.hitPoints ?? full?.hit_points ?? 1
+      const dexMod = s.homebrew?.dexMod ?? (full ? Math.floor((full.dexterity - 10) / 2) : 0)
       return Array.from({ length: s.quantity }, (_, i) => ({
         id: `${s.slug}-${i + 1}`,
         name: s.quantity > 1 ? `${s.name} ${i + 1}` : s.name,
@@ -296,7 +335,7 @@ export default function EncounterCalculatorPage() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={monstersLoading ? "Loading SRD monsters…" : "Search monsters to add…"}
-                  disabled={monstersLoading || monsterError}
+                  disabled={monstersLoading}
                   className="flex-1 bg-transparent outline-none text-sm"
                   style={{ color: "var(--scene-text-primary)" }}
                 />
@@ -305,9 +344,24 @@ export default function EncounterCalculatorPage() {
                 <p className="text-sm" style={{ color: "#ef4444" }}>Couldn&apos;t load monsters from Open5e.</p>
               )}
 
-              {/* Search results */}
-              {matches.length > 0 && (
+              {/* Search results (homebrew first, then SRD) */}
+              {(matches.length > 0 || homebrewMatches.length > 0) && (
                 <div className="rounded-lg mb-3 overflow-hidden max-h-56 overflow-y-auto" style={{ border: "1px solid var(--scene-border)" }}>
+                  {homebrewMatches.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => addHomebrewMonster(m)}
+                      className="flex items-center gap-2 px-3 py-2 w-full text-left transition-opacity hover:opacity-80"
+                      style={{ borderBottom: "1px solid var(--scene-border)" }}
+                    >
+                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded font-semibold flex-shrink-0" style={{ background: "color-mix(in srgb, var(--scene-accent) 18%, transparent)", color: "var(--scene-accent)" }}>HB</span>
+                      <span className="text-sm flex-1 truncate" style={{ color: "var(--scene-text-primary)" }}>{m.name}</span>
+                      <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                        CR {m.challengeRating} · {crToXp(m.challengeRating, m.cr).toLocaleString()} XP
+                      </span>
+                      <Plus className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
+                    </button>
+                  ))}
                   {matches.map((m) => (
                     <button
                       key={m.slug}

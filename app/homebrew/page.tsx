@@ -21,7 +21,16 @@ import {
   type HomebrewRaceData,
   type HomebrewBackgroundData,
   type HomebrewClassData,
+  type HomebrewMonsterData,
 } from "@/lib/homebrew"
+import {
+  synthesizeAction,
+  actionToInput,
+  CR_OPTIONS,
+  DAMAGE_TYPES,
+  SAVE_ABILITIES,
+  type MonsterActionInput,
+} from "@/lib/homebrew-monster"
 import { ItemEditorDialog } from "@/components/character/item-editor"
 import { rowToItem, type SheetItem, type StoredItemData } from "@/lib/character/sheet-items"
 
@@ -37,6 +46,12 @@ type AbilityMap = Record<Ability, number>
 const ZERO_ABILITIES: AbilityMap = {
   strength: 0, dexterity: 0, constitution: 0,
   intelligence: 0, wisdom: 0, charisma: 0,
+}
+
+// Monster ability scores are raw values (default 10), not racial bonuses.
+const TEN_ABILITIES: AbilityMap = {
+  strength: 10, dexterity: 10, constitution: 10,
+  intelligence: 10, wisdom: 10, charisma: 10,
 }
 
 interface SubraceDraft {
@@ -96,10 +111,30 @@ interface ClassDraft {
   subclasses: SubclassDraft[]
 }
 
+// A draft attack IS the structured input the synthesizer consumes (lib/homebrew-monster).
+type MonsterAttackDraft = MonsterActionInput
+
+interface MonsterDraft {
+  id?: Id<"homebrew">
+  name: string
+  size: string
+  type: string
+  alignment: string
+  armorClass: number
+  hitPoints: number
+  hitDice: string
+  speed: string
+  challengeRating: string
+  abilityScores: AbilityMap // raw scores (not bonuses)
+  attacks: MonsterAttackDraft[]
+  description: string
+}
+
 type Editor =
   | { kind: "race"; draft: RaceDraft }
   | { kind: "background"; draft: BackgroundDraft }
   | { kind: "class"; draft: ClassDraft }
+  | { kind: "monster"; draft: MonsterDraft }
   | null
 
 // ── Draft <-> stored-data conversion ──────────────────────────────────────────
@@ -265,6 +300,71 @@ const classDraftToData = (draft: ClassDraft): HomebrewClassData => ({
     .map((s) => ({ name: s.name.trim(), description: s.description.trim() })),
 })
 
+// ── Monster conversion ────────────────────────────────────────────────────────
+// The structured ↔ MonsterAction synthesis (and the SRD prose format the combat
+// tracker parses) lives in lib/homebrew-monster.ts; here we only build/read drafts.
+
+const emptyAttackDraft = (): MonsterAttackDraft => ({
+  name: "",
+  kind: "melee",
+  toHit: 4,
+  range: "5 ft.",
+  damageDice: "1d6",
+  damageBonus: 2,
+  damageType: "slashing",
+  saveDC: 13,
+  saveAbility: "Dexterity",
+  desc: "",
+})
+
+const emptyMonsterDraft = (): MonsterDraft => ({
+  name: "",
+  size: "Medium",
+  type: "beast",
+  alignment: "unaligned",
+  armorClass: 12,
+  hitPoints: 10,
+  hitDice: "",
+  speed: "30 ft.",
+  challengeRating: "1",
+  abilityScores: { ...TEN_ABILITIES },
+  attacks: [],
+  description: "",
+})
+
+const monsterDocToDraft = (doc: Doc<"homebrew">): MonsterDraft => {
+  const d = doc.data as HomebrewMonsterData
+  return {
+    id: doc._id,
+    name: doc.name,
+    size: d.size,
+    type: d.type,
+    alignment: d.alignment ?? "",
+    armorClass: d.armorClass,
+    hitPoints: d.hitPoints,
+    hitDice: d.hitDice ?? "",
+    speed: d.speed,
+    challengeRating: d.challengeRating,
+    abilityScores: { ...TEN_ABILITIES, ...d.abilityScores },
+    attacks: (d.actions ?? []).map(actionToInput),
+    description: d.description ?? "",
+  }
+}
+
+const monsterDraftToData = (draft: MonsterDraft): HomebrewMonsterData => ({
+  size: draft.size,
+  type: draft.type.trim(),
+  ...(draft.alignment.trim() ? { alignment: draft.alignment.trim() } : {}),
+  armorClass: draft.armorClass,
+  hitPoints: draft.hitPoints,
+  ...(draft.hitDice.trim() ? { hitDice: draft.hitDice.trim() } : {}),
+  speed: draft.speed.trim() || "30 ft.",
+  challengeRating: draft.challengeRating.trim() || "1",
+  abilityScores: { ...draft.abilityScores },
+  actions: draft.attacks.filter((a) => a.name.trim()).map(synthesizeAction),
+  ...(draft.description.trim() ? { description: draft.description.trim() } : {}),
+})
+
 // ── Shared form atoms (match the app's --scene-* token system) ────────────────
 
 const fieldStyle: React.CSSProperties = {
@@ -367,6 +467,10 @@ export default function HomebrewPage() {
     () => (mine ?? []).filter((h) => h.kind === "class"),
     [mine],
   )
+  const monsters = useMemo(
+    () => (mine ?? []).filter((h) => h.kind === "monster"),
+    [mine],
+  )
 
   const handleSave = async () => {
     if (!editor) return
@@ -375,7 +479,7 @@ export default function HomebrewPage() {
       toast.error("Give it a name first.")
       return
     }
-    if (collidesWithCuratedName(editor.kind, name)) {
+    if (editor.kind !== "monster" && collidesWithCuratedName(editor.kind, name)) {
       toast.error(`"${name}" is an official ${editor.kind} — pick a different name.`)
       return
     }
@@ -400,7 +504,9 @@ export default function HomebrewPage() {
           ? raceDraftToData(editor.draft)
           : editor.kind === "background"
             ? backgroundDraftToData(editor.draft)
-            : classDraftToData(editor.draft)
+            : editor.kind === "class"
+              ? classDraftToData(editor.draft)
+              : monsterDraftToData(editor.draft)
       if (editor.draft.id) {
         await updateHb({ id: editor.draft.id, name, data })
         toast.success(`${name} updated.`)
@@ -461,10 +567,15 @@ export default function HomebrewPage() {
               draft={editor.draft}
               onChange={(draft) => setEditor({ kind: "background", draft })}
             />
-          ) : (
+          ) : editor.kind === "class" ? (
             <ClassForm
               draft={editor.draft}
               onChange={(draft) => setEditor({ kind: "class", draft })}
+            />
+          ) : (
+            <MonsterForm
+              draft={editor.draft}
+              onChange={(draft) => setEditor({ kind: "monster", draft })}
             />
           )}
 
@@ -507,9 +618,10 @@ export default function HomebrewPage() {
           </div>
         </div>
         <p className="text-sm mb-6" style={{ color: "var(--scene-text-muted)" }}>
-          Custom races, backgrounds, and classes appear in the character builder, and
-          custom items in the inventory&apos;s item search — all alongside the official
-          set. They&apos;re yours everywhere; share one to a campaign and its members can
+          Custom races, backgrounds, and classes appear in the character builder,
+          custom items in the inventory&apos;s item search, and custom monsters in the
+          encounter builder &amp; combat tracker — all alongside the official set.
+          They&apos;re yours everywhere; share one to a campaign and its members can
           use it too.
         </p>
 
@@ -542,13 +654,20 @@ export default function HomebrewPage() {
           >
             <Plus className="w-4 h-4" /> New item
           </button>
+          <button
+            onClick={() => setEditor({ kind: "monster", draft: emptyMonsterDraft() })}
+            className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          >
+            <Plus className="w-4 h-4" /> New monster
+          </button>
         </div>
 
         {mine === undefined ? (
           <div className="flex items-center gap-2 text-sm" style={{ color: "var(--scene-text-muted)" }}>
             <Loader2 className="w-4 h-4 animate-spin" /> Loading your library…
           </div>
-        ) : races.length === 0 && backgrounds.length === 0 && items.length === 0 && classes.length === 0 ? (
+        ) : races.length === 0 && backgrounds.length === 0 && items.length === 0 && classes.length === 0 && monsters.length === 0 ? (
           <div
             className="rounded-xl p-8 text-center text-sm"
             style={{ background: "var(--scene-surface)", border: "1px dashed var(--scene-border)", color: "var(--scene-text-muted)" }}
@@ -636,6 +755,27 @@ export default function HomebrewPage() {
                     bits.push(`AC ${d.baseAC}`)
                   }
                   return bits.join(" · ")
+                }}
+              />
+            )}
+            {monsters.length > 0 && (
+              <HomebrewSection
+                title="Monsters"
+                items={monsters}
+                myCampaigns={myCampaigns ?? []}
+                onEdit={(doc) => setEditor({ kind: "monster", draft: monsterDocToDraft(doc) })}
+                onDelete={handleDelete}
+                onShare={handleShare}
+                summarize={(doc) => {
+                  const d = doc.data as HomebrewMonsterData
+                  return [
+                    d.type ? `${d.size} ${d.type}` : d.size,
+                    `CR ${d.challengeRating}`,
+                    `AC ${d.armorClass}`,
+                    `${d.hitPoints} HP`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
                 }}
               />
             )}
@@ -1369,6 +1509,314 @@ function ClassForm({
               />
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Monster form ───────────────────────────────────────────────────────────────
+
+function MonsterForm({
+  draft,
+  onChange,
+}: {
+  draft: MonsterDraft
+  onChange: (draft: MonsterDraft) => void
+}) {
+  const set = <K extends keyof MonsterDraft>(key: K, value: MonsterDraft[K]) =>
+    onChange({ ...draft, [key]: value })
+
+  const setAttack = (i: number, next: MonsterAttackDraft) =>
+    onChange({ ...draft, attacks: draft.attacks.map((a, idx) => (idx === i ? next : a)) })
+  const addAttack = () =>
+    onChange({ ...draft, attacks: [...draft.attacks, emptyAttackDraft()] })
+  const removeAttack = (i: number) =>
+    onChange({ ...draft, attacks: draft.attacks.filter((_, idx) => idx !== i) })
+
+  return (
+    <div className="space-y-5">
+      <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+        {draft.id ? "Edit monster" : "New monster"}
+      </h2>
+
+      <div>
+        <FieldLabel>Name</FieldLabel>
+        <input
+          value={draft.name}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder="e.g. Gloomstalker"
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+          style={fieldStyle}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div>
+          <FieldLabel>Size</FieldLabel>
+          <select
+            value={draft.size}
+            onChange={(e) => set("size", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
+            style={fieldStyle}
+          >
+            {SIZES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Type</FieldLabel>
+          <input
+            value={draft.type}
+            onChange={(e) => set("type", e.target.value)}
+            placeholder="beast, fiend…"
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+            style={fieldStyle}
+          />
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <FieldLabel>Alignment</FieldLabel>
+          <input
+            value={draft.alignment}
+            onChange={(e) => set("alignment", e.target.value)}
+            placeholder="unaligned"
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div>
+          <FieldLabel>Armor class</FieldLabel>
+          <input
+            type="number"
+            value={draft.armorClass}
+            onChange={(e) => set("armorClass", parseInt(e.target.value, 10) || 0)}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <FieldLabel>Hit points</FieldLabel>
+          <input
+            type="number"
+            value={draft.hitPoints}
+            onChange={(e) => set("hitPoints", parseInt(e.target.value, 10) || 0)}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <FieldLabel>Challenge</FieldLabel>
+          <select
+            value={draft.challengeRating}
+            onChange={(e) => set("challengeRating", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
+            style={fieldStyle}
+          >
+            {CR_OPTIONS.map((c) => (
+              <option key={c} value={c}>CR {c}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Speed</FieldLabel>
+          <input
+            value={draft.speed}
+            onChange={(e) => set("speed", e.target.value)}
+            placeholder="30 ft."
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+
+      <div>
+        <FieldLabel>Ability scores</FieldLabel>
+        <AbilityGrid value={draft.abilityScores} onChange={(m) => set("abilityScores", m)} />
+      </div>
+
+      <div>
+        <FieldLabel>Description (optional)</FieldLabel>
+        <textarea
+          value={draft.description}
+          onChange={(e) => set("description", e.target.value)}
+          rows={2}
+          placeholder="Lore or tactics shown on the stat block."
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-y"
+          style={fieldStyle}
+        />
+      </div>
+
+      {/* Attacks & actions */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <FieldLabel>Attacks &amp; actions</FieldLabel>
+          <button
+            onClick={addAttack}
+            className="text-xs flex items-center gap-1 px-2 py-1 rounded-lg"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          >
+            <Plus className="w-3 h-3" /> Add attack
+          </button>
+        </div>
+        <p className="text-xs mb-3" style={{ color: "var(--scene-text-muted)" }}>
+          The combat tracker rolls these on tap — to-hit and damage. Use <em>Info</em> for
+          non-rolled lines like Multiattack.
+        </p>
+        <div className="space-y-3">
+          {draft.attacks.map((a, i) => (
+            <div
+              key={i}
+              className="rounded-xl p-3 space-y-3"
+              style={{ background: "color-mix(in srgb, var(--scene-accent) 4%, var(--scene-surface))", border: "1px solid var(--scene-border)" }}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  value={a.name}
+                  onChange={(e) => setAttack(i, { ...a, name: e.target.value })}
+                  placeholder="Attack name (e.g. Bite)"
+                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                  style={fieldStyle}
+                />
+                <select
+                  value={a.kind}
+                  onChange={(e) => setAttack(i, { ...a, kind: e.target.value as MonsterAttackDraft["kind"] })}
+                  className="px-2 py-2 rounded-lg text-sm outline-none appearance-none"
+                  style={fieldStyle}
+                >
+                  <option value="melee">Melee</option>
+                  <option value="ranged">Ranged</option>
+                  <option value="save">Save</option>
+                  <option value="other">Info</option>
+                </select>
+                <button
+                  onClick={() => removeAttack(i)}
+                  className="p-1.5 rounded-lg"
+                  style={{ color: "var(--scene-text-muted)" }}
+                  aria-label="Remove attack"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              {a.kind === "other" ? (
+                <textarea
+                  value={a.desc}
+                  onChange={(e) => setAttack(i, { ...a, desc: e.target.value })}
+                  rows={2}
+                  placeholder="e.g. Multiattack. The creature makes two attacks."
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-y"
+                  style={fieldStyle}
+                />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {a.kind === "save" ? (
+                      <>
+                        <div>
+                          <FieldLabel>Save DC</FieldLabel>
+                          <input
+                            type="number"
+                            value={a.saveDC}
+                            onChange={(e) => setAttack(i, { ...a, saveDC: parseInt(e.target.value, 10) || 0 })}
+                            className="w-full px-2 py-1.5 rounded-lg text-sm outline-none text-center"
+                            style={fieldStyle}
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Save</FieldLabel>
+                          <select
+                            value={a.saveAbility}
+                            onChange={(e) => setAttack(i, { ...a, saveAbility: e.target.value })}
+                            className="w-full px-2 py-1.5 rounded-lg text-sm outline-none appearance-none"
+                            style={fieldStyle}
+                          >
+                            {SAVE_ABILITIES.map((s) => (
+                              <option key={s} value={s}>{s.slice(0, 3)}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <FieldLabel>To hit</FieldLabel>
+                          <input
+                            type="number"
+                            value={a.toHit}
+                            onChange={(e) => setAttack(i, { ...a, toHit: parseInt(e.target.value, 10) || 0 })}
+                            className="w-full px-2 py-1.5 rounded-lg text-sm outline-none text-center"
+                            style={fieldStyle}
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>{a.kind === "melee" ? "Reach" : "Range"}</FieldLabel>
+                          <input
+                            value={a.range}
+                            onChange={(e) => setAttack(i, { ...a, range: e.target.value })}
+                            placeholder={a.kind === "melee" ? "5 ft." : "80/320 ft."}
+                            className="w-full px-2 py-1.5 rounded-lg text-sm outline-none"
+                            style={fieldStyle}
+                          />
+                        </div>
+                      </>
+                    )}
+                    <div>
+                      <FieldLabel>Damage</FieldLabel>
+                      <input
+                        value={a.damageDice}
+                        onChange={(e) => setAttack(i, { ...a, damageDice: e.target.value })}
+                        placeholder="1d8"
+                        className="w-full px-2 py-1.5 rounded-lg text-sm outline-none text-center"
+                        style={fieldStyle}
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel>Bonus</FieldLabel>
+                      <input
+                        type="number"
+                        value={a.damageBonus}
+                        onChange={(e) => setAttack(i, { ...a, damageBonus: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full px-2 py-1.5 rounded-lg text-sm outline-none text-center"
+                        style={fieldStyle}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <FieldLabel>Damage type</FieldLabel>
+                    <select
+                      value={a.damageType}
+                      onChange={(e) => setAttack(i, { ...a, damageType: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none capitalize"
+                      style={fieldStyle}
+                    >
+                      {DAMAGE_TYPES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Extra text (optional)</FieldLabel>
+                    <input
+                      value={a.desc}
+                      onChange={(e) => setAttack(i, { ...a, desc: e.target.value })}
+                      placeholder="Rider effects or flavor."
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                      style={fieldStyle}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+          {draft.attacks.length === 0 && (
+            <p className="text-xs italic" style={{ color: "var(--scene-text-muted)" }}>
+              No attacks yet — add one so the tracker can roll it.
+            </p>
+          )}
         </div>
       </div>
     </div>

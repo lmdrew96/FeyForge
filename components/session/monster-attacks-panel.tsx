@@ -19,6 +19,7 @@ import {
   type MonsterAttack,
 } from "@/lib/monster-attacks"
 import { rollExpression, type RollMode } from "@/lib/dice-store"
+import type { HomebrewMonster } from "@/lib/homebrew"
 
 type Target = { id: string; name: string; type: string }
 
@@ -53,10 +54,12 @@ export function MonsterAttacksPanel({
   monsterName,
   targets,
   onApply,
+  homebrewMonsters = [],
 }: {
   monsterName: string
   targets: Target[]
   onApply: (targetId: string, amount: number) => void
+  homebrewMonsters?: HomebrewMonster[]
 }) {
   const [status, setStatus] = useState<"loading" | "ready" | "none">("loading")
   const [attacks, setAttacks] = useState<MonsterAttack[]>([])
@@ -71,11 +74,30 @@ export function MonsterAttacksPanel({
     let cancelled = false
     setStatus("loading")
     setResults({})
+    const base = baseMonsterName(monsterName)
+
+    // Homebrew monsters resolve FIRST, by name — they have no open5e entry, and a
+    // same-named custom creature should shadow the SRD one. Match the full tracker
+    // name, then the index-stripped base ("Gloomstalker 1" → "Gloomstalker").
+    const lc = monsterName.trim().toLowerCase()
+    const baseLc = base.toLowerCase()
+    const hb =
+      homebrewMonsters.find((m) => m.name.toLowerCase() === lc) ??
+      homebrewMonsters.find((m) => m.name.toLowerCase() === baseLc)
+    if (hb) {
+      const parsed = parseMonsterAttacks(hb.actions)
+      setAttacks(parsed)
+      setStatus(parsed.length > 0 ? "ready" : "none")
+      return () => {
+        cancelled = true
+      }
+    }
+
     open5eApi
-      .getMonsters({ search: baseMonsterName(monsterName) })
+      .getMonsters({ search: base })
       .then((monsters) => {
         if (cancelled) return
-        const match = pickMonster(monsters, baseMonsterName(monsterName))
+        const match = pickMonster(monsters, base)
         const parsed = match ? parseMonsterAttacks(match.actions) : []
         setAttacks(parsed)
         setStatus(parsed.length > 0 ? "ready" : "none")
@@ -86,7 +108,7 @@ export function MonsterAttacksPanel({
     return () => {
       cancelled = true
     }
-  }, [monsterName])
+  }, [monsterName, homebrewMonsters])
 
   const doRoll = (attack: MonsterAttack, i: number) => {
     let toHitTotal: number | null = null

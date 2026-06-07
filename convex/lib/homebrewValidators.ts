@@ -117,10 +117,57 @@ export const homebrewClassData = v.object({
   ),
 })
 
+// The six ability scores as raw values (not bonuses) — a monster's stat line.
+// `dexterity` drives the initiative bonus when the monster is dropped into combat.
+const monsterAbilityScores = v.object({
+  strength: v.number(),
+  dexterity: v.number(),
+  constitution: v.number(),
+  intelligence: v.number(),
+  wisdom: v.number(),
+  charisma: v.number(),
+})
+
+// One rollable (or info-only) action on a homebrew stat block. Shape mirrors
+// MonsterAction in lib/open5e-api.ts EXACTLY (snake_case included) so a homebrew
+// monster's actions[] feed lib/monster-attacks.ts parseMonsterAttacks unchanged.
+// `desc` is open5e-format prose synthesized by the authoring form from structured
+// inputs (to-hit / damage / save), so the parser scrapes it like any SRD action;
+// the optional structured fields are the same to-hit/damage hints open5e provides.
+const homebrewMonsterAction = v.object({
+  name: v.string(),
+  desc: v.string(),
+  attack_bonus: v.optional(v.number()),
+  damage_dice: v.optional(v.string()),
+  damage_bonus: v.optional(v.number()),
+})
+
+// A reusable custom stat block — name/size/type/AC/HP/CR/speed/6 abilities/actions.
+// Drops into the encounter builder + combat tracker via the SAME name-keyed combatant
+// shape SRD monsters use (no combat-table schema change); the tracker resolves a
+// homebrew monster's actions by name before falling back to open5e. `armorClass` +
+// `challengeRating` are required and unique to this shape — they discriminate it from
+// race (size/traits), background (feature), item (category/baseAC), and class
+// (hitDie). SRD-safe: the user's own creation, not redistributed WotC content.
+export const homebrewMonsterData = v.object({
+  size: v.string(), // Tiny | Small | Medium | Large | Huge | Gargantuan
+  type: v.string(), // beast | fiend | undead | humanoid | ... (display)
+  alignment: v.optional(v.string()),
+  armorClass: v.number(),
+  hitPoints: v.number(),
+  hitDice: v.optional(v.string()), // display only, e.g. "4d8 + 8"
+  speed: v.string(), // display, e.g. "30 ft., fly 60 ft."
+  challengeRating: v.string(), // "1/4" | "5" — drives crToXp / encounter math
+  abilityScores: monsterAbilityScores,
+  actions: v.array(homebrewMonsterAction),
+  description: v.optional(v.string()), // lore / flavor
+})
+
 // The stored `data` blob — one of the shapes, picked by the row's `kind`.
 export const homebrewData = v.union(
   homebrewRaceData,
   homebrewBackgroundData,
   homebrewItemData,
   homebrewClassData,
+  homebrewMonsterData,
 )

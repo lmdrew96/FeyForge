@@ -166,6 +166,7 @@ export default defineSchema({
       v.literal("background"),
       v.literal("item"),
       v.literal("class"),
+      v.literal("monster"),
     ),
     name: v.string(), // display name; also what's stored on characters.race/background
     sharedCampaignId: v.optional(v.id("campaigns")),

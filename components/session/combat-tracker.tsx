@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { EncounterDetails, DifficultyBadge, hasEncounterDetails } from "@/components/encounters/encounter-details"
 import { MonsterAttacksPanel } from "@/components/session/monster-attacks-panel"
+import { partitionHomebrew } from "@/lib/homebrew"
 
 type SessionId = Id<"partySessions">
 
@@ -56,6 +57,10 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
   const addableCreatures = useQuery(api.liveCombat.listAddableCreatures, { sessionId })
   // Saved encounters for THIS campaign — loadable into combat (generate→save→run).
   const savedEncounters = useQuery(api.encounters.list)
+  // Homebrew monsters (own + campaign-shared) so the attack panel can roll a custom
+  // creature's attacks. Memoized for a stable identity (the panel keys an effect on it).
+  const homebrewDocs = useQuery(api.homebrew.listForBuilder)
+  const homebrewMonsters = useMemo(() => partitionHomebrew(homebrewDocs).monsters, [homebrewDocs])
   const campaignEncounters = useMemo(
     () => (savedEncounters ?? []).filter((e) => e.campaignId === campaignId),
     [savedEncounters, campaignId],
@@ -585,6 +590,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
               {expandedAttacks === c.id && c.type !== "pc" && (
                 <MonsterAttacksPanel
                   monsterName={c.name}
+                  homebrewMonsters={homebrewMonsters}
                   targets={combat.combatants
                     .filter((x) => x.id !== c.id)
                     .map((x) => ({ id: x.id, name: x.name, type: x.type }))}

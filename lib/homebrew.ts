@@ -1,6 +1,7 @@
 import type { Doc } from "@/convex/_generated/dataModel"
 import type { Ability, Skill } from "@/lib/character/constants"
 import type { StoredItemData } from "@/lib/character/sheet-items"
+import type { MonsterAction } from "@/lib/open5e-api"
 import {
   RACES,
   BACKGROUNDS,
@@ -156,24 +157,99 @@ export function homebrewToBackgroundData(doc: Doc<"homebrew">): BackgroundData {
   }
 }
 
-// Split a homebrew list into builder-ready race/background/item/class arrays.
+// Mirrors homebrewMonsterData in convex/lib/homebrewValidators.ts. `actions` is
+// MonsterAction-shaped (open5e) so it feeds lib/monster-attacks.ts parseMonsterAttacks
+// unchanged — the authoring form synthesizes each action's `desc` in open5e prose.
+export interface HomebrewMonsterData {
+  size: string
+  type: string
+  alignment?: string
+  armorClass: number
+  hitPoints: number
+  hitDice?: string
+  speed: string
+  challengeRating: string
+  abilityScores: {
+    strength: number
+    dexterity: number
+    constitution: number
+    intelligence: number
+    wisdom: number
+    charisma: number
+  }
+  actions: MonsterAction[]
+  description?: string
+}
+
+// A homebrew monster ready for the encounter builder + combat tracker. Carries the
+// fields both consume: AC/HP/dex (→ initiative bonus), the CR string (crToXp prefers
+// it) plus a numeric `cr` for computeEncounter, and the rollable `actions`. The id is
+// `hb:`-prefixed so it never collides with an open5e slug.
+export interface HomebrewMonster {
+  id: string
+  name: string
+  size: string
+  type: string
+  armorClass: number
+  hitPoints: number
+  dexterity: number
+  challengeRating: string
+  cr: number
+  speed: string
+  actions: MonsterAction[]
+  description?: string
+}
+
+// "1/8" → 0.125, "1/4" → 0.25, "1/2" → 0.5, "5" → 5. crToXp prefers the CR string,
+// but computeEncounter's EncounterMonster.cr wants the number.
+function crToNumber(cr: string): number {
+  const t = cr.trim()
+  if (t === "1/8") return 0.125
+  if (t === "1/4") return 0.25
+  if (t === "1/2") return 0.5
+  const n = Number(t)
+  return Number.isFinite(n) ? n : 0
+}
+
+export function homebrewToMonster(doc: Doc<"homebrew">): HomebrewMonster {
+  const data = doc.data as HomebrewMonsterData
+  return {
+    id: `${HB_PREFIX}${doc._id}`,
+    name: doc.name,
+    size: data.size,
+    type: data.type,
+    armorClass: data.armorClass,
+    hitPoints: data.hitPoints,
+    dexterity: data.abilityScores.dexterity,
+    challengeRating: data.challengeRating,
+    cr: crToNumber(data.challengeRating),
+    speed: data.speed,
+    actions: data.actions,
+    description: data.description,
+  }
+}
+
+// Split a homebrew list into builder-ready race/background/item/class/monster arrays.
 export function partitionHomebrew(docs: Doc<"homebrew">[] | undefined): {
   races: RaceData[]
   backgrounds: BackgroundData[]
   items: HomebrewItem[]
   classes: ClassData[]
+  monsters: HomebrewMonster[]
 } {
   const races: RaceData[] = []
   const backgrounds: BackgroundData[] = []
   const items: HomebrewItem[] = []
   const classes: ClassData[] = []
+  const monsters: HomebrewMonster[] = []
   for (const doc of docs ?? []) {
     if (doc.kind === "race") races.push(homebrewToRaceData(doc))
     else if (doc.kind === "background") backgrounds.push(homebrewToBackgroundData(doc))
     else if (doc.kind === "item") items.push(homebrewToItem(doc))
     else if (doc.kind === "class") classes.push(homebrewToClassData(doc))
+    else if (doc.kind === "monster") monsters.push(homebrewToMonster(doc))
   }
-  return { races, backgrounds, items, classes }
+  return { races, backgrounds, items, classes, monsters }
 }
 
 // True if `name` (case-insensitive) collides with a curated SRD race/background.
