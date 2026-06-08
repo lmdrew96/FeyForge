@@ -1,6 +1,6 @@
 {
   "name": "feyforge",
-  "version": "0.140.1",
+  "version": "0.141.0",
   "private": true,
   "scripts": {
     "build": "next build",
@@ -14,6 +14,7 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "upload": "tsx scripts/audio-pipeline/upload.ts",
     "seed:presets": "tsx scripts/seed-presets.ts",
+    "seed:monsters": "tsx scripts/seed-monsters.ts",
     "tag-premium": "tsx scripts/tag-premium.ts",
     "seed:premium": "tsx scripts/seed-presets.ts --premium"
   },

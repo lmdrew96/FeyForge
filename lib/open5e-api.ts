@@ -517,6 +517,23 @@ function getSourceParams(source?: ContentSource): Record<string, string> {
   return { document__slug: "wotc-srd" }
 }
 
+// ─── Self-hosted SRD monsters ────────────────────────────────────────────────
+// The full SRD-2014 creature set is baked into lib/data/srd-monsters.json by
+// scripts/seed-monsters.ts and served from here, so the combat tracker never hits
+// the live (volunteer-run) api.open5e.com at play time. A lazy dynamic import keeps
+// the ~550 KB out of the main bundle — it loads as its own chunk only when a monster
+// surface (codex, combat tracker, encounter builder) first asks, then stays cached
+// in-memory for the session. Re-seed to refresh the snapshot.
+let srdMonstersPromise: Promise<Open5eMonster[]> | null = null
+function loadSrdMonsters(): Promise<Open5eMonster[]> {
+  if (!srdMonstersPromise) {
+    srdMonstersPromise = import("./data/srd-monsters.json").then(
+      (m) => (m.default ?? m) as unknown as Open5eMonster[],
+    )
+  }
+  return srdMonstersPromise
+}
+
 // API methods
 export const open5eApi = {
   // Spells
@@ -541,26 +558,36 @@ export const open5eApi = {
     return fetchWithCache<Open5eSpell>(`/v1/spells/${slug}/`)
   },
 
-  // Monsters — from v2/creatures (v1/monsters is deprecated), mapped to the
-  // Open5eMonster shape at the lib boundary (see v2CreatureToMonster). Defaults to
-  // the 2014 SRD; `search`/`type` filter server-side (both verified on v2).
+  // Monsters — served from the self-hosted SRD-2014 bundle (see loadSrdMonsters),
+  // NOT the live API. Combat rolls monster attacks at the table, so it must never
+  // depend on the volunteer-run api.open5e.com (which went fully down mid-session)
+  // or its broken v2 structured-attack fields. `search` (name substring) and `type`
+  // (exact creature type) filter in-memory, matching the old server-side behavior.
+  // Re-bake with `npm run seed:monsters` to refresh. Homebrew is a separate path.
   async getMonsters(params?: {
     search?: string
     cr?: string
     type?: string
     size?: string
   }): Promise<Open5eMonster[]> {
-    const queryParams: Record<string, string> = { document__key: "srd-2014" }
-    if (params?.search) queryParams.search = params.search
-    if (params?.type) queryParams.type = params.type.toLowerCase()
-
-    const raw = await fetchAllPages<Open5eV2Creature>("/v2/creatures/", queryParams)
-    return raw.map(v2CreatureToMonster)
+    const all = await loadSrdMonsters()
+    let result = [...all] // fresh array — callers may sort it in place
+    if (params?.type) {
+      const t = params.type.toLowerCase()
+      result = result.filter((m) => m.type.toLowerCase() === t)
+    }
+    if (params?.search) {
+      const q = params.search.toLowerCase()
+      result = result.filter((m) => m.name.toLowerCase().includes(q))
+    }
+    return result
   },
 
   async getMonster(slug: string): Promise<Open5eMonster> {
-    const raw = await fetchWithCache<Open5eV2Creature>(`/v2/creatures/${slug}/`)
-    return v2CreatureToMonster(raw)
+    const all = await loadSrdMonsters()
+    const found = all.find((m) => m.slug === slug)
+    if (!found) throw new Error(`Monster not found in SRD bundle: ${slug}`)
+    return found
   },
 
   // Conditions
