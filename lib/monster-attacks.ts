@@ -33,17 +33,30 @@ const ABILITIES = "Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma"
 const TO_HIT_RE = /([+-]?\d+)\s+to hit/i
 const SAVE_RE = new RegExp(`DC\\s+(\\d+)\\s+(${ABILITIES})\\s+saving throw`, "i")
 const REACH_RE = /\b(reach\s+\d+\s*ft\.?|range\s+\d+\/\d+\s*ft\.?|range\s+\d+\s*ft\.?)/i
-// "<avg> (<count>d<sides>[ ± <bonus>]) <type> damage" — matches the primary clause
-// AND every rider ("plus 7 (2d6) fire damage") in one global pass.
-const DAMAGE_RE = /\d+\s*\(\s*(\d+)d(\d+)\s*(?:([+-])\s*(\d+))?\s*\)\s*([a-zA-Z]+)\s+damage/gi
+// Damage clauses, in ONE global pass so riders are caught and nothing is double-counted.
+// Two shapes, dice tried FIRST so it consumes its own average number before the flat
+// alternative can mis-read it:
+//   dice → "<avg> (<count>d<sides>[ ± <bonus>]) <type> damage"  e.g. "17 (2d10 + 6) piercing damage"
+//   flat → "<amount> <type> damage"                             e.g. "1 piercing damage" (Bat, Crab, Rat…)
+// Flat-damage attacks (no dice clause) are real SRD weapon attacks — without this branch
+// they parse to zero damage and the combat tracker can't apply their hits.
+const DAMAGE_RE =
+  /(\d+)\s*\(\s*(\d+)d(\d+)\s*(?:([+-])\s*(\d+))?\s*\)\s*([a-zA-Z]+)\s+damage|(\d+)\s+([a-zA-Z]+)\s+damage/gi
 
 function parseDamage(desc: string): DamagePart[] {
   const parts: DamagePart[] = []
   DAMAGE_RE.lastIndex = 0
   let m: RegExpExecArray | null
   while ((m = DAMAGE_RE.exec(desc)) !== null) {
-    const bonus = m[3] ? (m[3] === "-" ? -1 : 1) * parseInt(m[4], 10) : 0
-    parts.push({ count: parseInt(m[1], 10), sides: parseInt(m[2], 10), bonus, type: m[5].toLowerCase() })
+    if (m[2] !== undefined) {
+      // dice clause
+      const bonus = m[4] ? (m[4] === "-" ? -1 : 1) * parseInt(m[5], 10) : 0
+      parts.push({ count: parseInt(m[2], 10), sides: parseInt(m[3], 10), bonus, type: m[6].toLowerCase() })
+    } else {
+      // flat clause — no dice; modeled as 0 dice + a flat bonus so avgDamage/damageExpr
+      // and the roller all treat it as a constant.
+      parts.push({ count: 0, sides: 0, bonus: parseInt(m[7], 10), type: m[8].toLowerCase() })
+    }
   }
   return parts
 }
@@ -105,6 +118,7 @@ export const toHitExpr = (toHit: number): string =>
   toHit >= 0 ? `1d20+${toHit}` : `1d20-${Math.abs(toHit)}`
 
 export const damageExpr = (p: DamagePart): string => {
+  if (p.count === 0) return String(p.bonus) // flat damage — no dice to roll, crit-safe
   const base = `${p.count}d${p.sides}`
   if (p.bonus > 0) return `${base}+${p.bonus}`
   if (p.bonus < 0) return `${base}-${Math.abs(p.bonus)}`

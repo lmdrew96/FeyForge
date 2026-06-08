@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { v2CreatureToMonster, stripSrdMarkdown } from "./open5e-api"
-import { parseMonsterAttacks } from "./monster-attacks"
+import { parseMonsterAttacks, avgDamage, damageExpr } from "./monster-attacks"
 
 // A trimmed but realistic v2 /creatures payload (shapes verified live against the
 // SRD-2014 set). Note the structured attack fields are intentionally the BROKEN
@@ -104,6 +104,45 @@ describe("v2CreatureToMonster", () => {
     const multi = parseMonsterAttacks(m.actions).find((a) => a.name === "Multiattack")!
     expect(multi.rollable).toBe(false)
     expect(multi.toHit).toBeNull()
+  })
+})
+
+// Flat-damage creatures (Bat, Crab, Rat) deal a fixed amount with NO dice clause —
+// "Hit: 1 piercing damage." Without flat parsing they parse to zero damage and the
+// combat tracker can roll to-hit but has nothing to apply (the reported bug).
+const v2Bat = {
+  key: "srd_bat",
+  name: "Bat",
+  size: { name: "Tiny", key: "tiny" },
+  type: { name: "Beast", key: "beast" },
+  challenge_rating: 0.0,
+  armor_class: 12,
+  hit_points: 1,
+  speed: { unit: "feet", walk: 5, fly: 30 },
+  ability_scores: { strength: 2, dexterity: 15, constitution: 8, intelligence: 2, wisdom: 12, charisma: 4 },
+  document: { key: "srd-2014", name: "System Reference Document 5.1" },
+  actions: [
+    {
+      name: "Bite",
+      action_type: "ACTION",
+      desc: "Melee Weapon Attack: +0 to hit, reach 5 ft., one creature. Hit: 1 piercing damage.",
+      attacks: [],
+    },
+  ],
+}
+
+describe("flat-damage attacks (Bat / Crab / Rat)", () => {
+  const bite = parseMonsterAttacks(v2CreatureToMonster(v2Bat as never).actions).find((a) => a.name === "Bite")!
+
+  it("parses flat damage with no dice clause as a rollable +0 attack", () => {
+    expect(bite.rollable).toBe(true)
+    expect(bite.toHit).toBe(0)
+    expect(bite.damage).toEqual([{ count: 0, sides: 0, bonus: 1, type: "piercing" }])
+  })
+
+  it("yields the flat amount from avgDamage and a constant damageExpr (crit-safe)", () => {
+    expect(avgDamage(bite.damage)).toBe(1)
+    expect(damageExpr(bite.damage[0])).toBe("1")
   })
 })
 
