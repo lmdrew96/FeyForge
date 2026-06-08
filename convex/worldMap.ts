@@ -118,6 +118,9 @@ const faithsV = v.array(
     origin: v.optional(v.string()),
   }),
 )
+// Azgaar grid heightmap for Phase-2 terrain routing. Mirrors HeightGridData in
+// lib/worldMap/azgaar-map.ts + the worldMaps schema. heights = base64 byte/cell.
+const heightGridV = v.object({ cols: v.number(), rows: v.number(), heights: v.string() })
 
 // Premium-picker vibe validators (mirror lib/worldMap/vibe.ts + the worldMaps
 // schema). Shared by seedPreset (writes them) and listPremiumPresets (filters).
@@ -231,10 +234,11 @@ export const getMap = query({
     // scale). Set to undefined (not omit) so the return type stays a clean Doc and
     // the array still never reaches the player's wire.
     // routes are heavy (~40–65KB) and lazy-loaded via getRoutes — strip from this hot
-    // read for everyone. worldEvents stay DM-only (plot, not common knowledge).
+    // read for everyone. heightGrid (~13KB, travel-only) is likewise lazy via
+    // getHeightGrid. worldEvents stay DM-only (plot, not common knowledge).
     if (m.member.role !== "dm")
-      return { ...map, worldEvents: undefined, routes: undefined, realms: undefined, faiths: undefined }
-    return { ...map, routes: undefined, realms: undefined, faiths: undefined }
+      return { ...map, worldEvents: undefined, routes: undefined, realms: undefined, faiths: undefined, heightGrid: undefined }
+    return { ...map, routes: undefined, realms: undefined, faiths: undefined, heightGrid: undefined }
   },
 })
 
@@ -250,6 +254,22 @@ export const getRoutes = query({
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
       .first()
     return map?.routes ?? []
+  },
+})
+
+// Grid heightmap for Phase-2 terrain routing — lazy-loaded (getMap strips it). Fetched
+// alongside routes only when the journey planner is open. Membership-gated; not secret
+// (it's just terrain). Returns null when the map predates the heightmap (→ Phase 1).
+export const getHeightGrid = query({
+  args: { campaignId: v.id("campaigns") },
+  handler: async (ctx, args) => {
+    const m = await getMembership(ctx, args.campaignId)
+    if (!m) return null
+    const map = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .first()
+    return map?.heightGrid ?? null
   },
 })
 
@@ -329,6 +349,7 @@ export const setCampaignMapWithPins = mutation({
     routes: v.optional(routesV),
     realms: v.optional(realmsV),
     faiths: v.optional(faithsV),
+    heightGrid: v.optional(heightGridV),
   },
   handler: async (ctx, args): Promise<Id<"worldMaps">> => {
     const userId = await requireDm(ctx, args.campaignId)
@@ -358,6 +379,7 @@ export const setCampaignMapWithPins = mutation({
       routes: args.routes,
       realms: args.realms,
       faiths: args.faiths,
+      heightGrid: args.heightGrid,
       createdBy: userId,
       updatedAt: Date.now(),
     })
@@ -568,6 +590,7 @@ export const adoptPreset = mutation({
       routes: preset.routes,
       realms: preset.realms,
       faiths: preset.faiths,
+      heightGrid: preset.heightGrid,
       createdBy: userId,
       updatedAt: Date.now(),
     })
@@ -668,6 +691,7 @@ export const saveAsPreset = mutation({
       routes: map.routes,
       realms: map.realms,
       faiths: map.faiths,
+      heightGrid: map.heightGrid,
       createdBy: identity.tokenIdentifier,
       updatedAt: Date.now(),
     })
@@ -742,6 +766,7 @@ export const seedPreset = mutation({
     routes: v.optional(routesV),
     realms: v.optional(realmsV),
     faiths: v.optional(faithsV),
+    heightGrid: v.optional(heightGridV),
   },
   handler: async (
     ctx,
@@ -794,6 +819,7 @@ export const seedPreset = mutation({
       routes: args.routes,
       realms: args.realms,
       faiths: args.faiths,
+      heightGrid: args.heightGrid,
       createdBy: "seed-script",
       updatedAt: Date.now(),
     })

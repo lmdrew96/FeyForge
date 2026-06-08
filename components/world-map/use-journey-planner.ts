@@ -15,6 +15,8 @@
 import { useCallback, useMemo, useState } from "react"
 import { buildTravelGraph, planJourney } from "@/lib/worldMap/routing"
 import type { PathSegment, WaterCapability } from "@/lib/worldMap/routing"
+import { buildFusedGraph, decodeHeightGrid, planTerrainJourney } from "@/lib/worldMap/terrain-routing"
+import type { StoredHeightGrid } from "@/lib/worldMap/terrain-routing"
 import { landSpeedMph, waterSpeedMph } from "./routes-overlay"
 import type { FootPace, LandMode, MapRoute, ShipKind } from "./routes-overlay"
 import type { LocationId, MapLocation } from "./shared"
@@ -89,18 +91,26 @@ export function useJourneyPlanner({
   width,
   height,
   scaleMilesPerPx,
+  heightGrid,
 }: {
   routes: MapRoute[] | undefined
   locations: MapLocation[] | undefined
   width: number | undefined
   height: number | undefined
   scaleMilesPerPx: number | null | undefined
+  // Phase-2 terrain heightmap (lazy-loaded). Present ⇒ the planner fuses the grid with
+  // the route graph and routes via A* (cross open water with no searoute); absent ⇒
+  // Phase-1 route-graph Dijkstra. Optional so existing callers/maps degrade gracefully.
+  heightGrid?: StoredHeightGrid | null
 }): JourneyPlanner {
   const [state, setState] = useState<JourneyState>({ ids: [], profile: DEFAULT_PROFILE })
   const { ids, profile } = state
 
-  // One unified land+water graph, rebuilt when the route set / map dims / pins change.
-  // Coastal pins seed the land↔sea connectors (the Port flag gates chartered embark).
+  // The travel graph, rebuilt when the route set / map dims / pins / heightmap change.
+  // With a heightmap → a FUSED grid+route graph (A* terrain routing, Phase 2); without
+  // → the Phase-1 route graph (Dijkstra). Coastal pins seed the land↔sea connectors
+  // (the Port flag gates chartered embark) in both. Tagged so the planner picks the
+  // matching search; either engine returns the same PlannedJourney shape.
   const graph = useMemo(() => {
     if (!routes || !width || !height) return null
     const pins = (locations ?? []).map((l) => ({
@@ -108,8 +118,10 @@ export function useJourneyPlanner({
       y: l.y,
       isPort: !!l.town?.features?.includes("Port"),
     }))
-    return buildTravelGraph(routes, width, height, pins)
-  }, [routes, locations, width, height])
+    const grid = decodeHeightGrid(heightGrid)
+    if (grid) return { kind: "terrain" as const, g: buildFusedGraph(routes, width, height, pins, grid) }
+    return { kind: "route" as const, g: buildTravelGraph(routes, width, height, pins) }
+  }, [routes, locations, width, height, heightGrid])
 
   const hasWater = useMemo(() => (routes ?? []).some((r) => r.group === "searoutes"), [routes])
 
@@ -151,14 +163,19 @@ export function useJourneyPlanner({
       const t = locById.get(ids[i + 1])
       if (!f || !t) continue
       const base = { fromId: f._id, toId: t._id, fromName: f.name, toName: t.name }
-      const res = graph
-        ? planJourney(graph, [f.x, f.y], [t.x, t.y], { water: profile.water, landSpeed, waterSpeed })
-        : null
+      const opts = { water: profile.water, landSpeed, waterSpeed }
+      const res = !graph
+        ? null
+        : graph.kind === "terrain"
+          ? planTerrainJourney(graph.g, [f.x, f.y], [t.x, t.y], opts)
+          : planJourney(graph.g, [f.x, f.y], [t.x, t.y], opts)
       if (!res) {
-        // Informative, never a dead end: tell the DM the obvious next action.
+        // Informative, never a dead end: tell the DM the obvious next action. A boat
+        // helps whenever there's a sea network OR a heightmap to cross open water.
+        const canBoat = hasWater || graph?.kind === "terrain"
         const reason =
           profile.water === "none"
-            ? hasWater
+            ? canBoat
               ? "No land route — enable a boat to try a sea crossing."
               : "No overland route — separate landmasses."
             : "No route reaches there yet — no sea lane links these coasts."

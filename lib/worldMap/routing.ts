@@ -179,14 +179,18 @@ function nearestNode(pos: Map<number, [number, number]>, x: number, y: number): 
   return best
 }
 
-// Is this edge traversable under the capability profile?
-const usable = (e: Edge, water: WaterCapability): boolean => {
-  if (e.surface === "land") return true
+// Is an edge of this surface traversable under the capability profile? Exported so
+// the Phase-2 terrain graph (terrain-routing.ts) gates grid edges IDENTICALLY — one
+// source of truth for the none/own-craft/chartered semantics.
+export const isEdgeUsable = (surface: Surface, isPort: boolean, water: WaterCapability): boolean => {
+  if (surface === "land") return true
   if (water === "none") return false
   // Chartered vessels embark/disembark at ports only → non-port connectors are off.
-  if (e.surface === "connector" && water === "chartered" && !e.isPort) return false
+  if (surface === "connector" && water === "chartered" && !isPort) return false
   return true
 }
+
+const usable = (e: Edge, water: WaterCapability): boolean => isEdgeUsable(e.surface, e.isPort, water)
 
 // Dijkstra over the multimodal graph, pricing each edge by TIME (px ÷ surfaceSpeed)
 // under the given profile. Returns the path polyline, its land/water breakdown, and

@@ -473,6 +473,16 @@ export default defineSchema({
         }),
       ),
     ),
+    // Azgaar GRID heightmap for Phase-2 terrain routing — crossing open water (or
+    // trackless land) where no route/searoute is drawn. A regular cols×rows lattice;
+    // `heights` is base64 of a byte-per-cell array (≥20 = land), ~13KB for a ~10k-cell
+    // grid. Stored as a STRING (not number[]) to dodge Convex's 8192-element array cap.
+    // Optional — maps without it route via Phase 1. Heavy-ish + travel-only, so getMap
+    // strips it and worldMap.getHeightGrid lazy-loads it (like routes). Mirrors
+    // HeightGridData in lib/worldMap/azgaar-map.ts.
+    heightGrid: v.optional(
+      v.object({ cols: v.number(), rows: v.number(), heights: v.string() }),
+    ),
     updatedAt: v.number(),
   })
     .index("by_campaignId", ["campaignId"])

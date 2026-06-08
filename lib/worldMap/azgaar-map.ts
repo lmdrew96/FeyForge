@@ -215,6 +215,19 @@ export type FaithInfo = {
   origin?: string // parent faith name, when this one descends from another
 }
 
+// Azgaar's GRID heightmap: a regular `cols × rows` lattice (≈129×78), one height
+// 0–100 per cell (≥20 = land). Powers Phase-2 "terrain GPS" routing — crossing open
+// water (or trackless land) where no route/searoute is drawn. A regular grid has
+// IMPLICIT adjacency (cell i → col = i % cols, row = ⌊i / cols⌋), so no neighbor list
+// or centroid is stored. `heights` is a base64-encoded byte-per-cell array (row-major):
+// ~10k cells → ~13KB string, well under Convex's 1MB value cap and its 8192-element
+// ARRAY cap (why a string, not number[]). Optional — maps without it route via Phase 1.
+export type HeightGridData = {
+  cols: number
+  rows: number
+  heights: string // base64 of a Uint8Array, length === cols*rows, each 0–100
+}
+
 export type ParsedMap = {
   width: number
   height: number
@@ -226,6 +239,7 @@ export type ParsedMap = {
   routes: RouteInfo[] // roads/trails/searoutes polylines for the travel overlay
   realms: RealmInfo[] // Azgaar states → "Realms & Faiths" panel
   faiths: FaithInfo[] // Azgaar religions → "Realms & Faiths" panel
+  heightGrid?: HeightGridData // Azgaar grid heightmap (Phase-2 terrain routing); absent on old formats
 }
 
 export type PresetStats = {
@@ -311,6 +325,59 @@ const titleCase = (s: string): string =>
 
 function isObjArray(arr: unknown): arr is Record<string, unknown>[] {
   return Array.isArray(arr)
+}
+
+// Base64-encode a byte array (browser + Node ≥16 via global btoa). Chunked so a large
+// grid (~10k bytes) doesn't blow the String.fromCharCode argument-count limit.
+function encodeBytesBase64(bytes: Uint8Array): string {
+  let bin = ""
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(bin)
+}
+
+// Pull Azgaar's GRID heightmap out of the raw `.map` for Phase-2 terrain routing.
+// The grid-general object is the lone {…} line carrying numeric cellsX/cellsY/spacing;
+// grid.cells.h is the FIRST bare comma-number line after it whose field count ===
+// cols*rows (Azgaar always serializes heights first among the grid cell arrays). These
+// bare lines never start with `[`, so the main signature loop skips them — we scan
+// here. Returns undefined on any older/odd layout → the map just routes via Phase 1.
+function extractHeightGrid(lines: string[]): HeightGridData | undefined {
+  let cols = 0
+  let rows = 0
+  let gridLine = -1
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trimStart()
+    if (!t.startsWith("{")) continue
+    try {
+      const o = JSON.parse(t) as Record<string, unknown>
+      if (typeof o.cellsX === "number" && typeof o.cellsY === "number" && typeof o.spacing === "number") {
+        cols = o.cellsX
+        rows = o.cellsY
+        gridLine = i
+        break
+      }
+    } catch {
+      // not the grid object — keep scanning
+    }
+  }
+  if (gridLine < 0 || cols < 1 || rows < 1) return undefined
+  const need = cols * rows
+  for (let i = gridLine + 1; i < Math.min(gridLine + 12, lines.length); i++) {
+    const ln = lines[i]
+    if (!/^\s*-?\d/.test(ln)) continue // not a bare-number array line
+    const parts = ln.split(",")
+    if (parts.length !== need) continue // wrong array (prec/feature/temp/…) — heights is first
+    const bytes = new Uint8Array(need)
+    for (let k = 0; k < need; k++) {
+      const v = parseInt(parts[k], 10)
+      bytes[k] = v > 0 ? (v > 255 ? 255 : v) : 0 // heights are 0–100; clamp defensively
+    }
+    return { cols, rows, heights: encodeBytesBase64(bytes) }
+  }
+  return undefined
 }
 
 // Parse a `.map` into ALL settlements + ALL POIs (no cap, no curation). Throws on
@@ -744,6 +811,7 @@ export function parseMap(text: string): ParsedMap {
     routes: routeInfos,
     realms,
     faiths,
+    heightGrid: extractHeightGrid(lines),
   }
 }
 

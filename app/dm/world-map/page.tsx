@@ -496,6 +496,9 @@ function MapWorkspace({
   const aiUsage = useQuery(api.aiUsage.getUsage)
   // Travel routes (roads/trails/searoutes) — lazy, only fetched when toggled on.
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
+  // Grid heightmap for Phase-2 terrain routing — lazy alongside routes. null/undefined
+  // ⇒ the planner falls back to Phase-1 route routing.
+  const heightGrid = useQuery(api.worldMap.getHeightGrid, showRoutes ? { campaignId } : "skip")
   const [wbOpen, setWbOpen] = useState(false)
   // Mobile-only "More" dropdown holding the secondary toolbar tools (the bar keeps
   // just pin visibility + filter; everything else collapses here below sm).
@@ -509,6 +512,7 @@ function MapWorkspace({
     width: map.width,
     height: map.height,
     scaleMilesPerPx: map.scaleMilesPerPx,
+    heightGrid,
   })
 
   // AI: flesh out the pin's player + DM notes into the draft for review (never

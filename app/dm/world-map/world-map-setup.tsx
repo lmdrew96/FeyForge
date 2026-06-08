@@ -643,6 +643,7 @@ function AzgaarWorldBuilder({ campaignId, onDone }: { campaignId: CampaignId; on
         routes: parsed.routes, // roads/trails/searoutes polylines → worldMaps row (travel overlay)
         realms: parsed.realms, // Azgaar states → worldMaps row (Realms & Faiths panel)
         faiths: parsed.faiths, // Azgaar religions → worldMaps row (Realms & Faiths panel)
+        heightGrid: parsed.heightGrid, // Azgaar grid heightmap → worldMaps row (Phase-2 terrain routing)
       })
       toast.success(`Imported “${name}” — ${locations.length} location${locations.length === 1 ? "" : "s"} placed.`)
       onDone?.()

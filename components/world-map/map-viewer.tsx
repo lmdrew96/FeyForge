@@ -61,6 +61,8 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   // mode the network draws faint and tapping two town pins plans a road route.
   const [showRoutes, setShowRoutes] = useState(false)
   const routes = useQuery(api.worldMap.getRoutes, showRoutes ? { campaignId } : "skip")
+  // Grid heightmap for Phase-2 terrain routing — lazy alongside routes.
+  const heightGrid = useQuery(api.worldMap.getHeightGrid, showRoutes ? { campaignId } : "skip")
   // Realms & faiths panel — lazy, opened from the toolbar.
   const [wbOpen, setWbOpen] = useState(false)
   // Mobile-only "More" dropdown: keep pin visibility + filter on the bar, tuck
@@ -184,6 +186,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
     width: map?.width,
     height: map?.height,
     scaleMilesPerPx: map?.scaleMilesPerPx,
+    heightGrid,
   })
 
   // ── Pan / zoom (read-only: no placement, move, or paint) ────────────────────

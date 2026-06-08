@@ -34,6 +34,7 @@ import {
   type RouteInfo,
   type RealmInfo,
   type FaithInfo,
+  type HeightGridData,
 } from "../lib/worldMap/azgaar-map"
 import type {
   VibeShape,
@@ -171,6 +172,7 @@ async function seedPresetInConvex(args: {
   routes?: RouteInfo[] // roads/trails/searoutes polylines → worldMaps row (travel overlay)
   realms?: RealmInfo[] // Azgaar states → worldMaps row (Realms & Faiths panel)
   faiths?: FaithInfo[] // Azgaar religions → worldMaps row (Realms & Faiths panel)
+  heightGrid?: HeightGridData // Azgaar grid heightmap → worldMaps row (Phase-2 terrain routing)
   // All 4 present ⇒ the mutation stores source:"premium-preset" + these tags;
   // absent ⇒ a free starter preset (source:"preset").
   vibeShape?: VibeShape
@@ -280,6 +282,7 @@ async function seedPremium(dryRun: boolean): Promise<void> {
         routes: parsed.routes,
         realms: parsed.realms,
         faiths: parsed.faiths,
+        heightGrid: parsed.heightGrid,
         vibeShape: e.vibeShape,
         vibeClimate: e.vibeClimate,
         vibeCivilization: e.vibeCivilization,
@@ -392,6 +395,7 @@ async function main(): Promise<void> {
         routes: parsed.routes,
         realms: parsed.realms,
         faiths: parsed.faiths,
+        heightGrid: parsed.heightGrid,
       })
 
       console.log(`${result.replaced ? "↻  updated" : "✓  seeded"} ${result.locationCount}-pin pool — ${summary}`)
