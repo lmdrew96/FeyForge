@@ -20,7 +20,9 @@ import {
 } from "lucide-react"
 import { EncounterDetails, DifficultyBadge, hasEncounterDetails } from "@/components/encounters/encounter-details"
 import { MonsterAttacksPanel } from "@/components/session/monster-attacks-panel"
-import { partitionHomebrew } from "@/lib/homebrew"
+import { partitionHomebrew, type HomebrewMonster } from "@/lib/homebrew"
+import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
+import { baseMonsterName } from "@/lib/monster-attacks"
 
 type SessionId = Id<"partySessions">
 
@@ -122,6 +124,13 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
   const [monsterHp, setMonsterHp] = useState("")
   const [monsterAc, setMonsterAc] = useState("")
   const [monsterInit, setMonsterInit] = useState("")
+  // SRD monster quick-add — the full SRD list is lazy-loaded on first focus
+  // (cached 24h in IndexedDB by the client), then filtered locally.
+  const [monsterQuery, setMonsterQuery] = useState("")
+  const [srdMonsters, setSrdMonsters] = useState<Open5eMonster[]>([])
+  const [srdLoading, setSrdLoading] = useState(false)
+  const [srdLoaded, setSrdLoaded] = useState(false)
+  const [srdError, setSrdError] = useState(false)
   const [expandedConditions, setExpandedConditions] = useState<string | null>(null)
   const [expandedAttacks, setExpandedAttacks] = useState<string | null>(null)
   const [loadingSaved, setLoadingSaved] = useState(false)
@@ -187,6 +196,68 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
       toast.error("Failed to add combatant.")
     }
   }
+
+  // Lazy-load the SRD monster list the first time the DM focuses the search.
+  const ensureSrdMonsters = () => {
+    if (srdLoaded || srdLoading) return
+    setSrdLoading(true)
+    open5eApi
+      .getMonsters()
+      .then((m) => {
+        setSrdMonsters(m)
+        setSrdLoaded(true)
+      })
+      .catch(() => setSrdError(true))
+      .finally(() => setSrdLoading(false))
+  }
+
+  const srdMatches = useMemo(() => {
+    const q = monsterQuery.trim().toLowerCase()
+    if (!q) return []
+    return srdMonsters.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 20)
+  }, [monsterQuery, srdMonsters])
+
+  const hbMatches = useMemo(() => {
+    const q = monsterQuery.trim().toLowerCase()
+    if (!q) return []
+    return homebrewMonsters.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 8)
+  }, [monsterQuery, homebrewMonsters])
+
+  // Disambiguate duplicates the way the encounter builder does: the first stays
+  // bare ("Goblin"), the next becomes "Goblin 2"… so the DM can tell them apart and
+  // the attack panel still resolves them (baseMonsterName strips the suffix).
+  const nextDupName = (base: string): string => {
+    const n = (combat?.combatants ?? []).filter((c) => baseMonsterName(c.name) === base).length
+    return n === 0 ? base : `${base} ${n + 1}`
+  }
+
+  const addMonsterCombatant = async (name: string, ac: number, hp: number, dexMod: number) => {
+    try {
+      await doAdd({
+        sessionId,
+        combatant: {
+          id: crypto.randomUUID(),
+          name: nextDupName(name),
+          type: "monster",
+          initiative: rollD20() + dexMod,
+          initiativeBonus: dexMod,
+          armorClass: ac,
+          hitPoints: { current: hp, max: hp, temp: 0 },
+          conditions: [],
+        },
+      })
+      toast.success(`Added ${name}.`)
+      setMonsterQuery("")
+    } catch {
+      toast.error("Failed to add monster.")
+    }
+  }
+
+  const handleAddSrdMonster = (m: Open5eMonster) =>
+    addMonsterCombatant(m.name, m.armor_class, m.hit_points, Math.floor((m.dexterity - 10) / 2))
+
+  const handleAddHbMonster = (m: HomebrewMonster) =>
+    addMonsterCombatant(m.name, m.armorClass, m.hitPoints, Math.floor((m.dexterity - 10) / 2))
 
   // Drop a player's active Wild Shape form or companion into initiative as its OWN
   // combatant (separate-combatant model). type "npc" + the owner's userId (so they
@@ -625,6 +696,70 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
 
       {/* Add monster */}
       <div className="rounded-xl p-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+        {/* SRD (+ homebrew) monster quick-add — search and tap to drop a fully-
+            statted combatant into the fight; attacks resolve by name in its panel. */}
+        <div className="relative mb-2">
+          <input
+            value={monsterQuery}
+            onChange={(e) => setMonsterQuery(e.target.value)}
+            onFocus={ensureSrdMonsters}
+            placeholder={srdLoading ? "Loading SRD monsters…" : "Search SRD monsters to add…"}
+            className="w-full px-3 py-2 rounded-md text-sm bg-transparent outline-none"
+            style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          />
+          {monsterQuery.trim() !== "" && (srdMatches.length > 0 || hbMatches.length > 0) && (
+            <div
+              className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-md shadow-lg"
+              style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+            >
+              {hbMatches.map((m) => (
+                <button
+                  key={`hb-${m.id}`}
+                  onClick={() => handleAddHbMonster(m)}
+                  className="w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 transition-opacity hover:opacity-80"
+                  style={{ borderBottom: "1px solid var(--scene-border)" }}
+                >
+                  <span className="truncate" style={{ color: "var(--scene-text-primary)" }}>
+                    {m.name}
+                    <span
+                      className="ml-1.5 text-[10px] px-1 py-0.5 rounded-sm align-middle"
+                      style={{ background: "color-mix(in srgb, var(--scene-accent) 18%, transparent)", color: "var(--scene-accent)" }}
+                    >
+                      HB
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                    CR {m.challengeRating} · AC {m.armorClass} · {m.hitPoints} HP
+                  </span>
+                </button>
+              ))}
+              {srdMatches.map((m) => (
+                <button
+                  key={m.slug}
+                  onClick={() => handleAddSrdMonster(m)}
+                  className="w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 transition-opacity hover:opacity-80"
+                  style={{ borderBottom: "1px solid var(--scene-border)" }}
+                >
+                  <span className="truncate" style={{ color: "var(--scene-text-primary)" }}>{m.name}</span>
+                  <span className="shrink-0 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                    CR {m.challenge_rating} · AC {m.armor_class} · {m.hit_points} HP
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {srdError && (
+            <p className="text-xs mt-1" style={{ color: "#ef4444" }}>
+              Couldn&rsquo;t load SRD monsters — add manually below.
+            </p>
+          )}
+          {monsterQuery.trim() !== "" && srdLoaded && srdMatches.length === 0 && hbMatches.length === 0 && (
+            <p className="text-xs mt-1" style={{ color: "var(--scene-text-muted)" }}>
+              No match — add manually below.
+            </p>
+          )}
+        </div>
+
         <div className="flex flex-wrap gap-2 items-center">
           <input
             value={monsterName}
