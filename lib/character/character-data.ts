@@ -869,6 +869,22 @@ export function autoPickSkillProficiencies(characterClass: ClassData, background
   return [...new Set([...bgSkills, ...classSkills])] as Skill[]
 }
 
+// Class + background tool proficiencies, merged and case-insensitively de-duped
+// (a Rogue + Criminal both granting "Thieves' tools" should list it once). The
+// background's tools were previously dropped at creation — only the class's were
+// kept — which left the sheet's Tools card empty for most characters.
+export function mergeToolProficiencies(characterClass: ClassData, background: BackgroundData): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const t of [...characterClass.toolProficiencies, ...background.toolProficiencies]) {
+    const key = t.trim().toLowerCase()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(t.trim())
+  }
+  return out
+}
+
 export function quickRollCharacter(): QuickRollResult {
   const race = pick(RACES)
   const subrace = race.subraces ? pick(race.subraces) : undefined
