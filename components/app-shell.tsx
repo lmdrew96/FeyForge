@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { SceneBackdrop } from "@/components/scene-backdrop"
-import { DMAssistantWidget } from "@/components/dm-assistant/dm-assistant-widget"
+import { DMAssistantPanel } from "@/components/dm-assistant/dm-assistant-widget"
 
 type NavChild = { label: string; href: string; icon: React.ElementType }
 type NavItem = {
@@ -105,6 +105,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href)
+
+  // ── DM Assistant launcher (docked into chrome) ──────────────────────────────
+  // The launcher lives in the top bar (mobile) + sidebar (desktop) instead of a
+  // floating FAB, so it can never occlude page content. Self-gates to the DM of
+  // the active campaign; suppressed on the full /dm/assistant page (redundant
+  // there). The panel itself (DMAssistantPanel) is unchanged.
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  const isDmOfActive = role === "dm" && !!activeCampaignId
+  const onFullAssistant = pathname === "/dm/assistant"
+  const showAssistant = isDmOfActive && !onFullAssistant
+
+  // Collapse if the gate stops holding (e.g. the DM switches to a campaign they
+  // only play in, or navigates onto the full assistant page) so the panel can't
+  // linger out of context.
+  useEffect(() => {
+    if (!showAssistant) setAssistantOpen(false)
+  }, [showAssistant])
+
+  // ⌘K / Ctrl-K toggles the assistant on desktop (Nae lives on the keyboard).
+  useEffect(() => {
+    if (!showAssistant) return
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        setAssistantOpen((o) => !o)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [showAssistant])
 
   return (
     <div className="relative flex h-[100dvh] overflow-hidden" style={{ background: "var(--scene-bg)" }}>
@@ -231,6 +261,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           className="px-4 py-3 space-y-2"
           style={{ borderTop: "1px solid var(--scene-border)" }}
         >
+          {showAssistant && (
+            <button
+              onClick={() => setAssistantOpen((o) => !o)}
+              aria-label="Toggle DM Assistant"
+              title="Ask FeyForge (⌘K)"
+              className="flex w-full items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-[var(--scene-bg)]"
+              style={{
+                color: assistantOpen ? "var(--scene-accent)" : "var(--scene-text-muted)",
+                background: assistantOpen ? "var(--scene-bg)" : undefined,
+              }}
+            >
+              <Bot className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Ask FeyForge</span>
+            </button>
+          )}
           {showUpgrade && (
             <Link
               href="/account"
@@ -283,7 +328,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             FeyForge
           </span>
         </div>
-        <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
+        <div className="flex items-center gap-1">
+          {showAssistant && (
+            <button
+              onClick={() => setAssistantOpen(true)}
+              aria-label="Open DM Assistant"
+              className="p-2 rounded-md hover:bg-[var(--scene-bg)]"
+              style={{ color: assistantOpen ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
+            >
+              <Bot className="w-5 h-5" />
+            </button>
+          )}
+          <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
+        </div>
       </div>
 
       {/* Mobile nav drawer — full parity with the desktop sidebar */}
@@ -395,9 +452,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      {/* Global DM Assistant launcher — self-gates to the DM of the active
-          campaign and hides itself on the full /dm/assistant page. */}
-      <DMAssistantWidget />
+      {/* Global DM Assistant panel — opened by the chrome launcher (top bar +
+          sidebar above). Self-gates to the DM of the active campaign and hides
+          on the full /dm/assistant page. */}
+      {showAssistant && assistantOpen && activeCampaignId && (
+        <DMAssistantPanel
+          campaignId={activeCampaignId}
+          onClose={() => setAssistantOpen(false)}
+        />
+      )}
     </div>
   )
 }

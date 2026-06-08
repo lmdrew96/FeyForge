@@ -1,81 +1,31 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { usePathname } from "next/navigation"
-import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
-import { useCampaignStore } from "@/lib/campaign-store"
+import { useEffect, useMemo, useRef } from "react"
 import { useDMAssistantStore } from "@/lib/dm-assistant-store"
 import { ChatPanel } from "@/components/dm-assistant/chat-panel"
 import { useDMAssistantContext } from "@/components/dm-assistant/use-assistant-context"
 import { Bot, Plus, X } from "lucide-react"
 
 // ---------------------------------------------------------------------------
-// Global floating DM Assistant.
+// DM Assistant panel.
 //
-// A collapsed launcher present on every APP page (it's mounted inside AppShell,
-// which the auth/marketing pages don't use, so they're excluded for free). It
-// expands into the SAME chat the /dm/assistant page uses — same route, same
-// shared conversation store, same grounding hook — so a DM mid-session can ask
-// for help on the world map, combat tracker, or a character sheet without
-// leaving the moment.
+// The expanded chat surface for the global DM Assistant. Its LAUNCHER lives in
+// the app-shell chrome (mobile top bar + desktop sidebar) — see
+// components/app-shell.tsx, which owns the open/close state, the
+// DM-of-active-campaign gate (hidden for players / no active campaign /
+// suppressed on the full /dm/assistant page), and the ⌘K toggle. Docking the
+// launcher into reserved chrome (rather than floating a FAB) means it can never
+// occlude page content — the map pins, the class grid, etc.
 //
-// GATE (load-bearing): render ONLY when the signed-in user is the DM (role ===
-// "dm") of their ACTIVE campaign. Player in the active campaign → hidden; DM of
-// another campaign but the active one is one they play in → hidden; no active
-// campaign → hidden. Also suppressed on the full /dm/assistant page (redundant
-// there).
-//
-// ND-design: collapsed by default, dismissible, no nag/auto-open/animation,
-// thumb-reachable, and on mobile it expands to a near-full sheet rather than a
-// cramped corner box. It never blocks content while collapsed.
+// This component is purely the panel that renders when the launcher is open. It
+// expands into the SAME chat the /dm/assistant page uses — same shared
+// conversation store, same grounding hook — so a DM mid-session can ask for
+// help on the world map, combat tracker, or a character sheet without leaving
+// the moment. Mobile = near-full sheet; desktop = right-side panel. The chat
+// itself (ChatPanel) is unchanged.
 // ---------------------------------------------------------------------------
 
-export function DMAssistantWidget() {
-  const pathname = usePathname()
-  const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)
-  const role = useQuery(
-    api.campaignMembers.getMyRole,
-    activeCampaignId ? { campaignId: activeCampaignId as Id<"campaigns"> } : "skip",
-  )
-  const [open, setOpen] = useState(false)
-
-  const isDmOfActive = role === "dm" && !!activeCampaignId
-  const onFullAssistant = pathname === "/dm/assistant"
-
-  // Collapse if the gate stops holding (e.g. the DM switches to a campaign they
-  // only play in) so the panel can't linger out of context.
-  useEffect(() => {
-    if (!isDmOfActive || onFullAssistant) setOpen(false)
-  }, [isDmOfActive, onFullAssistant])
-
-  if (!isDmOfActive || onFullAssistant) return null
-
-  if (!open) {
-    // The world-map page anchors a zoom/reset control stack in the bottom-right
-    // corner. Lift the launcher above that cluster there so it never covers the
-    // controls; everywhere else it sits in the usual corner spot.
-    const onWorldMap = pathname === "/dm/world-map"
-    const fabPosition = onWorldMap
-      ? "bottom-[calc(12rem+env(safe-area-inset-bottom))] right-4 md:bottom-36 md:right-6"
-      : "bottom-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6"
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Open DM Assistant"
-        className={`fixed z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 ${fabPosition}`}
-        style={{ background: "var(--scene-accent)", color: "#fff" }}
-      >
-        <Bot className="h-6 w-6" />
-      </button>
-    )
-  }
-
-  return <WidgetPanel campaignId={activeCampaignId} onClose={() => setOpen(false)} />
-}
-
-function WidgetPanel({
+export function DMAssistantPanel({
   campaignId,
   onClose,
 }: {

@@ -864,7 +864,9 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const CurrentStep = steps[step]
 
   return (
-    <div className="max-w-2xl mx-auto">
+    // pb-28 reserves a gutter so the class grid's last row (Sorcerer) clears the
+    // floating "Ask a question" companion pill instead of scrolling under it.
+    <div className="max-w-2xl mx-auto pb-28">
       <Progress />
 
       {/* Summary strip — hidden on Name step (last) which has its own full preview */}
