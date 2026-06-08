@@ -232,6 +232,24 @@ export function parseBackgroundEquipment(equipment: string[] | undefined): { ite
 // Resolve a character's full starting loadout. `equipment` → class package +
 // background gear; `gold` → class starting gold + background gear/gold. Unknown
 // (homebrew) classes have no package, so they get background gear only.
+// A weapon granted as a pair (quantity 2 — two shortswords, two handaxes, two
+// daggers) must become two discrete rows. A single quantity-2 row carries one
+// Equip toggle, so only one of the pair could ever be wielded — dual-wielding
+// (two attacks) was impossible. Split exactly-2 weapon stacks into separate
+// equippable rows; leave 3+ alone (javelins/darts are thrown ammo — a counted
+// stack with one attack entry, not weapons you wield two-at-a-time).
+export function explodeWeaponPairs(items: StartingItem[]): StartingItem[] {
+  return items.flatMap((it) => {
+    if (it.data.category !== "weapon" || it.data.quantity !== 2) return [it]
+    const single = { ...it.data }
+    delete single.quantity
+    return [
+      { ...it, data: single },
+      { ...it, data: { ...single } },
+    ]
+  })
+}
+
 export function getStartingLoadout(
   classId: string,
   backgroundEquipment: string[] | undefined,
@@ -239,9 +257,9 @@ export function getStartingLoadout(
 ): { items: StartingItem[]; gold: number } {
   const pkg = CLASS_STARTING[classId]
   const bg = parseBackgroundEquipment(backgroundEquipment)
-  if (!pkg) return { items: bg.items, gold: bg.gold }
-  if (choice === "gold") return { items: bg.items, gold: bg.gold + pkg.gold }
-  return { items: [...pkg.equipment, ...bg.items], gold: bg.gold }
+  if (!pkg) return { items: explodeWeaponPairs(bg.items), gold: bg.gold }
+  if (choice === "gold") return { items: explodeWeaponPairs(bg.items), gold: bg.gold + pkg.gold }
+  return { items: explodeWeaponPairs([...pkg.equipment, ...bg.items]), gold: bg.gold }
 }
 
 export function startingGoldFor(classId: string): number {

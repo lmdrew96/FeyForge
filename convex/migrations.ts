@@ -70,3 +70,34 @@ export const backfillMemberships = mutation({
     }
   },
 })
+
+// One-time backfill for the dual-wield bug (fixed v0.136.2): weapons granted in
+// pairs (two shortswords, two handaxes, two daggers) were stored as a single
+// quantity-2 item row, which carries one Equip toggle — so the second weapon
+// could never be wielded as its own attack. Split every quantity-2 weapon row
+// into two discrete, independently-equippable rows. Idempotent: after running,
+// no quantity-2 weapon rows remain, so a re-run is a no-op.
+// Run once with: npx convex run migrations:splitWeaponPairs
+// Safe to delete after it has run in every environment.
+export const splitWeaponPairs = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const props = await ctx.db.query("characterProperties").collect()
+    let weaponsSplit = 0
+    for (const p of props) {
+      if (p.type !== "item") continue
+      const data = (p.data ?? {}) as { category?: string; quantity?: number }
+      if (data.category !== "weapon" || data.quantity !== 2) continue
+      const single = { ...data }
+      delete single.quantity
+      // Shrink the original to a single, then clone a second discrete row. The
+      // clone copies every field of the original (minus the db-managed _id /
+      // _creationTime), so equipped/active/orderIndex/tags carry over verbatim.
+      await ctx.db.patch(p._id, { data: single })
+      const { _id, _creationTime, ...rest } = p
+      await ctx.db.insert("characterProperties", { ...rest, data: { ...single } })
+      weaponsSplit++
+    }
+    return { propertiesScanned: props.length, weaponsSplit }
+  },
+})
