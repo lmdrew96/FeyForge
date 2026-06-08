@@ -18,6 +18,7 @@ import {
   AbilityScoresGrid,
   SavingThrowsCard,
   SkillsCard,
+  ToolsCard,
   SensesCard,
 } from "@/components/character/stat-blocks"
 import { AttacksSection } from "@/app/characters/[id]/inventory"
@@ -317,6 +318,14 @@ export function SessionCharacterSheet({
         skillProficiencies={char.skillProficiencies}
         skillExpertise={char.skillExpertise}
         skillMods={skillMods}
+        roll={roll}
+      />
+
+      {/* Tools — proficiency checks (pick the ability) */}
+      <ToolsCard
+        toolProficiencies={char.toolProficiencies}
+        mods={mods}
+        profBonus={profBonus}
         roll={roll}
       />
       </>)}

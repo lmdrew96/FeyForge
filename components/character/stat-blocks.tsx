@@ -294,3 +294,63 @@ export function SkillsCard({
     </section>
   )
 }
+
+// Tool proficiencies as rollable checks. A 5e tool check is an ability check the
+// DM picks the ability for, plus proficiency — so each tool offers all six
+// ability buttons; tapping rolls 1d20 + that ability mod + proficiency (these are
+// the character's PROFICIENCIES, so the bonus always applies). Mirrors SkillsCard
+// and is shared by both sheets. Renders nothing when the character has no tools.
+export function ToolsCard({
+  toolProficiencies,
+  mods,
+  profBonus,
+  roll,
+}: {
+  toolProficiencies: string[]
+  mods: Record<Ability, number>
+  profBonus: number
+  roll: SheetRollFn
+}) {
+  const tools = toolProficiencies.map((t) => t.trim()).filter(Boolean)
+  if (tools.length === 0) return null
+
+  return (
+    <section className="mb-6">
+      <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+        Tools
+      </h2>
+      <div className="rounded-xl overflow-hidden" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+        {tools.map((tool, i) => (
+          <div
+            key={`${tool}-${i}`}
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5"
+            style={{ borderBottom: i < tools.length - 1 ? "1px solid var(--scene-border)" : "none" }}
+          >
+            <span className="text-sm flex-1 min-w-[7rem]" style={{ color: "var(--scene-text-primary)" }}>
+              {tool}
+            </span>
+            <div className="flex items-center gap-1">
+              {ABILITIES.map((ability) => (
+                <button
+                  key={ability}
+                  onClick={() =>
+                    roll(`${tool} (${ABILITY_ABBREVIATIONS[ability]}) check`, mods[ability] + profBonus)
+                  }
+                  className="px-1.5 py-1 rounded text-[11px] font-semibold transition-opacity hover:opacity-80"
+                  style={{
+                    background: "var(--scene-bg)",
+                    color: "var(--scene-accent)",
+                    border: "1px solid var(--scene-border)",
+                  }}
+                  title={`Roll ${tool} check with ${ABILITY_ABBREVIATIONS[ability]} (proficient)`}
+                >
+                  {ABILITY_ABBREVIATIONS[ability]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}

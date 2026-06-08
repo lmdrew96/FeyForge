@@ -45,6 +45,7 @@ import {
   AbilityScoresGrid,
   SavingThrowsCard,
   SkillsCard,
+  ToolsCard,
   SensesCard,
 } from "@/components/character/stat-blocks"
 import { AttacksSection, InventorySection } from "./inventory"
@@ -1623,6 +1624,14 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           skillProficiencies={char.skillProficiencies}
           skillExpertise={char.skillExpertise}
           skillMods={skillMods}
+          roll={roll}
+        />
+
+        {/* Tools — proficiency checks (pick the ability) */}
+        <ToolsCard
+          toolProficiencies={char.toolProficiencies}
+          mods={mods}
+          profBonus={profBonus}
           roll={roll}
         />
 
