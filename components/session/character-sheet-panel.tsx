@@ -4,10 +4,11 @@ import { useState, useEffect } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { Shield, Swords, Dices, type LucideIcon } from "lucide-react"
+import { Swords, Dices, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CLASS_COLORS, formatModifier } from "@/lib/character/constants"
 import { deriveCharacter } from "@/lib/character/derive-character"
+import { CharacterAvatar } from "@/components/character/character-avatar"
 import {
   useSheetRoll,
   RollModeBar,
@@ -133,15 +134,7 @@ export function SessionCharacterSheet({
           border: "1px solid color-mix(in srgb, var(--scene-accent) 20%, var(--scene-border))",
         }}
       >
-        <div
-          className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{
-            background: "color-mix(in srgb, var(--scene-accent) 15%, var(--scene-surface))",
-            border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)",
-          }}
-        >
-          <Shield className="h-5 w-5" style={{ color: "var(--scene-accent)" }} />
-        </div>
+        <CharacterAvatar imageUrl={char.imageUrl} name={char.name} className="w-11 h-11 rounded-lg" />
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold truncate" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
             {char.name}

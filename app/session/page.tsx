@@ -11,7 +11,7 @@ import { CLASS_COLORS } from "@/lib/character/constants"
 import { cn } from "@/lib/utils"
 import {
   Sparkles, Play, Square, Radio, Users, Clock, Heart, X,
-  ChevronUp, ChevronDown, Shield, Trash2, Package, ScrollText, UserPlus,
+  ChevronUp, ChevronDown, Trash2, Package, ScrollText, UserPlus,
   Map as MapIcon, UserSquare2,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -20,6 +20,7 @@ import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-pa
 import { DMCaptionControl, PlayerCaptionOverlay } from "@/components/session/captions"
 import { DMCombatTracker, PlayerCombatView } from "@/components/session/combat-tracker"
 import { SessionCharacterSheet } from "@/components/session/character-sheet-panel"
+import { CharacterAvatar } from "@/components/character/character-avatar"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { WorldMapViewer } from "@/components/world-map/map-viewer"
 
@@ -54,6 +55,7 @@ type PartyMember = {
     characterClass: string
     level: number
     hitPoints: { current: number; max: number; temp: number }
+    imageUrl?: string
   } | null
 }
 
@@ -67,6 +69,7 @@ type MyMember = {
     characterClass: string
     level: number
     hitPoints: { current: number; max: number; temp: number }
+    imageUrl?: string
   } | null
 }
 
@@ -543,9 +546,7 @@ function PartyRail({ sessionId }: { sessionId: SessionId }) {
           return (
             <div key={m._id} className="rounded-lg p-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
               <div className="flex items-start gap-2 mb-2">
-                <div className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))", border: "1px solid color-mix(in srgb, var(--scene-accent) 25%, transparent)" }}>
-                  <Shield className="h-4 w-4" style={{ color: "var(--scene-accent)" }} />
-                </div>
+                <CharacterAvatar imageUrl={char.imageUrl} name={char.name} className="w-8 h-8 rounded-md" iconClassName="h-4 w-4" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold truncate" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>{char.name}</p>
                   <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", classColor)}>{char.characterClass}</span>
@@ -593,9 +594,7 @@ function MyCharacterPanel({ sessionId, member }: { sessionId: SessionId; member:
   return (
     <div className="rounded-xl p-4" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "color-mix(in srgb, var(--scene-accent) 15%, var(--scene-surface))", border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)" }}>
-          <Shield className="h-5 w-5" style={{ color: "var(--scene-accent)" }} />
-        </div>
+        <CharacterAvatar imageUrl={char.imageUrl} name={char.name} className="w-10 h-10 rounded-lg" />
         <div>
           <h3 className="font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>{char.name}</h3>
           <div className="flex items-center gap-1.5 mt-0.5">
@@ -708,9 +707,7 @@ function JoinView({ sessionId }: { sessionId: SessionId }) {
               <button key={char._id} onClick={() => handleJoin(char._id)} disabled={joining !== null}
                 className="w-full rounded-xl p-4 flex items-center gap-4 text-left transition-all hover:scale-[1.01] disabled:opacity-60"
                 style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "color-mix(in srgb, var(--scene-accent) 15%, var(--scene-surface))", border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)" }}>
-                  <Shield className="h-5 w-5" style={{ color: "var(--scene-accent)" }} />
-                </div>
+                <CharacterAvatar imageUrl={char.imageUrl} name={char.name} className="w-10 h-10 rounded-lg" />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold truncate" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>{char.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">

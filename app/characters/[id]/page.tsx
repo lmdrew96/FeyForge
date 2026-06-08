@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { ArrowLeft, Pencil, Shield, Zap, Plus, Trash2, Eye, ChevronsUp, X, Sparkles, Dices, Award, Search, Check, Swords, Package, ScrollText, type LucideIcon } from "lucide-react"
+import { ArrowLeft, Pencil, Zap, Plus, Trash2, Eye, ChevronsUp, X, Sparkles, Dices, Award, Search, Check, Swords, Package, ScrollText, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -56,6 +56,7 @@ import { InvocationsSection } from "@/components/character/invocations-section"
 import { ManeuversSection } from "@/components/character/maneuvers-section"
 import { LandCircleSection } from "@/components/character/land-circle-section"
 import { HpEditor, RestPanel, DyingPanel } from "@/components/character/rest-panel"
+import { CharacterAvatar } from "@/components/character/character-avatar"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
 
@@ -1479,15 +1480,12 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
           }}
         >
           <div className="flex items-start gap-4">
-            <div
-              className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{
-                background: "color-mix(in srgb, var(--scene-accent) 15%, var(--scene-surface))",
-                border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)",
-              }}
-            >
-              <Shield className="h-7 w-7" style={{ color: "var(--scene-accent)" }} />
-            </div>
+            <CharacterAvatar
+              imageUrl={char.imageUrl}
+              name={char.name}
+              className="w-14 h-14 rounded-xl"
+              iconClassName="h-7 w-7"
+            />
             <div className="flex-1 min-w-0">
               <h1
                 className="text-2xl font-bold"

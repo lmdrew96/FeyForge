@@ -4,10 +4,11 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { AppShell } from "@/components/app-shell"
 import Link from "next/link"
-import { Plus, Trash2, Shield, Sword } from "lucide-react"
+import { Plus, Trash2, Sword } from "lucide-react"
 import { toast } from "sonner"
 import { CLASS_COLORS } from "@/lib/character/constants"
 import { cn } from "@/lib/utils"
+import { CharacterAvatar } from "@/components/character/character-avatar"
 import type { Id } from "@/convex/_generated/dataModel"
 
 function CharacterCard({
@@ -23,6 +24,7 @@ function CharacterCard({
     hitPoints: { current: number; max: number; temp: number }
     background?: string
     subrace?: string
+    imageUrl?: string
   }
   onDelete: (id: Id<"characters">) => void
 }) {
@@ -53,15 +55,11 @@ function CharacterCard({
 
       {/* Name + icon */}
       <div className="flex items-start gap-3 mb-3">
-        <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{
-            background: "color-mix(in srgb, var(--scene-accent) 15%, var(--scene-surface))",
-            border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, transparent)",
-          }}
-        >
-          <Shield className="h-5 w-5" style={{ color: "var(--scene-accent)" }} />
-        </div>
+        <CharacterAvatar
+          imageUrl={character.imageUrl}
+          name={character.name}
+          className="w-10 h-10 rounded-lg"
+        />
         <div className="min-w-0">
           <h3
             className="font-bold truncate"
