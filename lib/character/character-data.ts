@@ -869,20 +869,28 @@ export function autoPickSkillProficiencies(characterClass: ClassData, background
   return [...new Set([...bgSkills, ...classSkills])] as Skill[]
 }
 
-// Class + background tool proficiencies, merged and case-insensitively de-duped
-// (a Rogue + Criminal both granting "Thieves' tools" should list it once). The
-// background's tools were previously dropped at creation — only the class's were
-// kept — which left the sheet's Tools card empty for most characters.
-export function mergeToolProficiencies(characterClass: ClassData, background: BackgroundData): string[] {
+// Case-insensitively de-dupe one or more tool-proficiency lists, preserving the
+// first occurrence's casing (a Rogue + Criminal both granting "Thieves' tools"
+// list it once). The primitive behind both creation-merge and the backfill.
+export function dedupeToolProficiencies(...lists: string[][]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
-  for (const t of [...characterClass.toolProficiencies, ...background.toolProficiencies]) {
-    const key = t.trim().toLowerCase()
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    out.push(t.trim())
+  for (const list of lists) {
+    for (const t of list) {
+      const key = t.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      out.push(t.trim())
+    }
   }
   return out
+}
+
+// Class + background tool proficiencies, merged + de-duped. The background's
+// tools were previously dropped at creation — only the class's were kept — which
+// left the sheet's Tools card empty for most characters.
+export function mergeToolProficiencies(characterClass: ClassData, background: BackgroundData): string[] {
+  return dedupeToolProficiencies(characterClass.toolProficiencies, background.toolProficiencies)
 }
 
 export function quickRollCharacter(): QuickRollResult {
