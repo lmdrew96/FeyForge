@@ -22,7 +22,7 @@ import { ALIGNMENTS, getAbilityModifier, type Ability } from "@/lib/character/co
 import { CLASSES, getSubclassId } from "@/lib/character/character-data"
 import { hpGainForLevel, recomputeSpellcasting } from "@/lib/character/leveling"
 import { resolveEdition } from "@/lib/editions"
-import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2 } from "lucide-react"
+import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -84,6 +84,7 @@ type EditState = {
   flaws: string
   backstory: string
   imageUrl: string
+  toolProficiencies: string[]
   cp: number
   sp: number
   ep: number
@@ -93,6 +94,17 @@ type EditState = {
 
 const NO_ALIGNMENT = "__none__"
 const NO_SUBCLASS = "__none_sub__"
+
+// Suggestions for the tool-proficiency add field (free text still allowed).
+const COMMON_TOOLS = [
+  "Alchemist's supplies", "Brewer's supplies", "Calligrapher's supplies", "Carpenter's tools",
+  "Cartographer's tools", "Cobbler's tools", "Cook's utensils", "Glassblower's tools",
+  "Jeweler's tools", "Leatherworker's tools", "Mason's tools", "Painter's supplies",
+  "Potter's tools", "Smith's tools", "Tinker's tools", "Weaver's tools", "Woodcarver's tools",
+  "Disguise kit", "Forgery kit", "Herbalism kit", "Navigator's tools", "Poisoner's kit", "Thieves' tools",
+  "Dice set", "Playing card set", "Bagpipes", "Drum", "Flute", "Lute", "Lyre", "Horn", "Pan flute", "Viol",
+  "Vehicles (land)", "Vehicles (water)",
+]
 
 const draftFromCharacter = (c: CharDoc): EditState => ({
   name: c.name,
@@ -116,6 +128,7 @@ const draftFromCharacter = (c: CharDoc): EditState => ({
   flaws: c.flaws ?? "",
   backstory: c.backstory ?? "",
   imageUrl: c.imageUrl ?? "",
+  toolProficiencies: c.toolProficiencies,
   cp: c.currency.cp,
   sp: c.currency.sp,
   ep: c.currency.ep,
@@ -163,6 +176,7 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
   )
 
   const [draft, setDraft] = useState<EditState | null>(null)
+  const [newTool, setNewTool] = useState("")
   const [saving, setSaving] = useState(false)
 
   const [generatingBackstory, setGeneratingBackstory] = useState(false)
@@ -218,6 +232,18 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
   const setField = <K extends keyof EditState>(key: K, value: EditState[K]) => {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
   }
+
+  const addTool = () => {
+    const t = newTool.trim()
+    if (!t) return
+    // Case-insensitive de-dupe — don't add a tool the character already has.
+    if (!draft.toolProficiencies.some((x) => x.toLowerCase() === t.toLowerCase())) {
+      setField("toolProficiencies", [...draft.toolProficiencies, t])
+    }
+    setNewTool("")
+  }
+  const removeTool = (tool: string) =>
+    setField("toolProficiencies", draft.toolProficiencies.filter((x) => x !== tool))
 
   // Level ↔ HP/hit-dice/slots linkage. Average HP per level (avg hit-die roll +
   // CON, min 1) — the same value the level-up flow uses in "average" mode.
@@ -404,6 +430,7 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
         flaws: draft.flaws.trim() || undefined,
         backstory: draft.backstory.trim() || undefined,
         imageUrl: draft.imageUrl.trim() || undefined,
+        toolProficiencies: draft.toolProficiencies,
         currency: {
           cp: draft.cp,
           sp: draft.sp,
@@ -787,6 +814,64 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
                 />
               </div>
             ))}
+          </div>
+        </FieldGroup>
+
+        <FieldGroup title="Tool Proficiencies">
+          <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+            Tools you&rsquo;re proficient with. Each becomes a rollable check on your sheet&rsquo;s Tools card.
+          </p>
+          {draft.toolProficiencies.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {draft.toolProficiencies.map((tool) => (
+                <span
+                  key={tool}
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm"
+                  style={{
+                    background: "var(--scene-bg)",
+                    border: "1px solid var(--scene-border)",
+                    color: "var(--scene-text-primary)",
+                  }}
+                >
+                  {tool}
+                  <button
+                    type="button"
+                    onClick={() => removeTool(tool)}
+                    aria-label={`Remove ${tool}`}
+                    className="opacity-60 transition-opacity hover:opacity-100"
+                    style={{ color: "var(--scene-text-muted)" }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+              No tool proficiencies yet.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Input
+              list="common-tools"
+              value={newTool}
+              onChange={(e) => setNewTool(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  addTool()
+                }
+              }}
+              placeholder="Add a tool (e.g. Thieves' tools)"
+            />
+            <datalist id="common-tools">
+              {COMMON_TOOLS.map((t) => (
+                <option key={t} value={t} />
+              ))}
+            </datalist>
+            <Button type="button" variant="outline" onClick={addTool} disabled={!newTool.trim()}>
+              Add
+            </Button>
           </div>
         </FieldGroup>
 
