@@ -85,6 +85,162 @@ export interface MonsterAction {
   damage_bonus?: number
 }
 
+// ─── Open5e v2 creatures → Open5eMonster ─────────────────────────────────────
+// v1 /monsters is deprecated; monsters now come from /v2/creatures, which has a
+// completely different (nested) schema. We map v2 → the existing Open5eMonster
+// shape at THIS boundary so the ~20 consumers and the attack parser stay unchanged.
+//
+// IMPORTANT — trust the PROSE, not v2's structured attack fields. Verified live on
+// SRD-2014: v2's per-attack damage_type is hardcoded "Thunder" on ~96% of attacks,
+// the flat damage_bonus is dropped on ~99%, and "plus X" riders are never
+// populated. Only the desc prose is correct (same SRD text as v1). So we map each
+// action to { name, desc } only and let lib/monster-attacks.ts parse the prose —
+// exactly how homebrew (prose-only) monsters already roll correctly.
+
+interface Open5eV2Action {
+  name: string
+  desc?: string
+  action_type?: string // ACTION | LEGENDARY_ACTION | BONUS_ACTION | REACTION
+}
+
+interface Open5eV2Creature {
+  key: string
+  name: string
+  size?: { name: string }
+  type?: { name: string }
+  subcategory?: string | null
+  alignment?: string
+  challenge_rating?: number
+  armor_class?: number
+  armor_detail?: string
+  hit_points?: number
+  hit_dice?: string
+  speed?: Record<string, number | string | boolean>
+  ability_scores?: Partial<Record<"strength" | "dexterity" | "constitution" | "intelligence" | "wisdom" | "charisma", number>>
+  saving_throws?: Partial<Record<"strength" | "dexterity" | "constitution" | "intelligence" | "wisdom" | "charisma", number>>
+  skill_bonuses?: Record<string, number>
+  passive_perception?: number
+  resistances_and_immunities?: Record<string, string | string[]>
+  languages?: { as_string?: string }
+  blindsight_range?: number | null
+  darkvision_range?: number | null
+  tremorsense_range?: number | null
+  truesight_range?: number | null
+  actions?: Open5eV2Action[]
+  traits?: Open5eV2Action[]
+  document?: { key?: string; name?: string }
+}
+
+// Normalize the light markdown v2 sprinkles into some action descs (e.g. a dragon's
+// "**Fire Breath.**" breath-weapon sub-options) into plain SRD prose, so the attack
+// parser's regexes see clean text and the combat panel doesn't render raw asterisks.
+export function stripSrdMarkdown(s: string): string {
+  return s
+    .replace(/\r\n?/g, "\n")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/`+/g, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/[—–]/g, "-")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim()
+}
+
+// v2 serves CR as a number (0.5, 10.0); restore the SRD's fractional display.
+function formatCr(cr: number | null | undefined): string {
+  if (cr == null) return "0"
+  if (cr === 0.125) return "1/8"
+  if (cr === 0.25) return "1/4"
+  if (cr === 0.5) return "1/2"
+  return String(cr)
+}
+
+function v2Speed(speed: Open5eV2Creature["speed"]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(speed ?? {})) {
+    if (k !== "unit" && typeof v === "number" && v > 0) out[k] = v
+  }
+  if (Object.keys(out).length === 0) out.walk = 0
+  return out
+}
+
+function v2Senses(c: Open5eV2Creature): string {
+  const parts: string[] = []
+  if (c.blindsight_range) parts.push(`blindsight ${c.blindsight_range} ft.`)
+  if (c.darkvision_range) parts.push(`darkvision ${c.darkvision_range} ft.`)
+  if (c.tremorsense_range) parts.push(`tremorsense ${c.tremorsense_range} ft.`)
+  if (c.truesight_range) parts.push(`truesight ${c.truesight_range} ft.`)
+  if (c.passive_perception != null) parts.push(`passive Perception ${c.passive_perception}`)
+  return parts.join(", ")
+}
+
+const toAction = (a: Open5eV2Action): MonsterAction => ({ name: a.name, desc: stripSrdMarkdown(a.desc ?? "") })
+
+export function v2CreatureToMonster(c: Open5eV2Creature): Open5eMonster {
+  const ab = c.ability_scores ?? {}
+  const sv = c.saving_throws ?? {}
+  const ri = c.resistances_and_immunities ?? {}
+  const display = (k: string): string => {
+    const v = ri[`${k}_display`]
+    return typeof v === "string" ? v : ""
+  }
+
+  const actions: MonsterAction[] = []
+  const legendary_actions: MonsterAction[] = []
+  const reactions: MonsterAction[] = []
+  for (const a of c.actions ?? []) {
+    if (a.action_type === "LEGENDARY_ACTION") legendary_actions.push(toAction(a))
+    else if (a.action_type === "REACTION") reactions.push(toAction(a))
+    else actions.push(toAction(a)) // ACTION + BONUS_ACTION
+  }
+
+  return {
+    slug: c.key,
+    name: c.name,
+    size: c.size?.name ?? "",
+    type: c.type?.name ?? "",
+    subtype: c.subcategory ?? undefined,
+    alignment: c.alignment ?? "",
+    armor_class: c.armor_class ?? 10,
+    armor_desc: c.armor_detail,
+    hit_points: c.hit_points ?? 1,
+    hit_dice: c.hit_dice ?? "",
+    speed: v2Speed(c.speed),
+    strength: ab.strength ?? 10,
+    dexterity: ab.dexterity ?? 10,
+    constitution: ab.constitution ?? 10,
+    intelligence: ab.intelligence ?? 10,
+    wisdom: ab.wisdom ?? 10,
+    charisma: ab.charisma ?? 10,
+    strength_save: sv.strength,
+    dexterity_save: sv.dexterity,
+    constitution_save: sv.constitution,
+    intelligence_save: sv.intelligence,
+    wisdom_save: sv.wisdom,
+    charisma_save: sv.charisma,
+    perception: c.passive_perception,
+    skills: c.skill_bonuses,
+    damage_vulnerabilities: display("damage_vulnerabilities"),
+    damage_resistances: display("damage_resistances"),
+    damage_immunities: display("damage_immunities"),
+    condition_immunities: display("condition_immunities"),
+    senses: v2Senses(c),
+    languages: c.languages?.as_string ?? "",
+    challenge_rating: formatCr(c.challenge_rating),
+    cr: c.challenge_rating ?? 0,
+    actions,
+    reactions,
+    legendary_actions,
+    special_abilities: (c.traits ?? []).map(toAction),
+    document__slug: c.document?.key ?? "srd-2014",
+    document__title: c.document?.name ?? "SRD",
+  }
+}
+
 export interface Open5eCondition {
   slug: string
   name: string
@@ -385,26 +541,26 @@ export const open5eApi = {
     return fetchWithCache<Open5eSpell>(`/v1/spells/${slug}/`)
   },
 
-  // Monsters
+  // Monsters — from v2/creatures (v1/monsters is deprecated), mapped to the
+  // Open5eMonster shape at the lib boundary (see v2CreatureToMonster). Defaults to
+  // the 2014 SRD; `search`/`type` filter server-side (both verified on v2).
   async getMonsters(params?: {
     search?: string
     cr?: string
     type?: string
     size?: string
   }): Promise<Open5eMonster[]> {
-    const queryParams: Record<string, string> = {
-      document__slug: "wotc-srd",
-    }
+    const queryParams: Record<string, string> = { document__key: "srd-2014" }
     if (params?.search) queryParams.search = params.search
-    if (params?.cr) queryParams.cr = params.cr
-    if (params?.type) queryParams.type__icontains = params.type.toLowerCase()
-    if (params?.size) queryParams.size = params.size
+    if (params?.type) queryParams.type = params.type.toLowerCase()
 
-    return fetchAllPages<Open5eMonster>("/v1/monsters/", queryParams)
+    const raw = await fetchAllPages<Open5eV2Creature>("/v2/creatures/", queryParams)
+    return raw.map(v2CreatureToMonster)
   },
 
   async getMonster(slug: string): Promise<Open5eMonster> {
-    return fetchWithCache<Open5eMonster>(`/v1/monsters/${slug}/`)
+    const raw = await fetchWithCache<Open5eV2Creature>(`/v2/creatures/${slug}/`)
+    return v2CreatureToMonster(raw)
   },
 
   // Conditions
