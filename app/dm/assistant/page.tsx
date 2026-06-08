@@ -96,7 +96,7 @@ export default function DMAssistantPage() {
             <Link
               href="/campaigns"
               className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-              style={{ background: "var(--scene-accent)", color: "#fff" }}
+              style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
             >
               Choose a campaign
             </Link>
@@ -200,8 +200,8 @@ function ConversationRow({
         onClick={onSelect}
         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors"
         style={{
-          background: active ? "var(--scene-surface-hover)" : "transparent",
-          color: active ? "var(--scene-text-primary)" : "var(--scene-text-secondary)",
+          background: active ? "var(--scene-surface)" : "transparent",
+          color: active ? "var(--scene-text-primary)" : "var(--scene-text-muted)",
         }}
       >
         <MessageSquarePlus className="h-4 w-4 shrink-0 opacity-60" />

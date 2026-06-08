@@ -191,7 +191,7 @@ export function ChatPanel({
                     style={{
                       background: "var(--scene-surface)",
                       border: "1px solid var(--scene-border)",
-                      color: "var(--scene-text-secondary)",
+                      color: "var(--scene-text-muted)",
                     }}
                   >
                     <Icon
@@ -225,7 +225,7 @@ export function ChatPanel({
               style={{
                 background: "var(--scene-surface)",
                 border: "1px solid #b91c1c",
-                color: "var(--scene-text-secondary)",
+                color: "var(--scene-text-muted)",
               }}
             >
               <span className="flex items-center gap-2">
@@ -294,7 +294,7 @@ function MessageBubble({ message }: { message: UIMessage }) {
       <div className="flex justify-end">
         <div
           className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm px-4 py-2.5 text-sm"
-          style={{ background: "var(--scene-accent)", color: "#fff" }}
+          style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
         >
           {text}
         </div>
