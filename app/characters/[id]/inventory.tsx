@@ -14,6 +14,7 @@ import {
   type SheetItem,
 } from "@/lib/character/sheet-items"
 import { applyGrants, reverseGrants, appliedSummary } from "@/lib/character/feats"
+import { getPackContents } from "@/lib/character/packs"
 
 // 5e: a character can be attuned to at most three magic items at once.
 const MAX_ATTUNEMENT = 3
@@ -388,6 +389,33 @@ export function InventorySection({
     }
   }
 
+  // Explode an equipment pack into its component item rows, then remove the pack.
+  const unpackItem = async (item: SheetItem) => {
+    const contents = getPackContents(item.name)
+    if (!contents) return
+    try {
+      let order = nextOrder
+      for (const comp of contents) {
+        await addProperty({
+          characterId,
+          type: "item",
+          name: comp.name,
+          active: true,
+          equipped: false,
+          orderIndex: order++,
+          data: {
+            category: comp.category ?? "gear",
+            ...(comp.quantity ? { quantity: comp.quantity } : {}),
+          },
+        })
+      }
+      await removeProperty({ id: item.id as Id<"characterProperties"> })
+      toast.success(`Unpacked ${item.name} into ${contents.length} items.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't unpack that.")
+    }
+  }
+
   // Use one of a consumable: decrement by 1, or remove it when the last is spent.
   const useConsumable = async (item: SheetItem) => {
     const qty = item.quantity ?? 1
@@ -485,6 +513,7 @@ export function InventorySection({
                       onSetQuantity={setQuantity}
                       onUse={useConsumable}
                       onAttune={setAttuned}
+                      onUnpack={unpackItem}
                     />
                   ))}
                 </div>
@@ -551,6 +580,7 @@ function ItemRow({
   onSetQuantity,
   onUse,
   onAttune,
+  onUnpack,
 }: {
   item: SheetItem
   isLast: boolean
@@ -563,11 +593,13 @@ function ItemRow({
   onSetQuantity: (item: SheetItem, qty: number) => void
   onUse: (item: SheetItem) => void
   onAttune: (item: SheetItem, next: boolean) => void
+  onUnpack: (item: SheetItem) => void
 }) {
   const [open, setOpen] = useState(false)
   const qty = item.quantity ?? 1
   const grantText = item.grants ? appliedSummary(item.grants) : ""
   const attuneBlocked = attunementFull && !item.attuned
+  const packContents = getPackContents(item.name)
 
   return (
     <div
@@ -713,6 +745,20 @@ function ItemRow({
               title="Use one (decrements quantity)"
             >
               Use
+            </button>
+          )}
+          {packContents && (
+            <button
+              onClick={() => onUnpack(item)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{
+                background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)",
+                color: "var(--scene-accent)",
+                border: "1px solid color-mix(in srgb, var(--scene-accent) 32%, transparent)",
+              }}
+              title={`Unpack into ${packContents.length} separate items`}
+            >
+              <Package className="h-3.5 w-3.5" /> Unpack
             </button>
           )}
           {equippable && (
