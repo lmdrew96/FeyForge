@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
-import { Plus, Minus, Trash2, Pencil, Sword, Shield, Package, Zap, ChevronDown } from "lucide-react"
+import { Plus, Minus, Trash2, Pencil, Sword, Shield, Package, Zap, ChevronDown, Sparkles } from "lucide-react"
 import type { AbilityScores } from "@/lib/character/types"
 import {
   weaponAttackInfo,
@@ -13,6 +13,10 @@ import {
   type ItemCategory,
   type SheetItem,
 } from "@/lib/character/sheet-items"
+import { applyGrants, reverseGrants, appliedSummary } from "@/lib/character/feats"
+
+// 5e: a character can be attuned to at most three magic items at once.
+const MAX_ATTUNEMENT = 3
 import { partitionHomebrew } from "@/lib/homebrew"
 import { ItemEditorDialog } from "@/components/character/item-editor"
 import type { DiceRollResult } from "@/lib/dice-store"
@@ -275,10 +279,13 @@ export function AttacksSection({
 // ── Inventory ─────────────────────────────────────────────────────────────────
 
 export function InventorySection({
+  char,
   characterId,
   items,
   nextOrder,
 }: {
+  // Needed to bake/reverse attunement grants into the character doc.
+  char: Doc<"characters">
   characterId: Id<"characters">
   items: SheetItem[]
   nextOrder: number
@@ -286,7 +293,10 @@ export function InventorySection({
   const addProperty = useMutation(api.characters.addProperty)
   const updateProperty = useMutation(api.characters.updateProperty)
   const removeProperty = useMutation(api.characters.removeProperty)
+  const updateCharacter = useMutation(api.characters.update)
   const createHomebrew = useMutation(api.homebrew.create)
+
+  const attunedCount = items.filter((i) => i.attuned).length
 
   // Your homebrew items (+ any shared to your campaigns) ride the SRD autofill.
   const homebrewDocs = useQuery(api.homebrew.listForBuilder)
@@ -325,10 +335,41 @@ export function InventorySection({
 
   const handleRemove = async (item: SheetItem) => {
     try {
+      // Reverse a still-attuned item's baked grants before deleting it, so the
+      // bonus never strands on the character with no way to undo it.
+      if (item.attuned && item.grants) {
+        const patch = reverseGrants(char, item.grants)
+        if (Object.keys(patch).length) await updateCharacter({ id: char._id, ...patch })
+      }
       await removeProperty({ id: item.id as Id<"characterProperties"> })
       toast.success("Item removed.")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't remove item.")
+    }
+  }
+
+  // Attune/unattune a magic item: bakes (applyGrants) or reverses (reverseGrants)
+  // its grants into the character doc — equip-independent — then flips the stored
+  // `attuned` flag. Mirrors the feat add/remove flow on the sheet page.
+  const setAttuned = async (item: SheetItem, next: boolean) => {
+    if (next && !item.attuned && attunedCount >= MAX_ATTUNEMENT) {
+      toast.error(`You can only be attuned to ${MAX_ATTUNEMENT} items at once.`)
+      return
+    }
+    try {
+      if (item.grants) {
+        const patch = next
+          ? applyGrants(char, item.grants)
+          : reverseGrants(char, item.grants)
+        if (Object.keys(patch).length) await updateCharacter({ id: char._id, ...patch })
+      }
+      await updateProperty({
+        id: item.id as Id<"characterProperties">,
+        data: { ...itemToStoredData(item), attuned: next },
+      })
+      toast.success(next ? `Attuned to ${item.name}.` : `Unattuned from ${item.name}.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't change attunement.")
     }
   }
 
@@ -369,12 +410,27 @@ export function InventorySection({
   return (
     <section className="mt-6">
       <div className="flex items-center justify-between mb-3">
-        <h2
-          className="text-xs uppercase tracking-widest"
-          style={{ color: "var(--scene-text-muted)" }}
-        >
-          Inventory
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2
+            className="text-xs uppercase tracking-widest"
+            style={{ color: "var(--scene-text-muted)" }}
+          >
+            Inventory
+          </h2>
+          {(attunedCount > 0 || items.some((i) => i.requiresAttunement)) && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+              style={{
+                background: "color-mix(in srgb, var(--scene-accent) 12%, transparent)",
+                color: "var(--scene-accent)",
+              }}
+              title="Attunement slots used (5e limit: 3)"
+            >
+              <Sparkles className="h-3 w-3" />
+              Attunement {attunedCount}/{MAX_ATTUNEMENT}
+            </span>
+          )}
+        </div>
         <button
           onClick={() => setAdding(true)}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
@@ -422,11 +478,13 @@ export function InventorySection({
                       isLast={i === groupItems.length - 1}
                       equippable={equippable}
                       countable={COUNTABLE.includes(item.category as ItemCategory)}
+                      attunementFull={attunedCount >= MAX_ATTUNEMENT}
                       onEquip={toggleEquip}
                       onEdit={setEditing}
                       onRemove={handleRemove}
                       onSetQuantity={setQuantity}
                       onUse={useConsumable}
+                      onAttune={setAttuned}
                     />
                   ))}
                 </div>
@@ -486,24 +544,30 @@ function ItemRow({
   isLast,
   equippable,
   countable,
+  attunementFull,
   onEquip,
   onEdit,
   onRemove,
   onSetQuantity,
   onUse,
+  onAttune,
 }: {
   item: SheetItem
   isLast: boolean
   equippable: boolean
   countable: boolean
+  attunementFull: boolean
   onEquip: (item: SheetItem) => void
   onEdit: (item: SheetItem) => void
   onRemove: (item: SheetItem) => void
   onSetQuantity: (item: SheetItem, qty: number) => void
   onUse: (item: SheetItem) => void
+  onAttune: (item: SheetItem, next: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
   const qty = item.quantity ?? 1
+  const grantText = item.grants ? appliedSummary(item.grants) : ""
+  const attuneBlocked = attunementFull && !item.attuned
 
   return (
     <div
@@ -535,6 +599,18 @@ function ItemRow({
                 }}
               >
                 Equipped
+              </span>
+            )}
+            {item.attuned && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md flex-shrink-0"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+                  color: "var(--scene-accent)",
+                }}
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                Attuned
               </span>
             )}
             {!countable && qty > 1 && (
@@ -594,7 +670,37 @@ function ItemRow({
 
       {/* Expanded action tray */}
       {open && (
-        <div className="flex flex-wrap items-center gap-2 px-3 pb-2.5">
+        <div className="px-3 pb-2.5">
+          {item.requiresAttunement && grantText && (
+            <p className="text-xs mb-2" style={{ color: "var(--scene-text-muted)" }}>
+              Attune to gain: {grantText}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+          {item.requiresAttunement && (
+            <button
+              onClick={() => onAttune(item, !item.attuned)}
+              disabled={attuneBlocked}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+              style={{
+                background: item.attuned
+                  ? "var(--scene-accent)"
+                  : "color-mix(in srgb, var(--scene-accent) 14%, transparent)",
+                color: item.attuned ? "var(--scene-bg)" : "var(--scene-accent)",
+                border: "1px solid color-mix(in srgb, var(--scene-accent) 32%, transparent)",
+              }}
+              title={
+                attuneBlocked
+                  ? "You're already attuned to 3 items"
+                  : item.attuned
+                    ? "Unattune (removes its bonuses)"
+                    : "Attune (applies its bonuses)"
+              }
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {item.attuned ? "Attuned" : attuneBlocked ? "Attune (3/3)" : "Attune"}
+            </button>
+          )}
           {item.category === "consumable" && (
             <button
               onClick={() => onUse(item)}
@@ -637,6 +743,7 @@ function ItemRow({
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </button>
+          </div>
         </div>
       )}
     </div>

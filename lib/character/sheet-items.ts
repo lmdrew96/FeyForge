@@ -13,6 +13,7 @@
 
 import type { AbilityScores, Character, ItemProperty, Modifier } from "./types"
 import type { ArmorCategory, DamageType } from "./constants"
+import type { AppliedGrants } from "./feats"
 import {
   calculateArmorClass,
   calculateAttackBonus,
@@ -95,6 +96,14 @@ export interface StoredItemData {
 
   // Equipped magic-item bonuses (AC, stats, …); read by the calculators.
   modifiers?: Modifier[]
+
+  // Attunement (5e: 3 attuned items max). A magic item that requiresAttunement
+  // confers its `grants` only while `attuned`. Grants are baked into the
+  // character doc on attune (applyGrants) and reversed on unattune/delete —
+  // equip-independent, unlike the live AC-modifier path.
+  requiresAttunement?: boolean
+  attuned?: boolean
+  grants?: AppliedGrants
 }
 
 // A characterProperties row, generically typed so this module needn't import
@@ -123,6 +132,9 @@ export type SheetItem = ItemProperty & {
   baseAC?: number
   strengthRequirement?: number
   stealthDisadvantage?: boolean
+  requiresAttunement?: boolean
+  attuned?: boolean
+  grants?: AppliedGrants
 }
 
 // ── Mapper ────────────────────────────────────────────────────────────────────
@@ -145,6 +157,9 @@ export function rowToItem(row: ItemRow): SheetItem {
     weight: data.weight ?? 0,
     modifiers: data.modifiers ?? [],
     properties: data.properties ?? [],
+    requiresAttunement: data.requiresAttunement,
+    attuned: data.attuned ?? false,
+    grants: data.grants,
   } as unknown as SheetItem
 }
 

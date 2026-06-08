@@ -11,7 +11,17 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { X, Search, Check, FlaskConical } from "lucide-react"
-import { DAMAGE_TYPES, type DamageType } from "@/lib/character/constants"
+import {
+  DAMAGE_TYPES,
+  ABILITIES,
+  ABILITY_ABBREVIATIONS,
+  SKILLS,
+  SKILL_DISPLAY_NAMES,
+  type DamageType,
+  type Ability,
+  type Skill,
+} from "@/lib/character/constants"
+import type { AppliedGrants } from "@/lib/character/feats"
 import { parseDiceExpression } from "@/lib/dice-store"
 import {
   open5eApi,
@@ -56,6 +66,14 @@ interface FormState {
   baseAC: string
   stealthDisadvantage: boolean
   strengthRequirement: string
+  // attunement + grants (character inventory only; gated to mode === "character")
+  requiresAttunement: boolean
+  grantAbility: "" | Ability
+  grantSaveProf: "" | Ability
+  grantSkillProf: "" | Skill
+  grantExpertise: "" | Skill
+  grantHp: string
+  grantText: string
 }
 
 function initialForm(item: SheetItem | null): FormState {
@@ -85,6 +103,13 @@ function initialForm(item: SheetItem | null): FormState {
     strengthRequirement: item?.strengthRequirement
       ? String(item.strengthRequirement)
       : "",
+    requiresAttunement: item?.requiresAttunement ?? false,
+    grantAbility: item?.grants?.ability ?? "",
+    grantSaveProf: item?.grants?.saveProficiency ?? "",
+    grantSkillProf: item?.grants?.skillProficiencies?.[0] ?? "",
+    grantExpertise: item?.grants?.skillExpertise?.[0] ?? "",
+    grantHp: item?.grants?.hp ? String(item.grants.hp) : "",
+    grantText: item?.grants?.text ?? "",
   }
 }
 
@@ -469,6 +494,23 @@ export function ItemEditorDialog({
     const weight = Math.max(0, toNum(form.weight, 0))
     const description = form.description.trim() || undefined
 
+    // Attunement + grants, shared across all kinds. `attuned` is set on the sheet
+    // (not here) — preserve it so a non-grant edit doesn't drop it.
+    const attunement: Pick<StoredItemData, "requiresAttunement" | "attuned" | "grants"> = {}
+    if (form.requiresAttunement) {
+      attunement.requiresAttunement = true
+      const grants: AppliedGrants = {}
+      if (form.grantAbility) grants.ability = form.grantAbility
+      if (form.grantSaveProf) grants.saveProficiency = form.grantSaveProf
+      if (form.grantSkillProf) grants.skillProficiencies = [form.grantSkillProf]
+      if (form.grantExpertise) grants.skillExpertise = [form.grantExpertise]
+      const ghp = toInt(form.grantHp, 0)
+      if (ghp) grants.hp = ghp
+      if (form.grantText.trim()) grants.text = form.grantText.trim()
+      if (Object.keys(grants).length) attunement.grants = grants
+    }
+    if (item?.attuned) attunement.attuned = true
+
     if (form.kind === "weapon") {
       const dice = form.damageDice.trim()
       if (!parseDiceExpression(dice)) {
@@ -498,6 +540,7 @@ export function ItemEditorDialog({
         ...(hasVersatile && versatile ? { versatileDamage: versatile } : {}),
         ...(normal > 0 ? { range: { normal, long: long > 0 ? long : undefined } } : {}),
         ...(magicBonus !== 0 ? { magicBonus } : {}),
+        ...attunement,
       }
     }
 
@@ -512,10 +555,11 @@ export function ItemEditorDialog({
         baseAC: Math.max(0, toInt(form.baseAC, 10)),
         stealthDisadvantage: form.stealthDisadvantage,
         ...(strReq > 0 ? { strengthRequirement: strReq } : {}),
+        ...attunement,
       }
     }
 
-    return { category: form.gearCategory, quantity, weight, description }
+    return { category: form.gearCategory, quantity, weight, description, ...attunement }
   }
 
   const handleSave = async () => {
@@ -546,9 +590,16 @@ export function ItemEditorDialog({
     }
     const data = buildData()
     if (!data) return
+    // Attunement/grants aren't in the strict homebrew item validator (character
+    // data is v.any(); homebrew isn't) — strip them so banking to the library
+    // isn't rejected. Authoring attunement on homebrew templates is a follow-up.
+    const homebrewData = { ...data }
+    delete homebrewData.requiresAttunement
+    delete homebrewData.attuned
+    delete homebrewData.grants
     setSaving(true)
     try {
-      await onSaveAsHomebrew({ name, data })
+      await onSaveAsHomebrew({ name, data: homebrewData })
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't save to homebrew.")
@@ -851,6 +902,108 @@ export function ItemEditorDialog({
               checked={form.equipped}
               onChange={(v) => set("equipped", v)}
             />
+          )}
+
+          {mode === "character" && (
+            <div
+              className="rounded-md p-3 space-y-3"
+              style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
+            >
+              <div
+                className="text-xs uppercase tracking-widest"
+                style={{ color: "var(--scene-text-muted)" }}
+              >
+                Magic &amp; attunement
+              </div>
+              {item?.attuned ? (
+                <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  This item is attuned. Unattune it on your sheet to change attunement
+                  or its granted bonuses.
+                </p>
+              ) : (
+                <>
+                  <CheckboxField
+                    label="Requires attunement"
+                    checked={form.requiresAttunement}
+                    onChange={(v) => set("requiresAttunement", v)}
+                  />
+                  {form.requiresAttunement && (
+                    <>
+                      <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                        Bonuses applied while attuned:
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="+1 Ability">
+                          <Select
+                            value={form.grantAbility}
+                            onChange={(v) => set("grantAbility", v as "" | Ability)}
+                            options={[
+                              { value: "", label: "None" },
+                              ...ABILITIES.map((a) => ({ value: a, label: ABILITY_ABBREVIATIONS[a] })),
+                            ]}
+                          />
+                        </Field>
+                        <Field label="Save proficiency">
+                          <Select
+                            value={form.grantSaveProf}
+                            onChange={(v) => set("grantSaveProf", v as "" | Ability)}
+                            options={[
+                              { value: "", label: "None" },
+                              ...ABILITIES.map((a) => ({ value: a, label: ABILITY_ABBREVIATIONS[a] })),
+                            ]}
+                          />
+                        </Field>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Skill proficiency">
+                          <Select
+                            value={form.grantSkillProf}
+                            onChange={(v) => set("grantSkillProf", v as "" | Skill)}
+                            options={[
+                              { value: "", label: "None" },
+                              ...(Object.keys(SKILLS) as Skill[]).map((s) => ({
+                                value: s,
+                                label: SKILL_DISPLAY_NAMES[s],
+                              })),
+                            ]}
+                          />
+                        </Field>
+                        <Field label="Skill expertise">
+                          <Select
+                            value={form.grantExpertise}
+                            onChange={(v) => set("grantExpertise", v as "" | Skill)}
+                            options={[
+                              { value: "", label: "None" },
+                              ...(Object.keys(SKILLS) as Skill[]).map((s) => ({
+                                value: s,
+                                label: SKILL_DISPLAY_NAMES[s],
+                              })),
+                            ]}
+                          />
+                        </Field>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Bonus HP">
+                          <TextInput
+                            value={form.grantHp}
+                            onChange={(v) => set("grantHp", v)}
+                            placeholder="0"
+                            numeric
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Other (note)">
+                        <TextInput
+                          value={form.grantText}
+                          onChange={(v) => set("grantText", v)}
+                          placeholder="e.g. advantage on saves vs. fear"
+                        />
+                      </Field>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
           <Field label="Notes (optional)">
