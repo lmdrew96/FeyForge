@@ -5,10 +5,11 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
-import { Plus, Trash2, Pencil, Sword, Shield, Package, Zap } from "lucide-react"
+import { Plus, Minus, Trash2, Pencil, Sword, Shield, Package, Zap, ChevronDown } from "lucide-react"
 import type { AbilityScores } from "@/lib/character/types"
 import {
   weaponAttackInfo,
+  itemToStoredData,
   type ItemCategory,
   type SheetItem,
 } from "@/lib/character/sheet-items"
@@ -56,6 +57,11 @@ const GROUP_ORDER: ItemCategory[] = [
   "consumable",
   "treasure",
 ]
+
+// Categories where a quantity stepper makes sense — the table-frequent stackables
+// (arrows, potions, rations, coins-worth-of-treasure). Weapons/armor/magic/tools
+// are effectively singletons, so they keep the plain ×N display.
+const COUNTABLE: ItemCategory[] = ["consumable", "gear", "treasure"]
 
 // ── Attacks ───────────────────────────────────────────────────────────────────
 
@@ -326,6 +332,40 @@ export function InventorySection({
     }
   }
 
+  // Set an item's quantity (clamped at 1 — use Delete/Use to reach zero). data is
+  // patched as a whole blob, so spread the existing data and override quantity.
+  const setQuantity = async (item: SheetItem, qty: number) => {
+    const next = Math.max(1, Math.floor(qty))
+    if (next === (item.quantity ?? 1)) return
+    try {
+      await updateProperty({
+        id: item.id as Id<"characterProperties">,
+        data: { ...itemToStoredData(item), quantity: next },
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update quantity.")
+    }
+  }
+
+  // Use one of a consumable: decrement by 1, or remove it when the last is spent.
+  const useConsumable = async (item: SheetItem) => {
+    const qty = item.quantity ?? 1
+    try {
+      if (qty > 1) {
+        await updateProperty({
+          id: item.id as Id<"characterProperties">,
+          data: { ...itemToStoredData(item), quantity: qty - 1 },
+        })
+        toast.success(`Used ${item.name} — ${qty - 1} left.`)
+      } else {
+        await removeProperty({ id: item.id as Id<"characterProperties"> })
+        toast.success(`Used your last ${item.name}.`)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't use item.")
+    }
+  }
+
   return (
     <section className="mt-6">
       <div className="flex items-center justify-between mb-3">
@@ -376,81 +416,18 @@ export function InventorySection({
                   }}
                 >
                   {groupItems.map((item, i) => (
-                    <div
+                    <ItemRow
                       key={item.id}
-                      className="flex items-center gap-2 px-3 py-2.5"
-                      style={{
-                        borderBottom:
-                          i < groupItems.length - 1
-                            ? "1px solid var(--scene-border)"
-                            : "none",
-                        opacity: item.active ? 1 : 0.55,
-                      }}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="text-sm font-medium truncate"
-                            style={{ color: "var(--scene-text-primary)" }}
-                          >
-                            {item.name}
-                          </span>
-                          {(item.quantity ?? 1) > 1 && (
-                            <span
-                              className="text-xs tabular-nums"
-                              style={{ color: "var(--scene-text-muted)" }}
-                            >
-                              ×{item.quantity}
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className="text-xs"
-                          style={{ color: "var(--scene-text-muted)" }}
-                        >
-                          {itemSubtitle(item)}
-                        </span>
-                      </div>
-
-                      {equippable && (
-                        <button
-                          onClick={() => toggleEquip(item)}
-                          className="text-[10px] px-2 py-1 rounded-md transition-opacity hover:opacity-80 flex-shrink-0"
-                          style={{
-                            background: item.equipped
-                              ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)"
-                              : "var(--scene-border)",
-                            color: item.equipped
-                              ? "var(--scene-accent)"
-                              : "var(--scene-text-muted)",
-                          }}
-                          title={
-                            item.equipped
-                              ? "Equipped — click to unequip"
-                              : "Click to equip"
-                          }
-                        >
-                          {item.equipped ? "Equipped" : "Equip"}
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => setEditing(item)}
-                        className="p-1.5 rounded transition-opacity hover:opacity-80 flex-shrink-0"
-                        style={{ color: "var(--scene-text-muted)" }}
-                        title="Edit item"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleRemove(item)}
-                        className="p-1.5 rounded transition-opacity hover:opacity-80 flex-shrink-0"
-                        style={{ color: "var(--scene-text-muted)" }}
-                        title="Remove item"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                      item={item}
+                      isLast={i === groupItems.length - 1}
+                      equippable={equippable}
+                      countable={COUNTABLE.includes(item.category as ItemCategory)}
+                      onEquip={toggleEquip}
+                      onEdit={setEditing}
+                      onRemove={handleRemove}
+                      onSetQuantity={setQuantity}
+                      onUse={useConsumable}
+                    />
                   ))}
                 </div>
               </div>
@@ -496,6 +473,173 @@ export function InventorySection({
         />
       )}
     </section>
+  )
+}
+
+// A single inventory row. Collapsed it stays scannable (name · subtitle ·
+// quantity · equipped badge); a quantity stepper sits inline for stackables (the
+// everyday "+1 arrow / −1 potion" loop). Tapping the row expands a small action
+// tray with the contextual verb (Use for consumables) plus equip/edit/delete —
+// so the collapsed row never carries five buttons (nd-design: keep it clean).
+function ItemRow({
+  item,
+  isLast,
+  equippable,
+  countable,
+  onEquip,
+  onEdit,
+  onRemove,
+  onSetQuantity,
+  onUse,
+}: {
+  item: SheetItem
+  isLast: boolean
+  equippable: boolean
+  countable: boolean
+  onEquip: (item: SheetItem) => void
+  onEdit: (item: SheetItem) => void
+  onRemove: (item: SheetItem) => void
+  onSetQuantity: (item: SheetItem, qty: number) => void
+  onUse: (item: SheetItem) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const qty = item.quantity ?? 1
+
+  return (
+    <div
+      style={{
+        borderBottom: isLast ? "none" : "1px solid var(--scene-border)",
+        opacity: item.active ? 1 : 0.55,
+      }}
+    >
+      {/* Collapsed header */}
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex-1 min-w-0 text-left"
+          aria-expanded={open}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="text-sm font-medium truncate"
+              style={{ color: "var(--scene-text-primary)" }}
+            >
+              {item.name}
+            </span>
+            {item.equipped && (
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-md flex-shrink-0"
+                style={{
+                  background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+                  color: "var(--scene-accent)",
+                }}
+              >
+                Equipped
+              </span>
+            )}
+            {!countable && qty > 1 && (
+              <span
+                className="text-xs tabular-nums"
+                style={{ color: "var(--scene-text-muted)" }}
+              >
+                ×{qty}
+              </span>
+            )}
+          </div>
+          <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+            {itemSubtitle(item)}
+          </span>
+        </button>
+
+        {countable && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={() => onSetQuantity(item, qty - 1)}
+              disabled={qty <= 1}
+              className="p-1 rounded transition-opacity hover:opacity-80 disabled:opacity-30"
+              style={{ color: "var(--scene-text-muted)", border: "1px solid var(--scene-border)" }}
+              aria-label={`Decrease ${item.name}`}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <span
+              className="text-sm tabular-nums w-6 text-center"
+              style={{ color: "var(--scene-text-primary)" }}
+            >
+              {qty}
+            </span>
+            <button
+              onClick={() => onSetQuantity(item, qty + 1)}
+              className="p-1 rounded transition-opacity hover:opacity-80"
+              style={{ color: "var(--scene-text-muted)", border: "1px solid var(--scene-border)" }}
+              aria-label={`Increase ${item.name}`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="p-1.5 rounded transition-transform flex-shrink-0"
+          style={{
+            color: "var(--scene-text-muted)",
+            transform: open ? "rotate(180deg)" : undefined,
+          }}
+          aria-label={open ? "Collapse" : "Expand"}
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Expanded action tray */}
+      {open && (
+        <div className="flex flex-wrap items-center gap-2 px-3 pb-2.5">
+          {item.category === "consumable" && (
+            <button
+              onClick={() => onUse(item)}
+              className="px-3 py-1.5 rounded-md text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{
+                background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)",
+                color: "var(--scene-accent)",
+                border: "1px solid color-mix(in srgb, var(--scene-accent) 32%, transparent)",
+              }}
+              title="Use one (decrements quantity)"
+            >
+              Use
+            </button>
+          )}
+          {equippable && (
+            <button
+              onClick={() => onEquip(item)}
+              className="px-3 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+              style={{
+                background: item.equipped
+                  ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)"
+                  : "var(--scene-border)",
+                color: item.equipped ? "var(--scene-accent)" : "var(--scene-text-primary)",
+              }}
+            >
+              {item.equipped ? "Unequip" : "Equip"}
+            </button>
+          )}
+          <button
+            onClick={() => onEdit(item)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-opacity hover:opacity-80"
+            style={{ background: "var(--scene-border)", color: "var(--scene-text-primary)" }}
+          >
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </button>
+          <button
+            onClick={() => onRemove(item)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-opacity hover:opacity-80"
+            style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

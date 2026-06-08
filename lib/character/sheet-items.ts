@@ -148,6 +148,21 @@ export function rowToItem(row: ItemRow): SheetItem {
   } as unknown as SheetItem
 }
 
+// Inverse of rowToItem: rebuild the `characterProperties.data` blob from a flat
+// SheetItem, dropping the row-level fields (id/type/name/active/equipped) so they
+// never leak into data. Needed because updateProperty patches `data` as a whole
+// object (no deep merge) — a partial { quantity } would clobber the rest. Callers
+// spread this and override the field they're changing.
+export function itemToStoredData(item: SheetItem): StoredItemData {
+  const data: Record<string, unknown> = { ...(item as unknown as Record<string, unknown>) }
+  delete data.id
+  delete data.type
+  delete data.name
+  delete data.active
+  delete data.equipped
+  return data as unknown as StoredItemData
+}
+
 // ── Armor class ───────────────────────────────────────────────────────────────
 
 // Real AC from equipped armor/shield + modifiers (replaces the old 10+DEX stub).
