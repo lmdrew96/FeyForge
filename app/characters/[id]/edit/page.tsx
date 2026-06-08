@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import { PortraitUpload, deletePortraitObject } from "@/components/character/portrait-upload"
 
 type CharDoc = Doc<"characters">
 
@@ -440,6 +441,13 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
         },
       })
 
+      // The component already cleans up unsaved session uploads on replace; here we
+      // drop the previously-committed portrait once a replace/removal is persisted.
+      // No-op server-side unless it's our R2 object, so external URLs are untouched.
+      const prevImage = char.imageUrl ?? ""
+      const newImage = draft.imageUrl.trim()
+      if (prevImage && prevImage !== newImage) deletePortraitObject(prevImage)
+
       toast.success("Character saved.")
       router.push(`/characters/${characterId}`)
     } catch (err) {
@@ -640,12 +648,13 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="char-image">Portrait URL</Label>
-              <Input
-                id="char-image"
+              <Label htmlFor="char-image">Portrait</Label>
+              <PortraitUpload
                 value={draft.imageUrl}
-                onChange={(e) => setField("imageUrl", e.target.value)}
-                placeholder="https://…"
+                onChange={(url) => setField("imageUrl", url)}
+                committedUrl={char.imageUrl ?? ""}
+                disabled={saving}
+                inputId="char-image"
               />
             </div>
           </div>

@@ -16,6 +16,7 @@ import {
 } from "@/lib/character/constants"
 import { ArrowRight, ArrowLeft, RefreshCw, Shield } from "lucide-react"
 import { GuidedCompanion } from "@/components/character/guided-companion"
+import { PortraitUpload } from "@/components/character/portrait-upload"
 import { StartingEquipmentStep } from "./starting-equipment-step"
 import type { StartingChoice } from "@/lib/character/starting-equipment"
 
@@ -90,6 +91,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const [subraceId, setSubraceId] = useState("")
   const [backgroundId, setBackgroundId] = useState("")
   const [name, setName] = useState("")
+  const [imageUrl, setImageUrl] = useState("")
   const [assignments, setAssignments] = useState<Record<Ability, number>>({
     strength: 0, dexterity: 0, constitution: 0,
     intelligence: 0, wisdom: 0, charisma: 0,
@@ -208,6 +210,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       racialBonuses,
       skillProficiencies: allSkills,
       startingChoice,
+      imageUrl: imageUrl.trim() || undefined,
     })
   }
 
@@ -727,6 +730,14 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
           >
             <RefreshCw className="h-4 w-4" />
           </button>
+        </div>
+
+        {/* Portrait (optional) */}
+        <div className="mb-6">
+          <label className="block text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+            Portrait <span style={{ textTransform: "none" }}>(optional)</span>
+          </label>
+          <PortraitUpload value={imageUrl} onChange={setImageUrl} disabled={saving} allowUrlPaste={false} />
         </div>
 
         {/* Preview card */}

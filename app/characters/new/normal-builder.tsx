@@ -17,6 +17,7 @@ import {
 import { ArrowRight, Sparkles, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { StartingEquipmentStep } from "./starting-equipment-step"
+import { PortraitUpload } from "@/components/character/portrait-upload"
 import type { StartingChoice } from "@/lib/character/starting-equipment"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -177,6 +178,7 @@ interface NormalBuilderProps {
 
 export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   const [name, setName] = useState("")
+  const [imageUrl, setImageUrl] = useState("")
   const [classId, setClassId] = useState("")
   const [subclassId, setSubclassId] = useState("")
   const [fightingStyleId, setFightingStyleId] = useState("")
@@ -339,6 +341,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
       racialBonuses,
       skillProficiencies: allSkills,
       startingChoice,
+      imageUrl: imageUrl.trim() || undefined,
     })
   }
 
@@ -394,6 +397,17 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
             <span className="hidden sm:inline">Suggest</span>
           </button>
         </div>
+      </section>
+
+      {/* ── Portrait ─────────────────────────────────────────────────────────── */}
+      <section>
+        <label
+          className="block text-xs uppercase tracking-widest mb-2"
+          style={{ color: "var(--scene-text-muted)" }}
+        >
+          Portrait <span style={{ textTransform: "none" }}>(optional)</span>
+        </label>
+        <PortraitUpload value={imageUrl} onChange={setImageUrl} disabled={saving} inputId="builder-portrait" />
       </section>
 
       {/* ── Class ────────────────────────────────────────────────────────────── */}

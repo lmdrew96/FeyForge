@@ -881,6 +881,9 @@ export interface QuickRollResult {
   // Creation-time equipment decision. Only the interactive builders set this;
   // Quick Roll / From Concept default to the equipment package.
   startingChoice?: "equipment" | "gold"
+  // Optional portrait, set via upload in the Guided / Normal builders. Quick Roll
+  // / From Concept leave it unset (a portrait is added later on the edit page).
+  imageUrl?: string
 }
 
 // Auto-pick a complete level-1 skill set: the background's fixed proficiencies

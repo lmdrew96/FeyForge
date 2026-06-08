@@ -379,6 +379,7 @@ export default function NewCharacterPage() {
         level: 1,
         experiencePoints: 0,
         background: background.name,
+        imageUrl: result.imageUrl?.trim() || undefined,
         baseAbilities,
         racialBonuses: Object.keys(racialBonuses).length > 0 ? racialBonuses : undefined,
         hitPoints: { current: maxHp, max: maxHp, temp: 0 },
