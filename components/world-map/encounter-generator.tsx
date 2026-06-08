@@ -12,7 +12,7 @@
 // mapName, surroundings} and go. All the D&D math is reused, never re-derived:
 // computeEncounter + crToXp from lib/encounter (edition-aware, SRD-verified).
 //
-// SRD-SAFE BY CONSTRUCTION: candidates come from open5e (document=wotc-srd) and
+// SRD-SAFE BY CONSTRUCTION: candidates come from the baked srd-2024 SRD bundle and
 // the route may only pick from their slugs; we re-validate every returned slug
 // here, so a hallucinated creature can't reach the table OR skew the difficulty.
 

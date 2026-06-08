@@ -63,7 +63,12 @@ export function rowToSpell(row: SpellRow): SheetSpell {
 }
 
 // Open5e exposes ritual/concentration as the strings "true"/"false".
-const truthy = (s?: string): boolean => (s ?? "").toLowerCase() === "true"
+// Open5e v1 used "yes"/"no" for concentration/ritual; our v2 mapper emits the same.
+// Accept "true" too so older cached/stored values keep working.
+const truthy = (s?: string): boolean => {
+  const v = (s ?? "").toLowerCase()
+  return v === "true" || v === "yes"
+}
 
 // Open5e spell → stored blob. Keeps the descriptive fields for display + the
 // upcast prose; damage-dice parsing is intentionally out of scope for v1 (cast

@@ -7,15 +7,16 @@
 // already-summarized objects so the model gets clean SRD facts without the full
 // payload bloating the context.
 //
-// EDITION: Open5e's `wotc-srd` document is the 2014 SRD 5.1. 2024 (5.2) coverage
-// is partial, so the route's system prompt tells the model to caveat 2024-specific
-// details. Slot/stat data here is 2014-accurate.
+// EDITION: FeyForge serves the 2024 SRD (5.2). v2's edition filter is inconsistent
+// per endpoint (spells/conditions honor document__key, magicitems honors document=),
+// so each lookup passes its own working filter. Monsters come from the baked bundle.
 
 import srdMonstersJson from "./data/srd-monsters.json"
 import type { Open5eMonster } from "./open5e-api"
 
 const API_BASE = "https://api.open5e.com"
-const SRD = "wotc-srd" // document__slug filter → only the official SRD
+const SRD_DOC = "srd-2024" // v2 document key for the 2024 SRD
+const COND_DOC = "core" // conditions live under the shared "core" document
 const TIMEOUT_MS = 8_000
 
 // The baked SRD creature set (edition per the bundle). Static import is fine here —
@@ -34,7 +35,6 @@ async function fetchList<T>(
   params: Record<string, string>,
 ): Promise<T[]> {
   const url = new URL(`${API_BASE}${endpoint}`)
-  url.searchParams.set("document__slug", SRD)
   url.searchParams.set("limit", "20")
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
 
@@ -77,9 +77,10 @@ async function findOne<T>(
   endpoint: string,
   query: string,
   getName: (r: T) => string,
+  doc: Record<string, string>, // per-endpoint edition filter (varies on v2)
 ): Promise<T | null> {
-  let results = await fetchList<T>(endpoint, { name__icontains: query })
-  if (!results.length) results = await fetchList<T>(endpoint, { search: query })
+  let results = await fetchList<T>(endpoint, { ...doc, name__icontains: query })
+  if (!results.length) results = await fetchList<T>(endpoint, { ...doc, search: query })
   return pickBest(results, query, getName)
 }
 
@@ -95,26 +96,33 @@ const clip = (text: string | undefined, max = 600): string => {
 
 interface Open5eSpellRaw {
   name: string
-  level: string
-  school: string
-  casting_time: string
-  range: string
-  components: string
-  material?: string
-  duration: string
-  concentration: string
-  ritual: string
-  desc: string
+  level?: number
+  school?: { name?: string }
+  casting_time?: string
+  range_text?: string
+  duration?: string
+  concentration?: boolean
+  ritual?: boolean
+  verbal?: boolean
+  somatic?: boolean
+  material?: boolean
+  material_specified?: string
+  desc?: string
   higher_level?: string
 }
 
 export async function lookupSpell(name: string): Promise<string> {
-  const s = await findOne<Open5eSpellRaw>("/v1/spells/", name, (r) => r.name)
+  const s = await findOne<Open5eSpellRaw>("/v2/spells/", name, (r) => r.name, {
+    document__key: SRD_DOC,
+  })
   if (!s) return `No SRD spell found matching "${name}".`
+  const lvl = s.level ?? 0
+  const levelLabel = lvl === 0 ? "Cantrip" : `Level ${lvl}`
+  const comps = [s.verbal && "V", s.somatic && "S", s.material && "M"].filter(Boolean).join(", ")
   const lines = [
-    `**${s.name}** — ${s.level}, ${s.school}`,
-    `Casting time: ${s.casting_time} · Range: ${s.range} · Duration: ${s.duration}${s.concentration === "true" ? " (concentration)" : ""}`,
-    `Components: ${s.components}${s.material ? ` (${s.material})` : ""}${s.ritual === "true" ? " · Ritual" : ""}`,
+    `**${s.name}** — ${levelLabel}, ${s.school?.name ?? ""}`,
+    `Casting time: ${s.casting_time ?? "—"} · Range: ${s.range_text ?? "—"} · Duration: ${s.duration ?? "—"}${s.concentration ? " (concentration)" : ""}`,
+    `Components: ${comps}${s.material && s.material_specified ? ` (${s.material_specified})` : ""}${s.ritual ? " · Ritual" : ""}`,
     clip(s.desc),
   ]
   if (s.higher_level) lines.push(`At higher levels: ${clip(s.higher_level, 300)}`)
@@ -151,31 +159,44 @@ export async function lookupMonster(name: string): Promise<string> {
 
 interface Open5eMagicItemRaw {
   name: string
-  type: string
-  rarity: string
-  requires_attunement: string
-  desc: string
+  category?: { name?: string }
+  rarity?: { name?: string }
+  requires_attunement?: boolean
+  attunement_detail?: string | null
+  desc?: string
 }
 
 export async function lookupItem(name: string): Promise<string> {
-  const i = await findOne<Open5eMagicItemRaw>("/v1/magicitems/", name, (r) => r.name)
+  const i = await findOne<Open5eMagicItemRaw>("/v2/magicitems/", name, (r) => r.name, {
+    document: SRD_DOC, // magicitems honor `document=`, not `document__key=`
+  })
   if (!i) return `No SRD magic item found matching "${name}".`
-  const attune = i.requires_attunement ? ` (requires attunement${i.requires_attunement.replace(/^requires attunement/i, "").trim() ? ` ${i.requires_attunement.replace(/^requires attunement/i, "").trim()}` : ""})` : ""
+  const attune = i.requires_attunement
+    ? ` (requires attunement${i.attunement_detail ? ` ${i.attunement_detail}` : ""})`
+    : ""
   return [
-    `**${i.name}** — ${i.type}, ${i.rarity}${attune}`,
+    `**${i.name}** — ${i.category?.name ?? ""}, ${i.rarity?.name ?? ""}${attune}`,
     clip(i.desc, 800),
   ].join("\n")
 }
 
 // ── Conditions ───────────────────────────────────────────────────────────────
+// Under the shared "core" document; each carries a per-gamesystem description array.
 
 interface Open5eConditionRaw {
   name: string
-  desc: string
+  descriptions?: { desc?: string; gamesystem?: string }[]
 }
 
 export async function lookupCondition(name: string): Promise<string> {
-  const c = await findOne<Open5eConditionRaw>("/v1/conditions/", name, (r) => r.name)
+  const c = await findOne<Open5eConditionRaw>("/v2/conditions/", name, (r) => r.name, {
+    document__key: COND_DOC,
+  })
   if (!c) return `No SRD condition found matching "${name}".`
-  return [`**${c.name}**`, clip(c.desc, 800)].join("\n")
+  const descs = c.descriptions ?? []
+  const pick =
+    descs.find((d) => d.gamesystem === "5e-2024") ??
+    descs.find((d) => (d.gamesystem ?? "").toLowerCase().startsWith("5e")) ??
+    descs[0]
+  return [`**${c.name}**`, clip(pick?.desc, 800)].join("\n")
 }

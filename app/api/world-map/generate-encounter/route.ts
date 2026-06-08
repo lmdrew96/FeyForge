@@ -11,7 +11,7 @@ import { formatSurroundings, type Surroundings } from "@/lib/worldMap/surroundin
 // content grounded in the pin's place + the party's level.
 //
 // SRD-SAFE BY CONSTRUCTION: the client passes a list of real SRD monster
-// candidates (open5e, document=wotc-srd); the model may ONLY pick from their
+// candidates (the baked srd-2024 SRD bundle); the model may ONLY pick from their
 // slugs. It never invents a creature or a stat block, so nothing Product-Identity
 // can leak in, and the client can recompute the true XP/difficulty from the slugs
 // it gets back. The model's job is selection + narration, not game math.

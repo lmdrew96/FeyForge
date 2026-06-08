@@ -1,8 +1,8 @@
 "use client"
 
 // The per-combatant attack roller in the DM combat tracker. Expands under a
-// monster/NPC row: resolves the creature's SRD stat block by name (open5e, already
-// browser-cached + wotc-srd filtered), lists its rollable attacks, and rolls to-hit
+// monster/NPC row: resolves the creature's SRD stat block by name (from the baked
+// srd-2024 bundle via open5eApi.getMonsters), lists its rollable attacks, and rolls to-hit
 // + damage on tap via lib/dice-store (adv/dis on the d20, crit-doubles damage dice).
 // A rolled hit can be applied straight to a target combatant's HP — the loop the
 // initiative tracker was missing. No backend: pure client, no schema, no deploy.

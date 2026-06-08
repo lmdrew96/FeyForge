@@ -5,6 +5,15 @@ const DB_NAME = "arcane-codex-srd"
 const DB_VERSION = 1
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
 
+// SRD edition. FeyForge serves the 2024 SRD (5.2). Open5e's per-endpoint edition
+// filtering is inconsistent (spells honor document__key, magicitems/items honor
+// document=, weapons/armor honor neither), so every list is ALSO filtered client-side
+// on the nested document.key — guaranteeing edition purity and excluding 3pp content.
+// Conditions are the exception: they live under the shared "core" document, identical
+// across editions. Flip SRD_DOC to "srd-2014" to serve the older edition.
+const SRD_DOC = "srd-2024"
+const COND_DOC = "core"
+
 // Types for Open5e API responses
 export interface Open5eSpell {
   slug: string
@@ -241,6 +250,184 @@ export function v2CreatureToMonster(c: Open5eV2Creature): Open5eMonster {
   }
 }
 
+// ─── Open5e v2 spells / gear / conditions → existing shapes ───────────────────
+// v1 is deprecated; these now come from v2 with reshaped, nested fields. We remap at
+// THIS boundary so consumers + the Open5eX types stay unchanged (same posture as the
+// monster mapper). Booleans → the "yes"/"no" strings the codex/sheet expect; nested
+// {name} → flat strings.
+
+interface V2Ref {
+  name?: string
+  key?: string
+}
+interface V2Doc {
+  key?: string
+  name?: string
+}
+
+interface Open5eV2Spell {
+  key: string
+  name: string
+  desc?: string
+  higher_level?: string
+  level?: number
+  school?: V2Ref
+  classes?: V2Ref[]
+  casting_time?: string
+  range_text?: string
+  duration?: string
+  concentration?: boolean
+  ritual?: boolean
+  verbal?: boolean
+  somatic?: boolean
+  material?: boolean
+  material_specified?: string
+  document?: V2Doc
+}
+export function v2SpellToSpell(s: Open5eV2Spell): Open5eSpell {
+  const lvl = s.level ?? 0
+  const components = [s.verbal && "V", s.somatic && "S", s.material && "M"]
+    .filter(Boolean)
+    .join(", ")
+  return {
+    slug: s.key,
+    name: s.name,
+    desc: s.desc ?? "",
+    higher_level: s.higher_level,
+    range: s.range_text ?? "",
+    components,
+    material: s.material && s.material_specified ? s.material_specified : undefined,
+    ritual: s.ritual ? "yes" : "no",
+    duration: s.duration ?? "",
+    concentration: s.concentration ? "yes" : "no",
+    casting_time: s.casting_time ?? "",
+    level: String(lvl),
+    level_int: lvl,
+    school: s.school?.name ?? "",
+    dnd_class: (s.classes ?? []).map((c) => c.name ?? "").filter(Boolean).join(", "),
+    document__slug: s.document?.key ?? SRD_DOC,
+    document__title: s.document?.name ?? "SRD",
+  }
+}
+
+interface Open5eV2Weapon {
+  key: string
+  name: string
+  damage_dice?: string
+  damage_type?: V2Ref | string
+  range?: number
+  long_range?: number
+  is_simple?: boolean
+  properties?: { property?: V2Ref & { type?: string | null }; detail?: string | null }[]
+  document?: V2Doc
+}
+export function v2WeaponToWeapon(w: Open5eV2Weapon): Open5eWeapon {
+  const ranged = (w.range ?? 0) > 0 || (w.long_range ?? 0) > 0
+  // Only Ammunition weapons (bows/crossbows/slings) are "ranged"; thrown MELEE weapons
+  // (handaxe, javelin) carry a range but stay melee for the prefill's category.
+  const hasAmmo = (w.properties ?? []).some(
+    (p) => (p.property?.name ?? "").toLowerCase() === "ammunition",
+  )
+  const dt = typeof w.damage_type === "string" ? w.damage_type : w.damage_type?.name ?? ""
+  const properties = (w.properties ?? [])
+    .filter((p) => p.property?.type !== "Mastery") // 2024 masteries aren't sheet-modeled
+    .map((p) => {
+      const name = (p.property?.name ?? "").toLowerCase()
+      if (name === "versatile" && p.detail) return `versatile (${p.detail})`
+      if ((name === "thrown" || name === "ammunition") && ranged)
+        return `${name} (range ${w.range ?? 0}/${w.long_range ?? 0})`
+      return name
+    })
+    .filter(Boolean)
+  return {
+    slug: w.key,
+    name: w.name,
+    category: `${w.is_simple ? "Simple" : "Martial"} ${hasAmmo ? "Ranged" : "Melee"} Weapon`,
+    cost: "",
+    damage_dice: w.damage_dice ?? "",
+    damage_type: dt,
+    weight: "",
+    properties,
+    document__slug: w.document?.key ?? SRD_DOC,
+    document__title: w.document?.name ?? "SRD",
+  }
+}
+
+interface Open5eV2Armor {
+  key: string
+  name: string
+  category?: string
+  ac_display?: string
+  ac_base?: number
+  grants_stealth_disadvantage?: boolean
+  strength_score_required?: number | null
+  document?: V2Doc
+}
+export function v2ArmorToArmor(a: Open5eV2Armor): Open5eArmor {
+  const isShield = /shield/i.test(a.name) // v2 files shields under category "heavy"
+  return {
+    slug: a.key,
+    name: a.name,
+    category: isShield ? "shield" : a.category ?? "light",
+    cost: "",
+    ac_string: a.ac_display ?? String(a.ac_base ?? 10),
+    strength_requirement:
+      a.strength_score_required != null ? String(a.strength_score_required) : undefined,
+    stealth_disadvantage: a.grants_stealth_disadvantage ?? false,
+    weight: "",
+    document__slug: a.document?.key ?? SRD_DOC,
+    document__title: a.document?.name ?? "SRD",
+  }
+}
+
+interface Open5eV2MagicItem {
+  key: string
+  name: string
+  desc?: string
+  category?: V2Ref
+  rarity?: V2Ref
+  requires_attunement?: boolean
+  attunement_detail?: string | null
+  document?: V2Doc
+}
+export function v2MagicItemToItem(m: Open5eV2MagicItem): Open5eMagicItem {
+  return {
+    slug: m.key,
+    name: m.name,
+    type: m.category?.name ?? "",
+    rarity: m.rarity?.name ?? "",
+    desc: m.desc ?? "",
+    requires_attunement: m.requires_attunement
+      ? `requires attunement${m.attunement_detail ? ` ${m.attunement_detail}` : ""}`
+      : "",
+    document__slug: m.document?.key ?? SRD_DOC,
+    document__title: m.document?.name ?? "SRD",
+  }
+}
+
+interface Open5eV2Condition {
+  key: string
+  name: string
+  descriptions?: { desc?: string; gamesystem?: string }[]
+  document?: V2Doc
+}
+export function v2ConditionToCondition(c: Open5eV2Condition): Open5eCondition {
+  const descs = c.descriptions ?? []
+  // Each condition carries a per-gamesystem description; prefer 2024 5e, then any 5e
+  // variant (NOT a5e — "a5e" doesn't start with "5e"), then whatever's first.
+  const pick =
+    descs.find((d) => d.gamesystem === "5e-2024") ??
+    descs.find((d) => (d.gamesystem ?? "").toLowerCase().startsWith("5e")) ??
+    descs[0]
+  return {
+    slug: c.key,
+    name: c.name,
+    desc: pick?.desc ?? "",
+    document__slug: c.document?.key ?? COND_DOC,
+    document__title: c.document?.name ?? "SRD",
+  }
+}
+
 export interface Open5eCondition {
   slug: string
   name: string
@@ -286,72 +473,9 @@ export interface Open5eMagicItem {
   document__title: string
 }
 
-export interface Open5eRace {
-  slug: string
-  name: string
-  desc: string
-  asi_desc: string
-  asi: Array<{ attributes: string[]; value: number }>
-  age: string
-  alignment: string
-  size: string
-  size_raw: string
-  speed: { walk: number; swim?: number; fly?: number }
-  speed_desc: string
-  languages: string
-  vision: string
-  traits: string
-  subraces: Array<{
-    name: string
-    slug: string
-    desc: string
-    asi_desc: string
-    asi: Array<{ attributes: string[]; value: number }>
-    traits: string
-  }>
-  document__slug: string
-  document__title: string
-}
-
-export interface Open5eClass {
-  slug: string
-  name: string
-  desc: string
-  hit_dice: string
-  hp_at_1st_level: string
-  hp_at_higher_levels: string
-  prof_armor: string
-  prof_weapons: string
-  prof_tools: string
-  prof_saving_throws: string
-  prof_skills: string
-  equipment: string
-  table: string
-  spellcasting_ability: string
-  subtypes_name: string
-  archetypes: Array<{
-    name: string
-    slug: string
-    desc: string
-  }>
-  document__slug: string
-  document__title: string
-}
-
-export interface Open5eBackground {
-  slug: string
-  name: string
-  desc: string
-  skill_proficiencies: string
-  tool_proficiencies?: string
-  languages?: string
-  equipment: string
-  feature: string
-  feature_desc: string
-  suggested_characteristics?: string
-  document__slug: string
-  document__title: string
-}
+// NOTE: races, classes, and backgrounds are NOT fetched from Open5e — character
+// creation uses curated in-repo data (lib/character/*). Their old v1 getters +
+// interfaces were orphaned and were removed in the v2 migration.
 
 interface PaginatedResponse<T> {
   count: number
@@ -508,17 +632,8 @@ async function fetchAllPages<T>(endpoint: string, params?: Record<string, string
   return allResults
 }
 
-// Content source filter type
-export type ContentSource = "srd" | "all"
-
-// Helper to get source filter params
-function getSourceParams(source?: ContentSource): Record<string, string> {
-  if (source === "all") return {}
-  return { document__slug: "wotc-srd" }
-}
-
 // ─── Self-hosted SRD monsters ────────────────────────────────────────────────
-// The full SRD-2014 creature set is baked into lib/data/srd-monsters.json by
+// The full SRD creature set (edition = SRD_DOC) is baked into lib/data/srd-monsters.json by
 // scripts/seed-monsters.ts and served from here, so the combat tracker never hits
 // the live (volunteer-run) api.open5e.com at play time. A lazy dynamic import keeps
 // the ~550 KB out of the main bundle — it loads as its own chunk only when a monster
@@ -536,29 +651,35 @@ function loadSrdMonsters(): Promise<Open5eMonster[]> {
 
 // API methods
 export const open5eApi = {
-  // Spells
+  // Spells — v2/spells (v1 deprecated). document__key filters edition server-side
+  // here; class/level/school filter client-side off the mapped fields.
   async getSpells(params?: {
     search?: string
     level?: number
     school?: string
     class?: string
   }): Promise<Open5eSpell[]> {
-    const queryParams: Record<string, string> = {
-      document__slug: "wotc-srd", // Only get SRD content
-    }
+    const queryParams: Record<string, string> = { document__key: SRD_DOC }
     if (params?.search) queryParams.search = params.search
-    if (params?.level !== undefined) queryParams.level_int = params.level.toString()
-    if (params?.school) queryParams.school = params.school.toLowerCase()
-    if (params?.class) queryParams.dnd_class__icontains = params.class
-
-    return fetchAllPages<Open5eSpell>("/v1/spells/", queryParams)
+    const raw = await fetchAllPages<Open5eV2Spell>("/v2/spells/", queryParams)
+    let spells = raw
+      .filter((s) => (s.document?.key ?? SRD_DOC) === SRD_DOC)
+      .map(v2SpellToSpell)
+    if (params?.level !== undefined) {
+      spells = spells.filter((s) => s.level_int === params.level)
+    }
+    if (params?.school) {
+      const sch = params.school.toLowerCase()
+      spells = spells.filter((s) => s.school.toLowerCase() === sch)
+    }
+    if (params?.class) {
+      const cls = params.class.toLowerCase()
+      spells = spells.filter((s) => s.dnd_class.toLowerCase().includes(cls))
+    }
+    return spells
   },
 
-  async getSpell(slug: string): Promise<Open5eSpell> {
-    return fetchWithCache<Open5eSpell>(`/v1/spells/${slug}/`)
-  },
-
-  // Monsters — served from the self-hosted SRD-2014 bundle (see loadSrdMonsters),
+  // Monsters — served from the self-hosted SRD bundle (see loadSrdMonsters),
   // NOT the live API. Combat rolls monster attacks at the table, so it must never
   // depend on the volunteer-run api.open5e.com (which went fully down mid-session)
   // or its broken v2 structured-attack fields. `search` (name substring) and `type`
@@ -590,65 +711,66 @@ export const open5eApi = {
     return found
   },
 
-  // Conditions
+  // Conditions — v2/conditions under the shared "core" document (the 15 standard
+  // conditions, identical across editions); each carries per-gamesystem descriptions.
   async getConditions(): Promise<Open5eCondition[]> {
-    return fetchAllPages<Open5eCondition>("/v1/conditions/", {
-      document__slug: "wotc-srd",
+    const raw = await fetchAllPages<Open5eV2Condition>("/v2/conditions/", {
+      document__key: COND_DOC,
     })
+    return raw.map(v2ConditionToCondition)
   },
 
-  // Weapons
+  // Weapons — v2/weapons. This endpoint ignores the edition filter (returns all
+  // editions, ~75 rows), so we fetch all and keep our edition client-side.
   async getWeapons(search?: string): Promise<Open5eWeapon[]> {
-    const params: Record<string, string> = { document__slug: "wotc-srd" }
-    if (search) params.search = search
-    return fetchAllPages<Open5eWeapon>("/v1/weapons/", params)
+    const raw = await fetchAllPages<Open5eV2Weapon>("/v2/weapons/", {})
+    let weapons = raw.filter((w) => w.document?.key === SRD_DOC).map(v2WeaponToWeapon)
+    if (search) {
+      const q = search.toLowerCase()
+      weapons = weapons.filter((w) => w.name.toLowerCase().includes(q))
+    }
+    return weapons
   },
 
-  // Armor
+  // Armor — v2/armor. Like weapons, the edition filter is ignored (~25 rows), so we
+  // filter client-side. Shields live here too (detected by name in the mapper).
   async getArmor(search?: string): Promise<Open5eArmor[]> {
-    const params: Record<string, string> = { document__slug: "wotc-srd" }
-    if (search) params.search = search
-    return fetchAllPages<Open5eArmor>("/v1/armor/", params)
+    const raw = await fetchAllPages<Open5eV2Armor>("/v2/armor/", {})
+    let armor = raw.filter((a) => a.document?.key === SRD_DOC).map(v2ArmorToArmor)
+    if (search) {
+      const q = search.toLowerCase()
+      armor = armor.filter((a) => a.name.toLowerCase().includes(q))
+    }
+    return armor
   },
 
-  // Magic Items
+  // Magic items — v2/magicitems. Here the working edition filter is `document=` (the
+  // `document__key=` form is ignored); the client-side guard backs it up. search/
+  // rarity/type filter off the mapped fields.
   async getMagicItems(params?: {
     search?: string
     rarity?: string
     type?: string
   }): Promise<Open5eMagicItem[]> {
-    const queryParams: Record<string, string> = { document__slug: "wotc-srd" }
-    if (params?.search) queryParams.search = params.search
-    if (params?.rarity) queryParams.rarity = params.rarity
-    if (params?.type) queryParams.type__icontains = params.type
-    return fetchAllPages<Open5eMagicItem>("/v1/magicitems/", queryParams)
-  },
-
-  // Races
-  async getRaces(source?: ContentSource): Promise<Open5eRace[]> {
-    return fetchAllPages<Open5eRace>("/v1/races/", getSourceParams(source))
-  },
-
-  async getRace(slug: string): Promise<Open5eRace> {
-    return fetchWithCache<Open5eRace>(`/v1/races/${slug}/`)
-  },
-
-  // Classes
-  async getClasses(source?: ContentSource): Promise<Open5eClass[]> {
-    return fetchAllPages<Open5eClass>("/v1/classes/", getSourceParams(source))
-  },
-
-  async getClass(slug: string): Promise<Open5eClass> {
-    return fetchWithCache<Open5eClass>(`/v1/classes/${slug}/`)
-  },
-
-  // Backgrounds
-  async getBackgrounds(source?: ContentSource): Promise<Open5eBackground[]> {
-    return fetchAllPages<Open5eBackground>("/v1/backgrounds/", getSourceParams(source))
-  },
-
-  async getBackground(slug: string): Promise<Open5eBackground> {
-    return fetchWithCache<Open5eBackground>(`/v1/backgrounds/${slug}/`)
+    const raw = await fetchAllPages<Open5eV2MagicItem>("/v2/magicitems/", {
+      document: SRD_DOC,
+    })
+    let items = raw
+      .filter((m) => (m.document?.key ?? SRD_DOC) === SRD_DOC)
+      .map(v2MagicItemToItem)
+    if (params?.search) {
+      const q = params.search.toLowerCase()
+      items = items.filter((m) => m.name.toLowerCase().includes(q))
+    }
+    if (params?.rarity) {
+      const r = params.rarity.toLowerCase()
+      items = items.filter((m) => m.rarity.toLowerCase() === r)
+    }
+    if (params?.type) {
+      const t = params.type.toLowerCase()
+      items = items.filter((m) => m.type.toLowerCase().includes(t))
+    }
+    return items
   },
 
   // Clear cache
