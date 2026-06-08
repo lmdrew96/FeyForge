@@ -1,6 +1,6 @@
 {
   "name": "feyforge",
-  "version": "0.136.2",
+  "version": "0.136.3",
   "private": true,
   "scripts": {
     "build": "next build",

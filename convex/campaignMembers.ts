@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
-import type { Doc, Id } from "./_generated/dataModel"
+import type { Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
 import { resolveActiveCampaignId, setActiveCampaignForUser } from "./users"
 
@@ -93,45 +93,22 @@ export const getMyCampaignContext = query({
       }
     }
 
-    // A DM's explicit campaign selection must win. If their active campaign has
-    // no live session, show the DM "ready to start" view for IT — never pull a DM
-    // into another campaign's live session where they may only be a player (the
-    // bug behind Live Session / Story Web showing player mode for a DM's own
-    // campaign). Starting a session sets the DM's active campaign
-    // (setupDMSession → setActiveCampaignForUser), so a DM actually running a game
-    // is already caught by the block above and keeps seeing their live session.
-    if (activeMembership && activeMembership.role === "dm") {
-      return { campaignId: activeMembership.campaignId, role: "dm", session: null }
-    }
-
-    // Otherwise (active membership is a player with no live session) surface a
-    // live session in any other campaign the user belongs to — covers a stale
-    // active campaign while a session is live elsewhere.
-    let live: {
-      campaignId: Id<"campaigns">
-      role: "dm" | "player"
-      session: Doc<"partySessions">
-    } | null = null
-
-    for (const m of memberships) {
-      const active = await ctx.db
-        .query("partySessions")
-        .withIndex("by_campaignId_and_isActive", (q) =>
-          q.eq("campaignId", m.campaignId).eq("isActive", true)
-        )
-        .first()
-      if (active && (!live || active.startedAt > live.session.startedAt)) {
-        live = { campaignId: m.campaignId, role: m.role, session: active }
-      }
-    }
-
-    if (live) return live
-
-    // No live session anywhere — land on the active campaign (so a DM sees the
-    // "ready to start" view for the campaign they actually selected).
+    // No live session in the selected campaign. Honor the explicit selection
+    // rather than pulling the user into a DIFFERENT campaign's session — doing so
+    // surfaced the DM Conductor to someone who had selected a campaign where they
+    // are only a player (a user who DMs one campaign but plays in another saw the
+    // other campaign's DM view). A DM sees their "ready to start" view here; a
+    // player sees the waiting/empty state. The campaign switcher is how the user
+    // moves between campaigns, and both join paths keep activeCampaignId current
+    // (setupDMSession + joinByCode call setActiveCampaignForUser), so any live
+    // session you belong to stays reachable by selecting its campaign.
     if (activeMembership) {
       return { campaignId: activeMembership.campaignId, role: activeMembership.role, session: null }
     }
+
+    // Defensive only: resolveActiveCampaignId returns a membership id whenever the
+    // user has any, so activeMembership is set above. Prefer a DM campaign, else
+    // the most recent.
     const dm = memberships.find((m) => m.role === "dm")
     const chosen = dm ?? memberships[memberships.length - 1]
     return { campaignId: chosen.campaignId, role: chosen.role, session: null }
