@@ -120,10 +120,19 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer
-        className="px-8 py-6 text-center border-t text-xs"
+        className="px-8 py-6 text-center border-t text-xs flex flex-col items-center gap-2"
         style={{ borderColor: "#1e1a2e", color: "#4a4560" }}
       >
-        © 2026 ADHDesigns — FeyForge
+        <div className="flex items-center gap-4">
+          <Link href="/privacy" className="transition-colors hover:text-foreground">
+            Privacy Policy
+          </Link>
+          <span aria-hidden>·</span>
+          <Link href="/terms" className="transition-colors hover:text-foreground">
+            Terms of Service
+          </Link>
+        </div>
+        <span>© 2026 ADHDesigns — FeyForge</span>
       </footer>
     </main>
   )

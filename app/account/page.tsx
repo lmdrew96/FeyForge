@@ -1,6 +1,7 @@
 "use client"
 
 import { AppShell } from "@/components/app-shell"
+import Link from "next/link"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { KOFI_URL, PREMIUM_FEATURES, AI_CAP_PREMIUM } from "@/lib/premium"
@@ -102,6 +103,20 @@ export default function AccountPage() {
             )}
           </>
         )}
+
+        {/* Legal — logged-in users never see the landing-page footer */}
+        <div
+          className="flex items-center justify-center gap-4 pt-2 text-xs"
+          style={{ color: "var(--scene-text-muted)" }}
+        >
+          <Link href="/privacy" className="transition-opacity hover:opacity-70">
+            Privacy Policy
+          </Link>
+          <span aria-hidden>·</span>
+          <Link href="/terms" className="transition-opacity hover:opacity-70">
+            Terms of Service
+          </Link>
+        </div>
       </div>
     </AppShell>
   )

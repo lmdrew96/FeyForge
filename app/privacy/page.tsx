@@ -22,7 +22,7 @@ export default function PrivacyPage() {
               </div>
               <div>
                 <CardTitle className="text-2xl font-display">Privacy Policy</CardTitle>
-                <p className="text-sm text-muted-foreground">Last updated: December 29, 2025</p>
+                <p className="text-sm text-muted-foreground">Last updated: June 8, 2026</p>
               </div>
             </div>
           </CardHeader>
@@ -34,10 +34,15 @@ export default function PrivacyPage() {
                 We collect information you provide directly to us, including:
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1 mt-2">
-                <li>Account information (email address, display name)</li>
-                <li>Character and campaign data you create</li>
-                <li>Usage data and preferences</li>
+                <li>Account information (email address, display name), handled through our authentication provider, Clerk</li>
+                <li>Character, campaign, NPC, map, and session data you create</li>
+                <li>Content you submit to AI features — the prompts and the surrounding character or campaign context used to generate a result</li>
+                <li>Usage data and preferences, including AI generation counts used to enforce daily limits</li>
               </ul>
+              <p className="text-muted-foreground leading-relaxed mt-3">
+                We do not collect or store payment card details. Premium memberships are processed by Ko-fi, and
+                your payment information is handled by Ko-fi under their own privacy policy.
+              </p>
             </section>
 
             <section>
@@ -56,30 +61,39 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">3. Data Storage</h2>
               <p className="text-muted-foreground leading-relaxed">
-                Your data is stored securely using industry-standard encryption. Character data, 
-                campaign information, and other content you create are stored in our secure database 
-                and are accessible only to you unless you choose to share them.
+                Your account and content data are stored in our database, hosted on Convex. Images you upload
+                (such as character portraits) are stored on Cloudflare R2. Data is transmitted over encrypted
+                connections (HTTPS) and protected by access controls. Character, campaign, and other content
+                you create are accessible only to you and the campaigns you choose to share them with.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">4. Data Sharing</h2>
               <p className="text-muted-foreground leading-relaxed">
-                We do not sell, trade, or otherwise transfer your personal information to third 
-                parties. We may share information only in the following circumstances:
+                We do not sell, rent, or trade your personal information. We share data only with the service
+                providers that operate FeyForge, and only as needed to run the service:
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1 mt-2">
-                <li>With your consent</li>
-                <li>To comply with legal obligations</li>
-                <li>To protect our rights and prevent fraud</li>
+                <li><strong className="text-foreground">Clerk</strong> — account authentication and sign-in</li>
+                <li><strong className="text-foreground">Convex</strong> — database and real-time backend hosting</li>
+                <li><strong className="text-foreground">Cloudflare R2</strong> — storage for images you upload</li>
+                <li><strong className="text-foreground">Anthropic</strong> — powers our AI features; when you use an AI tool (such as the DM Assistant or NPC and encounter generation), the content you submit and its surrounding context are sent to Anthropic to generate a response</li>
+                <li><strong className="text-foreground">Ko-fi</strong> — processes Premium membership payments</li>
+                <li><strong className="text-foreground">Vercel</strong> — application hosting and delivery</li>
               </ul>
+              <p className="text-muted-foreground leading-relaxed mt-3">
+                We may also disclose information with your consent, to comply with legal obligations, or to
+                protect our rights and prevent fraud.
+              </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">5. Cookies and Tracking</h2>
               <p className="text-muted-foreground leading-relaxed">
-                We use essential cookies to maintain your session and preferences. We do not use 
-                third-party tracking cookies or advertising trackers.
+                We use essential cookies to keep you signed in and remember your preferences, including
+                authentication cookies set by Clerk. We do not use third-party advertising or cross-site
+                tracking cookies.
               </p>
             </section>
 
@@ -132,8 +146,12 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">11. Contact Us</h2>
               <p className="text-muted-foreground leading-relaxed">
-                If you have any questions about this Privacy Policy, please contact us through 
-                our support channels.
+                If you have any questions about this Privacy Policy or want to exercise your data rights,
+                contact us at{" "}
+                <a href="mailto:nae@adhdesigns.dev" className="text-foreground underline">
+                  nae@adhdesigns.dev
+                </a>
+                .
               </p>
             </section>
           </CardContent>
