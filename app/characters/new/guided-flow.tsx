@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { RACES, CLASSES, BACKGROUNDS, generateName, getCreationFightingStyles } from "@/lib/character/character-data"
+import { RACES, CLASSES, BACKGROUNDS, generateName, getCreationFightingStyles, subclassPickerHint } from "@/lib/character/character-data"
 import type { QuickRollResult } from "@/lib/character/character-data"
 import { partitionHomebrew } from "@/lib/homebrew"
 import {
@@ -336,7 +336,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
           {cls.subclasses && cls.subclasses.length > 0 && (
             <div className="pt-1">
               <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
-                Subclass <span style={{ color: "var(--scene-text-muted)", textTransform: "none" }}>(optional — usually chosen at level 3)</span>
+                Subclass <span style={{ color: "var(--scene-text-muted)", textTransform: "none" }}>({subclassPickerHint(cls.id)})</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {cls.subclasses.map(sc => (

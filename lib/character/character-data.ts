@@ -507,6 +507,31 @@ export const CLASSES: ClassData[] = BASE_CLASSES.map((c) => ({
   subclasses: CURATED_SUBCLASSES[c.id] ?? c.subclasses,
 }))
 
+// Canonical level at which a class chooses its subclass under the 2014 rules,
+// where it varies: Cleric/Sorcerer/Warlock at level 1, Druid/Wizard at level 2.
+// Every other class (and the 2024 ruleset across the board) lands on level 3, so
+// unlisted ids — including homebrew classes — default to 3.
+const SUBCLASS_LEVEL_2014: Record<string, number> = {
+  cleric: 1,
+  sorcerer: 1,
+  warlock: 1,
+  druid: 2,
+  wizard: 2,
+}
+
+// Helper text for the builders' subclass picker. Edition is unknown at creation
+// (the character has no campaign yet), so when the 2014 and 2024 levels diverge we
+// surface both; when they agree we state the single level. The choice is always
+// optional to save here — subclass features aren't modeled and it's editable later
+// from the character sheet — but the level tells a 2014 Cleric/Sorcerer/Warlock
+// player that this is the moment they'd normally lock it in.
+export const subclassPickerHint = (classId: string): string => {
+  const level2014 = SUBCLASS_LEVEL_2014[classId] ?? 3
+  return level2014 === 3
+    ? "optional at creation — chosen at level 3"
+    : `optional at creation — level ${level2014} in 2014, level 3 in 2024`
+}
+
 // ─── Fighting Styles ──────────────────────────────────────────────────────────
 
 export interface FightingStyleData {
