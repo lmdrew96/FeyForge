@@ -656,6 +656,19 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_campaignId_and_userId", ["campaignId", "userId"]),
 
+  // Player Campaign Hub quest log (v1): a member's PERSONAL objective checklist
+  // for a campaign — "what are we doing / what's done." Private to its author,
+  // membership-gated. (v2 will add DM-shared quests tied to plotThreads with
+  // isRevealed gating — separate table/feature.)
+  campaignQuests: defineTable({
+    campaignId: v.id("campaigns"),
+    userId: v.string(),
+    text: v.string(),
+    done: v.boolean(),
+    orderIndex: v.number(),
+    updatedAt: v.number(),
+  }).index("by_campaignId_and_userId", ["campaignId", "userId"]),
+
   partyInventory: defineTable({
     sessionId: v.id("partySessions"),
     campaignId: v.id("campaigns"),

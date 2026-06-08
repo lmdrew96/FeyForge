@@ -33,6 +33,53 @@ export const listBroadcasts = query({
   },
 })
 
+// "People I've met" for the Player Campaign Hub: the NPCs the DM has revealed to
+// the party, aggregated across ALL of a campaign's sessions (listBroadcasts is
+// single-session). Membership-gated. NPC broadcasts carry only a title string
+// (no npcId — see broadcastReveal), so the same NPC revealed in multiple
+// sessions would duplicate; dedup by case-insensitive title, keeping the most
+// recent reveal (its body/imageUrl + first-met / last-seen timestamps).
+export const listMetNpcsForCampaign = query({
+  args: { campaignId: v.id("campaigns") },
+  handler: async (ctx, args) => {
+    const m = await getMembership(ctx, args.campaignId)
+    if (!m) return []
+
+    const broadcasts = await ctx.db
+      .query("sessionBroadcasts")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .collect()
+
+    const npcs = broadcasts.filter((b) => b.type === "npc" && b.isRevealed)
+
+    const byName = new Map<
+      string,
+      { title: string; body?: string; imageUrl?: string; firstMet: number; lastSeen: number }
+    >()
+    for (const b of npcs) {
+      const key = b.title.trim().toLowerCase()
+      if (!key) continue
+      const at = b.revealedAt ?? b._creationTime
+      const prev = byName.get(key)
+      if (!prev) {
+        byName.set(key, { title: b.title, body: b.body, imageUrl: b.imageUrl, firstMet: at, lastSeen: at })
+      } else {
+        // Keep the most recent reveal's details; widen the met/seen window.
+        if (at >= prev.lastSeen) {
+          prev.title = b.title
+          prev.body = b.body ?? prev.body
+          prev.imageUrl = b.imageUrl ?? prev.imageUrl
+          prev.lastSeen = at
+        }
+        if (at < prev.firstMet) prev.firstMet = at
+      }
+    }
+
+    // Most recently seen first.
+    return [...byName.values()].sort((a, b) => b.lastSeen - a.lastSeen)
+  },
+})
+
 // Idempotent — gets or creates the DM's active campaign and an active session.
 // Called once on mount by DM tools that need a live session context. Runs the
 // session in the DM's *active* campaign (the one they selected/invited from), so

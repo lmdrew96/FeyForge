@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type ReactNode, type ElementType } from "react"
+import { useEffect, useState, type ReactNode, type ElementType, type FormEvent } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -8,7 +8,7 @@ import { AppShell } from "@/components/app-shell"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { toast } from "sonner"
-import { BookText, ScrollText, Eye, Pencil, Save } from "lucide-react"
+import { BookText, ScrollText, Eye, Pencil, Save, ListChecks, Users, Plus, Trash2, Check, X } from "lucide-react"
 
 // The Player Campaign Hub — a player's between-sessions home. Slice 1 surfaces
 // two tabs: Journal (a persistent, campaign-scoped markdown notebook private to
@@ -16,8 +16,9 @@ import { BookText, ScrollText, Eye, Pencil, Save } from "lucide-react"
 // wiki page's shell/markdown/campaign-resolution conventions.
 
 type CampaignId = Id<"campaigns">
-type HubTab = "journal" | "recaps"
+type HubTab = "journal" | "quests" | "recaps" | "people"
 const TAB_STORAGE_KEY = "feyforge:hub-tab"
+const HUB_TABS: readonly HubTab[] = ["journal", "quests", "recaps", "people"]
 
 function HubShell({ children }: { children: ReactNode }) {
   return <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">{children}</div>
@@ -99,7 +100,7 @@ export default function HubPage() {
   // Restore the last-used tab (client-only).
   useEffect(() => {
     const saved = localStorage.getItem(TAB_STORAGE_KEY)
-    if (saved === "journal" || saved === "recaps") setTab(saved)
+    if (saved && (HUB_TABS as readonly string[]).includes(saved)) setTab(saved as HubTab)
   }, [])
 
   const selectTab = (t: HubTab) => {
@@ -135,17 +136,18 @@ export default function HubPage() {
           </p>
         </div>
 
-        <div className="flex gap-1 mb-5 border-b" style={{ borderColor: "var(--scene-border)" }}>
+        <div className="flex gap-1 mb-5 border-b overflow-x-auto" style={{ borderColor: "var(--scene-border)" }}>
           <TabButton active={tab === "journal"} onClick={() => selectTab("journal")} icon={BookText} label="Journal" />
+          <TabButton active={tab === "quests"} onClick={() => selectTab("quests")} icon={ListChecks} label="Quests" />
           <TabButton active={tab === "recaps"} onClick={() => selectTab("recaps")} icon={ScrollText} label="Recaps" />
+          <TabButton active={tab === "people"} onClick={() => selectTab("people")} icon={Users} label="People" />
         </div>
 
         {/* Keyed by campaign so editor/draft state resets cleanly on a campaign switch. */}
-        {tab === "journal" ? (
-          <JournalTab key={activeCampaignId} campaignId={activeCampaignId} />
-        ) : (
-          <RecapsTab key={activeCampaignId} campaignId={activeCampaignId} />
-        )}
+        {tab === "journal" && <JournalTab key={activeCampaignId} campaignId={activeCampaignId} />}
+        {tab === "quests" && <QuestsTab key={activeCampaignId} campaignId={activeCampaignId} />}
+        {tab === "recaps" && <RecapsTab key={activeCampaignId} campaignId={activeCampaignId} />}
+        {tab === "people" && <PeopleTab key={activeCampaignId} campaignId={activeCampaignId} />}
       </HubShell>
     </AppShell>
   )
@@ -293,6 +295,240 @@ function RecapsTab({ campaignId }: { campaignId: CampaignId }) {
             </p>
           )}
           <MarkdownRenderer content={r.playerRecap} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function QuestsTab({ campaignId }: { campaignId: CampaignId }) {
+  const quests = useQuery(api.campaignQuests.list, { campaignId })
+  const addQuest = useMutation(api.campaignQuests.add)
+
+  const [text, setText] = useState("")
+  const [busy, setBusy] = useState(false)
+
+  const handleAdd = async (e: FormEvent) => {
+    e.preventDefault()
+    const t = text.trim()
+    if (!t || busy) return
+    setBusy(true)
+    try {
+      await addQuest({ campaignId, text: t })
+      setText("")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add that quest")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const active = quests?.filter((q) => !q.done) ?? []
+  const done = quests?.filter((q) => q.done) ?? []
+
+  return (
+    <div>
+      <form onSubmit={handleAdd} className="flex gap-2 mb-4">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Add an objective — a lead to chase, a promise to keep…"
+          className="flex-1 rounded-md px-3 py-2 text-sm outline-none"
+          style={{
+            background: "var(--scene-surface)",
+            border: "1px solid var(--scene-border)",
+            color: "var(--scene-text-primary)",
+          }}
+        />
+        <button
+          type="submit"
+          disabled={!text.trim() || busy}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-40 shrink-0"
+          style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+        >
+          <Plus className="h-4 w-4" />
+          Add
+        </button>
+      </form>
+
+      {quests === undefined ? (
+        <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+          Loading…
+        </p>
+      ) : quests.length === 0 ? (
+        <EmptyState
+          title="No quests yet"
+          body="Track what your party is up to — add objectives and check them off as you go."
+        />
+      ) : (
+        <div className="space-y-1.5">
+          {active.map((q) => (
+            <QuestRow key={q._id} quest={q} />
+          ))}
+          {done.length > 0 && (
+            <>
+              <p
+                className="text-xs uppercase tracking-wide mt-5 mb-1.5"
+                style={{ color: "var(--scene-text-muted)" }}
+              >
+                Completed
+              </p>
+              {done.map((q) => (
+                <QuestRow key={q._id} quest={q} />
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function QuestRow({ quest }: { quest: { _id: Id<"campaignQuests">; text: string; done: boolean } }) {
+  const toggle = useMutation(api.campaignQuests.toggle)
+  const update = useMutation(api.campaignQuests.update)
+  const remove = useMutation(api.campaignQuests.remove)
+
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(quest.text)
+
+  const saveEdit = async () => {
+    const t = draft.trim()
+    if (!t) return
+    if (t !== quest.text) {
+      try {
+        await update({ id: quest._id, text: t })
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't save")
+        return
+      }
+    }
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div
+        className="flex items-center gap-2 rounded-md px-2 py-1.5"
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+      >
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void saveEdit()
+            if (e.key === "Escape") {
+              setDraft(quest.text)
+              setEditing(false)
+            }
+          }}
+          className="flex-1 bg-transparent text-sm outline-none"
+          style={{ color: "var(--scene-text-primary)" }}
+        />
+        <button onClick={() => void saveEdit()} aria-label="Save" className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-accent)" }}>
+          <Check className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => {
+            setDraft(quest.text)
+            setEditing(false)
+          }}
+          aria-label="Cancel"
+          className="p-1 rounded hover:opacity-80"
+          style={{ color: "var(--scene-text-muted)" }}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="group flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-[var(--scene-surface)]">
+      <button
+        onClick={() => void toggle({ id: quest._id })}
+        aria-label={quest.done ? "Mark not done" : "Mark done"}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors"
+        style={{
+          borderColor: quest.done ? "var(--scene-accent)" : "var(--scene-border)",
+          background: quest.done ? "var(--scene-accent)" : "transparent",
+          color: "var(--scene-bg)",
+        }}
+      >
+        {quest.done && <Check className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        onDoubleClick={() => setEditing(true)}
+        className="flex-1 text-left text-sm"
+        style={{
+          color: quest.done ? "var(--scene-text-muted)" : "var(--scene-text-primary)",
+          textDecoration: quest.done ? "line-through" : undefined,
+        }}
+      >
+        {quest.text}
+      </button>
+      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <button onClick={() => setEditing(true)} aria-label="Edit" className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={() => void remove({ id: quest._id })} aria-label="Delete" className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function PeopleTab({ campaignId }: { campaignId: CampaignId }) {
+  const people = useQuery(api.liveSessions.listMetNpcsForCampaign, { campaignId })
+
+  if (people === undefined) {
+    return (
+      <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+        Loading…
+      </p>
+    )
+  }
+
+  if (people.length === 0) {
+    return (
+      <EmptyState
+        title="No one yet"
+        body="NPCs your DM introduces during a session will show up here, so you can remember who you've met."
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {people.map((p) => (
+        <div
+          key={p.title}
+          className="flex gap-3 rounded-md p-3"
+          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        >
+          {p.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={p.imageUrl}
+              alt={p.title}
+              className="h-14 w-14 shrink-0 rounded-md object-cover"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+              {p.title}
+            </h3>
+            {p.body && (
+              <div className="mt-0.5 text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                <MarkdownRenderer content={p.body} />
+              </div>
+            )}
+            <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+              Last seen {formatDate(p.lastSeen)}
+            </p>
+          </div>
         </div>
       ))}
     </div>

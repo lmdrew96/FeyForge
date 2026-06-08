@@ -13,6 +13,7 @@ import type * as aiUsage from "../aiUsage.js";
 import type * as audio from "../audio.js";
 import type * as campaignJournal from "../campaignJournal.js";
 import type * as campaignMembers from "../campaignMembers.js";
+import type * as campaignQuests from "../campaignQuests.js";
 import type * as campaignWeb from "../campaignWeb.js";
 import type * as campaigns from "../campaigns.js";
 import type * as characters from "../characters.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   audio: typeof audio;
   campaignJournal: typeof campaignJournal;
   campaignMembers: typeof campaignMembers;
+  campaignQuests: typeof campaignQuests;
   campaignWeb: typeof campaignWeb;
   campaigns: typeof campaigns;
   characters: typeof characters;
