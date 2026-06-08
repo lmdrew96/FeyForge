@@ -17,6 +17,8 @@ import {
 import { ArrowRight, ArrowLeft, RefreshCw, Shield } from "lucide-react"
 import { GuidedCompanion } from "@/components/character/guided-companion"
 import { PortraitUpload } from "@/components/character/portrait-upload"
+import { ToolProficiencyPicker } from "@/components/character/tool-proficiency-picker"
+import { resolveToolProficiencies } from "@/lib/character/tool-choices"
 import { StartingEquipmentStep } from "./starting-equipment-step"
 import type { StartingChoice } from "@/lib/character/starting-equipment"
 
@@ -92,6 +94,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const [backgroundId, setBackgroundId] = useState("")
   const [name, setName] = useState("")
   const [imageUrl, setImageUrl] = useState("")
+  const [toolSelections, setToolSelections] = useState<Record<string, string[]>>({})
   const [assignments, setAssignments] = useState<Record<Ability, number>>({
     strength: 0, dexterity: 0, constitution: 0,
     intelligence: 0, wisdom: 0, charisma: 0,
@@ -118,6 +121,11 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const race = useMemo(() => allRaces.find(r => r.id === raceId), [allRaces, raceId])
   const subrace = useMemo(() => race?.subraces?.find(s => s.id === subraceId), [race, subraceId])
   const background = useMemo(() => allBackgrounds.find(b => b.id === backgroundId), [allBackgrounds, backgroundId])
+  const rawTools = useMemo(
+    () => [...(cls?.toolProficiencies ?? []), ...(background?.toolProficiencies ?? [])],
+    [cls, background],
+  )
+  const toolProfs = useMemo(() => resolveToolProficiencies(rawTools, toolSelections), [rawTools, toolSelections])
 
   const racialBonuses = useMemo((): Partial<Record<Ability, number>> => {
     const out: Partial<Record<Ability, number>> = {}
@@ -211,6 +219,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       skillProficiencies: allSkills,
       startingChoice,
       imageUrl: imageUrl.trim() || undefined,
+      toolProficiencies: toolProfs,
     })
   }
 
@@ -739,6 +748,16 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
           </label>
           <PortraitUpload value={imageUrl} onChange={setImageUrl} disabled={saving} allowUrlPaste={false} />
         </div>
+
+        {/* Tool Proficiencies */}
+        {rawTools.length > 0 && (
+          <div className="mb-6">
+            <label className="block text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+              Tool Proficiencies
+            </label>
+            <ToolProficiencyPicker rawTools={rawTools} selections={toolSelections} onSelectionsChange={setToolSelections} />
+          </div>
+        )}
 
         {/* Preview card */}
         {name.trim() && (

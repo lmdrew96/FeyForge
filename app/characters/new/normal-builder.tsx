@@ -18,6 +18,8 @@ import { ArrowRight, Sparkles, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { StartingEquipmentStep } from "./starting-equipment-step"
 import { PortraitUpload } from "@/components/character/portrait-upload"
+import { ToolProficiencyPicker } from "@/components/character/tool-proficiency-picker"
+import { resolveToolProficiencies } from "@/lib/character/tool-choices"
 import type { StartingChoice } from "@/lib/character/starting-equipment"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -179,6 +181,7 @@ interface NormalBuilderProps {
 export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   const [name, setName] = useState("")
   const [imageUrl, setImageUrl] = useState("")
+  const [toolSelections, setToolSelections] = useState<Record<string, string[]>>({})
   const [classId, setClassId] = useState("")
   const [subclassId, setSubclassId] = useState("")
   const [fightingStyleId, setFightingStyleId] = useState("")
@@ -213,6 +216,11 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   const race = useMemo(() => allRaces.find(r => r.id === raceId), [allRaces, raceId])
   const subrace = useMemo(() => race?.subraces?.find(s => s.id === subraceId), [race, subraceId])
   const background = useMemo(() => allBackgrounds.find(b => b.id === backgroundId), [allBackgrounds, backgroundId])
+  const rawTools = useMemo(
+    () => [...(cls?.toolProficiencies ?? []), ...(background?.toolProficiencies ?? [])],
+    [cls, background],
+  )
+  const toolProfs = useMemo(() => resolveToolProficiencies(rawTools, toolSelections), [rawTools, toolSelections])
 
   const racialBonuses = useMemo((): Partial<Record<Ability, number>> => {
     const out: Partial<Record<Ability, number>> = {}
@@ -342,6 +350,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
       skillProficiencies: allSkills,
       startingChoice,
       imageUrl: imageUrl.trim() || undefined,
+      toolProficiencies: toolProfs,
     })
   }
 
@@ -682,12 +691,6 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
               <span style={{ color: "var(--scene-text-primary)" }}>Skills: </span>
               {background.skillProficiencies.map(s => SKILL_DISPLAY_NAMES[s]).join(", ")}
             </p>
-            {background.toolProficiencies.length > 0 && (
-              <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
-                <span style={{ color: "var(--scene-text-primary)" }}>Tools: </span>
-                {background.toolProficiencies.join(", ")}
-              </p>
-            )}
             <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
               <span style={{ color: "var(--scene-text-primary)" }}>Feature: </span>
               {background.feature}
@@ -695,6 +698,16 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
           </div>
         )}
       </section>
+
+      {/* ── Tool Proficiencies ───────────────────────────────────────────────── */}
+      {rawTools.length > 0 && (
+        <section>
+          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+            Tool Proficiencies
+          </h2>
+          <ToolProficiencyPicker rawTools={rawTools} selections={toolSelections} onSelectionsChange={setToolSelections} />
+        </section>
+      )}
 
       {/* ── Ability Scores ───────────────────────────────────────────────────── */}
       <section>

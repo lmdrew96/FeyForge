@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select"
 import { ALIGNMENTS, getAbilityModifier, type Ability } from "@/lib/character/constants"
 import { CLASSES, getSubclassId } from "@/lib/character/character-data"
+import { COMMON_TOOLS } from "@/lib/character/tool-choices"
 import { hpGainForLevel, recomputeSpellcasting } from "@/lib/character/leveling"
 import { resolveEdition } from "@/lib/editions"
 import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2, X } from "lucide-react"
@@ -97,15 +98,6 @@ const NO_ALIGNMENT = "__none__"
 const NO_SUBCLASS = "__none_sub__"
 
 // Suggestions for the tool-proficiency add field (free text still allowed).
-const COMMON_TOOLS = [
-  "Alchemist's supplies", "Brewer's supplies", "Calligrapher's supplies", "Carpenter's tools",
-  "Cartographer's tools", "Cobbler's tools", "Cook's utensils", "Glassblower's tools",
-  "Jeweler's tools", "Leatherworker's tools", "Mason's tools", "Painter's supplies",
-  "Potter's tools", "Smith's tools", "Tinker's tools", "Weaver's tools", "Woodcarver's tools",
-  "Disguise kit", "Forgery kit", "Herbalism kit", "Navigator's tools", "Poisoner's kit", "Thieves' tools",
-  "Dice set", "Playing card set", "Bagpipes", "Drum", "Flute", "Lute", "Lyre", "Horn", "Pan flute", "Viol",
-  "Vehicles (land)", "Vehicles (water)",
-]
 
 const draftFromCharacter = (c: CharDoc): EditState => ({
   name: c.name,

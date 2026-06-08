@@ -13,12 +13,12 @@ import {
   BACKGROUNDS,
   quickRollCharacter,
   autoPickSkillProficiencies,
-  mergeToolProficiencies,
   generateName,
   deriveDarkvision,
   getCreationFightingStyles,
   type QuickRollResult,
 } from "@/lib/character/character-data"
+import { autoResolveToolProficiencies } from "@/lib/character/tool-choices"
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
 import type { Ability } from "@/lib/character/constants"
 import { initSpellcasting } from "@/lib/character/leveling"
@@ -393,7 +393,9 @@ export default function NewCharacterPage() {
         skillExpertise: [],
         armorProficiencies: characterClass.armorProficiencies,
         weaponProficiencies: characterClass.weaponProficiencies,
-        toolProficiencies: mergeToolProficiencies(characterClass, background),
+        toolProficiencies:
+          result.toolProficiencies ??
+          autoResolveToolProficiencies([...characterClass.toolProficiencies, ...background.toolProficiencies]),
         languages: race.languages,
         currency: { cp: 0, sp: 0, ep: 0, gp: loadout.gold, pp: 0 },
         spellcasting,
@@ -533,7 +535,7 @@ export default function NewCharacterPage() {
         skillExpertise: [],
         armorProficiencies: cls.armorProficiencies,
         weaponProficiencies: cls.weaponProficiencies,
-        toolProficiencies: mergeToolProficiencies(cls, background),
+        toolProficiencies: autoResolveToolProficiencies([...cls.toolProficiencies, ...background.toolProficiencies]),
         languages: race.languages,
         currency: { cp: 0, sp: 0, ep: 0, gp: loadout.gold, pp: 0 },
         spellcasting,

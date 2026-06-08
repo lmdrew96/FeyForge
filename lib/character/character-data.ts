@@ -884,6 +884,10 @@ export interface QuickRollResult {
   // Optional portrait, set via upload in the Guided / Normal builders. Quick Roll
   // / From Concept leave it unset (a portrait is added later on the edit page).
   imageUrl?: string
+  // Fully resolved tool proficiencies (class + background, with every "one type of
+  // …" choice picked). Set by the interactive builders; when absent (Quick Roll /
+  // From Concept) the creator auto-resolves choices instead.
+  toolProficiencies?: string[]
 }
 
 // Auto-pick a complete level-1 skill set: the background's fixed proficiencies
