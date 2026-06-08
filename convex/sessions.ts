@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { getMembership } from "./lib/auth"
 
 const objectiveValidator = v.object({
   id: v.string(),
@@ -37,6 +38,37 @@ export const listSessions = query({
       .withIndex("by_userId", (q) => q.eq("userId", identity.tokenIdentifier))
       .order("asc")
       .take(500)
+  },
+})
+
+// Player-facing recaps for a campaign. listSessions is DM-userId-scoped, so
+// players (who don't own the gameSessions rows) can't use it. This read is
+// MEMBERSHIP-gated instead — any member of the campaign sees the DM-authored
+// recaps for completed sessions, projected to a player-safe shape (never
+// prepNotes / objectives / plannedEncounters / etc.). Sessions without a
+// playerRecap are omitted (nothing to read yet).
+export const listRecapsForCampaign = query({
+  args: { campaignId: v.id("campaigns") },
+  handler: async (ctx, args) => {
+    const m = await getMembership(ctx, args.campaignId)
+    if (!m) return []
+
+    const sessions = await ctx.db
+      .query("gameSessions")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .collect()
+
+    return sessions
+      .filter((s) => s.status === "completed" && !!s.playerRecap?.trim())
+      .sort((a, b) => a.number - b.number)
+      .map((s) => ({
+        _id: s._id,
+        number: s.number,
+        title: s.title,
+        date: s.date,
+        summary: s.summary ?? null,
+        playerRecap: s.playerRecap as string,
+      }))
   },
 })
 

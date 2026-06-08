@@ -13,6 +13,7 @@ import {
   Dices,
   BookOpen,
   BookMarked,
+  BookText,
   ChevronDown,
   ChevronRight,
   UserSquare2,
@@ -47,6 +48,7 @@ type NavItem = {
 // in their active campaign (solo users, no active campaign, legacy member-less
 // campaigns). Pages still gate their own writes; this is nav coherence only.
 const DM_CHILDREN: NavChild[] = [
+  { label: "Campaign Hub", href: "/hub", icon: BookText },
   { label: "NPCs", href: "/dm/npcs", icon: Users },
   { label: "Sessions", href: "/sessions", icon: ScrollText },
   { label: "Encounters", href: "/dm/encounters", icon: Swords },
@@ -57,8 +59,9 @@ const DM_CHILDREN: NavChild[] = [
 ]
 
 // Players (explicit player role in the active campaign) see only the shared,
-// DM-revealed surfaces.
+// DM-revealed surfaces plus their own Campaign Hub (journal + readable recaps).
 const PLAYER_CHILDREN: NavChild[] = [
+  { label: "Campaign Hub", href: "/hub", icon: BookText },
   { label: "Wiki", href: "/dm/wiki", icon: ScrollText },
   { label: "World Map", href: "/dm/world-map", icon: Globe },
 ]

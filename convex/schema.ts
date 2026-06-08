@@ -645,6 +645,17 @@ export default defineSchema({
     .index("by_sessionId", ["sessionId"])
     .index("by_sessionId_and_userId", ["sessionId", "userId"]),
 
+  // One continuous markdown notebook per member per campaign — the spine of the
+  // Player Campaign Hub. Unlike sessionNotes (keyed per live partySession, so
+  // notes strand each new session), this is campaign-scoped and persists across
+  // sessions. Private to its author (no cross-member read); membership-gated.
+  campaignJournal: defineTable({
+    campaignId: v.id("campaigns"),
+    userId: v.string(),
+    content: v.string(),
+    updatedAt: v.number(),
+  }).index("by_campaignId_and_userId", ["campaignId", "userId"]),
+
   partyInventory: defineTable({
     sessionId: v.id("partySessions"),
     campaignId: v.id("campaigns"),
