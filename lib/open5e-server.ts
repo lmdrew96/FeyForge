@@ -11,9 +11,16 @@
 // is partial, so the route's system prompt tells the model to caveat 2024-specific
 // details. Slot/stat data here is 2014-accurate.
 
+import srdMonstersJson from "./data/srd-monsters.json"
+import type { Open5eMonster } from "./open5e-api"
+
 const API_BASE = "https://api.open5e.com"
 const SRD = "wotc-srd" // document__slug filter → only the official SRD
 const TIMEOUT_MS = 8_000
+
+// The baked SRD creature set (edition per the bundle). Static import is fine here —
+// this lib only runs server-side (DM Assistant route), so it never ships to a client.
+const SRD_MONSTERS = srdMonstersJson as unknown as Open5eMonster[]
 
 interface Paginated<T> {
   results: T[]
@@ -115,30 +122,12 @@ export async function lookupSpell(name: string): Promise<string> {
 }
 
 // ── Monsters ─────────────────────────────────────────────────────────────────
-
-interface Open5eMonsterRaw {
-  name: string
-  size: string
-  type: string
-  alignment: string
-  armor_class: number
-  hit_points: number
-  hit_dice: string
-  speed: Record<string, number>
-  strength: number
-  dexterity: number
-  constitution: number
-  intelligence: number
-  wisdom: number
-  charisma: number
-  challenge_rating: string
-  senses: string
-  languages: string
-  actions?: { name: string; desc: string }[]
-}
+// Served from the self-hosted SRD bundle (scripts/seed-monsters.ts), same as the
+// combat tracker — the DM Assistant must not depend on the live API either, and the
+// bundle IS the complete SRD set. Edition follows the bundle (currently srd-2024).
 
 export async function lookupMonster(name: string): Promise<string> {
-  const m = await findOne<Open5eMonsterRaw>("/v1/monsters/", name, (r) => r.name)
+  const m = pickBest(SRD_MONSTERS, name, (r) => r.name)
   if (!m) return `No SRD monster found matching "${name}".`
   const speed = Object.entries(m.speed ?? {})
     .map(([k, v]) => (k === "walk" ? `${v} ft.` : `${k} ${v} ft.`))

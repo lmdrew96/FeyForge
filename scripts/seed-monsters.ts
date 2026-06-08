@@ -1,7 +1,7 @@
 /**
- * SRD monster seeder — bakes the full SRD-2014 creature set from Open5e's
- * /v2/creatures into a bundled JSON file so the combat tracker never depends on
- * the live (volunteer-run, occasionally-down) api.open5e.com at play time.
+ * SRD monster seeder — bakes the full SRD creature set (edition = DOC below) from
+ * Open5e's /v2/creatures into a bundled JSON file so the combat tracker never depends
+ * on the live (volunteer-run, occasionally-down) api.open5e.com at play time.
  *
  * Fetches every srd-2014 creature, maps each through the SAME v2CreatureToMonster
  * boundary the app uses (lib/open5e-api.ts), and writes lib/data/srd-monsters.json.
@@ -23,7 +23,9 @@ import * as path from "path"
 import { v2CreatureToMonster, type Open5eMonster } from "../lib/open5e-api"
 
 const API = "https://api.open5e.com/v2/creatures/"
-const DOC = "srd-2014"
+// SRD edition. FeyForge serves the 2024 SRD (5.2); Open5e now has full 2024 coverage
+// (331 creatures, ≥ the 2014 set). Flip to "srd-2014" to bake the older edition.
+const DOC = "srd-2024"
 const UA = "Mozilla/5.0 (compatible; FeyForge-seed/1.0; +https://feyforge.adhdesigns.dev)"
 const OUT = path.join(__dirname, "..", "lib", "data", "srd-monsters.json")
 
@@ -44,7 +46,7 @@ async function fetchAll(): Promise<unknown[]> {
 }
 
 async function main() {
-  console.log("Fetching SRD-2014 creatures from Open5e…")
+  console.log(`Fetching ${DOC} creatures from Open5e…`)
   const raw = await fetchAll()
   console.log(`\nFetched ${raw.length} creatures.`)
 

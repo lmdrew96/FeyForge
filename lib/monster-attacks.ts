@@ -30,8 +30,15 @@ export type MonsterAttack = {
 }
 
 const ABILITIES = "Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma"
+// To-hit and saves are phrased differently in the 2014 vs 2024 SRD, so we match
+// BOTH dialects (the parser stays edition-agnostic — the bundle, homebrew, and any
+// future edition toggle all flow through here):
+//   2014  "Melee Weapon Attack: +9 to hit"   ·  "DC 18 Dexterity saving throw"
+//   2024  "Melee Attack Roll: +9, reach …"   ·  "Dexterity Saving Throw: DC 18"
 const TO_HIT_RE = /([+-]?\d+)\s+to hit/i
+const ATTACK_ROLL_RE = /Attack Roll:\s*([+-]?\d+)/i
 const SAVE_RE = new RegExp(`DC\\s+(\\d+)\\s+(${ABILITIES})\\s+saving throw`, "i")
+const SAVE_2024_RE = new RegExp(`(${ABILITIES})\\s+Saving Throw:\\s*DC\\s+(\\d+)`, "i")
 const REACH_RE = /\b(reach\s+\d+\s*ft\.?|range\s+\d+\/\d+\s*ft\.?|range\s+\d+\s*ft\.?)/i
 // Damage clauses, in ONE global pass so riders are caught and nothing is double-counted.
 // Two shapes, dice tried FIRST so it consumes its own average number before the flat
@@ -67,8 +74,9 @@ export function parseMonsterAttacks(actions: MonsterAction[] | undefined): Monst
     const desc = a.desc ?? ""
     // to-hit: prefer the structured bonus (an explicit 0 is a real +0 attack only
     // if the prose also says "to hit"); else scrape the prose.
-    const hasToHitProse = /to hit/i.test(desc)
-    const toHitProse = TO_HIT_RE.exec(desc)
+    const hasToHitProse = /to hit/i.test(desc) || /attack roll:/i.test(desc)
+    // 2014 "+9 to hit" or 2024 "Attack Roll: +9" — both capture the bonus in [1].
+    const toHitProse = TO_HIT_RE.exec(desc) ?? ATTACK_ROLL_RE.exec(desc)
     const toHit =
       typeof a.attack_bonus === "number" && (a.attack_bonus !== 0 || hasToHitProse)
         ? a.attack_bonus
@@ -76,8 +84,15 @@ export function parseMonsterAttacks(actions: MonsterAction[] | undefined): Monst
           ? parseInt(toHitProse[1], 10)
           : null
 
+    // 2014 "DC 18 Dexterity saving throw" ([1]=dc, [2]=ability) or 2024 "Dexterity
+    // Saving Throw: DC 18" ([1]=ability, [2]=dc). The two are mutually exclusive.
     const saveM = SAVE_RE.exec(desc)
-    const save = saveM ? { dc: parseInt(saveM[1], 10), ability: saveM[2] } : null
+    const save2024 = saveM ? null : SAVE_2024_RE.exec(desc)
+    const save = saveM
+      ? { dc: parseInt(saveM[1], 10), ability: saveM[2] }
+      : save2024
+        ? { dc: parseInt(save2024[2], 10), ability: save2024[1] }
+        : null
 
     let damage = parseDamage(desc)
     if (damage.length === 0 && a.damage_dice) {

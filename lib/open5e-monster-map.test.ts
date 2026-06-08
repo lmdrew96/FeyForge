@@ -146,6 +146,49 @@ describe("flat-damage attacks (Bat / Crab / Rat)", () => {
   })
 })
 
+// The 2024 SRD rewrote attack/save prose: "Melee Attack Roll: +N" (no "to hit") and
+// "<Ability> Saving Throw: DC N" (ability-first). The parser must handle BOTH dialects
+// so the bundle, homebrew, and any edition toggle all roll correctly.
+describe("2024 SRD prose dialect", () => {
+  const actions = [
+    {
+      name: "Rend",
+      desc: "Melee Attack Roll: +11, reach 10 ft. 13 (2d6 + 6) Slashing damage plus 4 (1d8) Acid damage.",
+    },
+    {
+      name: "Acid Breath",
+      desc: "Dexterity Saving Throw: DC 18, each creature in a 60-foot-long, 5-foot-wide Line. Failure: 54 (12d8) Acid damage. Success: Half damage.",
+    },
+    {
+      name: "Bite",
+      desc: "Melee Attack Roll: +0, reach 5 ft. 1 Piercing damage.",
+    },
+  ]
+
+  it("parses 2024 'Attack Roll:' to-hit + rider damage (capitalized types)", () => {
+    const rend = parseMonsterAttacks(actions).find((a) => a.name === "Rend")!
+    expect(rend.rollable).toBe(true)
+    expect(rend.toHit).toBe(11)
+    expect(rend.damage).toEqual([
+      { count: 2, sides: 6, bonus: 6, type: "slashing" },
+      { count: 1, sides: 8, bonus: 0, type: "acid" },
+    ])
+  })
+
+  it("parses 2024 'Saving Throw: DC' breath weapons (ability-first)", () => {
+    const breath = parseMonsterAttacks(actions).find((a) => a.name === "Acid Breath")!
+    expect(breath.save).toEqual({ dc: 18, ability: "Dexterity" })
+    expect(breath.damage).toEqual([{ count: 12, sides: 8, bonus: 0, type: "acid" }])
+    expect(breath.rollable).toBe(true)
+  })
+
+  it("parses 2024 flat damage with a +0 attack roll", () => {
+    const bite = parseMonsterAttacks(actions).find((a) => a.name === "Bite")!
+    expect(bite.toHit).toBe(0)
+    expect(bite.damage).toEqual([{ count: 0, sides: 0, bonus: 1, type: "piercing" }])
+  })
+})
+
 describe("stripSrdMarkdown", () => {
   it("removes bold/italic/bullets but preserves damage prose", () => {
     expect(stripSrdMarkdown("**Fire Breath.** deals 54 (12d8) fire damage")).toBe(
