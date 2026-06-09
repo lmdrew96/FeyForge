@@ -18,6 +18,7 @@ import type * as campaignWeb from "../campaignWeb.js";
 import type * as campaigns from "../campaigns.js";
 import type * as characters from "../characters.js";
 import type * as crons from "../crons.js";
+import type * as diplomacy from "../diplomacy.js";
 import type * as dmConversations from "../dmConversations.js";
 import type * as encounters from "../encounters.js";
 import type * as homebrew from "../homebrew.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   campaigns: typeof campaigns;
   characters: typeof characters;
   crons: typeof crons;
+  diplomacy: typeof diplomacy;
   dmConversations: typeof dmConversations;
   encounters: typeof encounters;
   homebrew: typeof homebrew;

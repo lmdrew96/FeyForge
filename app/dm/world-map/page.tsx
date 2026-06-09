@@ -1447,6 +1447,8 @@ function MapWorkspace({
           realms={worldbuilding.realms}
           faiths={worldbuilding.faiths}
           onClose={() => setWbOpen(false)}
+          campaignId={campaignId}
+          isDM={true}
         />
       )}
 

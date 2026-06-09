@@ -7,8 +7,9 @@ import type { Id } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { useCampaignStore } from "@/lib/campaign-store"
+import { worldNewsSeenKey } from "@/lib/worldMap/diplomacy"
 import { toast } from "sonner"
-import { BookText, ScrollText, Eye, Pencil, Save, ListChecks, Users, Plus, Trash2, Check, X } from "lucide-react"
+import { BookText, ScrollText, Eye, Pencil, Save, ListChecks, Newspaper, Users, Plus, Trash2, Check, X } from "lucide-react"
 
 // The Player Campaign Hub — a player's between-sessions home. Slice 1 surfaces
 // two tabs: Journal (a persistent, campaign-scoped markdown notebook private to
@@ -16,9 +17,9 @@ import { BookText, ScrollText, Eye, Pencil, Save, ListChecks, Users, Plus, Trash
 // wiki page's shell/markdown/campaign-resolution conventions.
 
 type CampaignId = Id<"campaigns">
-type HubTab = "journal" | "quests" | "recaps" | "people"
+type HubTab = "journal" | "quests" | "recaps" | "news" | "people"
 const TAB_STORAGE_KEY = "feyforge:hub-tab"
-const HUB_TABS: readonly HubTab[] = ["journal", "quests", "recaps", "people"]
+const HUB_TABS: readonly HubTab[] = ["journal", "quests", "recaps", "news", "people"]
 
 function HubShell({ children }: { children: ReactNode }) {
   return <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">{children}</div>
@@ -140,6 +141,7 @@ export default function HubPage() {
           <TabButton active={tab === "journal"} onClick={() => selectTab("journal")} icon={BookText} label="Journal" />
           <TabButton active={tab === "quests"} onClick={() => selectTab("quests")} icon={ListChecks} label="Quests" />
           <TabButton active={tab === "recaps"} onClick={() => selectTab("recaps")} icon={ScrollText} label="Recaps" />
+          <TabButton active={tab === "news"} onClick={() => selectTab("news")} icon={Newspaper} label="News" />
           <TabButton active={tab === "people"} onClick={() => selectTab("people")} icon={Users} label="People" />
         </div>
 
@@ -147,6 +149,7 @@ export default function HubPage() {
         {tab === "journal" && <JournalTab key={activeCampaignId} campaignId={activeCampaignId} />}
         {tab === "quests" && <QuestsTab key={activeCampaignId} campaignId={activeCampaignId} />}
         {tab === "recaps" && <RecapsTab key={activeCampaignId} campaignId={activeCampaignId} />}
+        {tab === "news" && <WorldNewsTab key={activeCampaignId} campaignId={activeCampaignId} />}
         {tab === "people" && <PeopleTab key={activeCampaignId} campaignId={activeCampaignId} />}
       </HubShell>
     </AppShell>
@@ -295,6 +298,60 @@ function RecapsTab({ campaignId }: { campaignId: CampaignId }) {
             </p>
           )}
           <MarkdownRenderer content={r.playerRecap} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// World News — the DM-revealed diplomacy headlines for this campaign (Living Diplomacy).
+// Reuses the role-aware diplomacy.feed (players get only revealed shifts, and only when
+// the DM's global World-News toggle is on). Viewing the tab stamps the shared seen-key so
+// the in-session Realms-button unread badge clears too.
+function WorldNewsTab({ campaignId }: { campaignId: CampaignId }) {
+  const feed = useQuery(api.diplomacy.feed, { campaignId })
+
+  useEffect(() => {
+    if (!feed || feed.role !== "player") return
+    const max = feed.news.reduce((m, n) => Math.max(m, n.revealedAt), 0)
+    if (max > 0) localStorage.setItem(worldNewsSeenKey(campaignId), String(max))
+  }, [feed, campaignId])
+
+  if (feed === undefined) {
+    return (
+      <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+        Loading…
+      </p>
+    )
+  }
+
+  const news = feed && feed.role === "player" ? feed.news : []
+  if (news.length === 0) {
+    return (
+      <EmptyState
+        title="No world news yet"
+        body="When your DM reveals a shift in the realms' politics — a broken alliance, a new pact — it'll appear here."
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {news.map((n, i) => (
+        <div
+          key={i}
+          className="rounded-md p-4"
+          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+        >
+          <div className="flex items-start gap-2.5">
+            <Newspaper className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--scene-accent)" }} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm" style={{ color: "var(--scene-text-primary)" }}>{n.headline}</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                {n.realmA} ⇄ {n.realmB} · {formatDate(n.revealedAt)}
+              </p>
+            </div>
+          </div>
         </div>
       ))}
     </div>

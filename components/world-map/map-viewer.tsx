@@ -35,6 +35,7 @@ import { SaveNpcButton } from "./save-npc-button"
 import { NpcGenerator, NPC_GEN_POI_KINDS } from "./npc-generator"
 import { PinsPanel, filterByKeys } from "./pins-panel"
 import { computeSurroundings } from "@/lib/worldMap/surroundings"
+import { worldNewsSeenKey } from "@/lib/worldMap/diplomacy"
 import {
   clampPanToViewport,
   panToAnchorZoom,
@@ -53,6 +54,18 @@ import {
   type MapLocation,
 } from "./shared"
 
+// Small accent dot for the "unread World News" badge on the Realms / More toolbar buttons.
+// boxShadow draws a surface-colored ring so the dot reads cleanly over any button fill.
+function UnreadDot() {
+  return (
+    <span
+      className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full"
+      style={{ background: "var(--scene-accent)", boxShadow: "0 0 0 2px var(--scene-surface)" }}
+      aria-label="New World News"
+    />
+  )
+}
+
 export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; isDM: boolean }) {
   const map = useQuery(api.worldMap.getMap, { campaignId })
   const locations = useQuery(api.worldMap.listLocations, { campaignId })
@@ -69,6 +82,31 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
   // Travel + Realms behind it (matches the DM map toolbar).
   const [moreOpen, setMoreOpen] = useState(false)
   const worldbuilding = useQuery(api.worldMap.getWorldbuilding, wbOpen ? { campaignId } : "skip")
+
+  // World News unread badge (players only): the diplomacy feed's most-recent revealed
+  // headline vs the player's last-seen stamp (localStorage, shared with the Hub News tab
+  // so reading in either surface clears the badge in the other). Opening the Realms panel
+  // marks news seen. DMs author the news, so they get no badge.
+  const newsFeed = useQuery(api.diplomacy.feed, !isDM ? { campaignId } : "skip")
+  const latestNewsAt = useMemo(() => {
+    if (!newsFeed || newsFeed.role !== "player") return null
+    const max = newsFeed.news.reduce((m, n) => Math.max(m, n.revealedAt), 0)
+    return max > 0 ? max : null
+  }, [newsFeed])
+  const [newsSeenAt, setNewsSeenAt] = useState(0)
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(worldNewsSeenKey(campaignId)) : null
+    setNewsSeenAt(raw ? Number(raw) : 0)
+  }, [campaignId])
+  const hasUnreadNews = latestNewsAt != null && latestNewsAt > newsSeenAt
+  const openRealms = () => {
+    setWbOpen(true)
+    if (latestNewsAt != null) {
+      setNewsSeenAt(latestNewsAt)
+      if (typeof window !== "undefined")
+        window.localStorage.setItem(worldNewsSeenKey(campaignId), String(latestNewsAt))
+    }
+  }
 
   // View transform
   const [zoom, setZoom] = useState(1)
@@ -430,13 +468,14 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
               <span className="hidden sm:inline">Travel</span>
             </button>
             <button
-              onClick={() => setWbOpen(true)}
-              title="Realms &amp; Faiths — the world's kingdoms and religions"
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+              onClick={openRealms}
+              title={hasUnreadNews ? "Realms & Faiths — new World News!" : "Realms & Faiths — the world's kingdoms and religions"}
+              className="relative inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
               style={{ background: "var(--scene-surface)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
             >
               <Crown className="h-4 w-4" />
               <span className="hidden sm:inline">Realms</span>
+              {hasUnreadNews && <UnreadDot />}
             </button>
           </div>
 
@@ -445,7 +484,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
             <button
               onClick={() => setMoreOpen((o) => !o)}
               title="More tools"
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
+              className="relative inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow transition-opacity hover:opacity-90"
               style={{
                 background: moreOpen || showRoutes ? "var(--scene-accent)" : "var(--scene-surface)",
                 color: moreOpen || showRoutes ? "#fff" : "var(--scene-text-primary)",
@@ -453,6 +492,7 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
               }}
             >
               <MoreHorizontal className="h-4 w-4" />
+              {hasUnreadNews && !moreOpen && <UnreadDot />}
             </button>
             {moreOpen && (
               <>
@@ -473,12 +513,17 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
                     Plan a journey
                   </button>
                   <button
-                    onClick={() => { setWbOpen(true); setMoreOpen(false) }}
+                    onClick={() => { openRealms(); setMoreOpen(false) }}
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
                     style={{ background: "transparent", color: "var(--scene-text-primary)" }}
                   >
                     <Crown className="h-4 w-4" />
                     Realms &amp; Faiths
+                    {hasUnreadNews && (
+                      <span className="ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
+                        News
+                      </span>
+                    )}
                   </button>
                 </div>
               </>
@@ -533,6 +578,8 @@ export function WorldMapViewer({ campaignId, isDM }: { campaignId: CampaignId; i
           realms={worldbuilding.realms}
           faiths={worldbuilding.faiths}
           onClose={() => setWbOpen(false)}
+          campaignId={campaignId}
+          isDM={isDM}
         />
       )}
 

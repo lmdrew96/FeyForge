@@ -5,6 +5,7 @@ import type { MutationCtx } from "./_generated/server"
 import { getMembership, requireDm as requireCampaignDm } from "./lib/auth"
 import { isPremiumActive } from "./premiumStatus"
 import { NPC_POOL } from "./npcPool"
+import { mergeDiplomacy } from "../lib/worldMap/diplomacy"
 
 // ── World Map: campaign-scoped, Player/DM-gated ──────────────────────────────
 // Per docs/specs/feyforge-world-map-spec.md. Mirrors the wiki.ts Player/DM
@@ -285,7 +286,16 @@ export const getWorldbuilding = query({
       .query("worldMaps")
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
       .first()
-    return { realms: map?.realms ?? [], faiths: map?.faiths ?? [] }
+    // Living Diplomacy: merge the campaign's diplomacy overrides onto the base realm
+    // relations from the caller's viewpoint — the DM sees the true current state, players
+    // see only shifts that have been REVEALED (held/private changes stay hidden). The
+    // overlay is keyed by realm name, so it survives a map re-import. See convex/diplomacy.ts.
+    const overrides = await ctx.db
+      .query("diplomacyOverrides")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .take(500)
+    const realms = mergeDiplomacy(map?.realms ?? [], overrides, m.member.role)
+    return { realms, faiths: map?.faiths ?? [] }
   },
 })
 

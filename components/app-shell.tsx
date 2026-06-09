@@ -85,6 +85,26 @@ function buildNavItems(isPlayer: boolean): NavItem[] {
   ]
 }
 
+// Clerk's <UserButton> renders nothing during SSR (Clerk isn't loaded server-side),
+// so on the server the sibling /account link becomes the first child of its flex row —
+// but on the client the button's <div data-clerk-component> mounts first, shifting the
+// siblings and tripping a hydration mismatch. Render an identical fixed-size placeholder
+// during SSR + first client paint (so server/client agree), then swap in the real button
+// after mount. The placeholder reserves the avatar footprint → no layout shift.
+function ClientUserButton() {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!mounted)
+    return (
+      <span
+        className="inline-block h-7 w-7 shrink-0 rounded-full"
+        style={{ background: "var(--scene-border)" }}
+        aria-hidden
+      />
+    )
+  return <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [dmOpen, setDmOpen] = useState(pathname.startsWith("/dm"))
@@ -295,7 +315,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
           <ThemeToggle className="w-full justify-center" />
           <div className="flex items-center gap-3">
-            <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
+            <ClientUserButton />
             <Link
               href="/account"
               className="text-xs truncate hover:opacity-80 transition-opacity"
@@ -342,7 +362,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Bot className="w-5 h-5" />
             </button>
           )}
-          <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
+          <ClientUserButton />
         </div>
       </div>
 

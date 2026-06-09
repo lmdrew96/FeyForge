@@ -14,6 +14,11 @@ export default defineSchema({
     // D&D ruleset edition. Optional for campaigns created before the flag —
     // read through resolveEdition() (lib/editions.ts), which defaults to 2024.
     edition: v.optional(v.union(v.literal("2014"), v.literal("2024"))),
+    // Living Diplomacy: does the player-facing "World News" feed exist at all for
+    // this campaign. undefined/false = off (the "ignore the whole feature" escape
+    // hatch); shifts still log silently, players just never see revealed headlines.
+    // Off only suppresses the PLAYER feed read — see convex/diplomacy.ts feed().
+    worldNewsEnabled: v.optional(v.boolean()),
   })
     .index("by_userId", ["userId"])
     .index("by_joinCode", ["joinCode"]),
@@ -487,6 +492,49 @@ export default defineSchema({
   })
     .index("by_campaignId", ["campaignId"])
     .index("by_source", ["source"]),
+
+  // Living Diplomacy (thread ① of the Realms/Religions umbrella). A campaign-scoped
+  // OVERLAY on the base map's diplomacy (worldMaps.realms[].relations[]). We never bake
+  // edits onto the worldMaps doc — a map replace/re-import runs clearCampaignMap
+  // (convex/worldMap.ts) which DELETES + re-inserts the row, and the Religion/Military
+  // threads both re-import maps; an overlay keyed by realm NAME (Azgaar indices scramble
+  // on re-import) survives that and preserves the campaign's political history.
+  //
+  // One row per UNORDERED realm pair (names stored sorted, realmA <= realmB, so a pair
+  // has exactly one row regardless of edit direction). `status` is the current TRUE
+  // relation; `log` is the political timeline + per-shift reveal lifecycle. The log is
+  // an embedded array because diplomacy is DM-driven + genuinely low-volume (a few realm
+  // pairs, a few flips each — far under Convex's 1MB / 8192-element caps) and a single
+  // doc gives atomic status+log writes. If it ever grew unbounded, split the log into a
+  // child `diplomacyShifts` table keyed by campaignId. See convex/lib/diplomacy.ts.
+  diplomacyOverrides: defineTable({
+    campaignId: v.id("campaigns"),
+    realmA: v.string(), // sorted pair: realmA <= realmB (lexicographic)
+    realmB: v.string(),
+    status: v.string(), // current TRUE relation; "Neutral" = relationship cleared
+    log: v.array(
+      v.object({
+        changedAt: v.number(),
+        from: v.string(),
+        to: v.string(),
+        dmNote: v.optional(v.string()),
+        // Per-shift news lifecycle. pending = just changed, not yet triaged;
+        // revealed = surfaced to players; held = saved for a later dramatic reveal;
+        // private = the DM dismissed it (never shown). Only "revealed" reaches players.
+        reveal: v.union(
+          v.literal("pending"),
+          v.literal("revealed"),
+          v.literal("held"),
+          v.literal("private"),
+        ),
+        headline: v.optional(v.string()), // editable player-facing line, set at reveal
+        revealedAt: v.optional(v.number()),
+      }),
+    ),
+    updatedAt: v.number(),
+  })
+    .index("by_campaignId", ["campaignId"])
+    .index("by_campaignId_and_pair", ["campaignId", "realmA", "realmB"]),
 
   // Pins on a world map. The reveal/fog + drill-down + campaign-web system all
   // hang off these. DM sees all; players see only revealed (see worldMap.listLocations).

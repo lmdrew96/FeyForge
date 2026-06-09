@@ -3,14 +3,39 @@
 // ── Realms & Faiths worldbuilding panel ──────────────────────────────────────
 // A reference drawer listing the world's realms (Azgaar states — crest, government,
 // capital, population, culture, notable wars) and faiths (religions — type, form,
-// named deity), lifted from the .map. No geometry; pure lore reference. Lazy-loaded
-// via worldMap.getWorldbuilding, opened from a toolbar button on both the DM page
-// and the in-session viewer. Setting lore — shown to DMs and players alike.
+// named deity), lifted from the .map. Lazy-loaded via worldMap.getWorldbuilding, opened
+// from a toolbar button on both the DM page and the in-session viewer.
+//
+// Living Diplomacy (thread ①) makes the diplomacy slice editable: the DM changes a
+// realm's relationships inline, each change logs to a campaign political timeline, and
+// each shift can be surfaced to players as curated "World News" — on the DM's schedule.
+// The merge is server-side (worldMap.getWorldbuilding): the `realms` prop already shows
+// the DM the truth and players only what's been REVEALED. This component owns the editor
+// + the feed (its own diplomacy.feed / diplomacy.realmNames queries + mutations), so the
+// two parents just pass campaignId + isDM.
 
 import { useEffect, useState } from "react"
-import { ChevronDown, Church, Crown, Handshake, MapPin, Swords, Users, X } from "lucide-react"
+import {
+  ChevronDown,
+  Church,
+  Crown,
+  Eye,
+  EyeOff,
+  Handshake,
+  MapPin,
+  Newspaper,
+  Plus,
+  Radio,
+  Swords,
+  Users,
+  X,
+} from "lucide-react"
+import { useMutation, useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { cn } from "@/lib/utils"
 import { CoatOfArms } from "./shared"
+import { DIPLOMACY_STATUSES, NEUTRAL, autoHeadline } from "@/lib/worldMap/diplomacy"
 import type { FaithInfo, RealmInfo } from "@/lib/worldMap/azgaar-map"
 
 // Diplomacy relation → colour + label. Suzerain = this realm's overlord; Vassal =
@@ -32,26 +57,34 @@ const REL_LABEL: Record<string, string> = {
   Enemy: "Enemies",
 }
 const REL_ORDER = ["Suzerain", "Ally", "Friendly", "Vassal", "Rival", "Enemy"]
+const relColor = (status: string) => REL_STYLE[status] ?? "var(--scene-text-muted)"
+
+// The DM's "make this news?" prompt state (also drives "+ add relationship").
+type PendingEdit = {
+  selfRealm: string
+  otherRealm: string
+  addMode: boolean
+  status: string
+  from: string
+  headline: string
+  headlineDirty: boolean
+}
 
 export function RealmsFaithsPanel({
   realms,
   faiths,
   onClose,
+  campaignId,
+  isDM,
 }: {
   realms: RealmInfo[]
   faiths: FaithInfo[]
   onClose: () => void
+  campaignId: Id<"campaigns">
+  isDM: boolean
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
-
   // Per-realm expand state (multiple may be open). Collapsed by default so the panel
-  // stays scannable; expanding a realm reveals its full campaign list.
+  // stays scannable.
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
   const toggle = (i: number) =>
     setExpanded((prev) => {
@@ -61,7 +94,79 @@ export function RealmsFaithsPanel({
       return next
     })
 
+  // Living Diplomacy: the role-aware feed (DM shift timeline / player World News) + the
+  // realm-name list for the add-relationship picker, plus the DM mutations.
+  const feed = useQuery(api.diplomacy.feed, { campaignId })
+  const realmNames = useQuery(api.diplomacy.realmNames, isDM ? { campaignId } : "skip")
+  const setRelationMut = useMutation(api.diplomacy.setRelation)
+  const setDisposition = useMutation(api.diplomacy.setShiftDisposition)
+  const setWorldNews = useMutation(api.diplomacy.setWorldNewsEnabled)
+
+  const [pending, setPending] = useState<PendingEdit | null>(null)
+
+  // Escape closes the news prompt first (if open), else the whole panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      setPending((p) => {
+        if (p) return null
+        onClose()
+        return p
+      })
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  // Open the prompt from changing a relationship's status on a realm card.
+  const onChangeRelation = (selfRealm: string, otherRealm: string, from: string, to: string) => {
+    if (to === from) return
+    setPending({
+      selfRealm,
+      otherRealm,
+      addMode: false,
+      status: to,
+      from,
+      headline: autoHeadline(selfRealm, otherRealm, to, from),
+      headlineDirty: false,
+    })
+  }
+  // Open the prompt in "add a new relationship" mode for a realm.
+  const onAddRelation = (selfRealm: string) =>
+    setPending({
+      selfRealm,
+      otherRealm: "",
+      addMode: true,
+      status: "Ally",
+      from: NEUTRAL,
+      headline: "",
+      headlineDirty: false,
+    })
+
+  const recomputeHeadline = (p: PendingEdit, patch: Partial<PendingEdit>): PendingEdit => {
+    const next = { ...p, ...patch }
+    if (!next.headlineDirty && next.otherRealm) {
+      next.headline = autoHeadline(next.selfRealm, next.otherRealm, next.status, next.from)
+    }
+    return next
+  }
+
+  const commit = async (reveal: "revealed" | "held" | "private") => {
+    if (!pending || !pending.otherRealm) return
+    await setRelationMut({
+      campaignId,
+      realmA: pending.selfRealm,
+      realmB: pending.otherRealm,
+      status: pending.status,
+      reveal,
+      headline: pending.headline.trim() || undefined,
+    })
+    setPending(null)
+  }
+
   const empty = realms.length === 0 && faiths.length === 0
+  const dmFeed = feed && feed.role === "dm" ? feed : null
+  const playerNews = feed && feed.role === "player" ? feed.news : []
 
   return (
     <div
@@ -70,11 +175,8 @@ export function RealmsFaithsPanel({
       aria-modal="true"
     >
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      {/* Bottom sheet on mobile, right-side panel on desktop. The fixed top bar
-          AND bottom nav both paint over this overlay (z-[60] is trapped in
-          <main>'s z-10 stacking context). Cap the height to clear the top bar
-          (3rem + 1rem) — dvh, NOT vh, so iOS's large-vh can't push the header (the
-          X) up behind the bar — and pad past the nav (3.5rem + 1rem) until md. */}
+      {/* Bottom sheet on mobile, right-side panel on desktop. Cap height to clear the
+          fixed top bar (dvh, not vh, for iOS) and pad past the bottom nav until md. */}
       <div
         className="relative z-10 flex max-h-[calc(100dvh-4rem)] w-full flex-col rounded-t-2xl border-t pb-[calc(3.5rem+1rem+env(safe-area-inset-bottom))] shadow-2xl sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none sm:border-t-0 sm:border-l md:pb-0"
         style={{ background: "var(--scene-surface)", borderColor: "var(--scene-border)" }}
@@ -96,6 +198,38 @@ export function RealmsFaithsPanel({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {/* ── World News / diplomacy feed ─────────────────────────────────── */}
+          {dmFeed && (
+            <DmDiplomacyFeed
+              feed={dmFeed}
+              onToggleWorldNews={(enabled) => setWorldNews({ campaignId, enabled })}
+              onReveal={(overrideId, entryIndex) =>
+                setDisposition({ overrideId, entryIndex, reveal: "revealed" })
+              }
+              onHold={(overrideId, entryIndex) =>
+                setDisposition({ overrideId, entryIndex, reveal: "held" })
+              }
+              onHide={(overrideId, entryIndex) =>
+                setDisposition({ overrideId, entryIndex, reveal: "private" })
+              }
+            />
+          )}
+          {!isDM && playerNews.length > 0 && (
+            <section className="mb-4 rounded-lg p-3" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
+              <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+                <Newspaper className="h-3.5 w-3.5" /> World News
+              </h3>
+              <ul className="space-y-1.5">
+                {playerNews.map((n, i) => (
+                  <li key={i} className="flex gap-2 text-sm leading-snug" style={{ color: "var(--scene-text-primary)" }}>
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--scene-accent)" }} />
+                    <span className="italic">{n.headline}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {empty ? (
             <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
               No realms or faiths recorded for this map. Re-import the world to populate them.
@@ -116,10 +250,10 @@ export function RealmsFaithsPanel({
                       const rels = r.relations ?? []
                       const hasWars = wars.length > 0
                       const hasRels = rels.length > 0
-                      const expandable = hasWars || hasRels
+                      // DM cards are always expandable (the diplomacy editor lives inside);
+                      // player cards expand only when there's something to show.
+                      const expandable = isDM || hasWars || hasRels
                       const isOpen = expanded.has(i)
-                      // Crest + name + stat line — the always-visible head, shared by the
-                      // expandable (button) and static (div) variants.
                       const head = (
                         <>
                           {r.coa ? (
@@ -190,24 +324,35 @@ export function RealmsFaithsPanel({
                           )}
                           {expandable && isOpen && (
                             <div className="mt-2 space-y-2 border-t pt-2" style={{ borderColor: "var(--scene-border)" }}>
-                              {hasRels && (
-                                <div>
-                                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
-                                    Diplomacy
-                                  </p>
-                                  <div className="space-y-0.5">
-                                    {REL_ORDER.filter((rel) => rels.some((x) => x.relation === rel)).map((rel) => (
-                                      <div key={rel} className="flex gap-1.5 text-[11px] leading-snug">
-                                        <span className="shrink-0 font-semibold" style={{ color: REL_STYLE[rel] }}>
-                                          {REL_LABEL[rel]}
-                                        </span>
-                                        <span style={{ color: "var(--scene-text-muted)" }}>
-                                          {rels.filter((x) => x.relation === rel).map((x) => x.realm).join(", ")}
-                                        </span>
-                                      </div>
-                                    ))}
+                              {/* Diplomacy — editable for the DM, grouped read-only for players. */}
+                              {isDM ? (
+                                <DmDiplomacyEditor
+                                  realm={r}
+                                  rels={rels}
+                                  realmNames={realmNames ?? []}
+                                  onChangeRelation={onChangeRelation}
+                                  onAddRelation={onAddRelation}
+                                />
+                              ) : (
+                                hasRels && (
+                                  <div>
+                                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+                                      Diplomacy
+                                    </p>
+                                    <div className="space-y-0.5">
+                                      {REL_ORDER.filter((rel) => rels.some((x) => x.relation === rel)).map((rel) => (
+                                        <div key={rel} className="flex gap-1.5 text-[11px] leading-snug">
+                                          <span className="shrink-0 font-semibold" style={{ color: REL_STYLE[rel] }}>
+                                            {REL_LABEL[rel]}
+                                          </span>
+                                          <span style={{ color: "var(--scene-text-muted)" }}>
+                                            {rels.filter((x) => x.relation === rel).map((x) => x.realm).join(", ")}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
+                                )
                               )}
                               {hasWars && (
                                 <div>
@@ -278,6 +423,303 @@ export function RealmsFaithsPanel({
               )}
             </>
           )}
+        </div>
+      </div>
+
+      {/* ── "Make this news?" prompt (DM) ──────────────────────────────────── */}
+      {pending && (
+        <NewsPrompt
+          pending={pending}
+          realmNames={realmNames ?? []}
+          onChange={(patch) => setPending((p) => (p ? recomputeHeadline(p, patch) : p))}
+          onHeadline={(headline) => setPending((p) => (p ? { ...p, headline, headlineDirty: true } : p))}
+          onCommit={commit}
+          onCancel={() => setPending(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── DM: World News header + recent-shifts timeline + held tray ───────────────
+function DmDiplomacyFeed({
+  feed,
+  onToggleWorldNews,
+  onReveal,
+  onHold,
+  onHide,
+}: {
+  feed: {
+    shifts: {
+      overrideId: Id<"diplomacyOverrides">
+      entryIndex: number
+      realmA: string
+      realmB: string
+      from: string
+      to: string
+      reveal: "pending" | "revealed" | "held" | "private"
+      headline?: string
+    }[]
+    heldCount: number
+    pendingCount: number
+    worldNewsEnabled: boolean
+  }
+  onToggleWorldNews: (enabled: boolean) => void
+  onReveal: (id: Id<"diplomacyOverrides">, entryIndex: number) => void
+  onHold: (id: Id<"diplomacyOverrides">, entryIndex: number) => void
+  onHide: (id: Id<"diplomacyOverrides">, entryIndex: number) => void
+}) {
+  const REVEAL_PILL: Record<string, { label: string; color: string }> = {
+    revealed: { label: "Live", color: "#16a34a" },
+    held: { label: "Held", color: "#d97706" },
+    pending: { label: "New", color: "var(--scene-accent)" },
+    private: { label: "Hidden", color: "var(--scene-text-muted)" },
+  }
+  return (
+    <section className="mb-4 rounded-lg p-3" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+          <Newspaper className="h-3.5 w-3.5" /> World News
+        </h3>
+        <button
+          onClick={() => onToggleWorldNews(!feed.worldNewsEnabled)}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium"
+          style={{
+            background: feed.worldNewsEnabled ? "var(--scene-accent)" : "var(--scene-surface)",
+            color: feed.worldNewsEnabled ? "var(--scene-bg)" : "var(--scene-text-muted)",
+            border: "1px solid var(--scene-border)",
+          }}
+          aria-pressed={feed.worldNewsEnabled}
+          title={feed.worldNewsEnabled ? "Players can see revealed headlines" : "Players see no diplomacy news"}
+        >
+          {feed.worldNewsEnabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+          {feed.worldNewsEnabled ? "On" : "Off"}
+        </button>
+      </div>
+
+      {!feed.worldNewsEnabled && (
+        <p className="mt-1.5 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+          Off — players won&apos;t see diplomacy headlines. Shifts still log here for you.
+        </p>
+      )}
+
+      {feed.shifts.length === 0 ? (
+        <p className="mt-2 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+          No diplomatic shifts yet. Change a realm&apos;s relations below to start the timeline.
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {feed.shifts.slice(0, 12).map((s, i) => {
+            const pill = REVEAL_PILL[s.reveal]
+            return (
+              <li key={i} className="flex items-start gap-2 text-[11px] leading-snug">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: relColor(s.to) }} />
+                <div className="min-w-0 flex-1">
+                  <p style={{ color: "var(--scene-text-primary)" }}>
+                    {s.headline ?? `${s.realmA} & ${s.realmB}: ${s.from} → ${s.to}`}
+                  </p>
+                  <p className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>
+                    {s.realmA} ⇄ {s.realmB} · {s.from} → {s.to}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className="rounded px-1 py-0.5 text-[9px] font-semibold uppercase" style={{ color: pill.color, border: `1px solid ${pill.color}` }}>
+                    {pill.label}
+                  </span>
+                  {s.reveal === "revealed" ? (
+                    <button onClick={() => onHold(s.overrideId, s.entryIndex)} className="rounded p-0.5 hover:opacity-70" title="Hold (hide from players)" style={{ color: "var(--scene-text-muted)" }}>
+                      <EyeOff className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <button onClick={() => onReveal(s.overrideId, s.entryIndex)} className="rounded p-0.5 hover:opacity-70" title="Reveal to players" style={{ color: "#16a34a" }}>
+                      <Radio className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {(s.reveal === "pending" || s.reveal === "held") && (
+                    <button onClick={() => onHide(s.overrideId, s.entryIndex)} className="rounded p-0.5 hover:opacity-70" title="Dismiss (keep private)" style={{ color: "var(--scene-text-muted)" }}>
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+// ── DM: editable diplomacy inside a realm card ───────────────────────────────
+function DmDiplomacyEditor({
+  realm,
+  rels,
+  realmNames,
+  onChangeRelation,
+  onAddRelation,
+}: {
+  realm: RealmInfo
+  rels: { relation: string; realm: string }[]
+  realmNames: string[]
+  onChangeRelation: (selfRealm: string, otherRealm: string, from: string, to: string) => void
+  onAddRelation: (selfRealm: string) => void
+}) {
+  const rank = (s: string) => {
+    const i = REL_ORDER.indexOf(s)
+    return i === -1 ? 999 : i
+  }
+  const ordered = [...rels].sort((a, b) => rank(a.relation) - rank(b.relation))
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+        Diplomacy
+      </p>
+      <div className="space-y-1">
+        {ordered.map((rel) => {
+          // Offer the symmetric set + None. If the current value is an asymmetric
+          // Vassal/Suzerain (v2), surface it as a read-only option so the select isn't blank.
+          const options = [
+            ...(DIPLOMACY_STATUSES.includes(rel.relation as never) ? [] : [rel.relation]),
+            ...DIPLOMACY_STATUSES,
+          ]
+          return (
+            <div key={rel.realm} className="flex items-center gap-1.5 text-[11px]">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: relColor(rel.relation) }} />
+              <span className="min-w-0 flex-1 truncate" style={{ color: "var(--scene-text-primary)" }}>{rel.realm}</span>
+              <select
+                value={rel.relation}
+                onChange={(e) => onChangeRelation(realm.name, rel.realm, rel.relation, e.target.value)}
+                className="rounded border px-1 py-0.5 text-[11px]"
+                style={{ background: "var(--scene-surface)", color: "var(--scene-text-primary)", borderColor: "var(--scene-border)" }}
+              >
+                {options.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+                <option value={NEUTRAL}>None</option>
+              </select>
+            </div>
+          )
+        })}
+      </div>
+      <button
+        onClick={() => onAddRelation(realm.name)}
+        disabled={realmNames.length <= 1}
+        className="mt-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium hover:opacity-80 disabled:opacity-40"
+        style={{ color: "var(--scene-accent)", border: "1px dashed var(--scene-border)" }}
+      >
+        <Plus className="h-3 w-3" /> Add relationship
+      </button>
+    </div>
+  )
+}
+
+// ── DM: "make this news?" prompt ─────────────────────────────────────────────
+function NewsPrompt({
+  pending,
+  realmNames,
+  onChange,
+  onHeadline,
+  onCommit,
+  onCancel,
+}: {
+  pending: PendingEdit
+  realmNames: string[]
+  onChange: (patch: Partial<PendingEdit>) => void
+  onHeadline: (headline: string) => void
+  onCommit: (reveal: "revealed" | "held" | "private") => void
+  onCancel: () => void
+}) {
+  const targets = realmNames.filter((n) => n !== pending.selfRealm)
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
+      <div
+        className="relative z-10 w-full max-w-sm rounded-xl border p-4 shadow-2xl"
+        style={{ background: "var(--scene-surface)", borderColor: "var(--scene-border)" }}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-bold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+            Make this news?
+          </h3>
+          <button onClick={onCancel} aria-label="Cancel" className="rounded p-1 hover:opacity-70" style={{ color: "var(--scene-text-muted)" }}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold" style={{ color: "var(--scene-text-primary)" }}>{pending.selfRealm}</span>
+            <Handshake className="h-3.5 w-3.5" style={{ color: "var(--scene-text-muted)" }} />
+            {pending.addMode ? (
+              <select
+                value={pending.otherRealm}
+                onChange={(e) => onChange({ otherRealm: e.target.value })}
+                className="min-w-0 flex-1 rounded border px-1.5 py-1"
+                style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", borderColor: "var(--scene-border)" }}
+              >
+                <option value="">Choose a realm…</option>
+                {targets.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="font-semibold" style={{ color: "var(--scene-text-primary)" }}>{pending.otherRealm}</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span style={{ color: "var(--scene-text-muted)" }}>Status</span>
+            <select
+              value={pending.status}
+              onChange={(e) => onChange({ status: e.target.value })}
+              className="rounded border px-1.5 py-1"
+              style={{ background: "var(--scene-bg)", color: relColor(pending.status), borderColor: "var(--scene-border)" }}
+            >
+              {DIPLOMACY_STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+              <option value={NEUTRAL}>None</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Headline (players see this when revealed)</label>
+            <input
+              value={pending.headline}
+              onChange={(e) => onHeadline(e.target.value)}
+              placeholder={pending.otherRealm ? "" : "Choose a realm first…"}
+              className="w-full rounded border px-2 py-1.5 text-sm"
+              style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", borderColor: "var(--scene-border)" }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2">
+          <button
+            onClick={() => onCommit("revealed")}
+            disabled={!pending.otherRealm}
+            className="flex-1 rounded px-2 py-1.5 text-xs font-semibold disabled:opacity-40"
+            style={{ background: "#16a34a", color: "#fff" }}
+          >
+            Reveal now
+          </button>
+          <button
+            onClick={() => onCommit("held")}
+            disabled={!pending.otherRealm}
+            className="flex-1 rounded px-2 py-1.5 text-xs font-semibold disabled:opacity-40"
+            style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+          >
+            Save for later
+          </button>
+          <button
+            onClick={() => onCommit("private")}
+            disabled={!pending.otherRealm}
+            className="rounded px-2 py-1.5 text-xs font-medium disabled:opacity-40"
+            style={{ color: "var(--scene-text-muted)" }}
+            title="Apply the change, but never show players"
+          >
+            Ignore
+          </button>
         </div>
       </div>
     </div>
