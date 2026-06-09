@@ -872,6 +872,33 @@ body[data-scene="forest"] .scene-backdrop__texture {
   animation: dapple-drift 16s ease-in-out infinite alternate;
 }
 
+/* ── Forest treetops canopy (forest scene only) ─────────────────────────────
+   A silhouetted treetops band hanging from the top edge — edges only, so the
+   center stays readable (pairs with __vignette). Its own layer above the texture
+   but below the motes, so the gold fireflies drift in front of the branches. */
+.scene-backdrop__canopy {
+  opacity: 0;
+  background-repeat: repeat-x;
+  background-position: top center;
+  background-size: 260px auto;
+  transform-origin: top center;
+  transition: opacity 600ms ease;
+}
+body[data-scene="forest"] .scene-backdrop__canopy {
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='150'%3E%3Cg fill='%231b3314'%3E%3Crect x='0' y='0' width='260' height='56'/%3E%3Cellipse cx='18' cy='60' rx='34' ry='40'/%3E%3Cellipse cx='70' cy='70' rx='42' ry='54'/%3E%3Cellipse cx='120' cy='58' rx='34' ry='42'/%3E%3Cellipse cx='172' cy='72' rx='44' ry='56'/%3E%3Cellipse cx='222' cy='60' rx='36' ry='46'/%3E%3Cellipse cx='250' cy='66' rx='30' ry='44'/%3E%3C/g%3E%3C/svg%3E");
+  animation: canopy-sway 22s ease-in-out infinite alternate;
+}
+/* Day — sun through the leaves: a lighter, brighter canopy. */
+body[data-scene="forest"][data-scene-time="day"] .scene-backdrop__canopy {
+  opacity: 0.42;
+  filter: brightness(1.5) saturate(1.15);
+}
+@keyframes canopy-sway {
+  0%   { transform: translateX(-1.1%); }
+  100% { transform: translateX(1.1%); }
+}
+
 /* ── Texture / precipitation keyframes ─────────────────────────────────────── */
 @keyframes ash-fall {
   0%   { transform: translateY(-40px) translateX(0);    opacity: 0; }
@@ -900,7 +927,8 @@ body[data-scene="forest"] .scene-backdrop__texture {
     animation: none !important;
     opacity: 0.28;
   }
-  .scene-backdrop__texture {
+  .scene-backdrop__texture,
+  .scene-backdrop__canopy {
     animation: none !important;
   }
   .scene-backdrop__glow,

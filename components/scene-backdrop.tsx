@@ -36,6 +36,8 @@ export function SceneBackdrop() {
       <div className="scene-backdrop__vignette" />
       <div className="scene-backdrop__grain" />
       <div className="scene-backdrop__texture" />
+      {/* Forest-only treetops canopy along the top edge (CSS, globals.css). */}
+      <div className="scene-backdrop__canopy" />
       <div className="scene-backdrop__motes">
         {MOTES.map((m) => (
           <span

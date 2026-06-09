@@ -116,6 +116,10 @@ export default function AccountPage() {
           <Link href="/terms" className="transition-opacity hover:opacity-70">
             Terms of Service
           </Link>
+          <span aria-hidden>·</span>
+          <Link href="/acknowledgments" className="transition-opacity hover:opacity-70">
+            Acknowledgments
+          </Link>
         </div>
       </div>
     </AppShell>

@@ -131,6 +131,10 @@ export default async function HomePage() {
           <Link href="/terms" className="transition-colors hover:text-foreground">
             Terms of Service
           </Link>
+          <span aria-hidden>·</span>
+          <Link href="/acknowledgments" className="transition-colors hover:text-foreground">
+            Acknowledgments
+          </Link>
         </div>
         <span>© 2026 ADHDesigns — FeyForge</span>
       </footer>

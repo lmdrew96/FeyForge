@@ -328,6 +328,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Account
             </Link>
           </div>
+          <Link
+            href="/acknowledgments"
+            className="block text-[10px] text-center pt-1 hover:opacity-80 transition-opacity"
+            style={{ color: "var(--scene-text-muted)", opacity: 0.7 }}
+          >
+            v{process.env.NEXT_PUBLIC_APP_VERSION}
+          </Link>
         </div>
       </aside>
 
@@ -440,6 +447,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Account
               </Link>
             </div>
+            <Link
+              href="/acknowledgments"
+              onClick={() => setDrawerOpen(false)}
+              className="block text-[10px] text-center hover:opacity-80"
+              style={{ color: "var(--scene-text-muted)", opacity: 0.7 }}
+            >
+              v{process.env.NEXT_PUBLIC_APP_VERSION}
+            </Link>
           </div>
         </aside>
       </div>
