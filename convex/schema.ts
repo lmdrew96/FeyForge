@@ -51,6 +51,12 @@ export default defineSchema({
     experiencePoints: v.number(),
     background: v.optional(v.string()),
     alignment: v.optional(v.string()),
+    // Religion Surfacing (Slice B): the character's faith — NARRATIVE identity, not
+    // mechanics (no auto-granted domain spells). Snapshot by NAME so it survives leaving
+    // a campaign / a map re-import; deity copied from the world's pantheon when picked
+    // from a faith-bearing map, else free-text. See convex/faiths.ts + the Realms & Faiths
+    // panel's Followers section.
+    faith: v.optional(v.object({ name: v.string(), deity: v.optional(v.string()) })),
 
     age: v.optional(v.string()),
     height: v.optional(v.string()),

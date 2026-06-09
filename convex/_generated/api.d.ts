@@ -21,6 +21,7 @@ import type * as crons from "../crons.js";
 import type * as diplomacy from "../diplomacy.js";
 import type * as dmConversations from "../dmConversations.js";
 import type * as encounters from "../encounters.js";
+import type * as faiths from "../faiths.js";
 import type * as homebrew from "../homebrew.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_homebrewValidators from "../lib/homebrewValidators.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   diplomacy: typeof diplomacy;
   dmConversations: typeof dmConversations;
   encounters: typeof encounters;
+  faiths: typeof faiths;
   homebrew: typeof homebrew;
   "lib/auth": typeof lib_auth;
   "lib/homebrewValidators": typeof lib_homebrewValidators;

@@ -93,6 +93,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const [subraceId, setSubraceId] = useState("")
   const [backgroundId, setBackgroundId] = useState("")
   const [name, setName] = useState("")
+  const [faith, setFaith] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [toolSelections, setToolSelections] = useState<Record<string, string[]>>({})
   const [assignments, setAssignments] = useState<Record<Ability, number>>({
@@ -220,6 +221,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       startingChoice,
       imageUrl: imageUrl.trim() || undefined,
       toolProficiencies: toolProfs,
+      faith: faith.trim() || undefined,
     })
   }
 
@@ -739,6 +741,20 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
           >
             <RefreshCw className="h-4 w-4" />
           </button>
+        </div>
+
+        {/* Faith (optional) */}
+        <div className="mb-6">
+          <label className="block text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+            Faith <span style={{ textTransform: "none" }}>(optional)</span>
+          </label>
+          <input
+            value={faith}
+            onChange={e => setFaith(e.target.value)}
+            placeholder="Their religion or patron deity…"
+            className="w-full px-4 py-3 rounded-xl bg-transparent outline-none"
+            style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          />
         </div>
 
         {/* Portrait (optional) */}

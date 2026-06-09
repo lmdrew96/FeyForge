@@ -72,6 +72,7 @@ type EditState = {
   subclass: string
   alignment: string
   background: string
+  faith: string
   age: string
   height: string
   weight: string
@@ -107,6 +108,7 @@ const draftFromCharacter = (c: CharDoc): EditState => ({
   subclass: c.subclass ?? "",
   alignment: c.alignment ?? "",
   background: c.background ?? "",
+  faith: c.faith?.name ?? "",
   age: c.age ?? "",
   height: c.height ?? "",
   weight: c.weight ?? "",
@@ -165,6 +167,12 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
   // 2024 for no-campaign / non-member, matching the sheet).
   const campaign = useQuery(
     api.campaigns.get,
+    char?.campaignId ? { campaignId: char.campaignId } : "skip",
+  )
+  // The world's pantheon (faith names + deities) for the faith picker. Empty for a
+  // no-campaign / mapless campaign → the field falls back to pure free-text.
+  const pantheon = useQuery(
+    api.faiths.pantheon,
     char?.campaignId ? { campaignId: char.campaignId } : "skip",
   )
 
@@ -409,6 +417,11 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
         ...(newSpellcasting ? { spellcasting: newSpellcasting } : {}),
         alignment: draft.alignment || undefined,
         background: draft.background.trim() || undefined,
+        // Snapshot the faith by name; copy the deity from the pantheon when the name
+        // matches a faith on the world's map (free-text picks just carry the name).
+        faith: draft.faith.trim()
+          ? { name: draft.faith.trim(), deity: pantheon?.find((p) => p.name === draft.faith.trim())?.deity }
+          : undefined,
         age: draft.age.trim() || undefined,
         height: draft.height.trim() || undefined,
         weight: draft.weight.trim() || undefined,
@@ -576,6 +589,25 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setField("background", e.target.value)}
                 placeholder="Folk hero, Sage…"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="char-faith">Faith</Label>
+              <Input
+                id="char-faith"
+                list="char-faith-pantheon"
+                value={draft.faith}
+                onChange={(e) => setField("faith", e.target.value)}
+                placeholder={pantheon && pantheon.length > 0 ? "Pick from the world's pantheon, or type your own…" : "Your character's religion…"}
+              />
+              {pantheon && pantheon.length > 0 && (
+                <datalist id="char-faith-pantheon">
+                  {pantheon.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.deity ? `${p.deity}` : p.name}
+                    </option>
+                  ))}
+                </datalist>
+              )}
             </div>
           </div>
         </FieldGroup>

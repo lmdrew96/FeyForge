@@ -888,6 +888,10 @@ export interface QuickRollResult {
   // …" choice picked). Set by the interactive builders; when absent (Quick Roll /
   // From Concept) the creator auto-resolves choices instead.
   toolProficiencies?: string[]
+  // Optional faith (narrative identity, free-text at creation). Set in the Guided /
+  // Normal builders; the world's pantheon picker lives on the edit page (where the
+  // character's campaign — and thus its map — is known).
+  faith?: string
 }
 
 // Auto-pick a complete level-1 skill set: the background's fixed proficiencies

@@ -1496,6 +1496,11 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               <p className="text-sm mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
                 {raceName}{char.background ? ` · ${char.background}` : ""}
               </p>
+              {char.faith?.name && (
+                <p className="text-xs mt-0.5 italic" style={{ color: "var(--scene-accent)" }}>
+                  {char.faith.name}{char.faith.deity ? ` · ${char.faith.deity}` : ""}
+                </p>
+              )}
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", classColor)}>
                   {char.characterClass}

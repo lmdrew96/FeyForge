@@ -21,6 +21,7 @@ import {
   Crown,
   Eye,
   EyeOff,
+  GitBranch,
   Handshake,
   MapPin,
   Newspaper,
@@ -58,6 +59,19 @@ const REL_LABEL: Record<string, string> = {
 }
 const REL_ORDER = ["Suzerain", "Ally", "Friendly", "Vassal", "Rival", "Enemy"]
 const relColor = (status: string) => REL_STYLE[status] ?? "var(--scene-text-muted)"
+
+// Faith type → accent colour. Folk = traditional, Organized = institutional,
+// Cult/Heresy = ominous. Drives the type chip + the card's left swatch ring.
+const FAITH_TYPE_STYLE: Record<string, string> = {
+  Folk: "#0d9488",
+  Organized: "#7c3aed",
+  Cult: "#dc2626",
+  Heresy: "#d97706",
+}
+
+// A campaign PC who follows a faith — surfaced in the faith card's Followers section
+// (Slice B wires the query; the card renders whatever it's handed).
+export type FaithFollower = { name: string; className?: string }
 
 // The DM's "make this news?" prompt state (also drives "+ add relationship").
 type PendingEdit = {
@@ -98,6 +112,8 @@ export function RealmsFaithsPanel({
   // realm-name list for the add-relationship picker, plus the DM mutations.
   const feed = useQuery(api.diplomacy.feed, { campaignId })
   const realmNames = useQuery(api.diplomacy.realmNames, isDM ? { campaignId } : "skip")
+  // Campaign PCs grouped by faith → each faith card's Followers section (Slice B).
+  const faithFollowers = useQuery(api.faiths.followersByFaith, { campaignId })
   const setRelationMut = useMutation(api.diplomacy.setRelation)
   const setDisposition = useMutation(api.diplomacy.setShiftDisposition)
   const setWorldNews = useMutation(api.diplomacy.setWorldNewsEnabled)
@@ -391,32 +407,7 @@ export function RealmsFaithsPanel({
                   </h3>
                   <div className="space-y-2">
                     {faiths.map((f, i) => (
-                      <div
-                        key={i}
-                        className="flex items-start gap-2.5 rounded-lg p-2.5"
-                        style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
-                      >
-                        <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: f.color ?? "var(--scene-border)" }} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold" style={{ color: "var(--scene-text-primary)" }}>{f.name}</p>
-                          {(f.type || f.form) && (
-                            <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
-                              {[f.type, f.form].filter(Boolean).join(" · ")}
-                            </p>
-                          )}
-                          {f.deity && (
-                            <p className="mt-0.5 text-xs italic" style={{ color: "var(--scene-accent)" }}>{f.deity}</p>
-                          )}
-                          {f.expansion && (
-                            <p className="mt-0.5 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>{f.expansion}</p>
-                          )}
-                          {f.origin && (
-                            <p className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
-                              Descended from {f.origin}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                      <FaithCard key={i} faith={f} followers={faithFollowers?.[f.name]} />
                     ))}
                   </div>
                 </section>
@@ -436,6 +427,109 @@ export function RealmsFaithsPanel({
           onCommit={commit}
           onCancel={() => setPending(null)}
         />
+      )}
+    </div>
+  )
+}
+
+// ── Faith card (Realms & Faiths) ─────────────────────────────────────────────
+// Expandable, at parity with the realm card: type/form chips, the deity epithet as a
+// headline, and an expanded detail block (following-culture, spread mode, lineage, and
+// the Followers list Slice B fills). Azgaar faith data is name/type/form/deity/culture/
+// expansion/lineage — follower COUNTS aren't in the .map (rural/urban are null), so the
+// "Followers" section lists campaign PCs, not a population number.
+function FaithCard({ faith, followers }: { faith: FaithInfo; followers?: FaithFollower[] }) {
+  const [open, setOpen] = useState(false)
+  const typeColor = (faith.type && FAITH_TYPE_STYLE[faith.type]) || "var(--scene-accent)"
+  const hasFollowers = !!followers?.length
+  const expandable = !!(faith.culture || faith.expansion || faith.origin) || hasFollowers
+
+  const head = (
+    <>
+      <span
+        className="mt-1 h-3.5 w-3.5 shrink-0 rounded-full"
+        style={{ background: faith.color ?? "var(--scene-border)", boxShadow: `0 0 0 1.5px ${typeColor}` }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className="text-sm font-bold" style={{ color: "var(--scene-text-primary)" }}>{faith.name}</p>
+          {faith.type && (
+            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: typeColor, border: `1px solid ${typeColor}` }}>
+              {faith.type}
+            </span>
+          )}
+          {faith.form && (
+            <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ color: "var(--scene-text-muted)", background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+              {faith.form}
+            </span>
+          )}
+        </div>
+        {faith.deity ? (
+          <p className="mt-0.5 text-xs italic" style={{ color: "var(--scene-accent)" }}>{faith.deity}</p>
+        ) : (
+          <p className="mt-0.5 text-[11px] italic" style={{ color: "var(--scene-text-muted)" }}>No named deity</p>
+        )}
+      </div>
+      {expandable && (
+        <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+          {hasFollowers && (
+            <span className="inline-flex items-center gap-0.5">
+              <Users className="h-3 w-3" />
+              {followers!.length}
+            </span>
+          )}
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+        </span>
+      )}
+    </>
+  )
+
+  return (
+    <div className="rounded-lg p-2.5" style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}>
+      {expandable ? (
+        <button onClick={() => setOpen((o) => !o)} className="flex w-full gap-2.5 text-left" aria-expanded={open}>
+          {head}
+        </button>
+      ) : (
+        <div className="flex gap-2.5">{head}</div>
+      )}
+      {expandable && open && (
+        <div className="mt-2 space-y-1.5 border-t pt-2 text-[11px]" style={{ borderColor: "var(--scene-border)" }}>
+          {faith.culture && (
+            <div className="flex items-center gap-1.5" style={{ color: "var(--scene-text-muted)" }}>
+              <Users className="h-3 w-3 shrink-0" /> Followed by the {faith.culture}
+            </div>
+          )}
+          {faith.expansion && (
+            <div className="flex items-center gap-1.5" style={{ color: "var(--scene-text-muted)" }}>
+              <Church className="h-3 w-3 shrink-0" /> {faith.expansion}
+            </div>
+          )}
+          {faith.origin && (
+            <div className="flex items-center gap-1.5" style={{ color: "var(--scene-text-muted)" }}>
+              <GitBranch className="h-3 w-3 shrink-0" /> Descended from {faith.origin}
+            </div>
+          )}
+          {hasFollowers && (
+            <div className="pt-0.5">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+                Followers
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {followers!.map((p, j) => (
+                  <span
+                    key={j}
+                    className="rounded px-1.5 py-0.5 text-[11px]"
+                    style={{ background: "var(--scene-surface)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+                  >
+                    {p.name}
+                    {p.className && <span style={{ color: "var(--scene-text-muted)" }}> · {p.className}</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

@@ -148,6 +148,11 @@ export function SessionCharacterSheet({
             )}
             <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>{raceName} · Lv {char.level}</span>
           </div>
+          {char.faith?.name && (
+            <p className="text-[11px] italic mt-0.5 truncate" style={{ color: "var(--scene-accent)" }}>
+              {char.faith.name}{char.faith.deity ? ` · ${char.faith.deity}` : ""}
+            </p>
+          )}
         </div>
       </div>
 

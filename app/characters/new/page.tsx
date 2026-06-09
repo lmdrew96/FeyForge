@@ -379,6 +379,9 @@ export default function NewCharacterPage() {
         level: 1,
         experiencePoints: 0,
         background: background.name,
+        // Free-text at creation (no campaign/pantheon yet); the edit page offers the
+        // world's pantheon picker once the character joins a faith-bearing campaign.
+        faith: result.faith?.trim() ? { name: result.faith.trim() } : undefined,
         imageUrl: result.imageUrl?.trim() || undefined,
         baseAbilities,
         racialBonuses: Object.keys(racialBonuses).length > 0 ? racialBonuses : undefined,

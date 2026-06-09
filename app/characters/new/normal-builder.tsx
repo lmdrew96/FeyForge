@@ -180,6 +180,7 @@ interface NormalBuilderProps {
 
 export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   const [name, setName] = useState("")
+  const [faith, setFaith] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [toolSelections, setToolSelections] = useState<Record<string, string[]>>({})
   const [classId, setClassId] = useState("")
@@ -351,6 +352,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
       startingChoice,
       imageUrl: imageUrl.trim() || undefined,
       toolProficiencies: toolProfs,
+      faith: faith.trim() || undefined,
     })
   }
 
@@ -406,6 +408,23 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
             <span className="hidden sm:inline">Suggest</span>
           </button>
         </div>
+      </section>
+
+      {/* ── Faith (optional) ─────────────────────────────────────────────────── */}
+      <section>
+        <label
+          className="block text-xs uppercase tracking-widest mb-2"
+          style={{ color: "var(--scene-text-muted)" }}
+        >
+          Faith <span style={{ textTransform: "none" }}>(optional)</span>
+        </label>
+        <input
+          value={faith}
+          onChange={e => setFaith(e.target.value)}
+          placeholder="Their religion or patron deity…"
+          className="w-full px-4 py-3 rounded-xl bg-transparent outline-none"
+          style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+        />
       </section>
 
       {/* ── Portrait ─────────────────────────────────────────────────────────── */}
