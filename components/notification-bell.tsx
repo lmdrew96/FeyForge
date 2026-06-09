@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { useQuery, useMutation } from "convex/react"
 import { Bell, UserPlus, UserCheck, BookMarked, Sparkles, Check } from "lucide-react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useCampaignStore } from "@/lib/campaign-store"
-import { cn } from "@/lib/utils"
 
 type NotificationDoc = {
   _id: Id<"notifications">
@@ -79,12 +79,49 @@ export function NotificationBell({ align = "right" }: { align?: "left" | "right"
   const setActiveCampaign = useCampaignStore((s) => s.setActiveCampaign)
 
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  // The panel is portaled to <body> (fixed) so it escapes the sidebar/top-bar
+  // stacking context. An in-flow dropdown painted BEHIND page content: it lived
+  // inside the aside's z-10, the same layer as <main> but earlier in the DOM.
+  const [coords, setCoords] = useState<{
+    top: number
+    left?: number
+    right?: number
+  } | null>(null)
 
+  const updateCoords = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setCoords(
+      align === "left"
+        ? { top: rect.bottom + 8, left: rect.left }
+        : { top: rect.bottom + 8, right: window.innerWidth - rect.right },
+    )
+  }, [align])
+
+  // Measure on open, and keep the panel pinned to the trigger while open.
+  useEffect(() => {
+    if (!open) return
+    updateCoords()
+    window.addEventListener("resize", updateCoords)
+    window.addEventListener("scroll", updateCoords, true)
+    return () => {
+      window.removeEventListener("resize", updateCoords)
+      window.removeEventListener("scroll", updateCoords, true)
+    }
+  }, [open, updateCoords])
+
+  // Close on outside click. The panel is portaled out of this subtree, so dismiss
+  // only when the click misses BOTH the trigger and the panel.
   useEffect(() => {
     if (!open) return
     const onDocClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (triggerRef.current?.contains(t)) return
+      if (panelRef.current?.contains(t)) return
+      setOpen(false)
     }
     document.addEventListener("mousedown", onDocClick)
     return () => document.removeEventListener("mousedown", onDocClick)
@@ -108,7 +145,7 @@ export function NotificationBell({ align = "right" }: { align?: "left" | "right"
   const badge = unread > 0 ? (unread >= 50 ? "50+" : String(unread)) : null
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={triggerRef} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Notifications"
@@ -126,13 +163,15 @@ export function NotificationBell({ align = "right" }: { align?: "left" | "right"
         )}
       </button>
 
-      {open && (
+      {open && coords && typeof document !== "undefined" &&
+        createPortal(
         <div
-          className={cn(
-            "absolute top-full mt-2 w-80 max-w-[calc(100vw-1rem)] max-h-96 overflow-y-auto rounded-md shadow-lg z-[70]",
-            align === "left" ? "left-0" : "right-0",
-          )}
+          ref={panelRef}
+          className="fixed w-80 max-w-[calc(100vw-1rem)] max-h-96 overflow-y-auto rounded-md shadow-lg z-[100]"
           style={{
+            top: coords.top,
+            left: coords.left,
+            right: coords.right,
             background: "var(--scene-surface)",
             border: "1px solid var(--scene-border)",
           }}
@@ -234,7 +273,8 @@ export function NotificationBell({ align = "right" }: { align?: "left" | "right"
               )
             })
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
