@@ -9,7 +9,7 @@ import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { useCampaignStore } from "@/lib/campaign-store"
 import { worldNewsSeenKey } from "@/lib/worldMap/diplomacy"
 import { toast } from "sonner"
-import { BookText, ScrollText, Eye, Pencil, Save, ListChecks, Newspaper, Users, Plus, Trash2, Check, X } from "lucide-react"
+import { BookText, ScrollText, Eye, EyeOff, Pencil, Save, ListChecks, Newspaper, Users, Plus, Trash2, Check, X, Flag } from "lucide-react"
 
 // The Player Campaign Hub — a player's between-sessions home. Slice 1 surfaces
 // two tabs: Journal (a persistent, campaign-scoped markdown notebook private to
@@ -385,6 +385,12 @@ function QuestsTab({ campaignId }: { campaignId: CampaignId }) {
 
   return (
     <div>
+      {/* DM-shared party objectives (reveal-gated), above the personal list. */}
+      <SharedQuests campaignId={campaignId} />
+
+      <h2 className="text-xs uppercase tracking-wide mb-2" style={{ color: "var(--scene-text-muted)" }}>
+        My Quests
+      </h2>
       <form onSubmit={handleAdd} className="flex gap-2 mb-4">
         <input
           value={text}
@@ -532,6 +538,289 @@ function QuestRow({ quest }: { quest: { _id: Id<"campaignQuests">; text: string;
         <button onClick={() => void remove({ id: quest._id })} aria-label="Delete" className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
           <Trash2 className="h-3.5 w-3.5" />
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ── DM-shared party objectives (quests v2) ──────────────────────────────────────
+
+type SharedQuest = {
+  _id: Id<"campaignSharedQuests">
+  title: string
+  description?: string
+  status: "active" | "completed"
+  isRevealed: boolean
+}
+
+function SharedQuests({ campaignId }: { campaignId: CampaignId }) {
+  const data = useQuery(api.campaignSharedQuests.listShared, { campaignId })
+  const create = useMutation(api.campaignSharedQuests.createShared)
+
+  const [title, setTitle] = useState("")
+  const [desc, setDesc] = useState("")
+  const [busy, setBusy] = useState(false)
+
+  // Still loading — the personal section below renders its own loader.
+  if (data === undefined) return null
+  const { isDm, quests } = data
+
+  // Players with no revealed objectives see nothing here, keeping the tab focused
+  // on their own list.
+  if (!isDm && quests.length === 0) return null
+
+  const handleAdd = async (e: FormEvent) => {
+    e.preventDefault()
+    const t = title.trim()
+    if (!t || busy) return
+    setBusy(true)
+    try {
+      await create({ campaignId, title: t, description: desc.trim() || undefined })
+      setTitle("")
+      setDesc("")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add that objective")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="mb-6">
+      <div className="flex items-center gap-1.5 mb-1">
+        <Flag className="h-4 w-4" style={{ color: "var(--scene-accent)" }} />
+        <h2 className="text-xs uppercase tracking-wide" style={{ color: "var(--scene-text-muted)" }}>
+          Party Objectives
+        </h2>
+      </div>
+      <p className="text-xs mb-3" style={{ color: "var(--scene-text-muted)" }}>
+        {isDm
+          ? "Authored by you — each stays hidden until you reveal it to the party."
+          : "Shared by your DM."}
+      </p>
+
+      {isDm && (
+        <form onSubmit={handleAdd} className="mb-3 space-y-2">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="New party objective…"
+            className="w-full rounded-md px-3 py-2 text-sm outline-none"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+          />
+          <div className="flex gap-2">
+            <input
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="Optional detail…"
+              className="flex-1 rounded-md px-3 py-2 text-sm outline-none"
+              style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+            />
+            <button
+              type="submit"
+              disabled={!title.trim() || busy}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-40 shrink-0"
+              style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </button>
+          </div>
+        </form>
+      )}
+
+      {quests.length === 0 ? (
+        isDm ? (
+          <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+            No party objectives yet. Add one above, then reveal it when the party should know.
+          </p>
+        ) : null
+      ) : (
+        <div className="space-y-1.5">
+          {quests.map((q) =>
+            isDm ? (
+              <SharedQuestRowDM key={q._id} quest={q} />
+            ) : (
+              <SharedQuestRowPlayer key={q._id} quest={q} />
+            ),
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// Read-only card a player sees for a revealed party objective.
+function SharedQuestRowPlayer({ quest }: { quest: SharedQuest }) {
+  const done = quest.status === "completed"
+  return (
+    <div
+      className="rounded-md px-3 py-2"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="flex items-start gap-2">
+        {done && <Check className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "var(--scene-accent)" }} />}
+        <div className="min-w-0">
+          <p
+            className="text-sm font-medium"
+            style={{
+              color: done ? "var(--scene-text-muted)" : "var(--scene-text-primary)",
+              textDecoration: done ? "line-through" : undefined,
+            }}
+          >
+            {quest.title}
+          </p>
+          {quest.description && (
+            <p className="text-xs mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
+              {quest.description}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// DM row: status toggle, inline edit, the reveal eye, and delete.
+function SharedQuestRowDM({ quest }: { quest: SharedQuest }) {
+  const update = useMutation(api.campaignSharedQuests.updateShared)
+  const setRevealed = useMutation(api.campaignSharedQuests.setRevealed)
+  const remove = useMutation(api.campaignSharedQuests.removeShared)
+
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(quest.title)
+  const [desc, setDesc] = useState(quest.description ?? "")
+
+  const done = quest.status === "completed"
+
+  const saveEdit = async () => {
+    const t = title.trim()
+    if (!t) return
+    try {
+      await update({ id: quest._id, title: t, description: desc.trim() })
+      setEditing(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't save")
+    }
+  }
+
+  const toggleReveal = async () => {
+    try {
+      await setRevealed({ id: quest._id, isRevealed: !quest.isRevealed })
+      toast.success(quest.isRevealed ? "Hidden from players." : "Revealed to the party.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update")
+    }
+  }
+
+  const toggleStatus = () => {
+    void update({ id: quest._id, status: done ? "active" : "completed" }).catch((err) =>
+      toast.error(err instanceof Error ? err.message : "Couldn't update"),
+    )
+  }
+
+  if (editing) {
+    return (
+      <div
+        className="rounded-md px-2 py-2 space-y-2"
+        style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+      >
+        <input
+          autoFocus
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void saveEdit()
+            if (e.key === "Escape") {
+              setTitle(quest.title)
+              setDesc(quest.description ?? "")
+              setEditing(false)
+            }
+          }}
+          placeholder="Title"
+          className="w-full bg-transparent text-sm outline-none"
+          style={{ color: "var(--scene-text-primary)" }}
+        />
+        <input
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          placeholder="Optional detail"
+          className="w-full bg-transparent text-xs outline-none"
+          style={{ color: "var(--scene-text-muted)" }}
+        />
+        <div className="flex justify-end gap-1">
+          <button onClick={() => void saveEdit()} aria-label="Save" className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-accent)" }}>
+            <Check className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => {
+              setTitle(quest.title)
+              setDesc(quest.description ?? "")
+              setEditing(false)
+            }}
+            aria-label="Cancel"
+            className="p-1 rounded hover:opacity-80"
+            style={{ color: "var(--scene-text-muted)" }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="group rounded-md px-2 py-1.5"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="flex items-center gap-2.5">
+        <button
+          onClick={toggleStatus}
+          aria-label={done ? "Mark active" : "Mark completed"}
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors"
+          style={{
+            borderColor: done ? "var(--scene-accent)" : "var(--scene-border)",
+            background: done ? "var(--scene-accent)" : "transparent",
+            color: "var(--scene-bg)",
+          }}
+        >
+          {done && <Check className="h-3.5 w-3.5" />}
+        </button>
+        <button onDoubleClick={() => setEditing(true)} className="flex-1 min-w-0 text-left">
+          <span
+            className="text-sm block truncate"
+            style={{
+              color: done ? "var(--scene-text-muted)" : "var(--scene-text-primary)",
+              textDecoration: done ? "line-through" : undefined,
+            }}
+          >
+            {quest.title}
+          </span>
+          {quest.description && (
+            <span className="text-xs block truncate" style={{ color: "var(--scene-text-muted)" }}>
+              {quest.description}
+            </span>
+          )}
+        </button>
+        {/* The reveal eye is the load-bearing affordance — always visible. */}
+        <button
+          onClick={() => void toggleReveal()}
+          title={quest.isRevealed ? "Revealed to the party — click to hide" : "Hidden from players — click to reveal"}
+          aria-label={quest.isRevealed ? "Hide from players" : "Reveal to players"}
+          className="p-1 rounded hover:opacity-80 shrink-0"
+          style={{ color: quest.isRevealed ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
+        >
+          {quest.isRevealed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+        </button>
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <button onClick={() => setEditing(true)} aria-label="Edit" className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => void remove({ id: quest._id })} aria-label="Delete" className="p-1 rounded hover:opacity-80" style={{ color: "var(--scene-text-muted)" }}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   )

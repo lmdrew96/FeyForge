@@ -723,6 +723,21 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_campaignId_and_userId", ["campaignId", "userId"]),
 
+  // DM-authored party objectives for the Campaign Hub (quests v2). Distinct from
+  // the personal `campaignQuests` checklist: these are campaign-owned, reveal-gated
+  // (players see only isRevealed === true), and managed by the DM. Reads are
+  // membership-gated; writes DM-gated (requireDm). Mirrors the wikiEntries /
+  // sessionBroadcasts reveal convention (memory/player_dm_pattern).
+  campaignSharedQuests: defineTable({
+    campaignId: v.id("campaigns"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("completed")),
+    isRevealed: v.boolean(),
+    orderIndex: v.number(),
+    updatedAt: v.number(),
+  }).index("by_campaignId", ["campaignId"]),
+
   partyInventory: defineTable({
     sessionId: v.id("partySessions"),
     campaignId: v.id("campaigns"),
