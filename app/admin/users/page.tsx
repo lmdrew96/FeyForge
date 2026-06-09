@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Shield, ShieldOff, Users } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
+import { AdminTabs } from "@/components/admin/admin-tabs"
 import { toast } from "sonner"
 
 export default function AdminUsersPage() {
@@ -22,6 +23,7 @@ export default function AdminUsersPage() {
   return (
     <AppShell>
       <div className="px-6 py-8 max-w-2xl mx-auto space-y-6">
+        <AdminTabs />
         {/* Header */}
         <div>
           <p className="text-xs uppercase tracking-[0.2em] mb-1" style={{ color: "#7b68c8" }}>Admin</p>

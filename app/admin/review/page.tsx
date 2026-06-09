@@ -7,6 +7,7 @@ import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { Play, Pause, Music, Filter, Plus, X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
+import { AdminTabs } from "@/components/admin/admin-tabs"
 import { SCENES } from "@/lib/scenes"
 
 type AudioTrack = Doc<"audioTracks">
@@ -854,6 +855,7 @@ export default function AdminReviewPage() {
   return (
     <AppShell>
       <div className="px-6 py-8 max-w-2xl mx-auto space-y-6">
+        <AdminTabs />
         {/* Header */}
         <div>
           <p className="text-xs uppercase tracking-[0.2em] mb-1" style={{ color: "var(--scene-accent)" }}>Admin</p>

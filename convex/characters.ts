@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Doc } from "./_generated/dataModel"
+import { isAdmin } from "./lib/auth"
 
 const baseAbilitiesValidator = v.object({
   strength: v.number(),
@@ -106,6 +107,19 @@ export const listAllProperties = query({
       allProps.push(...props)
     }
     return allProps
+  },
+})
+
+// Admin-only: every character's portrait imageUrl across all users. Powers the
+// orphaned-portrait GC sweep (app/api/admin/portrait-gc), which needs the full
+// set of in-use URLs to know which R2 objects are safe to reclaim. Returns [] to
+// non-admins (stays inert — never throws).
+export const listAllImageUrls = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAdmin(ctx))) return []
+    const characters = await ctx.db.query("characters").collect()
+    return characters.map((c) => c.imageUrl).filter((u): u is string => !!u)
   },
 })
 
