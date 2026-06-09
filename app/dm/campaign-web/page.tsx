@@ -24,9 +24,10 @@ import {
   MarkerType,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import { Users, MapPin, ScrollText, Shield, Milestone, Plus, Trash2, X, Check, Radio } from "lucide-react"
+import { Users, MapPin, ScrollText, Shield, Milestone, Plus, Trash2, X, Check, Radio, ChevronDown } from "lucide-react"
 import { metaFor } from "@/components/world-map/shared"
 import { pinFilterKey } from "@/components/world-map/pins-panel"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 // Pin meta shape returned by metaFor — reused so Story Web location nodes match
 // the world map's icon/label/color for each pin kind exactly.
@@ -142,6 +143,7 @@ export default function CampaignWebPage() {
   const [newNodeLabel, setNewNodeLabel] = useState("")
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null)
   const [editingEdgeLabel, setEditingEdgeLabel] = useState("")
+  const [openHookId, setOpenHookId] = useState<string | null>(null)
 
   const setupDMSession = useMutation(api.liveSessions.setupDMSession)
   const doAddNode = useMutation(api.campaignWeb.addNode)
@@ -156,6 +158,14 @@ export default function CampaignWebPage() {
   const webEdges = useQuery(api.campaignWeb.listEdges, campaignId ? { campaignId } : "skip")
   const npcs = useQuery(api.npcs.list)
   const locations = useQuery(api.worldMap.listLocations, campaignId ? { campaignId } : "skip")
+  // Saved plot threads (AI-generated diplomacy hooks + any created elsewhere), scoped
+  // to this campaign — surfaced in the Plot Hook tab so the DM can read a hook and pull
+  // it onto the web. listPlotThreads is by-user across campaigns; filter to this one.
+  const plotThreads = useQuery(api.sessions.listPlotThreads)
+  const campaignThreads = useMemo(
+    () => (plotThreads ?? []).filter((t) => t.campaignId === campaignId),
+    [plotThreads, campaignId],
+  )
 
   // Role for the active campaign. Players reach DM tools only via a manual URL
   // (the nav hides them); don't invoke setupDMSession for a non-DM — the server
@@ -474,6 +484,62 @@ export default function CampaignWebPage() {
                 </div>
               )
             })}
+
+            {/* Saved plot threads (DM's AI-generated diplomacy hooks + any created
+                elsewhere). Expand a row to read the hook; "+" pulls it onto the web as a
+                plot_hook node (entityId = thread id → dedups off this list once placed). */}
+            {activeTab === "plot_hook" && campaignThreads.length > 0 && (
+              <div className="space-y-1 pb-2 mb-1" style={{ borderBottom: "1px solid var(--scene-border)" }}>
+                <div className="flex items-center gap-1.5 px-1 pt-1">
+                  <Milestone size={11} style={{ color: TYPE_META.plot_hook.color }} />
+                  <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: TYPE_META.plot_hook.color }}>
+                    Saved plot hooks
+                  </span>
+                  <span className="text-[10px]" style={{ color: "var(--scene-text-muted)" }}>{campaignThreads.length}</span>
+                </div>
+                {campaignThreads.map((t) => {
+                  const onCanvas = onCanvasEntityIds.has(t._id)
+                  const open = openHookId === t._id
+                  return (
+                    <div
+                      key={t._id}
+                      className="rounded"
+                      style={{ background: TYPE_META.plot_hook.color + "1a", border: `1px solid ${TYPE_META.plot_hook.color}44` }}
+                    >
+                      <div className="flex items-center gap-1.5 px-2 py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setOpenHookId(open ? null : t._id)}
+                          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                          aria-expanded={open}
+                        >
+                          <ChevronDown size={11} className="transition-transform" style={{ color: "var(--scene-text-muted)", flexShrink: 0, transform: open ? "rotate(180deg)" : undefined }} />
+                          <span className="flex-1 text-xs truncate" style={{ color: "var(--scene-text-primary)" }}>{t.title}</span>
+                        </button>
+                        {onCanvas ? (
+                          <span className="text-[9px] uppercase tracking-wide" style={{ color: "var(--scene-text-muted)", flexShrink: 0 }}>On web</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => addEntityNode("plot_hook", t._id, t.title)}
+                            title="Add to Web"
+                            className="hover:opacity-80"
+                            style={{ flexShrink: 0 }}
+                          >
+                            <Plus size={11} style={{ color: TYPE_META.plot_hook.color }} />
+                          </button>
+                        )}
+                      </div>
+                      {open && t.description && (
+                        <div className="px-2 pb-2">
+                          <MarkdownRenderer variant="scene" content={t.description} className="text-[11px]" />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
             {/* Encounter pins surface here (not under Location) as ready-made hooks.
                 Clicking one adds it as a plot_hook node; entityId is retained so it

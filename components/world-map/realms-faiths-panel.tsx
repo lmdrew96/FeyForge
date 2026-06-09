@@ -23,10 +23,13 @@ import {
   EyeOff,
   GitBranch,
   Handshake,
+  Loader2,
   MapPin,
   Newspaper,
   Plus,
   Radio,
+  ScrollText,
+  Sparkles,
   Swords,
   Users,
   X,
@@ -35,6 +38,7 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { cn } from "@/lib/utils"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { CoatOfArms } from "./shared"
 import { DIPLOMACY_STATUSES, NEUTRAL, autoHeadline } from "@/lib/worldMap/diplomacy"
 import type { FaithInfo, RealmInfo } from "@/lib/worldMap/azgaar-map"
@@ -422,6 +426,7 @@ export function RealmsFaithsPanel({
         <NewsPrompt
           pending={pending}
           realmNames={realmNames ?? []}
+          campaignId={campaignId}
           onChange={(patch) => setPending((p) => (p ? recomputeHeadline(p, patch) : p))}
           onHeadline={(headline) => setPending((p) => (p ? { ...p, headline, headlineDirty: true } : p))}
           onCommit={commit}
@@ -711,6 +716,7 @@ function DmDiplomacyEditor({
 function NewsPrompt({
   pending,
   realmNames,
+  campaignId,
   onChange,
   onHeadline,
   onCommit,
@@ -718,12 +724,86 @@ function NewsPrompt({
 }: {
   pending: PendingEdit
   realmNames: string[]
+  campaignId: Id<"campaigns">
   onChange: (patch: Partial<PendingEdit>) => void
   onHeadline: (headline: string) => void
   onCommit: (reveal: "revealed" | "held" | "private") => void
   onCancel: () => void
 }) {
   const targets = realmNames.filter((n) => n !== pending.selfRealm)
+
+  // AI plot hooks (thread ③): generate a player headline + a private DM plot seed
+  // from this diplomatic shift. Purely ADDITIVE — the deterministic autoHeadline and
+  // the three commit buttons work unchanged when AI is unavailable or out of quota.
+  const createPlotThread = useMutation(api.sessions.createPlotThread)
+  const [generating, setGenerating] = useState(false)
+  const [seed, setSeed] = useState<{ title: string; hook: string } | null>(null)
+  const [genError, setGenError] = useState<string | null>(null)
+  const [quotaHit, setQuotaHit] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const generate = async () => {
+    if (!pending.otherRealm || generating) return
+    setGenerating(true)
+    setGenError(null)
+    setQuotaHit(false)
+    try {
+      const res = await fetch("/api/world-map/plot-hook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaignId,
+          realmA: pending.selfRealm,
+          realmB: pending.otherRealm,
+          from: pending.from,
+          to: pending.status,
+        }),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { isPremium?: boolean }
+        if (res.status === 429) {
+          setQuotaHit(!data.isPremium)
+          setGenError(data.isPremium ? "You're out of AI generations today." : "Out of free AI generations today.")
+        } else if (res.status === 403) {
+          setGenError("Only the DM can generate plot hooks.")
+        } else {
+          setGenError("Couldn't generate right now — try again.")
+        }
+        return
+      }
+      const data = (await res.json()) as { headline: string; hook: string; title: string }
+      onHeadline(data.headline) // fills the field + flags headlineDirty so it isn't clobbered
+      setSeed({ title: data.title, hook: data.hook })
+      setSaved(false)
+    } catch {
+      setGenError("Couldn't generate right now — try again.")
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const savePlotThread = async () => {
+    if (!seed || saving || saved) return
+    setSaving(true)
+    setGenError(null)
+    try {
+      await createPlotThread({
+        campaignId,
+        title: seed.title,
+        description: seed.hook,
+        status: "active",
+        importance: "minor",
+        relatedLocations: [pending.selfRealm, pending.otherRealm].filter(Boolean),
+      })
+      setSaved(true)
+    } catch {
+      setGenError("Couldn't save the plot thread — try again.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
@@ -777,7 +857,20 @@ function NewsPrompt({
           </div>
 
           <div>
-            <label className="mb-1 block" style={{ color: "var(--scene-text-muted)" }}>Headline (players see this when revealed)</label>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <label style={{ color: "var(--scene-text-muted)" }}>Headline (players see this when revealed)</label>
+              <button
+                type="button"
+                onClick={generate}
+                disabled={!pending.otherRealm || generating}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium hover:opacity-80 disabled:opacity-40"
+                style={{ color: "var(--scene-accent)", border: "1px solid var(--scene-border)" }}
+                title="Generate a headline + private DM plot seed with AI"
+              >
+                {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                {generating ? "Generating…" : "Generate"}
+              </button>
+            </div>
             <input
               value={pending.headline}
               onChange={(e) => onHeadline(e.target.value)}
@@ -785,7 +878,47 @@ function NewsPrompt({
               className="w-full rounded border px-2 py-1.5 text-sm"
               style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", borderColor: "var(--scene-border)" }}
             />
+            {genError && (
+              <p className="mt-1 text-[11px]" style={{ color: "#dc2626" }}>
+                {genError}
+                {quotaHit && (
+                  <>
+                    {" "}
+                    <a href="/account" className="underline" style={{ color: "var(--scene-accent)" }}>
+                      Upgrade
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
           </div>
+
+          {seed && (
+            <div className="rounded-lg border p-2.5" style={{ background: "var(--scene-bg)", borderColor: "var(--scene-border)" }}>
+              <div className="mb-1 flex items-center gap-1.5">
+                <ScrollText className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
+                <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+                  DM plot seed · never shown to players
+                </span>
+              </div>
+              <p className="text-xs font-bold" style={{ color: "var(--scene-text-primary)" }}>{seed.title}</p>
+              <MarkdownRenderer variant="scene" content={seed.hook} className="mt-0.5 text-[11px]" />
+              <button
+                type="button"
+                onClick={savePlotThread}
+                disabled={saving || saved}
+                className="mt-2 inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold hover:opacity-80 disabled:opacity-60"
+                style={{
+                  background: saved ? "var(--scene-bg)" : "var(--scene-accent)",
+                  color: saved ? "var(--scene-text-muted)" : "var(--scene-bg)",
+                  border: "1px solid var(--scene-border)",
+                }}
+              >
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScrollText className="h-3 w-3" />}
+                {saved ? "Saved to plot threads" : saving ? "Saving…" : "Save as plot thread"}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 flex items-center gap-2">

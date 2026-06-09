@@ -31,6 +31,7 @@ import {
 import { ArrowLeft, Loader2, Play, Sparkles, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { postAi } from "@/lib/ai-client"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 type SessionDoc = Doc<"gameSessions">
 
@@ -115,6 +116,109 @@ function FieldGroup({
   )
 }
 
+// DM-facing read/manage panel for the campaign's saved plot threads (AI-generated
+// diplomacy hooks + any created elsewhere). Resolve toggles status (active ↔ resolved);
+// delete removes the row. Both mutations are userId-gated server-side.
+function PlotThreadsSection({ threads }: { threads: Doc<"plotThreads">[] }) {
+  const updatePlotThread = useMutation(api.sessions.updatePlotThread)
+  const removePlotThread = useMutation(api.sessions.removePlotThread)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  if (threads.length === 0) {
+    return (
+      <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
+        No plot threads yet. Generate one from a diplomatic shift on the World Map (Realms &amp; Faiths
+        → ✨ Generate → Save as plot thread), or add hooks in the Story Web.
+      </p>
+    )
+  }
+
+  // Active first, resolved sink to the bottom.
+  const ordered = [...threads].sort(
+    (a, b) => (a.status === "resolved" ? 1 : 0) - (b.status === "resolved" ? 1 : 0),
+  )
+
+  const toggleStatus = async (t: Doc<"plotThreads">) => {
+    setBusyId(t._id)
+    try {
+      if (t.status === "resolved") await updatePlotThread({ id: t._id, status: "active" })
+      else await updatePlotThread({ id: t._id, status: "resolved", resolvedAt: Date.now() })
+    } catch {
+      toast.error("Couldn't update the plot thread.")
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const remove = async (t: Doc<"plotThreads">) => {
+    setBusyId(t._id)
+    try {
+      await removePlotThread({ id: t._id })
+      toast.success("Plot thread deleted.")
+    } catch {
+      toast.error("Couldn't delete the plot thread.")
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {ordered.map((t) => {
+        const resolved = t.status === "resolved"
+        return (
+          <div
+            key={t._id}
+            className="rounded-lg p-3"
+            style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", opacity: resolved ? 0.65 : 1 }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <p className="text-sm font-bold" style={{ color: "var(--scene-text-primary)" }}>{t.title}</p>
+                <span
+                  className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                  style={{ color: resolved ? "var(--scene-text-muted)" : "#16a34a", border: `1px solid ${resolved ? "var(--scene-border)" : "#16a34a"}` }}
+                >
+                  {resolved ? "Resolved" : "Active"}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => toggleStatus(t)}
+                  disabled={busyId === t._id}
+                  className="rounded px-2 py-1 text-[11px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                  style={{ color: "var(--scene-text-muted)", border: "1px solid var(--scene-border)" }}
+                >
+                  {resolved ? "Reopen" : "Resolve"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(t)}
+                  disabled={busyId === t._id}
+                  title="Delete plot thread"
+                  className="rounded p-1 transition-opacity hover:opacity-80 disabled:opacity-50"
+                  style={{ color: "#dc2626" }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            {t.description && (
+              <MarkdownRenderer variant="scene" content={t.description} className="mt-1.5 text-[13px]" />
+            )}
+            {t.relatedLocations && t.relatedLocations.length > 0 && (
+              <p className="mt-1.5 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+                {t.relatedLocations.join(" · ")}
+              </p>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function SessionDetailPage({
   params,
 }: {
@@ -127,6 +231,9 @@ export default function SessionDetailPage({
   const allSessions = useQuery(api.sessions.listSessions)
   const session = allSessions?.find((s) => s._id === sessionId) ?? null
   const plotThreadsAll = useQuery(api.sessions.listPlotThreads) ?? []
+  // Plot threads are campaign-wide (listPlotThreads is by-user across campaigns); scope
+  // to this session's campaign for the read/manage panel below + the prep generator.
+  const campaignThreads = session ? plotThreadsAll.filter((t) => t.campaignId === session.campaignId) : []
   const updateSession = useMutation(api.sessions.updateSession)
   const removeSession = useMutation(api.sessions.removeSession)
   const startSession = useMutation(api.liveSessions.startSession)
@@ -422,6 +529,10 @@ export default function SessionDetailPage({
               onChange={(e) => setField("xpAwarded", Math.max(0, Number(e.target.value) || 0))}
             />
           </div>
+        </FieldGroup>
+
+        <FieldGroup title="Plot threads">
+          <PlotThreadsSection threads={campaignThreads} />
         </FieldGroup>
 
         <FieldGroup
