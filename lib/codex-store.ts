@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-export type CodexCategory = "spells" | "monsters" | "magicitems" | "equipment" | "conditions" | "rules"
+export type CodexCategory = "spells" | "monsters" | "magicitems" | "equipment" | "conditions" | "rules" | "homebrew"
 
 export interface BookmarkedEntry {
   id: string

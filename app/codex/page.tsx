@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { AppShell } from "@/components/app-shell"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import {
@@ -11,6 +13,8 @@ import {
   type Open5eCondition,
 } from "@/lib/open5e-api"
 import { useCodexStore, type CodexCategory } from "@/lib/codex-store"
+import { partitionHomebrew } from "@/lib/homebrew"
+import type { StoredItemData } from "@/lib/character/sheet-items"
 import { ABILITIES, ABILITY_ABBREVIATIONS, getAbilityModifier, formatModifier } from "@/lib/character/constants"
 import {
   Search,
@@ -21,19 +25,34 @@ import {
   Skull,
   Gem,
   Activity,
+  FlaskConical,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ── Categories the browser supports (a subset of the store's CodexCategory) ────
 
-type Category = "spells" | "monsters" | "magicitems" | "conditions"
-type Entry = Open5eSpell | Open5eMonster | Open5eMagicItem | Open5eCondition
+// SRD categories are fetched live from Open5e; "homebrew" is sourced from the
+// user's own library (api.homebrew.listForBuilder) and is shaped differently —
+// no slug, spans all item categories — so it travels its own data/detail path.
+type SrdCategory = "spells" | "monsters" | "magicitems" | "conditions"
+type Category = SrdCategory | "homebrew"
+
+// A homebrew item adapted for the Codex: the doc id stands in for `slug` (homebrew
+// has none) so the slug-keyed list/bookmark/select machinery works unchanged.
+interface CodexHomebrewItem {
+  slug: string
+  name: string
+  data: StoredItemData
+}
+
+type Entry = Open5eSpell | Open5eMonster | Open5eMagicItem | Open5eCondition | CodexHomebrewItem
 
 const TABS: { id: Category; label: string; icon: typeof Sparkles }[] = [
   { id: "spells", label: "Spells", icon: Sparkles },
   { id: "monsters", label: "Monsters", icon: Skull },
   { id: "magicitems", label: "Magic Items", icon: Gem },
   { id: "conditions", label: "Conditions", icon: Activity },
+  { id: "homebrew", label: "Homebrew", icon: FlaskConical },
 ]
 
 interface CodexData {
@@ -43,7 +62,7 @@ interface CodexData {
   conditions: Open5eCondition[]
 }
 
-const FETCHERS: { [K in Category]: () => Promise<CodexData[K]> } = {
+const FETCHERS: { [K in SrdCategory]: () => Promise<CodexData[K]> } = {
   spells: () => open5eApi.getSpells(),
   monsters: () => open5eApi.getMonsters(),
   magicitems: () => open5eApi.getMagicItems(),
@@ -247,6 +266,49 @@ function ConditionDetail({ c }: { c: Open5eCondition }) {
   return <MarkdownRenderer content={c.desc} variant="scene" />
 }
 
+// Homebrew items are StoredItemData (the inventory form's blob), not Open5e-shaped,
+// so they get their own renderer covering the weapon/armor/magic fields the form
+// can author. Mirrors the inventory's read-only item view at reference altitude.
+function HomebrewItemDetail({ it }: { it: CodexHomebrewItem }) {
+  const d = it.data
+  const damage = d.damageDice
+    ? `${d.damageDice}${d.damageType ? ` ${d.damageType}` : ""}${d.magicBonus ? ` (+${d.magicBonus})` : ""}`
+    : undefined
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <Pill>{d.category}</Pill>
+        {d.rarity && <Pill>{d.rarity}</Pill>}
+        {d.weaponType && <Pill>{d.weaponType}</Pill>}
+        {d.armorCategory && <Pill>{d.armorCategory}</Pill>}
+        {d.requiresAttunement && <Pill>Attunement</Pill>}
+      </div>
+      <div className="space-y-1">
+        {/* Weapon */}
+        <FieldRow label="Damage" value={damage} />
+        <FieldRow label="Versatile" value={d.versatileDamage} />
+        <FieldRow
+          label="Range"
+          value={d.range ? `${d.range.normal}${d.range.long ? `/${d.range.long}` : ""} ft.` : undefined}
+        />
+        <FieldRow label="Properties" value={d.properties && d.properties.length > 0 ? d.properties.join(", ") : undefined} />
+        {/* Armor */}
+        <FieldRow label="Base AC" value={d.baseAC} />
+        <FieldRow label="Strength Req." value={d.strengthRequirement} />
+        <FieldRow label="Stealth" value={d.stealthDisadvantage ? "Disadvantage" : undefined} />
+        {/* Common */}
+        <FieldRow label="Weight" value={d.weight ? `${d.weight} lb.` : undefined} />
+        <FieldRow label="Quantity" value={d.quantity && d.quantity > 1 ? d.quantity : undefined} />
+      </div>
+      {d.description && (
+        <div className="pt-1">
+          <MarkdownRenderer content={d.description} variant="scene" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── List-row subtitles ─────────────────────────────────────────────────────────
 
 function rowSubtitle(category: Category, entry: Entry): string {
@@ -265,6 +327,10 @@ function rowSubtitle(category: Category, entry: Entry): string {
     }
     case "conditions":
       return "Condition"
+    case "homebrew": {
+      const it = entry as CodexHomebrewItem
+      return [it.data.rarity, it.data.category].filter(Boolean).join(" · ") || "Homebrew item"
+    }
   }
 }
 
@@ -298,8 +364,22 @@ export default function CodexPage() {
   const [monsterSize, setMonsterSize] = useState<string>("all")
   const [itemRarity, setItemRarity] = useState<string>("all")
   const [itemType, setItemType] = useState<string>("all")
+  const [homebrewCategory, setHomebrewCategory] = useState<string>("all")
   // Sort key — "name" everywhere, plus a category-natural option (level/cr/rarity).
   const [sortBy, setSortBy] = useState<string>("name")
+
+  // Homebrew comes from the user's own library (auth/membership-gated server-side),
+  // not Open5e — so it bypasses the FETCHERS/cache path below.
+  const homebrewDocs = useQuery(api.homebrew.listForBuilder)
+  const homebrewItems = useMemo<CodexHomebrewItem[]>(
+    () =>
+      partitionHomebrew(homebrewDocs).items.map((it) => ({
+        slug: it.id,
+        name: it.name,
+        data: it.data,
+      })),
+    [homebrewDocs],
+  )
 
   // Search is transient — don't carry a stale query in from a previous visit
   // (the store persists to localStorage).
@@ -308,7 +388,9 @@ export default function CodexPage() {
   }, [clearSearch])
 
   // Fetch the active category's full SRD list once; the client caches in IndexedDB.
+  // Homebrew is reactive (useQuery above), so skip the fetch path entirely.
   useEffect(() => {
+    if (category === "homebrew") return
     if (cache[category]) return
     let cancelled = false
     setLoading(true)
@@ -329,7 +411,11 @@ export default function CodexPage() {
     }
   }, [category, cache])
 
-  const list = (cache[category] ?? []) as Entry[]
+  const list: Entry[] =
+    category === "homebrew" ? homebrewItems : ((cache[category as SrdCategory] ?? []) as Entry[])
+  // Homebrew has no Open5e fetch — its loading/error reflect the reactive query.
+  const displayLoading = category === "homebrew" ? homebrewDocs === undefined : loading
+  const displayError = category === "homebrew" ? null : error
 
   const isBookmarked = useMemo(() => {
     const ids = new Set(bookmarks.map((b) => b.id))
@@ -386,6 +472,11 @@ export default function CodexPage() {
     return Array.from(new Set((list as Open5eMagicItem[]).map((i) => i.type).filter(Boolean))).sort()
   }, [category, list])
 
+  const homebrewCategoryOptions = useMemo(() => {
+    if (category !== "homebrew") return []
+    return Array.from(new Set((list as CodexHomebrewItem[]).map((i) => i.data.category).filter(Boolean))).sort()
+  }, [category, list])
+
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const result = list
@@ -410,6 +501,10 @@ export default function CodexPage() {
           if (itemRarity !== "all" && it.rarity !== itemRarity) return false
           if (itemType !== "all" && it.type !== itemType) return false
         }
+        if (category === "homebrew") {
+          const it = e as CodexHomebrewItem
+          if (homebrewCategory !== "all" && it.data.category !== homebrewCategory) return false
+        }
         return true
       })
 
@@ -433,6 +528,7 @@ export default function CodexPage() {
   }, [
     list, searchQuery, bookmarkedOnly, isBookmarked, category, sortBy,
     spellLevel, spellClass, spellSchool, monsterCr, monsterType, monsterSize, itemRarity, itemType,
+    homebrewCategory,
   ])
 
   const selected = useMemo(
@@ -453,6 +549,7 @@ export default function CodexPage() {
     setMonsterSize("all")
     setItemRarity("all")
     setItemType("all")
+    setHomebrewCategory("all")
     setSortBy("name")
   }
 
@@ -464,7 +561,9 @@ export default function CodexPage() {
             Codex
           </h1>
           <p className="text-sm mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
-            SRD reference, pulled live from Open5e.
+            {category === "homebrew"
+              ? "Your homebrew library, browsable alongside the SRD."
+              : "SRD reference, pulled live from Open5e."}
           </p>
         </div>
 
@@ -571,7 +670,15 @@ export default function CodexPage() {
                   </FilterSelect>
                 </>
               )}
-              {category !== "conditions" && (
+              {category === "homebrew" && homebrewCategoryOptions.length > 0 && (
+                <FilterSelect value={homebrewCategory} onChange={setHomebrewCategory} label="Category">
+                  <option value="all">All categories</option>
+                  {homebrewCategoryOptions.map((c) => (
+                    <option key={c} value={c} className="capitalize">{c}</option>
+                  ))}
+                </FilterSelect>
+              )}
+              {category !== "conditions" && category !== "homebrew" && (
                 <FilterSelect value={sortBy} onChange={setSortBy} label="Sort by">
                   <option value="name">Sort: Name</option>
                   {category === "spells" && <option value="level">Sort: Level</option>}
@@ -594,7 +701,7 @@ export default function CodexPage() {
             </div>
 
             {/* List states */}
-            {loading && (
+            {displayLoading && (
               <div className="space-y-2">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: "var(--scene-surface)" }} />
@@ -602,14 +709,14 @@ export default function CodexPage() {
               </div>
             )}
 
-            {!loading && error && (
+            {!displayLoading && displayError && (
               <div
                 className="rounded-lg p-4 flex items-start gap-3"
                 style={{ background: "var(--scene-surface)", border: "1px solid #ef444444" }}
               >
                 <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: "#ef4444" }} />
                 <div className="flex-1">
-                  <p className="text-sm" style={{ color: "var(--scene-text-primary)" }}>{error}</p>
+                  <p className="text-sm" style={{ color: "var(--scene-text-primary)" }}>{displayError}</p>
                   <button
                     onClick={() => setCache((prev) => ({ ...prev, [category]: undefined }))}
                     className="text-sm mt-2 underline hover:opacity-80"
@@ -621,7 +728,7 @@ export default function CodexPage() {
               </div>
             )}
 
-            {!loading && !error && (
+            {!displayLoading && !displayError && (
               <>
                 <p className="text-xs mb-2" style={{ color: "var(--scene-text-muted)" }}>
                   {filtered.length} {filtered.length === 1 ? "entry" : "entries"}
@@ -629,7 +736,11 @@ export default function CodexPage() {
                 <div className="rounded-xl overflow-hidden" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
                   {filtered.length === 0 && (
                     <p className="text-sm p-4" style={{ color: "var(--scene-text-muted)" }}>
-                      {bookmarkedOnly ? "No bookmarks in this category yet." : "Nothing matches your search."}
+                      {bookmarkedOnly
+                        ? "No bookmarks in this category yet."
+                        : category === "homebrew"
+                          ? "No homebrew items yet. Create some in the Homebrew workshop to browse them here."
+                          : "Nothing matches your search."}
                     </p>
                   )}
                   <div className="max-h-[70vh] overflow-y-auto">
@@ -704,9 +815,12 @@ export default function CodexPage() {
                   {category === "monsters" && <MonsterDetail m={selected as Open5eMonster} />}
                   {category === "magicitems" && <ItemDetail it={selected as Open5eMagicItem} />}
                   {category === "conditions" && <ConditionDetail c={selected as Open5eCondition} />}
+                  {category === "homebrew" && <HomebrewItemDetail it={selected as CodexHomebrewItem} />}
 
                   <p className="text-xs mt-5 pt-3" style={{ color: "var(--scene-text-muted)", borderTop: "1px solid var(--scene-border)" }}>
-                    Source: {(selected as Entry & { document__title?: string }).document__title ?? "SRD"} · via Open5e
+                    {category === "homebrew"
+                      ? "Source: Your homebrew library"
+                      : `Source: ${(selected as Entry & { document__title?: string }).document__title ?? "SRD"} · via Open5e`}
                   </p>
                 </div>
               </div>
