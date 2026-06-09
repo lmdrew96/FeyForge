@@ -1,13 +1,13 @@
 "use client"
 
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type Dispatch,
+  type SetStateAction,
   type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent,
 } from "react"
 import { MapSetup } from "./world-map-setup"
 import { CenteredCard, PrimaryButton } from "./world-map-ui"
@@ -30,6 +30,7 @@ import { FogOverlay } from "@/components/world-map/fog-overlay"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "@/components/world-map/routes-overlay"
 import { useJourneyPlanner } from "@/components/world-map/use-journey-planner"
 import { useFogPainting } from "@/components/world-map/use-fog-painting"
+import { usePanZoom } from "@/components/world-map/use-pan-zoom"
 import { RealmsFaithsPanel } from "@/components/world-map/realms-faiths-panel"
 import { PinsPanel, filterByKeys } from "@/components/world-map/pins-panel"
 import {
@@ -70,11 +71,6 @@ import {
   toImageUrl,
   TYPE_META,
   LOCATION_TYPES,
-  MIN_ZOOM,
-  MAX_ZOOM,
-  clampPanToViewport,
-  panToAnchorZoom,
-  usePinchZoom,
   ResizableDetailAside,
   PANEL_DEFAULT,
   LocationMarker,
@@ -354,12 +350,26 @@ function MapWorkspace({
   const removeLocation = useMutation(api.worldMap.removeLocation)
   const setRevealed = useMutation(api.worldMap.setRevealed)
 
-  // View transform
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const imgRef = useRef<HTMLImageElement>(null)
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const dragState = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null)
+  // View transform (zoom/pan, image+viewport refs, pinch, wheel/center/fit) —
+  // owned by the hook; drag panning is driven through its begin/move/end/dragMoved
+  // primitives, and screenToPercent (which the fog brush also uses) lives there.
+  const {
+    zoom,
+    setZoom,
+    pan,
+    imgRef,
+    viewportRef,
+    clampZoom,
+    fitToView,
+    centerOn,
+    screenToPercent,
+    handleWheel,
+    pinch,
+    beginPan,
+    movePan,
+    endPan,
+    dragMoved,
+  } = usePanZoom({ imageStorageKey: map.imageStorageKey })
 
   // Interaction
   const [selectedId, setSelectedId] = useState<LocationId | null>(null)
@@ -512,55 +522,6 @@ function MapWorkspace({
     }
   }, [filterKeys, visibleLocations, selectedId])
 
-  const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
-
-  // Default/reset view = fill the frame HEIGHT, not the browser's contain default
-  // (which fits a wide map to width, leaving it tiny on a portrait phone). The
-  // base <img> is contain-sized, so offsetHeight is its scale-1 height; scaling
-  // clientHeight/offsetHeight makes it exactly fill vertically. ≈1 (no-op) on wide
-  // desktop frames where height already binds. Pan recenters.
-  const fitToView = useCallback(() => {
-    const img = imgRef.current
-    const vp = viewportRef.current
-    if (!img || !vp || !img.offsetHeight) return
-    setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, vp.clientHeight / img.offsetHeight)))
-    setPan({ x: 0, y: 0 })
-  }, [])
-
-  // Cached images may be `complete` before React fires onLoad, so fit on mount too
-  // (and whenever the map image changes). onLoad covers the fresh-load path.
-  useEffect(() => {
-    if (imgRef.current?.complete) fitToView()
-  }, [fitToView, map.imageStorageKey])
-
-  // Live refs so the pinch handler reads current zoom/pan between renders.
-  const zoomRef = useRef(zoom)
-  zoomRef.current = zoom
-  const panRef = useRef(pan)
-  panRef.current = pan
-  const pinch = usePinchZoom({ zoomRef, panRef, setZoom, setPan, clampZoom, imgRef, viewportRef })
-
-  // Whenever zoom changes (wheel, buttons, reset, centering), pull pan back into
-  // bounds — zooming out should reclaim empty edge space rather than stranding the
-  // map off-center. Drag-time clamping is handled inline in handlePointerMove.
-  useEffect(() => {
-    setPan((p) => clampPanToViewport(p, zoom, imgRef.current, viewportRef.current))
-  }, [zoom])
-
-  // Click → map-relative percent. Measured against the IMAGE element, which is
-  // the exact box pins are positioned within (left/top %), so placement is exact
-  // at any zoom/pan and aspect ratio.
-  const screenToPercent = (clientX: number, clientY: number): { x: number; y: number } | null => {
-    const img = imgRef.current
-    if (!img) return null
-    const rect = img.getBoundingClientRect()
-    if (rect.width === 0 || rect.height === 0) return null
-    const x = ((clientX - rect.left) / rect.width) * 100
-    const y = ((clientY - rect.top) / rect.height) * 100
-    if (x < 0 || x > 100 || y < 0 || y > 100) return null
-    return { x, y }
-  }
-
   // Fog of war (display + manual brush). All fog state, the debounce timer, and the
   // three stale-closure-guarding refs live in the hook; the workspace drives the
   // pointer stroke only through its begin/move/end/cancelStroke primitives.
@@ -577,19 +538,11 @@ function MapWorkspace({
     },
   })
 
-  const handleWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
-    const nz = clampZoom(zoom * (1 + -e.deltaY * 0.0015))
-    // Anchor the zoom to the cursor (not the map center) so the spot under the
-    // pointer stays put. Pre-clamped to the viewport; both set as absolute values.
-    if (nz !== zoom) setPan(panToAnchorZoom(e, zoom, nz, pan, imgRef.current, viewportRef.current))
-    setZoom(nz)
-  }
-
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (pinch.onPointerDown(e)) {
       // A second finger landed — this is a pinch-zoom, not a pan/paint/place.
       ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-      dragState.current = null
+      endPan()
       fog.cancelStroke()
       return
     }
@@ -600,28 +553,23 @@ function MapWorkspace({
       return
     }
     if ((placing || movingId) && isDM) return // placement click, not a pan
-    dragState.current = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y, moved: false }
+    beginPan(e.clientX, e.clientY)
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
   }
 
   const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (pinch.onPointerMove(e)) return
     if (fog.moveStroke(e.clientX, e.clientY)) return
-    const d = dragState.current
-    if (!d) return
-    const dx = e.clientX - d.sx
-    const dy = e.clientY - d.sy
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) d.moved = true
-    setPan(clampPanToViewport({ x: d.px + dx, y: d.py + dy }, zoom, imgRef.current, viewportRef.current))
+    movePan(e.clientX, e.clientY)
   }
 
   const endPointer = (e: ReactPointerEvent<HTMLDivElement>) => {
     pinch.onPointerEnd(e)
-    dragState.current = null
+    endPan()
   }
 
   const handleViewportClick = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragState.current?.moved) return // was a pan
+    if (dragMoved()) return // was a pan
     if (!isDM) return
 
     if (movingId) {
@@ -736,18 +684,6 @@ function MapWorkspace({
     setMovingId(null)
   }
 
-  // Center the view on a map coord (% of the rendered image). After scaling about
-  // the layer's center, a point d px from center sits d*zoom from center, so
-  // pan=-d*zoom brings it to the middle. No-op if the image isn't ready yet.
-  const centerOn = (x: number, y: number) => {
-    const img = imgRef.current
-    if (!img) return
-    const z = clampZoom(Math.max(zoom, 1.8))
-    const dx = ((x - 50) / 100) * img.offsetWidth
-    const dy = ((y - 50) / 100) * img.offsetHeight
-    setZoom(z)
-    setPan(clampPanToViewport({ x: -dx * z, y: -dy * z }, z, imgRef.current, viewportRef.current))
-  }
   // World Events panel: jump to an already-pinned town (select + center).
   const jumpToLocation = (loc: MapLocation) => {
     setSelectedId(loc._id)
@@ -1024,12 +960,12 @@ function MapWorkspace({
             onPointerMove={handlePointerMove}
             onPointerUp={(e) => {
               if (pinch.onPointerEnd(e)) {
-                dragState.current = null
+                endPan()
                 return // a pinch finger lifted — not a place/click
               }
               if (fog.endStroke()) return // a paint stroke finished — not a click
               handleViewportClick(e)
-              dragState.current = null
+              endPan()
             }}
             onPointerCancel={endPointer}
             onPointerLeave={endPointer}
@@ -1180,147 +1116,18 @@ function MapWorkspace({
 
       {/* Editor modal */}
       {editorOpen && isDM && (
-        <Modal onClose={() => { setEditorOpen(false); setPendingCoords(null) }}>
-          <h2
-            className="mb-4 text-lg font-bold"
-            style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
-          >
-            {editorMode === "new" ? "New Location" : "Edit Location"}
-          </h2>
-          <div className="space-y-3">
-            <input
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="Location name…"
-              autoFocus
-              className="w-full rounded-md px-3 py-2 text-sm outline-none"
-              style={fieldStyle}
-            />
-            <select
-              value={draft.type}
-              onChange={(e) => setDraft({ ...draft, type: e.target.value as LocationType })}
-              className="w-full cursor-pointer rounded-md px-3 py-2 text-sm outline-none"
-              style={fieldStyle}
-            >
-              {LOCATION_TYPES.map((t) => (
-                <option key={t} value={t}>{TYPE_META[t].label}</option>
-              ))}
-            </select>
-
-            {/* Settlement amenity chips. "Port" is functional — it makes the town a
-                valid endpoint for sea travel in the journey planner. */}
-            {draft.type === "settlement" && (
-              <div>
-                <p className="mb-1.5 text-xs font-medium" style={{ color: "var(--scene-text-muted)" }}>
-                  Settlement features
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {SETTLEMENT_FEATURES.map((feat) => {
-                    const on = draft.features.includes(feat)
-                    return (
-                      <button
-                        key={feat}
-                        type="button"
-                        onClick={() =>
-                          setDraft((d) => ({
-                            ...d,
-                            features: on ? d.features.filter((x) => x !== feat) : [...d.features, feat],
-                          }))
-                        }
-                        className="rounded-md px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-90"
-                        style={{
-                          background: on
-                            ? "var(--scene-accent)"
-                            : "color-mix(in srgb, var(--scene-text-primary) 7%, transparent)",
-                          color: on ? "#fff" : "var(--scene-text-primary)",
-                          border: `1px solid ${on ? "var(--scene-accent)" : "var(--scene-border)"}`,
-                        }}
-                      >
-                        {feat}
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="mt-1 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
-                  <span style={{ color: "var(--scene-text-primary)" }}>Port</span> lets this town embark or land sea travel.
-                </p>
-              </div>
-            )}
-
-            {/* AI fill (premium 50/day · free 3/day). Fills the notes below for
-                review — never saved without the DM hitting Save. */}
-            <div className="flex items-center justify-between gap-2">
-              <button
-                onClick={handleGenerateLocation}
-                disabled={generating || !draft.name.trim() || aiUsage?.remaining === 0}
-                className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{
-                  background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
-                  color: "var(--scene-accent)",
-                  border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
-                }}
-                title={
-                  aiUsage?.remaining === 0
-                    ? "Daily AI limit reached"
-                    : "Generate player + DM notes with AI"
-                }
-              >
-                {generating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                {generating ? "Generating…" : "Generate details"}
-              </button>
-              {aiUsage && (
-                <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
-                  {aiUsage.remaining}/{aiUsage.cap} AI today
-                </span>
-              )}
-            </div>
-
-            <textarea
-              value={draft.playerNotes}
-              onChange={(e) => setDraft({ ...draft, playerNotes: e.target.value })}
-              placeholder="Player description (shown once revealed)…"
-              rows={3}
-              className="w-full resize-y rounded-md px-3 py-2 text-sm outline-none"
-              style={fieldStyle}
-            />
-            <textarea
-              value={draft.dmNotes}
-              onChange={(e) => setDraft({ ...draft, dmNotes: e.target.value })}
-              placeholder="DM notes (never shown to players)…"
-              rows={2}
-              className="w-full resize-y rounded-md px-3 py-2 text-sm outline-none"
-              style={fieldStyle}
-            />
-            <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
-              Markdown supported — **bold**, *italic*, - lists, [links](url).
-            </p>
-
-            {/* Drill-down: a local map image (e.g. a Watabou city/dungeon) revealed
-                in a lightbox when this pin is opened. Authoring is premium/admin;
-                viewing works for everyone (incl. free DMs adopting curated presets). */}
-            {canCreateMaps && (
-              <DrillDownUploader
-                value={draft.drillDownImageKey}
-                onChange={(key) => setDraft((d) => ({ ...d, drillDownImageKey: key }))}
-              />
-            )}
-
-            <div className="flex items-center gap-2 pt-1">
-              <PrimaryButton onClick={handleSave} disabled={saving || !draft.name.trim()}>
-                <Save className="h-4 w-4" />
-                {saving ? "Saving…" : "Save"}
-              </PrimaryButton>
-              <SecondaryButton onClick={() => { setEditorOpen(false); setPendingCoords(null) }}>
-                <X className="h-4 w-4" />
-                Cancel
-              </SecondaryButton>
-            </div>
-          </div>
-        </Modal>
+        <LocationEditor
+          mode={editorMode}
+          draft={draft}
+          setDraft={setDraft}
+          onGenerate={handleGenerateLocation}
+          generating={generating}
+          aiUsage={aiUsage}
+          canCreateMaps={canCreateMaps}
+          onSave={handleSave}
+          saving={saving}
+          onClose={() => { setEditorOpen(false); setPendingCoords(null) }}
+        />
       )}
 
       {wbOpen && worldbuilding && (
@@ -1345,6 +1152,178 @@ function MapWorkspace({
         />
       )}
     </div>
+  )
+}
+
+// The new/edit location modal: name, type, settlement features, AI note-fill, the
+// player/DM notes, and (premium) the drill-down map uploader. Pure presentation —
+// MapWorkspace owns the draft state and the save/generate mutations and passes
+// them in, so the workspace stays a thin coordinator.
+function LocationEditor({
+  mode,
+  draft,
+  setDraft,
+  onGenerate,
+  generating,
+  aiUsage,
+  canCreateMaps,
+  onSave,
+  saving,
+  onClose,
+}: {
+  mode: "new" | "edit"
+  draft: LocationDraft
+  setDraft: Dispatch<SetStateAction<LocationDraft>>
+  onGenerate: () => void
+  generating: boolean
+  aiUsage: { remaining: number; cap: number } | null | undefined
+  canCreateMaps: boolean
+  onSave: () => void
+  saving: boolean
+  onClose: () => void
+}) {
+  return (
+    <Modal onClose={onClose}>
+      <h2
+        className="mb-4 text-lg font-bold"
+        style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}
+      >
+        {mode === "new" ? "New Location" : "Edit Location"}
+      </h2>
+      <div className="space-y-3">
+        <input
+          value={draft.name}
+          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          placeholder="Location name…"
+          autoFocus
+          className="w-full rounded-md px-3 py-2 text-sm outline-none"
+          style={fieldStyle}
+        />
+        <select
+          value={draft.type}
+          onChange={(e) => setDraft({ ...draft, type: e.target.value as LocationType })}
+          className="w-full cursor-pointer rounded-md px-3 py-2 text-sm outline-none"
+          style={fieldStyle}
+        >
+          {LOCATION_TYPES.map((t) => (
+            <option key={t} value={t}>{TYPE_META[t].label}</option>
+          ))}
+        </select>
+
+        {/* Settlement amenity chips. "Port" is functional — it makes the town a
+            valid endpoint for sea travel in the journey planner. */}
+        {draft.type === "settlement" && (
+          <div>
+            <p className="mb-1.5 text-xs font-medium" style={{ color: "var(--scene-text-muted)" }}>
+              Settlement features
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {SETTLEMENT_FEATURES.map((feat) => {
+                const on = draft.features.includes(feat)
+                return (
+                  <button
+                    key={feat}
+                    type="button"
+                    onClick={() =>
+                      setDraft((d) => ({
+                        ...d,
+                        features: on ? d.features.filter((x) => x !== feat) : [...d.features, feat],
+                      }))
+                    }
+                    className="rounded-md px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-90"
+                    style={{
+                      background: on
+                        ? "var(--scene-accent)"
+                        : "color-mix(in srgb, var(--scene-text-primary) 7%, transparent)",
+                      color: on ? "#fff" : "var(--scene-text-primary)",
+                      border: `1px solid ${on ? "var(--scene-accent)" : "var(--scene-border)"}`,
+                    }}
+                  >
+                    {feat}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-1 text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+              <span style={{ color: "var(--scene-text-primary)" }}>Port</span> lets this town embark or land sea travel.
+            </p>
+          </div>
+        )}
+
+        {/* AI fill (premium 50/day · free 3/day). Fills the notes below for
+            review — never saved without the DM hitting Save. */}
+        <div className="flex items-center justify-between gap-2">
+          <button
+            onClick={onGenerate}
+            disabled={generating || !draft.name.trim() || aiUsage?.remaining === 0}
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{
+              background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+              color: "var(--scene-accent)",
+              border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
+            }}
+            title={
+              aiUsage?.remaining === 0
+                ? "Daily AI limit reached"
+                : "Generate player + DM notes with AI"
+            }
+          >
+            {generating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {generating ? "Generating…" : "Generate details"}
+          </button>
+          {aiUsage && (
+            <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+              {aiUsage.remaining}/{aiUsage.cap} AI today
+            </span>
+          )}
+        </div>
+
+        <textarea
+          value={draft.playerNotes}
+          onChange={(e) => setDraft({ ...draft, playerNotes: e.target.value })}
+          placeholder="Player description (shown once revealed)…"
+          rows={3}
+          className="w-full resize-y rounded-md px-3 py-2 text-sm outline-none"
+          style={fieldStyle}
+        />
+        <textarea
+          value={draft.dmNotes}
+          onChange={(e) => setDraft({ ...draft, dmNotes: e.target.value })}
+          placeholder="DM notes (never shown to players)…"
+          rows={2}
+          className="w-full resize-y rounded-md px-3 py-2 text-sm outline-none"
+          style={fieldStyle}
+        />
+        <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+          Markdown supported — **bold**, *italic*, - lists, [links](url).
+        </p>
+
+        {/* Drill-down: a local map image (e.g. a Watabou city/dungeon) revealed
+            in a lightbox when this pin is opened. Authoring is premium/admin;
+            viewing works for everyone (incl. free DMs adopting curated presets). */}
+        {canCreateMaps && (
+          <DrillDownUploader
+            value={draft.drillDownImageKey}
+            onChange={(key) => setDraft((d) => ({ ...d, drillDownImageKey: key }))}
+          />
+        )}
+
+        <div className="flex items-center gap-2 pt-1">
+          <PrimaryButton onClick={onSave} disabled={saving || !draft.name.trim()}>
+            <Save className="h-4 w-4" />
+            {saving ? "Saving…" : "Save"}
+          </PrimaryButton>
+          <SecondaryButton onClick={onClose}>
+            <X className="h-4 w-4" />
+            Cancel
+          </SecondaryButton>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
