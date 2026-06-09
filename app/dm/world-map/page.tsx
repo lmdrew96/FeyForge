@@ -27,15 +27,9 @@ import { NpcGenerator, NPC_GEN_POI_KINDS } from "@/components/world-map/npc-gene
 import { type EventPlace } from "@/lib/worldMap/azgaar-map"
 import { toast } from "sonner"
 import { FogOverlay } from "@/components/world-map/fog-overlay"
-import {
-  decodeFogMask,
-  encodeFogMask,
-  emptyMask,
-  isMaskEmpty,
-  paintBrush,
-} from "@/components/world-map/fog-mask"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "@/components/world-map/routes-overlay"
 import { useJourneyPlanner } from "@/components/world-map/use-journey-planner"
+import { useFogPainting } from "@/components/world-map/use-fog-painting"
 import { RealmsFaithsPanel } from "@/components/world-map/realms-faiths-panel"
 import { PinsPanel, filterByKeys } from "@/components/world-map/pins-panel"
 import {
@@ -78,7 +72,6 @@ import {
   LOCATION_TYPES,
   MIN_ZOOM,
   MAX_ZOOM,
-  DEFAULT_FOG_RADIUS,
   clampPanToViewport,
   panToAnchorZoom,
   usePinchZoom,
@@ -129,8 +122,8 @@ const eventScope = (cellCount?: number): string | null => {
 // Event's town past this is allowed (manual pins are uncapped) but warns the DM.
 const PIN_SOFT_CAP = 100
 
-// Fog clearing radius slider bounds (% of the map's shorter side). DEFAULT_FOG_RADIUS
-// is imported from the shared module; mirror FOG_MIN/MAX in convex/worldMap.ts.
+// Fog clearing radius slider bounds (% of the map's shorter side). Mirror
+// FOG_MIN/MAX in convex/worldMap.ts.
 const FOG_MIN_RADIUS = 5
 const FOG_MAX_RADIUS = 30
 
@@ -360,110 +353,6 @@ function MapWorkspace({
   const updateLocation = useMutation(api.worldMap.updateLocation)
   const removeLocation = useMutation(api.worldMap.removeLocation)
   const setRevealed = useMutation(api.worldMap.setRevealed)
-  const setFogSettings = useMutation(api.worldMap.setFogSettings)
-  const paintFog = useMutation(api.worldMap.paintFog)
-
-  // Fog of war. The map row carries fogEnabled + fogRevealRadius; the DM can also
-  // toggle a client-only "preview" to see the player's fogged view over their own
-  // map (DM otherwise always sees the full map).
-  const [fogPreview, setFogPreview] = useState(false)
-  const fogRadius = map.fogRevealRadius ?? DEFAULT_FOG_RADIUS
-  // Players (non-DM) hold only revealed pins; the DM preview must mimic that.
-  const fogPins = useMemo(
-    () => locations.filter((l) => l.revealed).map((l) => ({ x: l.x, y: l.y })),
-    [locations],
-  )
-
-  // ── Manual fog brush (Phase 2) ─────────────────────────────────────────────
-  // The painted-open mask is a 64×36 boolean grid. We keep a local optimistic
-  // copy (maskCells) and debounce-flush it to paintFog; the server value reaches
-  // every member via getMap. latestCellsRef holds the freshest array so a fast
-  // drag chains dabs synchronously (before React re-renders) and the flush reads
-  // the latest. pendingRef + paintMode gate the resync so an in-flight server
-  // echo can't clobber a stroke mid-paint.
-  const [paintMode, setPaintMode] = useState<"off" | "paint" | "erase">("off")
-  const [brushSize, setBrushSize] = useState(2)
-  const [maskCells, setMaskCells] = useState<boolean[]>(() => decodeFogMask(map.fogMask))
-  const latestCellsRef = useRef<boolean[]>(maskCells)
-  const pendingRef = useRef(false)
-  const paintingRef = useRef(false)
-  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const painting = paintMode !== "off" && isDM
-
-  // Keep the chaining ref in sync with whatever's current (paint or server).
-  useEffect(() => {
-    latestCellsRef.current = maskCells
-  }, [maskCells])
-
-  // Resync from the server only when we hold no unsaved edits AND aren't mid
-  // paint-session — otherwise a stale echo would drop dabs / flicker.
-  useEffect(() => {
-    if (pendingRef.current || paintMode !== "off") return
-    setMaskCells(decodeFogMask(map.fogMask))
-  }, [map.fogMask, paintMode])
-
-  // Flush the latest mask to the server (empty mask → "" clears the field).
-  const flushFog = () => {
-    if (flushTimer.current) {
-      clearTimeout(flushTimer.current)
-      flushTimer.current = null
-    }
-    const cells = latestCellsRef.current
-    paintFog({ campaignId, fogMask: isMaskEmpty(cells) ? "" : encodeFogMask(cells) })
-      .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't save fog."))
-      .finally(() => {
-        pendingRef.current = false
-      })
-  }
-  const scheduleFlush = () => {
-    if (flushTimer.current) clearTimeout(flushTimer.current)
-    flushTimer.current = setTimeout(flushFog, 400)
-  }
-  useEffect(
-    () => () => {
-      if (flushTimer.current) clearTimeout(flushTimer.current)
-    },
-    [],
-  )
-
-  // Stamp the brush at a screen point (paint = open, erase = re-fog).
-  const applyBrushAt = (clientX: number, clientY: number) => {
-    const coords = screenToPercent(clientX, clientY)
-    if (!coords) return
-    const next = paintBrush(
-      latestCellsRef.current,
-      coords.x,
-      coords.y,
-      brushSize,
-      paintMode === "paint",
-    )
-    latestCellsRef.current = next
-    setMaskCells(next)
-    pendingRef.current = true
-    scheduleFlush()
-  }
-
-  const startPaint = () => {
-    setPlacing(false)
-    setMovingId(null)
-    setPaintMode("paint")
-  }
-  const stopPaint = () => {
-    setPaintMode("off")
-    if (pendingRef.current) flushFog()
-  }
-  const clearPaint = () => {
-    const empty = emptyMask()
-    latestCellsRef.current = empty
-    setMaskCells(empty)
-    pendingRef.current = true
-    flushFog()
-  }
-
-  // Show fog to players whenever the DM enabled it; show it to the DM in preview
-  // OR while painting (so the brush strokes are visible as they clear the shroud).
-  const showFog = (map.fogEnabled ?? false) && (!isDM || fogPreview || painting)
 
   // View transform
   const [zoom, setZoom] = useState(1)
@@ -672,6 +561,22 @@ function MapWorkspace({
     return { x, y }
   }
 
+  // Fog of war (display + manual brush). All fog state, the debounce timer, and the
+  // three stale-closure-guarding refs live in the hook; the workspace drives the
+  // pointer stroke only through its begin/move/end/cancelStroke primitives.
+  const fog = useFogPainting({
+    campaignId,
+    map,
+    isDM,
+    locations,
+    screenToPercent,
+    // Entering paint mode exits the pin placement / move modes.
+    onStartPaint: () => {
+      setPlacing(false)
+      setMovingId(null)
+    },
+  })
+
   const handleWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
     const nz = clampZoom(zoom * (1 + -e.deltaY * 0.0015))
     // Anchor the zoom to the cursor (not the map center) so the spot under the
@@ -685,14 +590,13 @@ function MapWorkspace({
       // A second finger landed — this is a pinch-zoom, not a pan/paint/place.
       ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
       dragState.current = null
-      paintingRef.current = false
+      fog.cancelStroke()
       return
     }
-    if (painting) {
+    if (fog.painting) {
       // Start a paint stroke — capture so a drag off the image still tracks.
-      paintingRef.current = true
       ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-      applyBrushAt(e.clientX, e.clientY)
+      fog.beginStroke(e.clientX, e.clientY)
       return
     }
     if ((placing || movingId) && isDM) return // placement click, not a pan
@@ -702,10 +606,7 @@ function MapWorkspace({
 
   const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (pinch.onPointerMove(e)) return
-    if (paintingRef.current) {
-      applyBrushAt(e.clientX, e.clientY)
-      return
-    }
+    if (fog.moveStroke(e.clientX, e.clientY)) return
     const d = dragState.current
     if (!d) return
     const dx = e.clientX - d.sx
@@ -830,22 +731,6 @@ function MapWorkspace({
     }
   }
 
-  const handleToggleFog = async () => {
-    const next = !(map.fogEnabled ?? false)
-    try {
-      await setFogSettings({ campaignId, fogEnabled: next })
-      toast.success(next ? "Fog of war on — players see only explored areas." : "Fog of war off.")
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't update fog.")
-    }
-  }
-
-  const handleFogRadius = (radius: number) => {
-    setFogSettings({ campaignId, fogRevealRadius: radius }).catch((err) =>
-      toast.error(err instanceof Error ? err.message : "Couldn't update fog radius."),
-    )
-  }
-
   const cancelMode = () => {
     setPlacing(false)
     setMovingId(null)
@@ -908,7 +793,7 @@ function MapWorkspace({
     }
   }
 
-  const activeMode = (placing || movingId !== null || painting) && isDM
+  const activeMode = (placing || movingId !== null || fog.painting) && isDM
 
   // Journey mode (Travel toggle): each town tap appends a waypoint to the chain.
   // Turning it on exits the authoring modes so a town tap plans a route, not a pin.
@@ -918,7 +803,7 @@ function MapWorkspace({
     setSelectedId(null)
     setPlacing(false)
     setMovingId(null)
-    setPaintMode("off")
+    fog.setPaintMode("off")
     setShowPins(true) // journey planning needs tappable town pins
     setFilterKeys(new Set()) // …and all towns visible, not a filtered subset
   }
@@ -931,7 +816,7 @@ function MapWorkspace({
       setSelectedId(null)
       setPlacing(false)
       setMovingId(null)
-      setPaintMode("off")
+      fog.setPaintMode("off")
     }
   }
 
@@ -984,7 +869,7 @@ function MapWorkspace({
             <div className="hidden items-center gap-2 sm:flex">
               <ToolbarButton
                 onClick={() => {
-                  setPaintMode("off")
+                  fog.setPaintMode("off")
                   setPlacing((p) => !p)
                 }}
                 active={placing}
@@ -995,13 +880,13 @@ function MapWorkspace({
               </ToolbarButton>
               <FogControl
                 fogEnabled={map.fogEnabled ?? false}
-                fogRadius={fogRadius}
-                previewing={fogPreview}
-                painting={painting}
-                onToggleFog={handleToggleFog}
-                onRadius={handleFogRadius}
-                onTogglePreview={() => setFogPreview((p) => !p)}
-                onStartPaint={startPaint}
+                fogRadius={fog.fogRadius}
+                previewing={fog.fogPreview}
+                painting={fog.painting}
+                onToggleFog={fog.handleToggleFog}
+                onRadius={fog.handleFogRadius}
+                onTogglePreview={() => fog.setFogPreview((p) => !p)}
+                onStartPaint={fog.startPaint}
               />
               {(map.worldEvents?.length ?? 0) > 0 && (
                 <WorldEventsControl
@@ -1035,7 +920,7 @@ function MapWorkspace({
             <div className="relative sm:hidden">
               <ToolbarButton
                 onClick={() => setMoreOpen((o) => !o)}
-                active={moreOpen || placing || showRoutes || (map.fogEnabled ?? false) || painting}
+                active={moreOpen || placing || showRoutes || (map.fogEnabled ?? false) || fog.painting}
                 title="More tools"
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -1050,7 +935,7 @@ function MapWorkspace({
                     <ToolbarButton
                       className="w-full justify-start"
                       onClick={() => {
-                        setPaintMode("off")
+                        fog.setPaintMode("off")
                         setPlacing((p) => !p)
                         setMoreOpen(false)
                       }}
@@ -1063,13 +948,13 @@ function MapWorkspace({
                     <FogControl
                       menu
                       fogEnabled={map.fogEnabled ?? false}
-                      fogRadius={fogRadius}
-                      previewing={fogPreview}
-                      painting={painting}
-                      onToggleFog={handleToggleFog}
-                      onRadius={handleFogRadius}
-                      onTogglePreview={() => setFogPreview((p) => !p)}
-                      onStartPaint={startPaint}
+                      fogRadius={fog.fogRadius}
+                      previewing={fog.fogPreview}
+                      painting={fog.painting}
+                      onToggleFog={fog.handleToggleFog}
+                      onRadius={fog.handleFogRadius}
+                      onTogglePreview={() => fog.setFogPreview((p) => !p)}
+                      onStartPaint={fog.startPaint}
                     />
                     {(map.worldEvents?.length ?? 0) > 0 && (
                       <WorldEventsControl
@@ -1142,11 +1027,7 @@ function MapWorkspace({
                 dragState.current = null
                 return // a pinch finger lifted — not a place/click
               }
-              if (paintingRef.current) {
-                paintingRef.current = false
-                if (pendingRef.current) flushFog()
-                return
-              }
+              if (fog.endStroke()) return // a paint stroke finished — not a click
               handleViewportClick(e)
               dragState.current = null
             }}
@@ -1173,12 +1054,12 @@ function MapWorkspace({
               {/* Fog of war: shroud over the map with soft clearings around
                   revealed pins. Above the image, below the pins, same box. */}
               <FogOverlay
-                enabled={showFog}
+                enabled={fog.showFog}
                 width={map.width}
                 height={map.height}
-                revealed={fogPins}
-                radiusPct={fogRadius}
-                paintedCells={maskCells}
+                revealed={fog.fogPins}
+                radiusPct={fog.fogRadius}
+                paintedCells={fog.maskCells}
               />
               {showRoutes && routes && (
                 <RoutesSvg routes={routes} segments={planner.itinerary?.journeySegments ?? null} />
@@ -1247,14 +1128,14 @@ function MapWorkspace({
             </div>
           )}
 
-          {painting && (
+          {fog.painting && (
             <PaintBar
-              mode={paintMode === "erase" ? "erase" : "paint"}
-              brushSize={brushSize}
-              onMode={setPaintMode}
-              onBrushSize={setBrushSize}
-              onClear={clearPaint}
-              onDone={stopPaint}
+              mode={fog.paintMode === "erase" ? "erase" : "paint"}
+              brushSize={fog.brushSize}
+              onMode={fog.setPaintMode}
+              onBrushSize={fog.setBrushSize}
+              onClear={fog.clearPaint}
+              onDone={fog.stopPaint}
             />
           )}
         </div>
