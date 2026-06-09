@@ -794,17 +794,6 @@ export default defineSchema({
     .index("by_campaignId_and_isActive", ["campaignId", "isActive"])
     .index("by_dmUserId", ["dmUserId"]),
 
-  campaignScenes: defineTable({
-    campaignId: v.id("campaigns"),
-    name: v.string(),
-    bg: v.string(),
-    surface: v.string(),
-    accent: v.string(),
-    highlight: v.string(),
-    createdBy: v.string(),
-    createdAt: v.number(),
-  }).index("by_campaignId", ["campaignId"]),
-
   campaignWebNodes: defineTable({
     campaignId: v.id("campaigns"),
     entityType: v.union(
