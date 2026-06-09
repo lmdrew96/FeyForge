@@ -4,6 +4,10 @@ import type { Doc, Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
 import { getMembershipBySession } from "./lib/auth"
 import { statblockRefValidator } from "./schema"
+// Server-side character derivation so the DM tracker can read each PC's REAL,
+// derive-live AC + initiative (see getPartyCombatStats). Relative import — Convex
+// doesn't resolve the `@/` alias; derive-character.ts is kept relative-clean for this.
+import { deriveCharacter } from "../lib/character/derive-character"
 
 // ── Types & validators ────────────────────────────────────────────────────────
 
@@ -131,10 +135,11 @@ export const getCombat = query({
         name: c.name,
         type: c.type,
         initiative: c.initiative,
-        // AC is only meaningful for combatants the DM entered it for (monsters/
-        // NPCs); PC AC isn't computed onto the live row, so omit rather than
-        // show a wrong number.
-        armorClass: isDM && c.type !== "pc" ? c.armorClass : undefined,
+        // The DM sees every combatant's AC — PCs included, now that PC AC is the
+        // character's REAL derived AC (written at combat-start via
+        // getPartyCombatStats), not the old hardcoded 10. Players don't see AC in
+        // the combat view, so it's withheld from non-DMs.
+        armorClass: isDM ? c.armorClass : undefined,
         conditions: c.conditions,
         deathSaves: c.deathSaves,
         characterId: c.characterId,
@@ -218,6 +223,61 @@ export const listAddableCreatures = query({
       }
     }
     return creatures
+  },
+})
+
+// Derived combat stats — REAL armor class + Dex-mod initiative — for every character
+// a DM can drop into combat as a PC-type combatant from this session: the joined
+// party members PLUS the caller's own DM-controlled characters (DMPCs) in this
+// campaign (DMPCs have no partyMembers row). AC and initiative are derive-live —
+// never stored on the character doc (lib/character/derive-character.ts) — so the
+// client tracker can't read them off the doc, and the DM can't read other players'
+// characterProperties from the client. It asks here. Keyed by characterId.
+// Membership-gated like listAddableCreatures.
+export const getPartyCombatStats = query({
+  args: { sessionId: v.id("partySessions") },
+  handler: async (ctx, args) => {
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) return []
+    const campaignId = m.session.campaignId
+
+    // Candidate characters: joined party members + caller's DMPCs in this campaign.
+    const memberRows = await ctx.db
+      .query("partyMembers")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .collect()
+    const ids = new Set<Id<"characters">>(memberRows.map((r) => r.characterId))
+    const myChars = await ctx.db
+      .query("characters")
+      .withIndex("by_userId", (q) => q.eq("userId", m.userId))
+      .collect()
+    for (const c of myChars) {
+      if (c.campaignId === campaignId && c.dmControlled) ids.add(c._id)
+    }
+
+    const campaign = await ctx.db.get(campaignId)
+    const stats: Array<{
+      characterId: Id<"characters">
+      armorClass: number
+      initiativeBonus: number
+    }> = []
+    for (const characterId of ids) {
+      const char = await ctx.db.get(characterId)
+      if (!char) continue
+      const props = await ctx.db
+        .query("characterProperties")
+        .withIndex("by_characterId", (q) => q.eq("characterId", characterId))
+        .collect()
+      const derived = deriveCharacter(char, props, campaign)
+      // derived.initiative IS the Dex modifier (see derive-character.ts);
+      // we store it as the combatant's initiativeBonus (roll + this = total init).
+      stats.push({
+        characterId,
+        armorClass: derived.armorClass,
+        initiativeBonus: derived.initiative,
+      })
+    }
+    return stats
   },
 })
 

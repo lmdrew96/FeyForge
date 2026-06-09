@@ -84,6 +84,19 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
     )
   }, [myCharacters, campaignId, combat])
 
+  // Real derive-live AC + Dex-mod initiative for party PCs + DMPCs. Computed
+  // server-side (the DM can't read other players' characterProperties from the
+  // client) — see liveCombat.getPartyCombatStats. Used to build PC combatants with
+  // correct AC/initiative instead of the old flat d20 / hardcoded AC 10.
+  const partyCombatStats = useQuery(api.liveCombat.getPartyCombatStats, { sessionId })
+  const combatStatByChar = useMemo(() => {
+    const map = new Map<string, { armorClass: number; initiativeBonus: number }>()
+    for (const s of partyCombatStats ?? []) {
+      map.set(s.characterId, { armorClass: s.armorClass, initiativeBonus: s.initiativeBonus })
+    }
+    return map
+  }, [partyCombatStats])
+
   const doStart = useMutation(api.liveCombat.startCombat)
   const doEnd = useMutation(api.liveCombat.endCombat)
   const doNext = useMutation(api.liveCombat.nextTurn)
@@ -159,13 +172,17 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
     const members = (partyMembers ?? []).filter((m) => m.character)
     const combatants = members.map((m) => {
       const char = m.character!
+      const stat = combatStatByChar.get(char._id)
+      const initBonus = stat?.initiativeBonus ?? 0
       return {
         id: crypto.randomUUID(),
         name: char.name,
         type: "pc" as const,
-        initiative: rollD20(), // DM can edit; no Dex mod stored on the live row
-        initiativeBonus: 0,
-        armorClass: 10,
+        // Initiative is a Dex check: d20 + the PC's real Dex mod. initiativeBonus
+        // carries the mod so ties break by Dex. AC is the PC's real derived AC.
+        initiative: rollD20() + initBonus,
+        initiativeBonus: initBonus,
+        armorClass: stat?.armorClass ?? 10,
         hitPoints: {
           current: char.hitPoints.current,
           max: char.hitPoints.max,
@@ -359,15 +376,18 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
   // character's owner), so HP shows exact to the DM and party-visible like a PC.
   const handleAddDmpc = async (char: (typeof dmpcs)[number]) => {
     try {
+      const stat = combatStatByChar.get(char._id)
+      const initBonus = stat?.initiativeBonus ?? 0
       await doAdd({
         sessionId,
         combatant: {
           id: crypto.randomUUID(),
           name: char.name,
           type: "pc",
-          initiative: rollD20(),
-          initiativeBonus: 0,
-          armorClass: 10,
+          // d20 + real Dex mod; real derived AC (same as a party PC).
+          initiative: rollD20() + initBonus,
+          initiativeBonus: initBonus,
+          armorClass: stat?.armorClass ?? 10,
           hitPoints: {
             current: char.hitPoints.current,
             max: char.hitPoints.max,
@@ -415,13 +435,15 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
           .filter((m) => m.character)
           .map((m) => {
             const char = m.character!
+            const stat = combatStatByChar.get(char._id)
+            const initBonus = stat?.initiativeBonus ?? 0
             return {
               id: crypto.randomUUID(),
               name: char.name,
               type: "pc" as const,
-              initiative: rollD20(),
-              initiativeBonus: 0,
-              armorClass: 10,
+              initiative: rollD20() + initBonus, // d20 + real Dex mod
+              initiativeBonus: initBonus,
+              armorClass: stat?.armorClass ?? 10,
               hitPoints: { current: char.hitPoints.current, max: char.hitPoints.max, temp: char.hitPoints.temp },
               conditions: [] as string[],
               characterId: char._id,

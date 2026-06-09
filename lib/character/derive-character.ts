@@ -1,4 +1,9 @@
-import type { Doc } from "@/convex/_generated/dataModel"
+// NOTE: imports are RELATIVE (not the `@/` alias) on purpose — this module is
+// imported by a Convex query (convex/liveCombat.ts getPartyCombatStats) so the
+// DM tracker can read each PC's derived AC + initiative, and Convex's bundler
+// does not resolve tsconfig `@/` path aliases. Every dep in this chain is
+// already relative-clean; keep it that way so the server bundle keeps resolving.
+import type { Doc } from "../../convex/_generated/dataModel"
 import {
   ABILITIES,
   SKILLS,
@@ -7,18 +12,18 @@ import {
   getProficiencyBonus,
   type Ability,
   type Skill,
-} from "@/lib/character/constants"
-import { getDarkvisionRange, getSubclassId } from "@/lib/character/character-data"
-import { getEffectiveCasterType, type CasterType } from "@/lib/character/leveling"
-import { resolveEdition, type Edition } from "@/lib/editions"
+} from "./constants"
+import { getDarkvisionRange, getSubclassId } from "./character-data"
+import { getEffectiveCasterType, type CasterType } from "./leveling"
+import { resolveEdition, type Edition } from "../editions"
 import {
   computeArmorClass,
   equippedArmor,
   rowToItem,
   type SheetItem,
-} from "@/lib/character/sheet-items"
-import { rowToSpell, type SheetSpell } from "@/lib/character/sheet-spells"
-import { getClassResources } from "@/lib/character/resources"
+} from "./sheet-items"
+import { rowToSpell, type SheetSpell } from "./sheet-spells"
+import { getClassResources } from "./resources"
 import {
   getGrantedSpells,
   getGrantedFeatures,
@@ -28,8 +33,8 @@ import {
   type GrantedSpellRef,
   type GrantedFeatureData,
   type GrantedProficiency,
-} from "@/lib/character/class-grants"
-import { getCircleSpells } from "@/lib/character/circle-of-the-land"
+} from "./class-grants"
+import { getCircleSpells } from "./circle-of-the-land"
 
 type CharDoc = Doc<"characters">
 type PropDoc = Doc<"characterProperties">
