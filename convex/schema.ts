@@ -2,6 +2,16 @@ import { defineSchema, defineTable } from "convex/server"
 import { v } from "convex/values"
 import { homebrewData } from "./lib/homebrewValidators"
 
+// A persistent NPC's "fights as…" link to a combat stat block (patch: NPCs/DMPCs
+// to combat, Part B). Opt-in — most NPCs never fight, so it's optional everywhere.
+// SRD points at an open5e monster by name; homebrew points at a homebrew stat block
+// by id. Carried onto the live combatant too, so the attack roller resolves a
+// disguised NPC ("Lord Vthain") to its real stat block instead of name-matching.
+export const statblockRefValidator = v.union(
+  v.object({ kind: v.literal("srd"), monsterName: v.string() }),
+  v.object({ kind: v.literal("homebrew"), homebrewId: v.id("homebrew") }),
+)
+
 export default defineSchema({
   campaigns: defineTable({
     userId: v.string(),
@@ -43,6 +53,11 @@ export default defineSchema({
 
     name: v.string(),
     playerName: v.optional(v.string()),
+    // DMPC (patch: NPCs/DMPCs to combat, Part A): a full character the DM runs rather
+    // than a player — surfaced in the roster tagged "DMPC" and droppable into combat
+    // as a PC-type combatant (full sheet, death saves). Just an ownership marker; the
+    // character is owned by the DM (userId) like any other.
+    dmControlled: v.optional(v.boolean()),
     race: v.string(),
     subrace: v.optional(v.string()),
     characterClass: v.string(),
@@ -222,6 +237,9 @@ export default defineSchema({
         cha: v.number(),
       }),
     })),
+    // Opt-in combat stat block, so a recurring NPC can enter initiative fighting
+    // from a real stat block labeled with its own name. See statblockRefValidator.
+    statblockRef: v.optional(statblockRefValidator),
     updatedAt: v.number(),
   })
     .index("by_userId", ["userId"])
@@ -1113,6 +1131,10 @@ export default defineSchema({
         // exact HP and the row can mirror the live character sheet.
         characterId: v.optional(v.id("characters")),
         userId: v.optional(v.string()),
+        // For NPC combatants entered from a persistent NPC's stat block: the attack
+        // roller resolves THIS ref instead of the display name (an NPC labeled "Lord
+        // Vthain" still rolls as its "Archmage" stat block). See statblockRefValidator.
+        statblockRef: v.optional(statblockRefValidator),
       })
     ),
     startedAt: v.number(),

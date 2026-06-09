@@ -25,6 +25,7 @@ function CharacterCard({
     background?: string
     subrace?: string
     imageUrl?: string
+    dmControlled?: boolean
   }
   onDelete: (id: Id<"characters">) => void
 }) {
@@ -84,6 +85,15 @@ function CharacterCard({
         >
           Lv {character.level}
         </span>
+        {character.dmControlled && (
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-medium"
+            style={{ background: "color-mix(in srgb, var(--scene-accent) 18%, transparent)", color: "var(--scene-accent)" }}
+            title="DM-controlled character"
+          >
+            DMPC
+          </span>
+        )}
         <span
           className="text-xs px-2 py-0.5 rounded-full ml-auto"
           style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}

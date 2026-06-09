@@ -19,9 +19,15 @@ import {
   type MonsterAttack,
 } from "@/lib/monster-attacks"
 import { rollExpression, type RollMode } from "@/lib/dice-store"
-import type { HomebrewMonster } from "@/lib/homebrew"
+import { rawHomebrewId, type HomebrewMonster } from "@/lib/homebrew"
 
 type Target = { id: string; name: string; type: string }
+
+// A combatant's explicit "fights as…" stat block link (an NPC labeled "Lord Vthain"
+// that resolves to the "Archmage" stat block). Homebrew id is the raw Id<"homebrew">.
+type StatblockRef =
+  | { kind: "srd"; monsterName: string }
+  | { kind: "homebrew"; homebrewId: string }
 
 type RollResult = {
   toHitTotal: number | null
@@ -52,15 +58,24 @@ const MODES: { value: RollMode; label: string }[] = [
 
 export function MonsterAttacksPanel({
   monsterName,
+  statblockRef,
   targets,
   onApply,
   homebrewMonsters = [],
 }: {
   monsterName: string
+  statblockRef?: StatblockRef
   targets: Target[]
   onApply: (targetId: string, amount: number) => void
   homebrewMonsters?: HomebrewMonster[]
 }) {
+  // Stable primitive key for the ref so the resolver effect re-runs on a ref change
+  // without thrashing on the object's identity each render.
+  const refKey = statblockRef
+    ? statblockRef.kind === "homebrew"
+      ? `hb:${statblockRef.homebrewId}`
+      : `srd:${statblockRef.monsterName}`
+    : ""
   const [status, setStatus] = useState<"loading" | "ready" | "none">("loading")
   const [attacks, setAttacks] = useState<MonsterAttack[]>([])
   const [mode, setMode] = useState<RollMode>("normal")
@@ -74,9 +89,44 @@ export function MonsterAttacksPanel({
     let cancelled = false
     setStatus("loading")
     setResults({})
+
+    // ① An explicit stat block ref wins. A persistent NPC enters combat under its
+    // OWN name ("Lord Vthain") but fights as a real stat block — resolve THAT, not
+    // the display name (name-matching would never find "Archmage" from "Lord Vthain").
+    // Linking homebrew by id is also more robust than the name-match fallback below.
+    if (statblockRef) {
+      if (statblockRef.kind === "homebrew") {
+        const hbRef = homebrewMonsters.find((m) => rawHomebrewId(m.id) === statblockRef.homebrewId)
+        const parsed = hbRef ? parseMonsterAttacks(hbRef.actions) : []
+        setAttacks(parsed)
+        setStatus(parsed.length > 0 ? "ready" : "none")
+        return () => {
+          cancelled = true
+        }
+      }
+      const srdName = statblockRef.monsterName
+      open5eApi
+        .getMonsters({ search: srdName })
+        .then((monsters) => {
+          if (cancelled) return
+          const exact =
+            monsters.find((m) => m.name.toLowerCase() === srdName.toLowerCase()) ??
+            pickMonster(monsters, srdName)
+          const parsed = exact ? parseMonsterAttacks(exact.actions) : []
+          setAttacks(parsed)
+          setStatus(parsed.length > 0 ? "ready" : "none")
+        })
+        .catch(() => {
+          if (!cancelled) setStatus("none")
+        })
+      return () => {
+        cancelled = true
+      }
+    }
+
     const base = baseMonsterName(monsterName)
 
-    // Homebrew monsters resolve FIRST, by name — they have no open5e entry, and a
+    // ② Fallback — resolve by the combatant's display name. Homebrew monsters resolve FIRST, by name — they have no open5e entry, and a
     // same-named custom creature should shadow the SRD one. Match the full tracker
     // name, then the index-stripped base ("Gloomstalker 1" → "Gloomstalker").
     const lc = monsterName.trim().toLowerCase()
@@ -108,7 +158,7 @@ export function MonsterAttacksPanel({
     return () => {
       cancelled = true
     }
-  }, [monsterName, homebrewMonsters])
+  }, [monsterName, homebrewMonsters, statblockRef, refKey])
 
   const doRoll = (attack: MonsterAttack, i: number) => {
     let toHitTotal: number | null = null

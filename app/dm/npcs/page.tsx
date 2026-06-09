@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import { useActiveCampaign } from "@/lib/hooks/use-campaign-data"
 import { ALIGNMENTS } from "@/lib/character/constants"
+import { partitionHomebrew, rawHomebrewId } from "@/lib/homebrew"
+import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { toast } from "sonner"
 import { postAi } from "@/lib/ai-client"
 import Link from "next/link"
@@ -60,6 +62,12 @@ type NpcGenerated = {
   backstory: string
 }
 
+// A persistent NPC's optional "fights as…" combat stat block link. Homebrew id is
+// the raw Id<"homebrew">; matches convex/schema.ts statblockRefValidator.
+type NpcStatblockRef =
+  | { kind: "srd"; monsterName: string }
+  | { kind: "homebrew"; homebrewId: Id<"homebrew"> }
+
 type NpcDraft = {
   name: string
   race: string
@@ -80,6 +88,7 @@ type NpcDraft = {
   status: string
   tags: string
   notes: string
+  statblockRef: NpcStatblockRef | undefined
 }
 
 const RELATIONSHIPS = ["ally", "friendly", "neutral", "hostile", "enemy", "unknown"] as const
@@ -105,6 +114,7 @@ const EMPTY_DRAFT: NpcDraft = {
   status: "alive",
   tags: "",
   notes: "",
+  statblockRef: undefined,
 }
 
 const draftFromNpc = (n: NpcDoc): NpcDraft => ({
@@ -127,6 +137,7 @@ const draftFromNpc = (n: NpcDoc): NpcDraft => ({
   status: n.status,
   tags: n.tags.join(", "),
   notes: n.notes ?? "",
+  statblockRef: n.statblockRef,
 })
 
 const draftFromGenerated = (g: NpcGenerated, base: NpcDraft): NpcDraft => ({
@@ -264,6 +275,13 @@ function NpcExpanded({ npc }: { npc: NpcDoc }) {
       )}
 
       {npc.stats && <StatBlock stats={npc.stats} />}
+      {npc.statblockRef && (
+        <DetailBlock label="Combat">
+          <p className="text-xs" style={{ color: "var(--scene-text-primary)" }}>
+            Fights as {npc.statblockRef.kind === "srd" ? npc.statblockRef.monsterName : "a homebrew stat block"}
+          </p>
+        </DetailBlock>
+      )}
 
       {npc.secret && (
         <div
@@ -307,6 +325,150 @@ function NpcExpanded({ npc }: { npc: NpcDoc }) {
           <MarkdownRenderer variant="scene" content={npc.notes} className="text-sm" />
         </div>
       )}
+    </div>
+  )
+}
+
+// Optional "fights as…" stat block picker for the NPC form. SRD = search the baked
+// open5e monsters; Homebrew = pick from the DM's homebrew monster stat blocks. The
+// chosen ref lets the NPC enter combat fighting from that stat block (Part B). Keyed
+// by the editing NPC in the parent so its local mode resets per NPC.
+function StatblockPicker({
+  value,
+  onChange,
+}: {
+  value: NpcStatblockRef | undefined
+  onChange: (ref: NpcStatblockRef | undefined) => void
+}) {
+  const homebrewDocs = useQuery(api.homebrew.listForBuilder)
+  const homebrewMonsters = useMemo(() => partitionHomebrew(homebrewDocs).monsters, [homebrewDocs])
+  const [mode, setMode] = useState<"none" | "srd" | "homebrew">(value?.kind ?? "none")
+  const [srdQuery, setSrdQuery] = useState("")
+  const [srdMonsters, setSrdMonsters] = useState<Open5eMonster[]>([])
+  const [srdLoading, setSrdLoading] = useState(false)
+  const [srdLoaded, setSrdLoaded] = useState(false)
+
+  const ensureSrd = () => {
+    if (srdLoaded || srdLoading) return
+    setSrdLoading(true)
+    open5eApi
+      .getMonsters()
+      .then((m) => {
+        setSrdMonsters(m)
+        setSrdLoaded(true)
+      })
+      .catch(() => {})
+      .finally(() => setSrdLoading(false))
+  }
+
+  const srdMatches = useMemo(() => {
+    const q = srdQuery.trim().toLowerCase()
+    if (!q) return []
+    return srdMonsters.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 12)
+  }, [srdQuery, srdMonsters])
+
+  const selectMode = (m: "none" | "srd" | "homebrew") => {
+    setMode(m)
+    if (m === "none") onChange(undefined)
+    if (m === "srd") ensureSrd()
+  }
+
+  const TABS = [
+    { key: "none" as const, label: "No stat block" },
+    { key: "srd" as const, label: "SRD monster" },
+    { key: "homebrew" as const, label: "Homebrew" },
+  ]
+
+  return (
+    <div className="space-y-2">
+      <Label>
+        Combat stat block{" "}
+        <span style={{ color: "var(--scene-text-muted)" }}>· optional — lets this NPC join initiative</span>
+      </Label>
+      <div className="inline-flex rounded-md overflow-hidden" style={{ border: "1px solid var(--scene-border)" }}>
+        {TABS.map((t) => {
+          const on = mode === t.key
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => selectMode(t.key)}
+              className="px-2.5 py-1 text-xs font-medium transition-colors"
+              style={{ background: on ? "var(--scene-accent)" : "transparent", color: on ? "var(--scene-bg)" : "var(--scene-text-muted)" }}
+            >
+              {t.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {mode === "srd" &&
+        (value?.kind === "srd" && value.monsterName ? (
+          <div className="flex items-center gap-2 text-sm">
+            <span style={{ color: "var(--scene-text-primary)" }}>
+              Fights as <strong>{value.monsterName}</strong>
+            </span>
+            <button type="button" onClick={() => onChange(undefined)} className="text-xs underline" style={{ color: "var(--scene-text-muted)" }}>
+              change
+            </button>
+          </div>
+        ) : (
+          <div className="relative">
+            <Input
+              value={srdQuery}
+              onFocus={ensureSrd}
+              onChange={(e) => setSrdQuery(e.target.value)}
+              placeholder={srdLoading ? "Loading SRD monsters…" : "Search SRD monsters (Bandit, Archmage…)"}
+            />
+            {srdQuery.trim() !== "" && srdMatches.length > 0 && (
+              <div
+                className="absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-md shadow-lg"
+                style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+              >
+                {srdMatches.map((m) => (
+                  <button
+                    key={m.slug}
+                    type="button"
+                    onClick={() => {
+                      onChange({ kind: "srd", monsterName: m.name })
+                      setSrdQuery("")
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 hover:opacity-80"
+                    style={{ borderBottom: "1px solid var(--scene-border)" }}
+                  >
+                    <span style={{ color: "var(--scene-text-primary)" }}>{m.name}</span>
+                    <span className="shrink-0 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                      CR {m.challenge_rating} · AC {m.armor_class} · {m.hit_points} HP
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+      {mode === "homebrew" &&
+        (homebrewMonsters.length > 0 ? (
+          <Select
+            value={value?.kind === "homebrew" ? value.homebrewId : ""}
+            onValueChange={(id) => onChange({ kind: "homebrew", homebrewId: id as Id<"homebrew"> })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a homebrew stat block" />
+            </SelectTrigger>
+            <SelectContent>
+              {homebrewMonsters.map((m) => (
+                <SelectItem key={m.id} value={rawHomebrewId(m.id)}>
+                  {m.name} · CR {m.challengeRating} · AC {m.armorClass} · {m.hitPoints} HP
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+            No homebrew monsters yet — create them in Homebrew.
+          </p>
+        ))}
     </div>
   )
 }
@@ -412,6 +574,7 @@ export default function NpcsPage() {
           .map((t) => t.trim())
           .filter(Boolean),
         notes: draft.notes.trim() || undefined,
+        statblockRef: draft.statblockRef,
       }
       if (editingId) {
         await updateNpc({ id: editingId, ...args })
@@ -867,6 +1030,12 @@ export default function NpcsPage() {
                 placeholder="Hooks, plot threads, or notes only the DM should see."
               />
             </div>
+
+            <StatblockPicker
+              key={editingId ?? "new"}
+              value={draft.statblockRef}
+              onChange={(ref) => setField("statblockRef", ref)}
+            />
           </div>
 
           <DialogFooter>

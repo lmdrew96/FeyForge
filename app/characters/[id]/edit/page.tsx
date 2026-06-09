@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -67,6 +68,8 @@ type OptimizeResponse = {
 type EditState = {
   name: string
   playerName: string
+  dmControlled: boolean
+  campaignId: Id<"campaigns"> | undefined
   level: number
   experiencePoints: number
   subclass: string
@@ -103,6 +106,8 @@ const NO_SUBCLASS = "__none_sub__"
 const draftFromCharacter = (c: CharDoc): EditState => ({
   name: c.name,
   playerName: c.playerName ?? "",
+  dmControlled: c.dmControlled ?? false,
+  campaignId: c.campaignId,
   level: c.level,
   experiencePoints: c.experiencePoints,
   subclass: c.subclass ?? "",
@@ -163,6 +168,9 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
 
   const char = useQuery(api.characters.get, { id: characterId })
   const updateCharacter = useMutation(api.characters.update)
+  // Campaigns the user runs — a DMPC is scoped to the campaign the DM picks below.
+  const myCampaigns = useQuery(api.campaignMembers.listMyCampaigns)
+  const dmCampaigns = (myCampaigns ?? []).filter((c) => c.role === "dm")
   // Campaign edition drives spell-slot recompute when level changes (defaults to
   // 2024 for no-campaign / non-member, matching the sheet).
   const campaign = useQuery(
@@ -411,6 +419,10 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
         id: characterId,
         name,
         playerName: draft.playerName.trim() || undefined,
+        dmControlled: draft.dmControlled,
+        // Only set campaignId for a DMPC with a chosen campaign — never touch it
+        // otherwise, so a player character's join-code association is preserved.
+        ...(draft.dmControlled && draft.campaignId ? { campaignId: draft.campaignId } : {}),
         level: draft.level,
         experiencePoints: draft.experiencePoints,
         hitDice: newHitDice,
@@ -505,6 +517,46 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
                 placeholder="Optional"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="char-dmpc">DM-controlled (DMPC)</Label>
+              <div className="flex items-center gap-2.5 h-10">
+                <Switch
+                  id="char-dmpc"
+                  checked={draft.dmControlled}
+                  onCheckedChange={(v) => setField("dmControlled", v)}
+                />
+                <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  {draft.dmControlled
+                    ? "You run this ally — appears in the party roster + droppable into combat"
+                    : "A player's character"}
+                </span>
+              </div>
+            </div>
+            {draft.dmControlled && (
+              <div className="space-y-2">
+                <Label htmlFor="char-dmpc-campaign">DMPC campaign</Label>
+                <Select
+                  value={draft.campaignId ?? ""}
+                  onValueChange={(v) => setField("campaignId", v as Id<"campaigns">)}
+                >
+                  <SelectTrigger id="char-dmpc-campaign">
+                    <SelectValue placeholder="Choose the campaign you run it in" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dmCampaigns.map((c) => (
+                      <SelectItem key={c.campaignId} value={c.campaignId}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  {dmCampaigns.length === 0
+                    ? "You don't run any campaigns yet — create one to scope a DMPC."
+                    : "Which campaign's combat this DMPC can be added to."}
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="char-level">Level</Label>
               <Input

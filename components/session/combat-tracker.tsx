@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 import { EncounterDetails, DifficultyBadge, hasEncounterDetails } from "@/components/encounters/encounter-details"
 import { MonsterAttacksPanel } from "@/components/session/monster-attacks-panel"
-import { partitionHomebrew, type HomebrewMonster } from "@/lib/homebrew"
+import { partitionHomebrew, rawHomebrewId, type HomebrewMonster } from "@/lib/homebrew"
 import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { baseMonsterName } from "@/lib/monster-attacks"
 
@@ -67,6 +67,22 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
     () => (savedEncounters ?? []).filter((e) => e.campaignId === campaignId),
     [savedEncounters, campaignId],
   )
+  // Persistent NPCs in this campaign that carry a "fights as…" stat block — droppable
+  // into combat as a named combatant fighting from the referenced stat block.
+  const allNpcs = useQuery(api.npcs.list)
+  const statblockNpcs = useMemo(
+    () => (allNpcs ?? []).filter((n) => n.campaignId === campaignId && n.statblockRef),
+    [allNpcs, campaignId],
+  )
+  // DM-controlled characters (DMPCs) in this campaign, droppable into combat as full
+  // PC-type combatants. Excludes any already in the fight (dedup by characterId).
+  const myCharacters = useQuery(api.characters.list)
+  const dmpcs = useMemo(() => {
+    const inCombat = new Set((combat?.combatants ?? []).map((c) => c.characterId).filter(Boolean))
+    return (myCharacters ?? []).filter(
+      (c) => c.campaignId === campaignId && c.dmControlled && !inCombat.has(c._id),
+    )
+  }, [myCharacters, campaignId, combat])
 
   const doStart = useMutation(api.liveCombat.startCombat)
   const doEnd = useMutation(api.liveCombat.endCombat)
@@ -282,6 +298,89 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
       toast.success(`${cr.name} joined the fight.`)
     } catch {
       toast.error("Failed to add creature.")
+    }
+  }
+
+  // Drop a persistent NPC into combat as a NAMED combatant ("Lord Vthain") that
+  // fights from its referenced stat block. type "npc" → no death saves (drops at 0,
+  // 5e-correct); carries the statblockRef so the attack panel resolves the real stat
+  // block, not the NPC's name. AC/HP/Dex are read from the referenced stat block.
+  const handleAddNpc = async (npc: (typeof statblockNpcs)[number]) => {
+    const ref = npc.statblockRef
+    if (!ref) return
+    try {
+      let ac = 10
+      let hp = 1
+      let dexMod = 0
+      if (ref.kind === "homebrew") {
+        const hb = homebrewMonsters.find((m) => rawHomebrewId(m.id) === ref.homebrewId)
+        if (!hb) {
+          toast.error(`${npc.name}'s homebrew stat block wasn't found.`)
+          return
+        }
+        ac = hb.armorClass
+        hp = hb.hitPoints
+        dexMod = Math.floor((hb.dexterity - 10) / 2)
+      } else {
+        const monsters = await open5eApi.getMonsters({ search: ref.monsterName })
+        const m =
+          monsters.find((x) => x.name.toLowerCase() === ref.monsterName.toLowerCase()) ?? monsters[0]
+        if (!m) {
+          toast.error(`Couldn't find the “${ref.monsterName}” stat block.`)
+          return
+        }
+        ac = m.armor_class
+        hp = m.hit_points
+        dexMod = Math.floor((m.dexterity - 10) / 2)
+      }
+      await doAdd({
+        sessionId,
+        combatant: {
+          id: crypto.randomUUID(),
+          name: npc.name,
+          type: "npc",
+          initiative: rollD20() + dexMod,
+          initiativeBonus: dexMod,
+          armorClass: ac,
+          hitPoints: { current: hp, max: hp, temp: 0 },
+          conditions: [],
+          statblockRef: ref,
+        },
+      })
+      toast.success(`${npc.name} entered the fight.`)
+    } catch {
+      toast.error("Failed to add NPC.")
+    }
+  }
+
+  // Drop a DMPC (DM-controlled character) into combat as a full PC-type combatant —
+  // identical shape to a party PC (sheet HP, characterId for HP write-through, death
+  // saves at 0 HP). Attacks come from its sheet, like any PC. userId is the DM (the
+  // character's owner), so HP shows exact to the DM and party-visible like a PC.
+  const handleAddDmpc = async (char: (typeof dmpcs)[number]) => {
+    try {
+      await doAdd({
+        sessionId,
+        combatant: {
+          id: crypto.randomUUID(),
+          name: char.name,
+          type: "pc",
+          initiative: rollD20(),
+          initiativeBonus: 0,
+          armorClass: 10,
+          hitPoints: {
+            current: char.hitPoints.current,
+            max: char.hitPoints.max,
+            temp: char.hitPoints.temp,
+          },
+          conditions: [],
+          characterId: char._id,
+          userId: char.userId,
+        },
+      })
+      toast.success(`${char.name} joined the party.`)
+    } catch {
+      toast.error("Failed to add DMPC.")
     }
   }
 
@@ -661,6 +760,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
               {expandedAttacks === c.id && c.type !== "pc" && (
                 <MonsterAttacksPanel
                   monsterName={c.name}
+                  statblockRef={c.statblockRef}
                   homebrewMonsters={homebrewMonsters}
                   targets={combat.combatants
                     .filter((x) => x.id !== c.id)
@@ -688,6 +788,53 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
                 <Plus className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
                 {cr.name}
                 <span style={{ color: "var(--scene-text-muted)" }}>· {cr.ownerName} · {cr.kind === "form" ? "Wild Shape" : "companion"}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* DMPCs — DM-controlled allies, added as full PC-type combatants (sheet HP,
+          death saves, attacks from their own sheet). */}
+      {dmpcs.length > 0 && (
+        <div className="rounded-xl p-3 mb-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+          <p className="text-[11px] uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>DMPCs</p>
+          <div className="flex flex-wrap gap-2">
+            {dmpcs.map((char) => (
+              <button
+                key={char._id}
+                onClick={() => handleAddDmpc(char)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-opacity hover:opacity-80"
+                style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+              >
+                <Plus className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
+                {char.name}
+                <span style={{ color: "var(--scene-text-muted)" }}>· Lv {char.level} {char.characterClass}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* NPCs — drop a persistent NPC that has a stat block into the fight, labeled
+          with its own name but fighting from the referenced stat block. */}
+      {statblockNpcs.length > 0 && (
+        <div className="rounded-xl p-3 mb-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+          <p className="text-[11px] uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>NPCs</p>
+          <div className="flex flex-wrap gap-2">
+            {statblockNpcs.map((npc) => (
+              <button
+                key={npc._id}
+                onClick={() => handleAddNpc(npc)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-opacity hover:opacity-80"
+                style={{ background: "var(--scene-bg)", color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+                title={npc.statblockRef?.kind === "srd" ? `Fights as ${npc.statblockRef.monsterName}` : "Fights as a homebrew stat block"}
+              >
+                <Plus className="h-3.5 w-3.5" style={{ color: "var(--scene-accent)" }} />
+                {npc.name}
+                <span style={{ color: "var(--scene-text-muted)" }}>
+                  · {npc.statblockRef?.kind === "srd" ? npc.statblockRef.monsterName : "homebrew"}
+                </span>
               </button>
             ))}
           </div>

@@ -338,9 +338,15 @@ export default function CampaignWebPage() {
 
   // ── Sidebar entity lists ────────────────────────────────────────────────────
 
+  // npcs.list is by-user across ALL campaigns; scope to this campaign first (every
+  // other Story Web source is per-campaign), then drop the ones already on the canvas.
+  const campaignNpcs = useMemo(
+    () => (npcs ?? []).filter((n) => n.campaignId === campaignId),
+    [npcs, campaignId]
+  )
   const filteredNPCs = useMemo(
-    () => (npcs ?? []).filter((n) => !onCanvasEntityIds.has(n._id)),
-    [npcs, onCanvasEntityIds]
+    () => campaignNpcs.filter((n) => !onCanvasEntityIds.has(n._id)),
+    [campaignNpcs, onCanvasEntityIds]
   )
   const filteredLocations = useMemo(
     () => (locations ?? []).filter((l) => !onCanvasEntityIds.has(l._id)),
@@ -609,7 +615,7 @@ export default function CampaignWebPage() {
 
             {activeTab === "npc" && filteredNPCs.length === 0 && (
               <p className="text-xs p-2" style={{ color: "var(--scene-text-muted)" }}>
-                {(npcs?.length ?? 0) === 0 ? "No NPCs yet — create them in DM Tools." : "All NPCs are on the canvas."}
+                {campaignNpcs.length === 0 ? "No NPCs yet — create them in DM Tools." : "All NPCs are on the canvas."}
               </p>
             )}
 

@@ -2,6 +2,7 @@ import type { Doc } from "@/convex/_generated/dataModel"
 import type { Ability, Skill } from "@/lib/character/constants"
 import type { StoredItemData } from "@/lib/character/sheet-items"
 import type { MonsterAction } from "@/lib/open5e-api"
+import { HB_PREFIX } from "./homebrew-id"
 import {
   RACES,
   BACKGROUNDS,
@@ -104,11 +105,10 @@ export function homebrewToClassData(doc: Doc<"homebrew">): ClassData {
   }
 }
 
-const HB_PREFIX = "hb:"
-
-export function isHomebrewId(id: string): boolean {
-  return id.startsWith(HB_PREFIX)
-}
+// isHomebrewId / rawHomebrewId live in the dependency-free ./homebrew-id leaf so they
+// stay unit-testable without this module's heavy imports. Re-exported for callers that
+// already import them from "@/lib/homebrew".
+export { isHomebrewId, rawHomebrewId } from "./homebrew-id"
 
 export function homebrewToRaceData(doc: Doc<"homebrew">): RaceData {
   const data = doc.data as HomebrewRaceData

@@ -3,6 +3,7 @@ import { v } from "convex/values"
 import type { Doc, Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
 import { getMembershipBySession } from "./lib/auth"
+import { statblockRefValidator } from "./schema"
 
 // ── Types & validators ────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ const combatantInputValidator = v.object({
   ),
   characterId: v.optional(v.id("characters")),
   userId: v.optional(v.string()),
+  statblockRef: v.optional(statblockRefValidator),
 })
 
 type Combatant = Doc<"liveCombat">["combatants"][number]
@@ -136,6 +138,9 @@ export const getCombat = query({
         conditions: c.conditions,
         deathSaves: c.deathSaves,
         characterId: c.characterId,
+        // DM-only: lets the attack roller resolve a disguised NPC to its real stat
+        // block. Withheld from players so the NPC's true nature stays a DM secret.
+        statblockRef: isDM ? c.statblockRef : undefined,
         isActive: index === combat.activeIndex,
         isMine: c.userId === userId,
       }

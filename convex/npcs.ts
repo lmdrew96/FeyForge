@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
 import { requireDm } from "./lib/auth"
+import { statblockRefValidator } from "./schema"
 
 const npcStatsValidator = v.object({
   cr: v.string(),
@@ -53,6 +54,7 @@ export const create = mutation({
     tags: v.array(v.string()),
     notes: v.optional(v.string()),
     stats: v.optional(npcStatsValidator),
+    statblockRef: v.optional(statblockRefValidator),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
@@ -136,6 +138,7 @@ export const update = mutation({
     tags: v.optional(v.array(v.string())),
     notes: v.optional(v.string()),
     stats: v.optional(npcStatsValidator),
+    statblockRef: v.optional(statblockRefValidator),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
