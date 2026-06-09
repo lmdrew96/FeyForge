@@ -37,6 +37,7 @@ import type * as npcPool from "../npcPool.js";
 import type * as npcs from "../npcs.js";
 import type * as partyInventory from "../partyInventory.js";
 import type * as premiumStatus from "../premiumStatus.js";
+import type * as presence from "../presence.js";
 import type * as sessionNotes from "../sessionNotes.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
@@ -79,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   npcs: typeof npcs;
   partyInventory: typeof partyInventory;
   premiumStatus: typeof premiumStatus;
+  presence: typeof presence;
   sessionNotes: typeof sessionNotes;
   sessions: typeof sessions;
   users: typeof users;

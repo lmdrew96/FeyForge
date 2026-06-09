@@ -128,6 +128,24 @@ export function DataLoader() {
     if (isSignedIn) upsertUser({ displayName, avatarUrl })
   }, [isSignedIn, upsertUser, displayName, avatarUrl])
 
+  // Presence heartbeat: mark the user online every ~25s while the app is open and
+  // the tab is visible (so a backgrounded tab ages out to offline). "Online" is
+  // derived client-side from this timestamp — see the friends list.
+  const heartbeat = useMutation(api.presence.heartbeat)
+  useEffect(() => {
+    if (!isSignedIn) return
+    const beat = () => {
+      if (!document.hidden) void heartbeat()
+    }
+    beat()
+    const id = setInterval(beat, 25_000)
+    document.addEventListener("visibilitychange", beat)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener("visibilitychange", beat)
+    }
+  }, [isSignedIn, heartbeat])
+
   // ── Active campaign: server is the cross-device source of truth ──────────────
   const me = useQuery(api.users.getMe, skip)
   const activeCampaignId = useCampaignStore((s) => s.activeCampaignId)

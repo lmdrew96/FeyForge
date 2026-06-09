@@ -12,6 +12,7 @@ export type NotificationType =
   | "friend_request"
   | "friend_accepted"
   | "campaign_invite"
+  | "session_invite"
 
 export type NotificationPayload = {
   fromUserId?: string

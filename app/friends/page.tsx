@@ -17,6 +17,7 @@ import {
   Clock,
   Users,
 } from "lucide-react"
+import { useNowTick, ONLINE_THRESHOLD_MS } from "@/lib/presence"
 
 // The Friends hub: a privacy-preserving social surface. Discovery is limited to
 // a personal friend code + "people you've played with" (shared campaigns) — no
@@ -27,33 +28,50 @@ type FriendCard = {
   userId: string
   displayName: string
   avatarUrl: string | null
+  lastSeenAt?: number | null
 }
 type Suggestion = FriendCard & { viaCampaign: string }
 
-function Avatar({ url, name, size = 9 }: { url: string | null; name: string; size?: number }) {
+function Avatar({
+  url,
+  name,
+  size = 9,
+  online,
+}: {
+  url: string | null
+  name: string
+  size?: number
+  online?: boolean
+}) {
   const dim = `${size * 0.25}rem`
-  if (url) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={url}
-        alt=""
-        className="rounded-full shrink-0 object-cover"
-        style={{ width: dim, height: dim }}
-      />
-    )
-  }
   return (
-    <span
-      className="rounded-full shrink-0 flex items-center justify-center font-semibold"
-      style={{
-        width: dim,
-        height: dim,
-        background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
-        color: "var(--scene-accent)",
-      }}
-    >
-      {name.charAt(0).toUpperCase()}
+    <span className="relative inline-flex shrink-0" style={{ width: dim, height: dim }}>
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="w-full h-full rounded-full object-cover" />
+      ) : (
+        <span
+          className="w-full h-full rounded-full flex items-center justify-center font-semibold"
+          style={{
+            background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+            color: "var(--scene-accent)",
+          }}
+        >
+          {name.charAt(0).toUpperCase()}
+        </span>
+      )}
+      {online && (
+        <span
+          aria-label="Online"
+          className="absolute bottom-0 right-0 rounded-full"
+          style={{
+            width: "0.6rem",
+            height: "0.6rem",
+            background: "#22c55e",
+            border: "2px solid var(--scene-surface)",
+          }}
+        />
+      )}
     </span>
   )
 }
@@ -251,6 +269,11 @@ export default function FriendsPage() {
 
   const [codeInput, setCodeInput] = useState("")
   const [sending, setSending] = useState(false)
+
+  // Re-tick so online status recomputes from lastSeenAt over time.
+  const now = useNowTick()
+  const isOnline = (f: FriendCard) =>
+    f.lastSeenAt != null && now - f.lastSeenAt < ONLINE_THRESHOLD_MS
 
   const myCode = me?.friendCode ?? null
   const dmCampaigns = (myCampaigns ?? [])
@@ -460,15 +483,34 @@ export default function FriendsPage() {
             </p>
           ) : (
             <ul className="space-y-2">
-              {friends.map((f) => (
-                <li key={f.friendshipId} className="flex items-center gap-3 group">
-                  <Avatar url={f.avatarUrl} name={f.displayName} />
-                  <span className="flex-1 text-sm truncate" style={{ color: "var(--scene-text-primary)" }}>
-                    {f.displayName}
-                  </span>
-                  <FriendActions friend={f} dmCampaigns={dmCampaigns} />
-                </li>
-              ))}
+              {[...friends]
+                .sort(
+                  (a, b) =>
+                    Number(isOnline(b)) - Number(isOnline(a)) ||
+                    a.displayName.localeCompare(b.displayName),
+                )
+                .map((f) => {
+                  const online = isOnline(f)
+                  return (
+                    <li key={f.friendshipId} className="flex items-center gap-3 group">
+                      <Avatar url={f.avatarUrl} name={f.displayName} online={online} />
+                      <span className="flex-1 min-w-0">
+                        <span
+                          className="block text-sm truncate"
+                          style={{ color: "var(--scene-text-primary)" }}
+                        >
+                          {f.displayName}
+                        </span>
+                        {online && (
+                          <span className="block text-[11px]" style={{ color: "#22c55e" }}>
+                            Online
+                          </span>
+                        )}
+                      </span>
+                      <FriendActions friend={f} dmCampaigns={dmCampaigns} />
+                    </li>
+                  )
+                })}
             </ul>
           )}
         </SectionCard>

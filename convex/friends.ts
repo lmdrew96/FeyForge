@@ -24,6 +24,10 @@ type FriendCard = {
   avatarUrl: string | null
 }
 
+// An accepted friend, plus their last heartbeat (null if they've never been seen).
+// "Online" is derived client-side from lastSeenAt — see app/friends.
+type FriendWithPresence = FriendCard & { lastSeenAt: number | null }
+
 // Resolves a clerkId to its display card, with a stable fallback label so the
 // client never has to special-case a missing profile.
 async function resolveProfile(
@@ -67,7 +71,7 @@ async function findRelationship(
 // where I'm the requester with those where I'm the addressee.
 export const listFriends = query({
   args: {},
-  handler: async (ctx): Promise<FriendCard[]> => {
+  handler: async (ctx): Promise<FriendWithPresence[]> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
     const me = identity.tokenIdentifier
@@ -89,11 +93,16 @@ export const listFriends = query({
       accepted.map(async (f) => {
         const otherId = f.requesterId === me ? f.addresseeId : f.requesterId
         const profile = await resolveProfile(ctx, otherId)
+        const presence = await ctx.db
+          .query("presence")
+          .withIndex("by_userId", (q) => q.eq("userId", otherId))
+          .unique()
         return {
           friendshipId: f._id as string,
           userId: otherId,
           displayName: profile.displayName,
           avatarUrl: profile.avatarUrl,
+          lastSeenAt: presence?.lastSeenAt ?? null,
         }
       }),
     )
@@ -397,6 +406,62 @@ export const inviteFriendToCampaign = mutation({
     const campaign = await ctx.db.get(args.campaignId)
     const myProfile = await resolveProfile(ctx, me)
     await createNotification(ctx, args.friendUserId, "campaign_invite", {
+      fromUserId: me,
+      fromName: myProfile.displayName,
+      fromAvatarUrl: myProfile.avatarUrl ?? undefined,
+      campaignId: args.campaignId,
+      campaignName: campaign?.name ?? "a campaign",
+    })
+  },
+})
+
+// ── Session "join now" invite (3b) ────────────────────────────────────────────
+// Time-sensitive ping: the DM of a campaign with a LIVE session nudges an online
+// friend to jump in right now. Ensures the friend is a campaign member first (so
+// joinSession will admit them — see convex/liveSessions.ts), then fires a
+// session_invite notification that deep-links them to /session. Surfaced only for
+// online friends in the live-session invite dialog.
+export const inviteFriendToSession = mutation({
+  args: { campaignId: v.id("campaigns"), friendUserId: v.string() },
+  handler: async (ctx, args) => {
+    const me = await requireDm(
+      ctx,
+      args.campaignId,
+      "Only the DM can invite players to this session",
+    )
+
+    const session = await ctx.db
+      .query("partySessions")
+      .withIndex("by_campaignId_and_isActive", (q) =>
+        q.eq("campaignId", args.campaignId).eq("isActive", true),
+      )
+      .first()
+    if (!session) throw new Error("No live session is running")
+
+    const rel = await findRelationship(ctx, me, args.friendUserId)
+    if (!rel || rel.status !== "accepted") {
+      throw new Error("You can only invite your friends")
+    }
+
+    // Ensure they're a member so joinSession admits them; harmless if already one.
+    const member = await ctx.db
+      .query("campaignMembers")
+      .withIndex("by_campaignId_and_userId", (q) =>
+        q.eq("campaignId", args.campaignId).eq("userId", args.friendUserId),
+      )
+      .first()
+    if (!member) {
+      await ctx.db.insert("campaignMembers", {
+        campaignId: args.campaignId,
+        userId: args.friendUserId,
+        role: "player",
+        joinedAt: Date.now(),
+      })
+    }
+
+    const campaign = await ctx.db.get(args.campaignId)
+    const myProfile = await resolveProfile(ctx, me)
+    await createNotification(ctx, args.friendUserId, "session_invite", {
       fromUserId: me,
       fromName: myProfile.displayName,
       fromAvatarUrl: myProfile.avatarUrl ?? undefined,

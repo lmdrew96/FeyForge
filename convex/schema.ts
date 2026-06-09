@@ -944,6 +944,19 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_userId_and_readAt", ["userId", "readAt"]),
 
+  // ── Presence (Friends system) ────────────────────────────────────────────────
+  // High-churn "who's online" heartbeat — one row per user, upserted ~every 25s by
+  // the client while the app is open + visible. Kept OFF the users doc per the
+  // Convex high-churn guideline (frequent writes shouldn't contend with reads of
+  // the stable profile). "Online" is computed CLIENT-SIDE from lastSeenAt (now -
+  // lastSeenAt < threshold) rather than a stored boolean, so a user who simply
+  // stops heartbeating reads as offline with no server-side expiry job needed.
+  // Presence is only ever surfaced to the user's accepted friends.
+  presence: defineTable({
+    userId: v.string(),
+    lastSeenAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
   // Per-user daily AI generation counter (durable quota — the in-memory
   // lib/rate-limit is only a per-process anti-burst guard). One row per
   // (user, day); `day` is YYYY-MM-DD in the user's tz so the reset is humane,

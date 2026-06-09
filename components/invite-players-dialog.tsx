@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
-import { Copy, RefreshCw, UserMinus, Crown } from "lucide-react"
+import { Copy, RefreshCw, UserMinus, Crown, Sparkles } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { useNowTick, isOnline } from "@/lib/presence"
 
 // The invite panel body — code, link, regenerate, and the party roster. Shared
 // between the Campaigns page and the live-session DM screens so there's one
@@ -24,6 +25,25 @@ export function InviteDialogBody({ campaign }: { campaign: Doc<"campaigns"> }) {
   const regenerate = useMutation(api.campaignMembers.regenerateJoinCode)
   const removeMember = useMutation(api.campaignMembers.removeMember)
   const [regenerating, setRegenerating] = useState(false)
+
+  // Session "join now" ping: only when a session is live in this campaign, the DM
+  // can nudge an online friend to jump in. (See friends.inviteFriendToSession.)
+  const activeSession = useQuery(api.liveSessions.getActiveSession, {
+    campaignId: campaign._id,
+  })
+  const friends = useQuery(api.friends.listFriends)
+  const pingToSession = useMutation(api.friends.inviteFriendToSession)
+  const now = useNowTick()
+  const onlineFriends = (friends ?? []).filter((f) => isOnline(f.lastSeenAt, now))
+
+  const handlePing = async (friend: { userId: string; displayName: string }) => {
+    try {
+      await pingToSession({ campaignId: campaign._id, friendUserId: friend.userId })
+      toast.success(`Pinged ${friend.displayName} to join.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't send the ping.")
+    }
+  }
 
   const code = campaign.joinCode ?? null
   const link =
@@ -95,6 +115,46 @@ export function InviteDialogBody({ campaign }: { campaign: Doc<"campaigns"> }) {
             Copy invite link
           </button>
         </div>
+
+        {/* Ping a friend to join — live session only */}
+        {activeSession && (
+          <div className="space-y-2">
+            <Label>Ping a friend to join now</Label>
+            {friends === undefined ? (
+              <div className="h-12 rounded-md animate-pulse" style={{ background: "var(--scene-surface)" }} />
+            ) : onlineFriends.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                No friends are online right now.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {onlineFriends.map((f) => (
+                  <div
+                    key={f.userId}
+                    className="flex items-center gap-3 px-3 py-2 rounded-md"
+                    style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                      style={{ background: "#22c55e" }}
+                      aria-label="Online"
+                    />
+                    <span
+                      className="flex-1 min-w-0 text-sm truncate"
+                      style={{ color: "var(--scene-text-primary)" }}
+                    >
+                      {f.displayName}
+                    </span>
+                    <Button size="sm" variant="outline" onClick={() => handlePing(f)}>
+                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                      Ping to join
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Roster */}
         <div className="space-y-2">

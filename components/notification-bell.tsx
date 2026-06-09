@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useMutation } from "convex/react"
-import { Bell, UserPlus, UserCheck, BookMarked, Check } from "lucide-react"
+import { Bell, UserPlus, UserCheck, BookMarked, Sparkles, Check } from "lucide-react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useCampaignStore } from "@/lib/campaign-store"
@@ -43,6 +43,8 @@ function describe(n: NotificationDoc): string {
       return `${who} accepted your friend request`
     case "campaign_invite":
       return `${who} added you to ${n.payload.campaignName ?? "a campaign"}`
+    case "session_invite":
+      return `${who} invited you to join their live session`
     default:
       return "New notification"
   }
@@ -56,6 +58,8 @@ function iconFor(type: string) {
       return UserCheck
     case "campaign_invite":
       return BookMarked
+    case "session_invite":
+      return Sparkles
     default:
       return Bell
   }
@@ -89,9 +93,13 @@ export function NotificationBell({ align = "right" }: { align?: "left" | "right"
   const handleClick = (n: NotificationDoc) => {
     void markRead({ id: n._id })
     setOpen(false)
-    if (n.type === "campaign_invite" && n.payload.campaignId) {
+    if (
+      (n.type === "campaign_invite" || n.type === "session_invite") &&
+      n.payload.campaignId
+    ) {
       setActiveCampaign(n.payload.campaignId as string)
-      router.push("/hub")
+      // A session invite is "come play now" → drop them at the live session.
+      router.push(n.type === "session_invite" ? "/session" : "/hub")
     } else {
       router.push("/friends")
     }
