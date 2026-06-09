@@ -559,35 +559,65 @@ function PeopleTab({ campaignId }: { campaignId: CampaignId }) {
 
   return (
     <div className="space-y-3">
-      {people.map((p) => (
-        <div
-          key={p.title}
-          className="flex gap-3 rounded-md p-3"
-          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
-        >
-          {p.imageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={p.imageUrl}
-              alt={p.title}
-              className="h-14 w-14 shrink-0 rounded-md object-cover"
-            />
-          )}
-          <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>
-              {p.title}
-            </h3>
-            {p.body && (
-              <div className="mt-0.5 text-sm" style={{ color: "var(--scene-text-muted)" }}>
-                <MarkdownRenderer content={p.body} />
-              </div>
+      {people.map((p) => {
+        // Roster-linked entries get a subtitle (occupation · race) and a few
+        // player-safe meta pills; ad-hoc reveals show the title + blurb only.
+        const subtitle = p.npc
+          ? [p.npc.occupation, p.npc.race].filter(Boolean).join(" · ")
+          : ""
+        const pills: string[] = p.npc
+          ? [p.npc.location, p.npc.faction, p.npc.relationship, p.npc.status].filter(
+              (x): x is string => !!x,
+            )
+          : []
+        return (
+          <div
+            key={p.id}
+            className="flex gap-3 rounded-md p-3"
+            style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+          >
+            {p.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={p.imageUrl}
+                alt={p.title}
+                className="h-14 w-14 shrink-0 rounded-md object-cover"
+              />
             )}
-            <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
-              Last seen {formatDate(p.lastSeen)}
-            </p>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+                {p.title}
+              </h3>
+              {subtitle && (
+                <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                  {subtitle}
+                </p>
+              )}
+              {pills.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {pills.map((label, i) => (
+                    <span
+                      key={i}
+                      className="rounded-full px-2 py-0.5 text-[11px] capitalize"
+                      style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {p.body && (
+                <div className="mt-1 text-sm" style={{ color: "var(--scene-text-muted)" }}>
+                  <MarkdownRenderer content={p.body} />
+                </div>
+              )}
+              <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                Last seen {formatDate(p.lastSeen)}
+              </p>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

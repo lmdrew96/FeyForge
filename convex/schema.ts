@@ -830,6 +830,11 @@ export default defineSchema({
     title: v.string(),
     body: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
+    // When an `npc` broadcast originates from a real roster NPC, the source record
+    // id — so the Campaign Hub's "People I've met" can dedup by identity (surviving
+    // a DM rename) and hydrate richer, player-safe detail. Optional: ad-hoc reveals
+    // (a hand-typed title) carry no id and behave as before.
+    npcId: v.optional(v.id("npcs")),
     isRevealed: v.boolean(),
     revealedAt: v.optional(v.number()),
   })

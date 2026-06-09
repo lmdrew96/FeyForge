@@ -35,10 +35,11 @@ export const listBroadcasts = query({
 
 // "People I've met" for the Player Campaign Hub: the NPCs the DM has revealed to
 // the party, aggregated across ALL of a campaign's sessions (listBroadcasts is
-// single-session). Membership-gated. NPC broadcasts carry only a title string
-// (no npcId — see broadcastReveal), so the same NPC revealed in multiple
-// sessions would duplicate; dedup by case-insensitive title, keeping the most
-// recent reveal (its body/imageUrl + first-met / last-seen timestamps).
+// single-session). Membership-gated. Identity = the source npcId when present
+// (survives a DM rename), else the case-insensitive title for ad-hoc reveals.
+// Dedup keeps the most recent reveal's blurb + the first-met / last-seen window.
+// An id-linked entry is hydrated with player-safe roster fields (NEVER the DM-only
+// secret/backstory/notes/motivation) via an explicit projection.
 export const listMetNpcsForCampaign = query({
   args: { campaignId: v.id("campaigns") },
   handler: async (ctx, args) => {
@@ -52,17 +53,34 @@ export const listMetNpcsForCampaign = query({
 
     const npcs = broadcasts.filter((b) => b.type === "npc" && b.isRevealed)
 
-    const byName = new Map<
-      string,
-      { title: string; body?: string; imageUrl?: string; firstMet: number; lastSeen: number }
-    >()
+    type Entry = {
+      key: string
+      npcId?: Id<"npcs">
+      title: string
+      body?: string
+      imageUrl?: string
+      firstMet: number
+      lastSeen: number
+    }
+    const byKey = new Map<string, Entry>()
     for (const b of npcs) {
-      const key = b.title.trim().toLowerCase()
+      // Prefer the stable record id; fall back to the title for legacy/ad-hoc.
+      // Prefix the two key spaces so an id can never collide with a title.
+      const titleKey = b.title.trim().toLowerCase()
+      const key = b.npcId ? `id:${b.npcId}` : titleKey ? `t:${titleKey}` : ""
       if (!key) continue
       const at = b.revealedAt ?? b._creationTime
-      const prev = byName.get(key)
+      const prev = byKey.get(key)
       if (!prev) {
-        byName.set(key, { title: b.title, body: b.body, imageUrl: b.imageUrl, firstMet: at, lastSeen: at })
+        byKey.set(key, {
+          key,
+          npcId: b.npcId,
+          title: b.title,
+          body: b.body,
+          imageUrl: b.imageUrl,
+          firstMet: at,
+          lastSeen: at,
+        })
       } else {
         // Keep the most recent reveal's details; widen the met/seen window.
         if (at >= prev.lastSeen) {
@@ -70,13 +88,58 @@ export const listMetNpcsForCampaign = query({
           prev.body = b.body ?? prev.body
           prev.imageUrl = b.imageUrl ?? prev.imageUrl
           prev.lastSeen = at
+          if (b.npcId) prev.npcId = b.npcId
         }
         if (at < prev.firstMet) prev.firstMet = at
       }
     }
 
+    // Hydrate id-linked entries with player-safe roster fields. Build the
+    // projection by hand — NEVER spread the doc (it carries DM-only secrets).
+    const result = await Promise.all(
+      [...byKey.values()].map(async (e) => {
+        let npc: {
+          name: string
+          race: string
+          occupation: string
+          location: string
+          faction?: string
+          relationship: string
+          status: string
+          appearance: string
+        } | undefined
+        if (e.npcId) {
+          const doc = await ctx.db.get(e.npcId)
+          // Only surface the NPC if it still belongs to this campaign.
+          if (doc && doc.campaignId === args.campaignId) {
+            npc = {
+              name: doc.name,
+              race: doc.race,
+              occupation: doc.occupation,
+              location: doc.location,
+              faction: doc.faction,
+              relationship: doc.relationship,
+              status: doc.status,
+              appearance: doc.appearance,
+            }
+          }
+        }
+        return {
+          // Stable identity for React keys: the record id, else the dedup key.
+          id: e.npcId ? (e.npcId as string) : e.key,
+          // Prefer the live roster name (survives a reveal-title edit).
+          title: npc?.name ?? e.title,
+          body: e.body,
+          imageUrl: e.imageUrl,
+          firstMet: e.firstMet,
+          lastSeen: e.lastSeen,
+          npc,
+        }
+      }),
+    )
+
     // Most recently seen first.
-    return [...byName.values()].sort((a, b) => b.lastSeen - a.lastSeen)
+    return result.sort((a, b) => b.lastSeen - a.lastSeen)
   },
 })
 
@@ -468,6 +531,8 @@ export const broadcastReveal = mutation({
     title: v.string(),
     body: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
+    // Optional link to the source roster NPC (npc-type reveals from a real record).
+    npcId: v.optional(v.id("npcs")),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
@@ -477,6 +542,17 @@ export const broadcastReveal = mutation({
     if (!session) throw new Error("Session not found")
     if (session.dmUserId !== identity.tokenIdentifier) throw new Error("Not authorized")
 
+    // Only persist npcId when it's a real NPC the DM owns in THIS campaign — never
+    // let a broadcast link to a foreign or cross-campaign record. A bad id is
+    // dropped (the broadcast still sends, just title-only).
+    let npcId: typeof args.npcId | undefined
+    if (args.npcId) {
+      const npc = await ctx.db.get(args.npcId)
+      if (npc && npc.userId === identity.tokenIdentifier && npc.campaignId === args.campaignId) {
+        npcId = args.npcId
+      }
+    }
+
     return await ctx.db.insert("sessionBroadcasts", {
       sessionId: args.sessionId,
       campaignId: args.campaignId,
@@ -484,6 +560,7 @@ export const broadcastReveal = mutation({
       title: args.title,
       body: args.body,
       imageUrl: args.imageUrl,
+      npcId,
       isRevealed: true,
       revealedAt: Date.now(),
     })

@@ -817,10 +817,15 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
   const doEndSession = useMutation(api.liveSessions.endSession)
   const doBroadcast = useMutation(api.liveSessions.broadcastReveal)
   const broadcasts = useQuery(api.liveSessions.listBroadcasts, { sessionId })
+  // The DM's roster, narrowed to this campaign — powers the "link a real NPC"
+  // picker so a reveal carries its source npcId (richer + dedup-stable in the Hub).
+  const allNpcs = useQuery(api.npcs.list)
+  const campaignNpcs = (allNpcs ?? []).filter((n) => n.campaignId === campaignId)
 
   const [broadcastTitle, setBroadcastTitle] = useState("")
   const [broadcastBody, setBroadcastBody] = useState("")
   const [broadcastType, setBroadcastType] = useState<"npc" | "location" | "custom">("custom")
+  const [broadcastNpcId, setBroadcastNpcId] = useState<Id<"npcs"> | "">("")
   const [sending, setSending] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
 
@@ -853,12 +858,33 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
       toast.error("Failed to end session.")
     }
   }
+  // Picking an NPC fills the title from the roster name and links the id; the DM
+  // can still edit the title afterward (the id-link survives a rename).
+  const handlePickNpc = (id: string) => {
+    if (!id) { setBroadcastNpcId(""); return }
+    const npc = campaignNpcs.find((n) => n._id === id)
+    setBroadcastNpcId(id as Id<"npcs">)
+    if (npc) setBroadcastTitle(npc.name)
+  }
+  // Switching away from the npc type drops any linked id (a location/custom
+  // broadcast must never carry an npcId).
+  const handleSetBroadcastType = (t: "npc" | "location" | "custom") => {
+    setBroadcastType(t)
+    if (t !== "npc") setBroadcastNpcId("")
+  }
   const handleBroadcast = async () => {
     if (!broadcastTitle.trim()) return
     setSending(true)
     try {
-      await doBroadcast({ sessionId, campaignId, type: broadcastType, title: broadcastTitle.trim(), body: broadcastBody.trim() || undefined })
-      setBroadcastTitle(""); setBroadcastBody(""); toast.success("Broadcast sent.")
+      await doBroadcast({
+        sessionId,
+        campaignId,
+        type: broadcastType,
+        title: broadcastTitle.trim(),
+        body: broadcastBody.trim() || undefined,
+        npcId: broadcastType === "npc" && broadcastNpcId ? broadcastNpcId : undefined,
+      })
+      setBroadcastTitle(""); setBroadcastBody(""); setBroadcastNpcId(""); toast.success("Broadcast sent.")
     } catch { toast.error("Failed to send broadcast.") }
     finally { setSending(false) }
   }
@@ -932,12 +958,25 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
         <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
           <div className="flex gap-2">
             {(["npc", "location", "custom"] as const).map((t) => (
-              <button key={t} onClick={() => setBroadcastType(t)} className="px-3 py-1 rounded-full text-xs font-medium capitalize transition-opacity"
+              <button key={t} onClick={() => handleSetBroadcastType(t)} className="px-3 py-1 rounded-full text-xs font-medium capitalize transition-opacity"
                 style={{ background: broadcastType === t ? "var(--scene-accent)" : "var(--scene-border)", color: broadcastType === t ? "var(--scene-bg)" : "var(--scene-text-muted)" }}>
                 {t}
               </button>
             ))}
           </div>
+          {broadcastType === "npc" && campaignNpcs.length > 0 && (
+            <select
+              value={broadcastNpcId}
+              onChange={(e) => handlePickNpc(e.target.value)}
+              className="w-full px-3 py-2 rounded-md text-sm outline-none cursor-pointer"
+              style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
+            >
+              <option value="">Link a roster NPC (optional)…</option>
+              {campaignNpcs.map((n) => (
+                <option key={n._id} value={n._id}>{n.name}{n.occupation ? ` — ${n.occupation}` : ""}</option>
+              ))}
+            </select>
+          )}
           <input value={broadcastTitle} onChange={(e) => setBroadcastTitle(e.target.value)} placeholder="Title…" className="w-full px-3 py-2 rounded-md text-sm bg-transparent outline-none" style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }} />
           <textarea value={broadcastBody} onChange={(e) => setBroadcastBody(e.target.value)} placeholder="Optional flavor text…" rows={2} className="w-full px-3 py-2 rounded-md text-sm bg-transparent outline-none resize-none" style={{ border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }} />
           <button onClick={handleBroadcast} disabled={sending || !broadcastTitle.trim()} className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
