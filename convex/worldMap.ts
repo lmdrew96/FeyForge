@@ -456,6 +456,48 @@ export const setFogSettings = mutation({
   },
 })
 
+// Cache a Tier-2 AI plot hook onto a world event so the DM doesn't re-spend a daily AI
+// credit to re-read it (and so a fleshed-out hook persists to the table next session).
+// DM-only. The Tier-1 template is always derived live client-side
+// (lib/worldMap/eventHooks.ts) — this only stores the optional AI flesh-out. Events have
+// no stable id, so they're identified by array index (they render straight from
+// worldEvents in order); expectedName guards against a stale index from a since-changed
+// map writing onto the wrong event (it throws instead). A map re-import regenerates
+// worldEvents wholesale, so a stale aiHook can't outlive its event.
+export const setEventHook = mutation({
+  args: {
+    campaignId: v.id("campaigns"),
+    eventIndex: v.number(),
+    expectedName: v.string(),
+    aiHook: v.object({
+      hook: v.string(),
+      complication: v.string(),
+      stakes: v.string(),
+      firstScene: v.string(),
+      generatedAt: v.number(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await requireDm(ctx, args.campaignId)
+    const map = await ctx.db
+      .query("worldMaps")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .first()
+    if (!map) throw new Error("No map to update")
+    const events = map.worldEvents
+    if (!events || args.eventIndex < 0 || args.eventIndex >= events.length) {
+      throw new Error("World event not found")
+    }
+    if (events[args.eventIndex].name !== args.expectedName) {
+      throw new Error("World event changed — refresh and try again")
+    }
+    const next = events.map((e, i) =>
+      i === args.eventIndex ? { ...e, aiHook: args.aiHook } : e,
+    )
+    await ctx.db.patch(map._id, { worldEvents: next, updatedAt: Date.now() })
+  },
+})
+
 // Manual fog brush (Phase 2). DM-only. Stores the painted-open mask on the
 // campaign map row; it ships to every member via getMap, so cap the length
 // (a well-formed 64×36 base64 bitmask is ~384 chars) to stop a client bug from

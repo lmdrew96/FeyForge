@@ -25,6 +25,7 @@ import { COMBAT_POI_KINDS, EncounterGenerator } from "@/components/world-map/enc
 import { SaveNpcButton } from "@/components/world-map/save-npc-button"
 import { NpcGenerator, NPC_GEN_POI_KINDS } from "@/components/world-map/npc-generator"
 import { type EventPlace } from "@/lib/worldMap/azgaar-map"
+import { eventTemplate, eventScopeBand } from "@/lib/worldMap/eventHooks"
 import { toast } from "sonner"
 import { FogOverlay } from "@/components/world-map/fog-overlay"
 import { JourneyCard, RoutesLegend, RoutesSvg } from "@/components/world-map/routes-overlay"
@@ -66,6 +67,8 @@ import {
   Check,
   Sparkles,
   MoreHorizontal,
+  ScrollText,
+  ChevronDown,
 } from "lucide-react"
 import {
   toImageUrl,
@@ -101,18 +104,10 @@ const ZONE_TYPE_META: Record<string, { color: string; icon: typeof MapPinIcon }>
 const zoneMeta = (type: string): { color: string; icon: typeof MapPinIcon } =>
   ZONE_TYPE_META[type] ?? { color: "#6b7280", icon: TriangleAlert }
 
-// Geographic reach of a world event, from how many Azgaar cells its zone spans.
-// Bands assume Azgaar's default ~10k-cell resolution — confirmed across every repo
-// map (small events cluster ≤8 cells, regional 9–40, the rare continent-spanning
-// crusade/plague >40). A non-default high-res import would over-count; retune here,
-// no reseed needed (we store the raw count). Returns null when the count is absent
-// (pre-v0.86 maps, before reseed) so the badge simply doesn't render.
-const eventScope = (cellCount?: number): string | null => {
-  if (!cellCount || cellCount <= 0) return null
-  if (cellCount <= 8) return "Localized"
-  if (cellCount <= 40) return "Regional"
-  return "Widespread"
-}
+// Geographic reach of a world event, from how many Azgaar cells its zone spans. The
+// canonical band logic lives in lib/worldMap/eventHooks.ts so the panel badge and the
+// derived plot-hook prose can never drift; this alias keeps the call sites terse.
+const eventScope = eventScopeBand
 
 // Soft render-perf ceiling — mirrors MAX_PINS in convex/worldMap.ts. Adding a World
 // Event's town past this is allowed (manual pins are uncapped) but warns the DM.
@@ -826,6 +821,7 @@ function MapWorkspace({
               />
               {(map.worldEvents?.length ?? 0) > 0 && (
                 <WorldEventsControl
+                  campaignId={campaignId}
                   events={map.worldEvents!}
                   locations={locations}
                   onJumpTo={jumpToLocation}
@@ -895,6 +891,7 @@ function MapWorkspace({
                     {(map.worldEvents?.length ?? 0) > 0 && (
                       <WorldEventsControl
                         menu
+                        campaignId={campaignId}
                         events={map.worldEvents!}
                         locations={locations}
                         onJumpTo={jumpToLocation}
@@ -1391,14 +1388,35 @@ function SettlementEventsBlock({
 // DM-only popover listing the world's active events (Azgaar zones). Reference-only
 // hooks for the DM to seed story — no per-event reveal yet (the natural future seam
 // is reveal-per-event like pins). Mirrors FogControl's popover scaffolding.
+// A cached Tier-2 AI plot hook (mirrors the worldEvents[].aiHook schema shape).
+type AiHook = {
+  hook: string
+  complication: string
+  stakes: string
+  firstScene: string
+  generatedAt: number
+}
+
+// What WorldEventsControl renders per event — the worldEvents[] element, widened with the
+// optional cached aiHook (the generated dataModel carries it after a convex deploy).
+type WorldEventForRow = {
+  name: string
+  type: string
+  cellCount?: number
+  places?: EventPlace[]
+  aiHook?: AiHook
+}
+
 function WorldEventsControl({
+  campaignId,
   events,
   locations,
   onJumpTo,
   onAddTown,
   menu,
 }: {
-  events: { name: string; type: string; cellCount?: number; places?: EventPlace[] }[]
+  campaignId: CampaignId
+  events: WorldEventForRow[]
   locations: MapLocation[]
   onJumpTo: (loc: MapLocation) => void
   onAddTown: (place: EventPlace) => void
@@ -1463,75 +1481,278 @@ function WorldEventsControl({
             <p className="mt-1 text-xs" style={{ color: "var(--scene-text-muted)" }}>
               Brewing conflicts, plagues, and disasters across this world — DM-only hooks to seed your story.
             </p>
-            <ul className="mt-3 space-y-1.5">
-              {events.map((e, i) => {
-                const m = zoneMeta(e.type)
-                const Icon = m.icon
-                return (
-                  <li key={`${e.name}-${i}`} className="flex items-start gap-2">
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: m.color }} />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
-                        {e.name}
-                      </p>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
-                          {e.type}
-                        </span>
-                        {eventScope(e.cellCount) && <ScopeBadge label={eventScope(e.cellCount)!} />}
-                      </div>
-                      {e.places && e.places.length > 0 && (
-                        <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
-                          <span style={{ color: "var(--scene-text-muted)" }}>Affecting:</span>
-                          {e.places.map((place) => {
-                            const pin = findPin(place)
-                            return pin ? (
-                              <button
-                                key={place.name}
-                                onClick={() => {
-                                  onJumpTo(pin)
-                                  setOpen(false)
-                                }}
-                                title={`Go to ${place.name}`}
-                                className="rounded px-1.5 py-0.5 font-medium transition-opacity hover:opacity-80"
-                                style={{
-                                  background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
-                                  color: "var(--scene-accent)",
-                                  border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
-                                }}
-                              >
-                                {place.name}
-                              </button>
-                            ) : (
-                              <button
-                                key={place.name}
-                                onClick={() => {
-                                  onAddTown(place)
-                                  setOpen(false)
-                                }}
-                                title={`Add ${place.name} to the map`}
-                                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-medium transition-opacity hover:opacity-80"
-                                style={{
-                                  background: "var(--scene-bg)",
-                                  color: "var(--scene-text-muted)",
-                                  border: "1px dashed var(--scene-border)",
-                                }}
-                              >
-                                {place.name}
-                                <Plus className="h-3 w-3" />
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
+            <ul className="mt-3 space-y-2">
+              {events.map((e, i) => (
+                <WorldEventRow
+                  key={`${e.name}-${i}`}
+                  event={e}
+                  index={i}
+                  campaignId={campaignId}
+                  findPin={findPin}
+                  onJumpTo={(loc) => {
+                    onJumpTo(loc)
+                    setOpen(false)
+                  }}
+                  onAddTown={(place) => {
+                    onAddTown(place)
+                    setOpen(false)
+                  }}
+                />
+              ))}
             </ul>
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// One event in the World Events panel: the header (kind + scope + affected towns) plus a
+// collapsible "Plot seed" — an always-on Tier-1 template (lib/worldMap/eventHooks.ts) the
+// DM can flesh out with AI (Tier 2, premium-metered) and promote to a tracked plot thread.
+// Each row owns its generate/save state so one event's AI call never blocks another's.
+function WorldEventRow({
+  event,
+  index,
+  campaignId,
+  findPin,
+  onJumpTo,
+  onAddTown,
+}: {
+  event: WorldEventForRow
+  index: number
+  campaignId: CampaignId
+  findPin: (place: EventPlace) => MapLocation | undefined
+  onJumpTo: (loc: MapLocation) => void
+  onAddTown: (place: EventPlace) => void
+}) {
+  const setEventHook = useMutation(api.worldMap.setEventHook)
+  const createPlotThread = useMutation(api.sessions.createPlotThread)
+  const template = useMemo(() => eventTemplate(event), [event])
+  const m = zoneMeta(event.type)
+  const Icon = m.icon
+  const scope = eventScope(event.cellCount)
+
+  const [expanded, setExpanded] = useState(false)
+  const [ai, setAi] = useState<AiHook | null>(event.aiHook ?? null)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showUpgrade, setShowUpgrade] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const generate = async () => {
+    if (generating) return
+    setGenerating(true)
+    setError(null)
+    setShowUpgrade(false)
+    try {
+      const data = await postAi<{ hook: string; complication: string; stakes: string; firstScene: string }>(
+        "/api/world-map/world-event-hook",
+        {
+          campaignId,
+          event: {
+            name: event.name,
+            type: event.type,
+            cellCount: event.cellCount,
+            places: event.places,
+          },
+        },
+      )
+      const hook: AiHook = {
+        hook: data.hook,
+        complication: data.complication,
+        stakes: data.stakes,
+        firstScene: data.firstScene,
+        generatedAt: Date.now(),
+      }
+      setAi(hook)
+      setSaved(false)
+      // Cache it so reopening the panel doesn't re-spend a daily credit, and so the
+      // fleshed-out hook survives to the table next session. Best-effort: a stale index
+      // or a not-yet-deployed backend just means it shows this session only.
+      try {
+        await setEventHook({ campaignId, eventIndex: index, expectedName: event.name, aiHook: hook })
+      } catch {
+        /* non-fatal — the hook still renders, just isn't persisted */
+      }
+    } catch (e) {
+      if (e instanceof AiError) {
+        setError(e.message)
+        setShowUpgrade(e.kind === "quota" && e.isPremium === false)
+      } else {
+        setError("Couldn't generate right now — try again.")
+      }
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const save = async () => {
+    if (saving || saved) return
+    setSaving(true)
+    setError(null)
+    try {
+      const description = ai
+        ? `**Hook:** ${ai.hook}\n\n**Complication:** ${ai.complication}\n\n**Stakes:** ${ai.stakes}\n\n**Opening scene:** ${ai.firstScene}`
+        : template.hook
+      const importance =
+        template.scope === "Widespread" ? "major" : template.scope === "Regional" ? "moderate" : "minor"
+      await createPlotThread({
+        campaignId,
+        title: event.name,
+        description,
+        status: "active",
+        importance,
+        relatedLocations: [...template.settlements, ...template.realms],
+      })
+      setSaved(true)
+    } catch {
+      setError("Couldn't save the plot thread — try again.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <li className="rounded-lg" style={{ border: "1px solid var(--scene-border)" }}>
+      <div className="flex items-start gap-2 p-2">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: m.color }} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>
+            {event.name}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px]" style={{ color: "var(--scene-text-muted)" }}>
+              {event.type}
+            </span>
+            {scope && <ScopeBadge label={scope} />}
+          </div>
+          {event.places && event.places.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+              <span style={{ color: "var(--scene-text-muted)" }}>Affecting:</span>
+              {event.places.map((place) => {
+                const pin = findPin(place)
+                return pin ? (
+                  <button
+                    key={place.name}
+                    onClick={() => onJumpTo(pin)}
+                    title={`Go to ${place.name}`}
+                    className="rounded px-1.5 py-0.5 font-medium transition-opacity hover:opacity-80"
+                    style={{
+                      background: "color-mix(in srgb, var(--scene-accent) 16%, transparent)",
+                      color: "var(--scene-accent)",
+                      border: "1px solid color-mix(in srgb, var(--scene-accent) 38%, transparent)",
+                    }}
+                  >
+                    {place.name}
+                  </button>
+                ) : (
+                  <button
+                    key={place.name}
+                    onClick={() => onAddTown(place)}
+                    title={`Add ${place.name} to the map`}
+                    className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-medium transition-opacity hover:opacity-80"
+                    style={{
+                      background: "var(--scene-bg)",
+                      color: "var(--scene-text-muted)",
+                      border: "1px dashed var(--scene-border)",
+                    }}
+                  >
+                    {place.name}
+                    <Plus className="h-3 w-3" />
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <button
+            onClick={() => setExpanded((x) => !x)}
+            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium transition-opacity hover:opacity-80"
+            style={{ color: "var(--scene-accent)" }}
+          >
+            <ScrollText className="h-3 w-3" />
+            Plot seed
+            {ai && <Sparkles className="h-2.5 w-2.5" />}
+            <ChevronDown className={cn("h-3 w-3 transition-transform", expanded && "rotate-180")} />
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="space-y-2 px-2 pb-2.5" style={{ borderTop: "1px solid var(--scene-border)" }}>
+          {ai ? (
+            <div className="space-y-1.5 pt-2">
+              <HookField label="Hook" body={ai.hook} />
+              <HookField label="Complication" body={ai.complication} />
+              <HookField label="Stakes" body={ai.stakes} />
+              <HookField label="Opening scene" body={ai.firstScene} />
+            </div>
+          ) : (
+            <div className="pt-2">
+              <MarkdownRenderer variant="scene" content={template.hook} className="text-[11px] leading-relaxed" />
+            </div>
+          )}
+
+          {error && (
+            <p className="text-[11px]" style={{ color: "#dc2626" }}>
+              {error}
+              {showUpgrade && (
+                <>
+                  {" "}
+                  <a href="/account" className="underline" style={{ color: "var(--scene-accent)" }}>
+                    Upgrade
+                  </a>
+                </>
+              )}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={generate}
+              disabled={generating}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+              style={{ color: "var(--scene-accent)", border: "1px solid var(--scene-border)" }}
+              title={ai ? "Generate a fresh take with AI" : "Flesh this out with AI"}
+            >
+              {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+              {generating ? "Generating…" : ai ? "Regenerate" : "Flesh out with AI"}
+            </button>
+            <button
+              onClick={save}
+              disabled={saving || saved}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60"
+              style={{
+                background: saved ? "var(--scene-bg)" : "var(--scene-accent)",
+                color: saved ? "var(--scene-text-muted)" : "var(--scene-bg)",
+                border: "1px solid var(--scene-border)",
+              }}
+            >
+              {saved ? (
+                <Check className="h-3 w-3" />
+              ) : saving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <ScrollText className="h-3 w-3" />
+              )}
+              {saved ? "Saved" : saving ? "Saving…" : "Save as plot thread"}
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
+  )
+}
+
+// One labelled section of an AI-fleshed hook (Hook / Complication / Stakes / Opening scene).
+function HookField({ label, body }: { label: string; body: string }) {
+  return (
+    <div>
+      <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+        {label}
+      </p>
+      <MarkdownRenderer variant="scene" content={body} className="text-[11px] leading-relaxed" />
     </div>
   )
 }

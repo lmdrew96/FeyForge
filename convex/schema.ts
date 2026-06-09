@@ -447,6 +447,21 @@ export default defineSchema({
               }),
             ),
           ),
+          // Cached Tier-2 AI plot hook for this event (DM-only tooling, premium-metered).
+          // The Tier-1 template is always derived live in the UI (lib/worldMap/eventHooks.ts);
+          // this only persists an AI flesh-out so the DM doesn't re-spend a daily credit to
+          // re-read it, and so it survives to the table next session. Written by
+          // worldMap.setEventHook (DM-only). A map re-import regenerates worldEvents, so a
+          // stale aiHook can't outlive its event.
+          aiHook: v.optional(
+            v.object({
+              hook: v.string(),
+              complication: v.string(),
+              stakes: v.string(),
+              firstScene: v.string(),
+              generatedAt: v.number(),
+            }),
+          ),
         }),
       ),
     ),
