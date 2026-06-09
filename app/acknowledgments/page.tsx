@@ -123,8 +123,13 @@ export default function AcknowledgmentsPage() {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-3">Special Thanks</h2>
               <p className="text-muted-foreground leading-relaxed">
-                To Ashley, and to the friends and players who tested, broke, and improved FeyForge
-                one session at a time. The best tools are built at the table.
+                <span className="font-medium text-foreground">Ashley</span> — creative partner on
+                FeyForge, who composes its music and helps craft its worlds. FeyForge sounds and
+                looks the way it does because of her.
+              </p>
+              <p className="text-muted-foreground leading-relaxed mt-3">
+                And to the friends and players who tested, broke, and improved FeyForge one session
+                at a time. The best tools are built at the table.
               </p>
             </section>
           </CardContent>
