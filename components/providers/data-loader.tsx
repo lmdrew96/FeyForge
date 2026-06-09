@@ -114,13 +114,19 @@ function toConversation(doc: Doc<"dmConversations">): Conversation {
 // ── DataLoader component ──────────────────────────────────────────────────────
 
 export function DataLoader() {
-  const { isSignedIn } = useUser()
+  const { isSignedIn, user } = useUser()
   const skip = !isSignedIn ? ("skip" as const) : {}
   const upsertUser = useMutation(api.users.upsertUser)
 
+  // Pass the social profile from the Clerk client object (guaranteed-present,
+  // unlike the JWT name/picture claims). fullName → username → first name as the
+  // display-name fallback chain; upsertUser keeps the user row in sync.
+  const displayName =
+    user?.fullName ?? user?.username ?? user?.firstName ?? undefined
+  const avatarUrl = user?.imageUrl ?? undefined
   useEffect(() => {
-    if (isSignedIn) upsertUser()
-  }, [isSignedIn, upsertUser])
+    if (isSignedIn) upsertUser({ displayName, avatarUrl })
+  }, [isSignedIn, upsertUser, displayName, avatarUrl])
 
   // ── Active campaign: server is the cross-device source of truth ──────────────
   const me = useQuery(api.users.getMe, skip)

@@ -880,10 +880,69 @@ export default defineSchema({
     // Unset ⇒ DEFAULT_AI_TIMEZONE. Plumbed for a future Settings picker; nothing
     // sets it yet, so the reset defaults to the app tz.
     timezone: v.optional(v.string()),
+    // ── Social profile (Friends system) ──────────────────────────────────────
+    // The identity layer everything social renders off. Populated by upsertUser
+    // from the Clerk session (passed client-side from useUser() — the Convex JWT
+    // template can't be assumed to carry name/picture claims). Optional because
+    // rows created before this field exist until their owner's next sign-in
+    // backfills them. The userId key everywhere is clerkId (tokenIdentifier).
+    displayName: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),
+    // Discord-style per-user code for privacy-preserving friend discovery (no open
+    // username search → no enumeration/harassment vector). Minted once by
+    // upsertUser, unique across users (see by_friendCode). Format: "FEY-XXXXXX".
+    friendCode: v.optional(v.string()),
   })
     .index("by_clerkId", ["clerkId"])
     .index("by_clerkUserId", ["clerkUserId"])
-    .index("by_isPremium", ["isPremium"]),
+    .index("by_isPremium", ["isPremium"])
+    .index("by_friendCode", ["friendCode"]),
+
+  // ── Friend graph (Friends system) ───────────────────────────────────────────
+  // One row per relationship between two users, keyed by clerkId (tokenIdentifier)
+  // strings to match campaignMembers. A request is DIRECTIONAL (requester →
+  // addressee); the accepted state IS the friendship. Blocking lives here too
+  // (requesterId = the blocker). There is at most one row per unordered pair —
+  // sendRequest checks BOTH (A→B) and (B→A) before inserting. "My friends" = rows
+  // where I'm requester OR addressee AND status = accepted (hence both indexes).
+  friendships: defineTable({
+    requesterId: v.string(),
+    addresseeId: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("blocked"),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_requester", ["requesterId"])
+    .index("by_addressee", ["addresseeId"])
+    .index("by_requester_and_addressee", ["requesterId", "addresseeId"]),
+
+  // ── Notifications spine (Friends system) ─────────────────────────────────────
+  // One table every social action writes to (friend request, friend accepted,
+  // campaign invite — and future presence/session pings), so the reactive bell in
+  // the app shell is built once instead of retrofitted per feature. User-scoped
+  // (userId = recipient's clerkId); unread = readAt undefined (by_userId_and_readAt
+  // counts the badge without a table scan). Payload is a flat optional-field object
+  // (display text is computed client-side from type + payload). See convex/lib/notify.ts.
+  notifications: defineTable({
+    userId: v.string(),
+    type: v.string(), // "friend_request" | "friend_accepted" | "campaign_invite"
+    payload: v.object({
+      fromUserId: v.optional(v.string()),
+      fromName: v.optional(v.string()),
+      fromAvatarUrl: v.optional(v.string()),
+      friendshipId: v.optional(v.id("friendships")),
+      campaignId: v.optional(v.id("campaigns")),
+      campaignName: v.optional(v.string()),
+    }),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_readAt", ["userId", "readAt"]),
 
   // Per-user daily AI generation counter (durable quota — the in-memory
   // lib/rate-limit is only a per-process anti-burst guard). One row per

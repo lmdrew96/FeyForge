@@ -25,6 +25,7 @@ import {
   Menu,
   X,
   Check,
+  UserPlus,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "convex/react"
@@ -35,6 +36,7 @@ import { useCampaignStore } from "@/lib/campaign-store"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { SceneBackdrop } from "@/components/scene-backdrop"
 import { DMAssistantPanel } from "@/components/dm-assistant/dm-assistant-widget"
+import { NotificationBell } from "@/components/notification-bell"
 
 type NavChild = { label: string; href: string; icon: React.ElementType }
 type NavItem = {
@@ -79,6 +81,7 @@ function buildNavItems(isPlayer: boolean): NavItem[] {
       icon: Swords,
       children: isPlayer ? PLAYER_CHILDREN : DM_CHILDREN,
     },
+    { label: "Friends", href: "/friends", icon: UserPlus },
     { label: "Codex", href: "/codex", icon: BookOpen },
     { label: "Dice", href: "/dice", icon: Dices },
     { label: "Settings", href: "/settings", icon: Settings },
@@ -173,7 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {/* Wordmark */}
         <div
-          className="px-5 py-5"
+          className="px-5 py-5 flex items-center justify-between"
           style={{ borderBottom: "1px solid var(--scene-border)" }}
         >
           <Link href="/dashboard">
@@ -184,6 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               FeyForge
             </span>
           </Link>
+          <NotificationBell align="left" />
         </div>
 
         {/* Active campaign switcher */}
@@ -362,6 +366,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Bot className="w-5 h-5" />
             </button>
           )}
+          <NotificationBell align="right" />
           <ClientUserButton />
         </div>
       </div>
