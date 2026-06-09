@@ -125,7 +125,7 @@ export default function AcknowledgmentsPage() {
               <p className="text-muted-foreground leading-relaxed">
                 <span className="font-medium text-foreground">Ashley</span> — creative partner on
                 FeyForge, who composes its music and helps craft its worlds. FeyForge sounds and
-                looks the way it does because of her.
+                looks the way it does because of them.
               </p>
               <p className="text-muted-foreground leading-relaxed mt-3">
                 And to the friends and players who tested, broke, and improved FeyForge one session
