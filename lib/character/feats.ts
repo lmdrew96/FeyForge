@@ -56,6 +56,12 @@ export interface AppliedGrants {
   skillExpertise?: Skill[]
   hp?: number
   text?: string
+  // "Set ability to N" magic items — Headband of Intellect (INT 19), Amulet of
+  // Health (CON 19), Gauntlets of Ogre Power (STR 19). Floor semantics: applying
+  // only RAISES the score to `value`, never lowers it. `previousValue` is captured
+  // at attune time so reversing restores the exact prior score. Item-only — feats
+  // never set this.
+  setAbility?: { ability: Ability; value: number; previousValue?: number }
 }
 
 export const FEATS: FeatData[] = [
@@ -400,6 +406,15 @@ export function applyGrants(char: GrantTarget, g: AppliedGrants): GrantPatch {
   if (g.ability) {
     patch.baseAbilities = { ...char.baseAbilities, [g.ability]: char.baseAbilities[g.ability] + 1 }
   }
+  if (g.setAbility) {
+    const { ability, value } = g.setAbility
+    const base = patch.baseAbilities ?? char.baseAbilities
+    // Floor: only raise. A score already at or above `value` is left untouched
+    // (so a weaker set-ability item, or stacking, never lowers it).
+    if (base[ability] < value) {
+      patch.baseAbilities = { ...base, [ability]: value }
+    }
+  }
   if (g.saveProficiency && !char.savingThrowProficiencies.includes(g.saveProficiency)) {
     patch.savingThrowProficiencies = [...char.savingThrowProficiencies, g.saveProficiency]
   }
@@ -423,6 +438,14 @@ export function reverseGrants(char: GrantTarget, g: AppliedGrants): GrantPatch {
   if (g.ability) {
     patch.baseAbilities = { ...char.baseAbilities, [g.ability]: Math.max(1, char.baseAbilities[g.ability] - 1) }
   }
+  if (g.setAbility && g.setAbility.previousValue !== undefined) {
+    // Restore the exact score captured at attune time. If the item never raised
+    // it (current ≥ value), previousValue equals the current score, so this is a
+    // safe no-op.
+    const { ability, previousValue } = g.setAbility
+    const base = patch.baseAbilities ?? char.baseAbilities
+    patch.baseAbilities = { ...base, [ability]: previousValue }
+  }
   if (g.saveProficiency) {
     patch.savingThrowProficiencies = char.savingThrowProficiencies.filter((a) => a !== g.saveProficiency)
   }
@@ -445,6 +468,7 @@ export function reverseGrants(char: GrantTarget, g: AppliedGrants): GrantPatch {
 export function appliedSummary(g: AppliedGrants): string {
   const parts: string[] = []
   if (g.ability) parts.push(`+1 ${g.ability.slice(0, 3).toUpperCase()}`)
+  if (g.setAbility) parts.push(`${g.setAbility.ability.slice(0, 3).toUpperCase()} = ${g.setAbility.value}`)
   if (g.saveProficiency) parts.push(`${g.saveProficiency.slice(0, 3).toUpperCase()} save prof`)
   if (g.skillProficiencies?.length) parts.push(`prof: ${g.skillProficiencies.join(", ")}`)
   if (g.skillExpertise?.length) parts.push(`expertise: ${g.skillExpertise.join(", ")}`)

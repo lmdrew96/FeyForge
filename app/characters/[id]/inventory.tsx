@@ -358,15 +358,26 @@ export function InventorySection({
       return
     }
     try {
-      if (item.grants) {
-        const patch = next
-          ? applyGrants(char, item.grants)
-          : reverseGrants(char, item.grants)
+      let grants = item.grants
+      // Capture the pre-attune ability score for a "set ability" grant (Headband of
+      // Intellect etc.) so unattune restores it exactly — floor semantics mean the
+      // item only ever raised the score, never lowered it.
+      if (next && grants?.setAbility) {
+        grants = {
+          ...grants,
+          setAbility: {
+            ...grants.setAbility,
+            previousValue: char.baseAbilities[grants.setAbility.ability],
+          },
+        }
+      }
+      if (grants) {
+        const patch = next ? applyGrants(char, grants) : reverseGrants(char, grants)
         if (Object.keys(patch).length) await updateCharacter({ id: char._id, ...patch })
       }
       await updateProperty({
         id: item.id as Id<"characterProperties">,
-        data: { ...itemToStoredData(item), attuned: next },
+        data: { ...itemToStoredData(item), attuned: next, ...(grants ? { grants } : {}) },
       })
       toast.success(next ? `Attuned to ${item.name}.` : `Unattuned from ${item.name}.`)
     } catch (err) {
@@ -597,7 +608,15 @@ function ItemRow({
 }) {
   const [open, setOpen] = useState(false)
   const qty = item.quantity ?? 1
-  const grantText = item.grants ? appliedSummary(item.grants) : ""
+  // What attuning grants: the baked grants (ability/skill/HP/set-ability) plus the
+  // live AC modifier (stored separately from grants).
+  const acBonus = item.modifiers?.find((m) => m.target === "armorClass")?.value ?? 0
+  const grantText = [
+    item.grants ? appliedSummary(item.grants) : "",
+    acBonus ? `${acBonus > 0 ? "+" : ""}${acBonus} AC` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ")
   const attuneBlocked = attunementFull && !item.attuned
   const packContents = getPackContents(item.name)
 

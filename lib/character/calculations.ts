@@ -93,9 +93,12 @@ export function getAllModifiers(character: Character): Modifier[] {
     // Get modifiers from items
     if (prop.type === "item" && "modifiers" in prop) {
       const item = prop as ItemProperty
-      // Only apply modifiers from equipped items
-      if (item.equipped) {
-        // For attunable items, only apply if attuned
+      // An item's modifiers apply when it's equipped, OR — for non-equippable
+      // magic (rings/amulets/cloaks, which the inventory never marks `equipped`) —
+      // when it's attuned. Attunement-gated items still need to BE attuned to
+      // confer anything. (Live path: this feeds calculateArmorClass / AC only.)
+      const usable = item.equipped || (item.requiresAttunement && item.attuned)
+      if (usable) {
         if (item.requiresAttunement && !item.attuned) continue
         modifiers.push(...item.modifiers)
       }

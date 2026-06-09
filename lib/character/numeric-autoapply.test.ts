@@ -60,3 +60,34 @@ describe("computeArmorClass — Draconic Resilience", () => {
     expect(computeArmorClass(1, dex14, leather, undefined, true)).toBe(13)
   })
 })
+
+describe("computeArmorClass — AC-via-modifier for non-equippable magic", () => {
+  // Ring of Protection +1: category "magic" (never `equipped` in the inventory),
+  // so its armorClass modifier must apply on ATTUNEMENT alone, not equip.
+  const ringOfProtection = (attuned: boolean) =>
+    [
+      {
+        id: "ring",
+        name: "Ring of Protection",
+        active: true,
+        equipped: false,
+        category: "magic",
+        type: "item",
+        requiresAttunement: true,
+        attuned,
+        modifiers: [
+          { id: "item-ac", source: "item", target: "armorClass", type: "add", value: 1, active: true },
+        ],
+      },
+    ] as unknown as Parameters<typeof computeArmorClass>[2]
+
+  it("raises AC while attuned even though the ring is never equipped", () => {
+    const dex12 = abilities(12) // +1 → unarmored 11
+    expect(computeArmorClass(1, dex12, ringOfProtection(true))).toBe(12) // 11 + 1
+  })
+
+  it("does not raise AC while unattuned", () => {
+    const dex12 = abilities(12)
+    expect(computeArmorClass(1, dex12, ringOfProtection(false))).toBe(11) // 11 only
+  })
+})

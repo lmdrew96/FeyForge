@@ -22,6 +22,7 @@ import {
   type Skill,
 } from "@/lib/character/constants"
 import type { AppliedGrants } from "@/lib/character/feats"
+import type { Modifier } from "@/lib/character/types"
 import { parseDiceExpression } from "@/lib/dice-store"
 import {
   open5eApi,
@@ -66,7 +67,7 @@ interface FormState {
   baseAC: string
   stealthDisadvantage: boolean
   strengthRequirement: string
-  // attunement + grants (character inventory only; gated to mode === "character")
+  // attunement + grants (authored for character items and homebrew templates)
   requiresAttunement: boolean
   grantAbility: "" | Ability
   grantSaveProf: "" | Ability
@@ -74,6 +75,12 @@ interface FormState {
   grantExpertise: "" | Skill
   grantHp: string
   grantText: string
+  // "Set ability to N" (Headband of Intellect etc.) — ability + target score.
+  grantSetAbility: "" | Ability
+  grantSetValue: string
+  // Flat AC bonus while attuned/equipped (Ring/Cloak of Protection). Stored as a
+  // live armorClass Modifier, not a baked grant.
+  acBonus: string
 }
 
 function initialForm(item: SheetItem | null): FormState {
@@ -110,6 +117,9 @@ function initialForm(item: SheetItem | null): FormState {
     grantExpertise: item?.grants?.skillExpertise?.[0] ?? "",
     grantHp: item?.grants?.hp ? String(item.grants.hp) : "",
     grantText: item?.grants?.text ?? "",
+    grantSetAbility: item?.grants?.setAbility?.ability ?? "",
+    grantSetValue: item?.grants?.setAbility?.value ? String(item.grants.setAbility.value) : "",
+    acBonus: String(item?.modifiers?.find((m) => m.target === "armorClass")?.value ?? 0),
   }
 }
 
@@ -496,7 +506,7 @@ export function ItemEditorDialog({
 
     // Attunement + grants, shared across all kinds. `attuned` is set on the sheet
     // (not here) — preserve it so a non-grant edit doesn't drop it.
-    const attunement: Pick<StoredItemData, "requiresAttunement" | "attuned" | "grants"> = {}
+    const attunement: Pick<StoredItemData, "requiresAttunement" | "attuned" | "grants" | "modifiers"> = {}
     if (form.requiresAttunement) {
       attunement.requiresAttunement = true
       const grants: AppliedGrants = {}
@@ -507,9 +517,24 @@ export function ItemEditorDialog({
       const ghp = toInt(form.grantHp, 0)
       if (ghp) grants.hp = ghp
       if (form.grantText.trim()) grants.text = form.grantText.trim()
+      // "Set ability to N" (floor) — author-time grant carries only ability+value;
+      // the pre-attune score is captured on the sheet so unattune restores it.
+      const setVal = toInt(form.grantSetValue, 0)
+      if (form.grantSetAbility && setVal > 0) {
+        grants.setAbility = { ability: form.grantSetAbility, value: setVal }
+      }
       if (Object.keys(grants).length) attunement.grants = grants
+      // Flat AC bonus → a live armorClass modifier. Applies while attuned via the
+      // relaxed getAllModifiers gate; no bake/reverse needed — AC is derived.
+      const ac = toInt(form.acBonus, 0)
+      if (ac !== 0) {
+        attunement.modifiers = [
+          { id: "item-ac", source: "item", target: "armorClass", type: "add", value: ac, active: true },
+        ]
+      }
     }
-    if (item?.attuned) attunement.attuned = true
+    // `attuned` is per-character runtime state — never written onto a homebrew template.
+    if (item?.attuned && mode !== "homebrew") attunement.attuned = true
 
     if (form.kind === "weapon") {
       const dice = form.damageDice.trim()
@@ -590,13 +615,11 @@ export function ItemEditorDialog({
     }
     const data = buildData()
     if (!data) return
-    // Attunement/grants aren't in the strict homebrew item validator (character
-    // data is v.any(); homebrew isn't) — strip them so banking to the library
-    // isn't rejected. Authoring attunement on homebrew templates is a follow-up.
+    // Homebrew templates now carry attunement/grants/modifiers (the validator
+    // accepts them). Only `attuned` is stripped — it's per-character runtime
+    // state, never part of a reusable template.
     const homebrewData = { ...data }
-    delete homebrewData.requiresAttunement
     delete homebrewData.attuned
-    delete homebrewData.grants
     setSaving(true)
     try {
       await onSaveAsHomebrew({ name, data: homebrewData })
@@ -904,7 +927,7 @@ export function ItemEditorDialog({
             />
           )}
 
-          {mode === "character" && (
+          {(mode === "character" || mode === "homebrew") && (
             <div
               className="rounded-md p-3 space-y-3"
               style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
@@ -988,6 +1011,34 @@ export function ItemEditorDialog({
                             value={form.grantHp}
                             onChange={(v) => set("grantHp", v)}
                             placeholder="0"
+                            numeric
+                          />
+                        </Field>
+                        <Field label="AC bonus">
+                          <TextInput
+                            value={form.acBonus}
+                            onChange={(v) => set("acBonus", v)}
+                            placeholder="0"
+                            numeric
+                          />
+                        </Field>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Set ability">
+                          <Select
+                            value={form.grantSetAbility}
+                            onChange={(v) => set("grantSetAbility", v as "" | Ability)}
+                            options={[
+                              { value: "", label: "None" },
+                              ...ABILITIES.map((a) => ({ value: a, label: ABILITY_ABBREVIATIONS[a] })),
+                            ]}
+                          />
+                        </Field>
+                        <Field label="to score">
+                          <TextInput
+                            value={form.grantSetValue}
+                            onChange={(v) => set("grantSetValue", v)}
+                            placeholder="19"
                             numeric
                           />
                         </Field>

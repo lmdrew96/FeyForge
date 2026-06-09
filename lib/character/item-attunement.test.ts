@@ -51,6 +51,54 @@ describe("attunement grant bake/reverse", () => {
   })
 })
 
+describe('"set ability to N" magic items (Headband of Intellect etc.)', () => {
+  // Floor semantics: applying only raises the score; the pre-attune value is
+  // captured into the grant so reversing restores it exactly.
+  const captured = (g: AppliedGrants, char: GrantTarget): AppliedGrants => ({
+    ...g,
+    setAbility: g.setAbility
+      ? { ...g.setAbility, previousValue: char.baseAbilities[g.setAbility.ability] }
+      : undefined,
+  })
+
+  it("raises INT 8 → 19 on attune and restores 8 on reverse", () => {
+    const char = baseChar() // INT 8
+    const grants = captured({ setAbility: { ability: "intelligence", value: 19 } }, char)
+
+    const attuned = merge(char, applyGrants(char, grants))
+    expect(attuned.baseAbilities.intelligence).toBe(19)
+
+    const restored = merge(attuned, reverseGrants(attuned, grants))
+    expect(restored.baseAbilities.intelligence).toBe(8)
+    expect(restored.baseAbilities).toEqual(char.baseAbilities)
+  })
+
+  it("does nothing when the current score already meets or exceeds the target", () => {
+    const char = baseChar()
+    char.baseAbilities.intelligence = 20 // already above a Headband's 19
+    const grants = captured({ setAbility: { ability: "intelligence", value: 19 } }, char)
+
+    const attuned = merge(char, applyGrants(char, grants))
+    expect(attuned.baseAbilities.intelligence).toBe(20) // floor — never lowers
+
+    // Reverse restores the captured 20 (a no-op), never clobbering to 19.
+    const restored = merge(attuned, reverseGrants(attuned, grants))
+    expect(restored.baseAbilities.intelligence).toBe(20)
+  })
+
+  it("captures the live score at attune, so reverse can't strand a wrong value", () => {
+    const char = baseChar()
+    char.baseAbilities.strength = 15 // e.g. raised by an ASI since creation
+    const grants = captured({ setAbility: { ability: "strength", value: 19 } }, char)
+
+    const attuned = merge(char, applyGrants(char, grants))
+    expect(attuned.baseAbilities.strength).toBe(19)
+
+    const restored = merge(attuned, reverseGrants(attuned, grants))
+    expect(restored.baseAbilities.strength).toBe(15)
+  })
+})
+
 describe("item attunement data round-trip", () => {
   it("rowToItem ↔ itemToStoredData preserves attunement fields and drops row-level keys", () => {
     const item = rowToItem({

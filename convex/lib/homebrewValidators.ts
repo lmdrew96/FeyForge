@@ -56,15 +56,57 @@ export const homebrewBackgroundData = v.object({
   feature: v.string(),
 })
 
+// Mirrors AppliedGrants in lib/character/feats.ts — what attuning a magic item
+// bakes into / reverses on the character (ability +1, save/skill proficiency,
+// expertise, HP, set-ability, free-text note). On a homebrew TEMPLATE only the
+// authored fields are present; `setAbility.previousValue` is captured per-character
+// at attune time, so it's optional here and absent on templates.
+const appliedGrants = v.object({
+  ability: v.optional(v.string()),
+  saveProficiency: v.optional(v.string()),
+  skillProficiencies: v.optional(v.array(v.string())),
+  skillExpertise: v.optional(v.array(v.string())),
+  hp: v.optional(v.number()),
+  text: v.optional(v.string()),
+  setAbility: v.optional(
+    v.object({
+      ability: v.string(),
+      value: v.number(),
+      previousValue: v.optional(v.number()),
+    }),
+  ),
+})
+
+// Mirrors Modifier in lib/character/types.ts — the live bonus shape the calculators
+// read. A homebrew magic item authors at most an armorClass modifier (the AC-bonus
+// field), but the full shape is accepted so templates round-trip losslessly.
+const itemModifier = v.object({
+  id: v.string(),
+  source: v.string(),
+  sourceId: v.optional(v.string()),
+  target: v.string(),
+  type: v.union(
+    v.literal("add"),
+    v.literal("multiply"),
+    v.literal("set"),
+    v.literal("advantage"),
+    v.literal("disadvantage"),
+    v.literal("min"),
+    v.literal("max"),
+  ),
+  value: v.number(),
+  active: v.boolean(),
+  condition: v.optional(v.string()),
+  priority: v.optional(v.number()),
+})
+
 // Mirrors StoredItemData in lib/character/sheet-items.ts — the exact blob the
 // inventory's item form (buildData) produces and stores on a characterProperties
 // row. A homebrew item is just a reusable StoredItemData + name; adding it to a
 // character clones it into a property row (snapshot), same as an SRD item.
 // `category` is required and unique to this shape (discriminates the union).
-// NOTE (v1 cut): `modifiers` is intentionally omitted — the item form never
-// authors them, so weapon magicBonus + armor baseAC cover the mechanical cases
-// and magic/gear items are descriptive. Add the Modifier shape here if the form
-// later grows modifier authoring.
+// `requiresAttunement`/`grants`/`modifiers` let a homebrew template carry magic-item
+// attunement (the per-character `attuned` flag is NOT here — it's runtime state).
 export const homebrewItemData = v.object({
   category: v.string(), // weapon | armor | gear | magic | consumable | treasure | tool
   quantity: v.optional(v.number()),
@@ -86,6 +128,10 @@ export const homebrewItemData = v.object({
   baseAC: v.optional(v.number()),
   strengthRequirement: v.optional(v.number()),
   stealthDisadvantage: v.optional(v.boolean()),
+  // Magic-item attunement (template-level; `attuned` is per-character, omitted here)
+  requiresAttunement: v.optional(v.boolean()),
+  grants: v.optional(appliedGrants),
+  modifiers: v.optional(v.array(itemModifier)),
 })
 
 // Mirrors ClassData in lib/character/character-data.ts (minus id/name, which are
