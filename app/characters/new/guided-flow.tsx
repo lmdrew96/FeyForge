@@ -19,6 +19,8 @@ import { GuidedCompanion } from "@/components/character/guided-companion"
 import { PortraitUpload } from "@/components/character/portrait-upload"
 import { ToolProficiencyPicker } from "@/components/character/tool-proficiency-picker"
 import { resolveToolProficiencies } from "@/lib/character/tool-choices"
+import { LanguagePicker } from "@/components/character/language-picker"
+import { resolveLanguages } from "@/lib/character/language-choices"
 import { StartingEquipmentStep } from "./starting-equipment-step"
 import type { StartingChoice } from "@/lib/character/starting-equipment"
 
@@ -96,6 +98,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const [faith, setFaith] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [toolSelections, setToolSelections] = useState<Record<string, string[]>>({})
+  const [languageSelections, setLanguageSelections] = useState<string[]>([])
   const [assignments, setAssignments] = useState<Record<Ability, number>>({
     strength: 0, dexterity: 0, constitution: 0,
     intelligence: 0, wisdom: 0, charisma: 0,
@@ -127,6 +130,10 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
     [cls, background],
   )
   const toolProfs = useMemo(() => resolveToolProficiencies(rawTools, toolSelections), [rawTools, toolSelections])
+  const languages = useMemo(
+    () => resolveLanguages(race?.languages ?? [], background?.languages ?? 0, languageSelections),
+    [race, background, languageSelections],
+  )
 
   const racialBonuses = useMemo((): Partial<Record<Ability, number>> => {
     const out: Partial<Record<Ability, number>> = {}
@@ -221,6 +228,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
       startingChoice,
       imageUrl: imageUrl.trim() || undefined,
       toolProficiencies: toolProfs,
+      languages,
       faith: faith.trim() || undefined,
     })
   }
@@ -772,6 +780,21 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
               Tool Proficiencies
             </label>
             <ToolProficiencyPicker rawTools={rawTools} selections={toolSelections} onSelectionsChange={setToolSelections} />
+          </div>
+        )}
+
+        {/* Languages */}
+        {race && (
+          <div className="mb-6">
+            <label className="block text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+              Languages
+            </label>
+            <LanguagePicker
+              raceLanguages={race.languages}
+              backgroundLanguageCount={background?.languages ?? 0}
+              selections={languageSelections}
+              onSelectionsChange={setLanguageSelections}
+            />
           </div>
         )}
 

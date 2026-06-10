@@ -19,6 +19,7 @@ import {
   type QuickRollResult,
 } from "@/lib/character/character-data"
 import { autoResolveToolProficiencies } from "@/lib/character/tool-choices"
+import { resolveLanguages } from "@/lib/character/language-choices"
 import { CLASS_HIT_DICE } from "@/lib/character/constants"
 import type { Ability } from "@/lib/character/constants"
 import { initSpellcasting } from "@/lib/character/leveling"
@@ -399,7 +400,7 @@ export default function NewCharacterPage() {
         toolProficiencies:
           result.toolProficiencies ??
           autoResolveToolProficiencies([...characterClass.toolProficiencies, ...background.toolProficiencies]),
-        languages: race.languages,
+        languages: result.languages ?? resolveLanguages(race.languages, background.languages),
         currency: { cp: 0, sp: 0, ep: 0, gp: loadout.gold, pp: 0 },
         spellcasting,
       })
@@ -539,7 +540,7 @@ export default function NewCharacterPage() {
         armorProficiencies: cls.armorProficiencies,
         weaponProficiencies: cls.weaponProficiencies,
         toolProficiencies: autoResolveToolProficiencies([...cls.toolProficiencies, ...background.toolProficiencies]),
-        languages: race.languages,
+        languages: resolveLanguages(race.languages, background.languages),
         currency: { cp: 0, sp: 0, ep: 0, gp: loadout.gold, pp: 0 },
         spellcasting,
       })

@@ -20,6 +20,8 @@ import { StartingEquipmentStep } from "./starting-equipment-step"
 import { PortraitUpload } from "@/components/character/portrait-upload"
 import { ToolProficiencyPicker } from "@/components/character/tool-proficiency-picker"
 import { resolveToolProficiencies } from "@/lib/character/tool-choices"
+import { LanguagePicker } from "@/components/character/language-picker"
+import { resolveLanguages } from "@/lib/character/language-choices"
 import type { StartingChoice } from "@/lib/character/starting-equipment"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -183,6 +185,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
   const [faith, setFaith] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [toolSelections, setToolSelections] = useState<Record<string, string[]>>({})
+  const [languageSelections, setLanguageSelections] = useState<string[]>([])
   const [classId, setClassId] = useState("")
   const [subclassId, setSubclassId] = useState("")
   const [fightingStyleId, setFightingStyleId] = useState("")
@@ -222,6 +225,10 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
     [cls, background],
   )
   const toolProfs = useMemo(() => resolveToolProficiencies(rawTools, toolSelections), [rawTools, toolSelections])
+  const languages = useMemo(
+    () => resolveLanguages(race?.languages ?? [], background?.languages ?? 0, languageSelections),
+    [race, background, languageSelections],
+  )
 
   const racialBonuses = useMemo((): Partial<Record<Ability, number>> => {
     const out: Partial<Record<Ability, number>> = {}
@@ -352,6 +359,7 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
       startingChoice,
       imageUrl: imageUrl.trim() || undefined,
       toolProficiencies: toolProfs,
+      languages,
       faith: faith.trim() || undefined,
     })
   }
@@ -725,6 +733,21 @@ export function NormalBuilder({ onComplete, saving }: NormalBuilderProps) {
             Tool Proficiencies
           </h2>
           <ToolProficiencyPicker rawTools={rawTools} selections={toolSelections} onSelectionsChange={setToolSelections} />
+        </section>
+      )}
+
+      {/* ── Languages ────────────────────────────────────────────────────────── */}
+      {race && (
+        <section>
+          <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+            Languages
+          </h2>
+          <LanguagePicker
+            raceLanguages={race.languages}
+            backgroundLanguageCount={background?.languages ?? 0}
+            selections={languageSelections}
+            onSelectionsChange={setLanguageSelections}
+          />
         </section>
       )}
 

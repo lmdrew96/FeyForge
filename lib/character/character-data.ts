@@ -888,6 +888,10 @@ export interface QuickRollResult {
   // …" choice picked). Set by the interactive builders; when absent (Quick Roll /
   // From Concept) the creator auto-resolves choices instead.
   toolProficiencies?: string[]
+  // Fully resolved languages (race fixed + race "of your choice" + background bonus
+  // count, every choice picked). Set by the interactive builders; when absent (Quick
+  // Roll / From Concept) the creator auto-resolves choices instead.
+  languages?: string[]
   // Optional faith (narrative identity, free-text at creation). Set in the Guided /
   // Normal builders; the world's pantheon picker lives on the edit page (where the
   // character's campaign — and thus its map — is known).
