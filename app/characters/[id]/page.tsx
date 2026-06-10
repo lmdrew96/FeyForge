@@ -1375,16 +1375,19 @@ function SheetTabs({ tab, setTab }: { tab: SheetTab; setTab: (t: SheetTab) => vo
 export default function CharacterSheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const char = useQuery(api.characters.get, { id: id as Id<"characters"> })
-  // Hooks must run on every render — call before any early return (Rules of Hooks).
-  const { roll, rollExpr, mode, setMode, lastRoll, rolling, dismiss } = useSheetRoll()
   const allProps = useQuery(api.characters.listAllProperties)
-  // Resolve the character's campaign edition (for edition-aware spell counts).
-  // Membership-gated query → null for a non-member, which resolveEdition defaults
-  // to 2024; "skip" for a character with no campaign (also defaults to 2024).
+  // Resolve the character's campaign edition (for edition-aware spell counts +
+  // exhaustion). Membership-gated query → null for a non-member, which
+  // resolveEdition defaults to 2024; "skip" for a character with no campaign.
   const campaign = useQuery(
     api.campaigns.get,
     char?.campaignId ? { campaignId: char.campaignId } : "skip",
   )
+  // Hooks must run on every render — call before any early return (Rules of Hooks).
+  // Exhaustion penalizes every d20 rolled from the sheet, edition-aware.
+  const { roll, rollExpr, mode, setMode, lastRoll, rolling, dismiss } = useSheetRoll({
+    exhaustion: { level: char?.exhaustion ?? 0, edition: resolveEdition(campaign?.edition) },
+  })
 
   // Active sheet tab. Default to "play"; restore the last-viewed tab after mount
   // (read in an effect, not initial state, to avoid an SSR hydration mismatch).

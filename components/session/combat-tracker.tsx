@@ -28,7 +28,7 @@ import { baseMonsterName } from "@/lib/monster-attacks"
 import { rollExpression } from "@/lib/dice-store"
 import { rollToFeedArgs } from "@/lib/session-rolls"
 import { resolveEdition } from "@/lib/editions"
-import { MAX_EXHAUSTION, exhaustionSummary } from "@/lib/character/exhaustion"
+import { MAX_EXHAUSTION, exhaustionSummary, exhaustionD20Effect } from "@/lib/character/exhaustion"
 
 type SessionId = Id<"partySessions">
 
@@ -1149,6 +1149,10 @@ export function PlayerCombatView({
   const myStats = useQuery(api.liveCombat.getPartyCombatStats, { sessionId })
   const doSetMyInitiative = useMutation(api.liveCombat.setMyInitiative)
   const pushRoll = useMutation(api.sessionRolls.pushRoll)
+  // Edition drives how exhaustion hits the initiative roll (2024 −2/level on this
+  // Dex check; 2014 disadvantage on the check from level 1).
+  const campaign = useQuery(api.campaigns.get, { campaignId })
+  const edition = resolveEdition(campaign?.edition)
 
   const myStatByChar = useMemo(() => {
     const map = new Map<string, { armorClass: number; initiativeBonus: number }>()
@@ -1166,8 +1170,17 @@ export function PlayerCombatView({
     const stat = c.characterId ? myStatByChar.get(c.characterId) : undefined
     const bonus = stat?.initiativeBonus ?? 0
     const ac = stat?.armorClass ?? 10
-    const sign = bonus >= 0 ? "+" : "-"
-    const result = rollExpression(`1d20${sign}${Math.abs(bonus)}`, { label: "Initiative" })
+    // Initiative is a Dex check, so exhaustion applies: 2024 subtracts 2×level from
+    // the total, 2014 forces disadvantage. The exhaustion penalty rides the rolled
+    // total only — the STORED initiativeBonus stays the static Dex mod so a later DM
+    // reroll isn't permanently saddled with a since-cleared exhaustion level.
+    const ex = exhaustionD20Effect(c.exhaustion ?? 0, edition, "check")
+    const effBonus = bonus + ex.modifier
+    const sign = effBonus >= 0 ? "+" : "-"
+    const result = rollExpression(`1d20${sign}${Math.abs(effBonus)}`, {
+      label: "Initiative",
+      mode: ex.disadvantage ? "disadvantage" : undefined,
+    })
     if (!result) return
     try {
       await doSetMyInitiative({

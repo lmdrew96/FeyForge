@@ -42,9 +42,9 @@ import {
 } from "@/lib/character/sheet-spells"
 import { open5eApi, type Open5eSpell } from "@/lib/open5e-api"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import type { SheetRollFn } from "@/components/character/sheet-roll"
 
 type SpellcastingBlock = NonNullable<Doc<"characters">["spellcasting"]>
-type RollFn = (label: string, mod: number) => void
 
 // SheetSpell minus the row identity fields = the stored blob to re-persist.
 function storedFromSheet(spell: SheetSpell): StoredSpellData {
@@ -73,7 +73,7 @@ export function SpellbookSection({
   spells: SheetSpell[]
   grantedSpells?: GrantedSpellRef[]
   nextOrder: number
-  roll: RollFn
+  roll: SheetRollFn
 }) {
   const updateChar = useMutation(api.characters.update)
   const addProperty = useMutation(api.characters.addProperty)
@@ -223,7 +223,7 @@ export function SpellbookSection({
           </div>
         </div>
         <button
-          onClick={() => roll("Spell attack", spellcasting.spellAttackBonus)}
+          onClick={() => roll("Spell attack", spellcasting.spellAttackBonus, "attack")}
           className="rounded-lg transition-transform active:scale-95 hover:opacity-90"
           title="Roll a spell attack (honors the adv/dis toggle)"
         >

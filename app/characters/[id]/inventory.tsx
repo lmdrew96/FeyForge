@@ -22,16 +22,10 @@ import { formatCost } from "@/lib/character/srd-item-costs"
 const MAX_ATTUNEMENT = 3
 import { partitionHomebrew } from "@/lib/homebrew"
 import { ItemEditorDialog } from "@/components/character/item-editor"
-import type { DiceRollResult } from "@/lib/dice-store"
-
-// The sheet's roll helpers, passed down from the page's useSheetRoll(). `roll`
-// returns the roll result so attacks can read the natural d20 (crit detection).
-export type SheetRollFn = (label: string, mod: number) => DiceRollResult | null
-export type SheetRollExprFn = (
-  label: string,
-  expression: string,
-  opts?: { crit?: boolean },
-) => void
+// The sheet's roll helpers, passed down from the page's useSheetRoll(). The
+// canonical types live with the hook so the exhaustion-aware rollType param
+// can't drift between separate copies.
+import type { SheetRollFn, SheetRollExprFn } from "@/components/character/sheet-roll"
 
 const fmtMod = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 
@@ -101,7 +95,7 @@ export function AttacksSection({
   // when the range is widened (critRange < 20); a plain nat 20 stays manual, as
   // it is for everyone else.
   const rollAttack = (label: string, mod: number) => {
-    const result = roll(label, mod)
+    const result = roll(label, mod, "attack")
     const natural = result?.terms[0]?.rolls[0]
     if (critRange < 20 && typeof natural === "number" && natural >= critRange) {
       setCrit(true)

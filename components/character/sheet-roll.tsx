@@ -10,6 +10,11 @@ import {
   type DiceRollResult,
 } from "@/lib/dice-store"
 import { DiceScene, type SceneDie } from "@/components/dice/die-3d-scene"
+import {
+  exhaustionD20Effect,
+  type D20RollType,
+} from "@/lib/character/exhaustion"
+import type { Edition } from "@/lib/editions"
 
 // Roll-from-sheet primitives, shared by the standalone character sheet
 // (app/characters/[id]) and the in-session sheet (the live-session "Sheet" tab)
@@ -24,8 +29,14 @@ const SHEET_MODE_LABEL: Record<RollMode, string> = {
 
 // d20 check/save/attack roll — applies the advantage/disadvantage toggle. Returns
 // the roll result (or null on failure) so callers like attacks can read the
-// natural d20 (e.g. to detect a crit at the character's crit range).
-export type SheetRollFn = (label: string, mod: number) => DiceRollResult | null
+// natural d20 (e.g. to detect a crit at the character's crit range). `rollType`
+// (default "check") lets exhaustion apply the correct edition-aware penalty —
+// callers rolling attacks/saves pass it so 2014's tiered disadvantage is right.
+export type SheetRollFn = (
+  label: string,
+  mod: number,
+  rollType?: D20RollType,
+) => DiceRollResult | null
 // Arbitrary expression (e.g. weapon damage "1d8+3"), optionally a crit.
 export type SheetRollExprFn = (
   label: string,
@@ -48,7 +59,13 @@ export interface SheetRoll {
 // into the shared history, toasts it, and surfaces it for the on-sheet dice card.
 // `onRoll` (optional) fires for EVERY sheet roll — the in-session sheet passes it
 // to broadcast the roll to the table's live feed; the standalone sheet omits it.
-export function useSheetRoll(opts?: { onRoll?: (r: DiceRollResult) => void }): SheetRoll {
+// `exhaustion` (optional) applies the character's exhaustion to every d20 Test
+// (roll(), not rollExpr()): 2024 subtracts 2 × level, 2014 forces disadvantage on
+// the affected roll types. Damage rolls are never affected.
+export function useSheetRoll(opts?: {
+  onRoll?: (r: DiceRollResult) => void
+  exhaustion?: { level: number; edition: Edition }
+}): SheetRoll {
   const addRoll = useDiceStore((s) => s.addRoll)
   const [mode, setMode] = useState<RollMode>("normal")
   const [lastRoll, setLastRoll] = useState<DiceRollResult | null>(null)
@@ -88,10 +105,26 @@ export function useSheetRoll(opts?: { onRoll?: (r: DiceRollResult) => void }): S
     rollTimer.current = setTimeout(() => setRolling(false), 500)
   }
 
-  // d20 check/save/attack roll — applies the advantage/disadvantage toggle.
-  const roll: SheetRollFn = (label, mod) => {
-    const sign = mod >= 0 ? "+" : "-"
-    const result = rollExpression(`1d20${sign}${Math.abs(mod)}`, { label, mode })
+  // d20 check/save/attack roll — applies the advantage/disadvantage toggle, plus
+  // the character's exhaustion (if supplied). Exhaustion either subtracts a flat
+  // penalty (2024) or forces disadvantage (2014); a forced disadvantage cancels a
+  // chosen advantage to normal (5e: adv + dis = straight roll), but stacks with a
+  // chosen disadvantage (still just disadvantage).
+  const roll: SheetRollFn = (label, mod, rollType = "check") => {
+    const ex = opts?.exhaustion
+      ? exhaustionD20Effect(opts.exhaustion.level, opts.exhaustion.edition, rollType)
+      : { modifier: 0, disadvantage: false }
+    const effMod = mod + ex.modifier
+    const effMode: RollMode = ex.disadvantage
+      ? mode === "advantage"
+        ? "normal"
+        : "disadvantage"
+      : mode
+    const sign = effMod >= 0 ? "+" : "-"
+    const result = rollExpression(`1d20${sign}${Math.abs(effMod)}`, {
+      label,
+      mode: effMode,
+    })
     if (!result) return null
     surface(result)
     return result

@@ -167,7 +167,7 @@ export function SavingThrowsCard({
           return (
             <button
               key={ability}
-              onClick={() => roll(`${ABILITY_ABBREVIATIONS[ability]} save`, saveMods[ability])}
+              onClick={() => roll(`${ABILITY_ABBREVIATIONS[ability]} save`, saveMods[ability], "save")}
               className="flex items-center gap-3 px-4 py-2.5 w-full text-left transition-opacity hover:opacity-80"
               style={{ borderBottom: i < ABILITIES.length - 1 ? "1px solid var(--scene-border)" : "none" }}
               title={`Roll ${ABILITY_ABBREVIATIONS[ability]} save`}

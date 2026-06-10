@@ -40,3 +40,35 @@ export function exhaustionEffects(level: number, edition: Edition): string[] {
 export function exhaustionSummary(level: number, edition: Edition): string {
   return exhaustionEffects(level, edition).join("; ")
 }
+
+// ── Mechanical effect on a single d20 roll ───────────────────────────────────
+// The kind of d20 Test being made. Skill, tool, ability, and initiative rolls
+// are all ability CHECKS; weapon/spell attacks are "attack"; saving throws are
+// "save". Used to apply 2014's roll-type-specific disadvantage tiers.
+export type D20RollType = "check" | "attack" | "save"
+
+export interface ExhaustionD20Effect {
+  // Flat modifier to add to the d20 roll (2024 only; 2014 uses disadvantage).
+  modifier: number
+  // Whether exhaustion forces disadvantage on this roll (2014 only).
+  disadvantage: boolean
+}
+
+// How exhaustion alters one d20 Test, edition-aware:
+//   2024 — a flat −2 × level on EVERY d20 Test (checks, attacks, saves alike).
+//   2014 — disadvantage (no flat modifier), gated by tier and roll type:
+//          ability CHECKS get it from level 1+, ATTACK rolls and SAVING throws
+//          from level 3+ (the level-3 tier is "disadvantage on attacks and saves").
+// Returns the no-op effect at level 0 or with no exhaustion.
+export function exhaustionD20Effect(
+  level: number,
+  edition: Edition,
+  rollType: D20RollType,
+): ExhaustionD20Effect {
+  const lvl = clampExhaustion(level)
+  if (lvl === 0) return { modifier: 0, disadvantage: false }
+  if (edition === "2024") return { modifier: -2 * lvl, disadvantage: false }
+  // 2014: checks from level 1, attacks + saves from level 3 (cumulative tiers).
+  const disadvantage = rollType === "check" ? lvl >= 1 : lvl >= 3
+  return { modifier: 0, disadvantage }
+}

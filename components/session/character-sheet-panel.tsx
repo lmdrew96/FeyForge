@@ -9,6 +9,7 @@ import { Swords, Dices, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CLASS_COLORS, formatModifier } from "@/lib/character/constants"
 import { deriveCharacter } from "@/lib/character/derive-character"
+import { resolveEdition } from "@/lib/editions"
 import { CharacterAvatar } from "@/components/character/character-avatar"
 import {
   useSheetRoll,
@@ -98,6 +99,8 @@ export function SessionCharacterSheet({
       if (!sessionId || !char) return
       void pushRoll({ sessionId, ...rollToFeedArgs(result, char.name) }).catch(() => {})
     },
+    // Exhaustion penalizes every d20 rolled from the in-session sheet, edition-aware.
+    exhaustion: { level: char?.exhaustion ?? 0, edition: resolveEdition(campaign?.edition) },
   })
 
   // Active tab. Default "actions"; restore after mount to avoid a hydration mismatch.

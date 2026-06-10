@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { rollToFeedArgs } from "@/lib/session-rolls"
 import { deriveCharacter } from "@/lib/character/derive-character"
+import { resolveEdition } from "@/lib/editions"
 import { useSheetRoll, SheetRollCard } from "@/components/character/sheet-roll"
 import { AttacksSection } from "@/app/characters/[id]/inventory"
 import { SpellbookSection } from "@/components/character/spellbook"
@@ -45,6 +46,9 @@ export function PlayerCombatActions({
       if (!char) return
       void pushRoll({ sessionId, ...rollToFeedArgs(result, char.name) }).catch(() => {})
     },
+    // Exhaustion penalizes every in-combat d20 the player rolls here. char.exhaustion
+    // is the live shared number — the DM's tracker stepper writes through to it.
+    exhaustion: { level: char?.exhaustion ?? 0, edition: resolveEdition(campaign?.edition) },
   })
 
   if (!char) return null
