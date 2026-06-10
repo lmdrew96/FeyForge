@@ -642,6 +642,7 @@ function SpellPicker({
   const [error, setError] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
   const [added, setAdded] = useState<Set<string>>(new Set())
+  const [expandedSlug, setExpandedSlug] = useState<string | null>(null)
   const cacheRef = useRef<Open5eSpell[] | null>(null)
   const [version, setVersion] = useState(0)
 
@@ -769,28 +770,87 @@ function SpellPicker({
             <div className="space-y-1">
               {results.map((s) => {
                 const isAdded = added.has(s.slug) || knownSlugs.has(s.slug)
+                const isOpen = expandedSlug === s.slug
                 return (
-                  <button
+                  <div
                     key={s.slug}
-                    onClick={() => !isAdded && handleAdd(s)}
-                    disabled={isAdded || adding === s.slug}
-                    className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-left transition-colors disabled:opacity-60"
+                    className="rounded-md overflow-hidden"
                     style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)" }}
                   >
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm truncate block" style={{ color: "var(--scene-text-primary)" }}>
-                        {s.name}
-                      </span>
-                      <span className="text-xs capitalize" style={{ color: "var(--scene-text-muted)" }}>
-                        {s.level_int === 0 ? "Cantrip" : spellLevelLabel(s.level_int)} · {s.school}
-                      </span>
+                    {/* Row click previews the spell; the explicit +/Add control adds it. */}
+                    <div className="flex items-center gap-2 w-full px-3 py-2">
+                      <button
+                        onClick={() => setExpandedSlug(isOpen ? null : s.slug)}
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left transition-opacity hover:opacity-80"
+                        title={isOpen ? "Hide details" : "Show details"}
+                      >
+                        <ChevronDown
+                          className="h-3.5 w-3.5 flex-shrink-0 transition-transform"
+                          style={{
+                            color: "var(--scene-text-muted)",
+                            transform: isOpen ? "none" : "rotate(-90deg)",
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm truncate block" style={{ color: "var(--scene-text-primary)" }}>
+                            {s.name}
+                          </span>
+                          <span className="text-xs capitalize" style={{ color: "var(--scene-text-muted)" }}>
+                            {s.level_int === 0 ? "Cantrip" : spellLevelLabel(s.level_int)} · {s.school}
+                          </span>
+                        </div>
+                      </button>
+                      {isAdded ? (
+                        <Check className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
+                      ) : (
+                        <button
+                          onClick={() => handleAdd(s)}
+                          disabled={adding === s.slug}
+                          aria-label={`Add ${s.name}`}
+                          title={`Add ${s.name}`}
+                          className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                          style={{
+                            background: "color-mix(in srgb, var(--scene-accent) 14%, transparent)",
+                            color: "var(--scene-accent)",
+                            border: "1px solid color-mix(in srgb, var(--scene-accent) 32%, transparent)",
+                          }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          {adding === s.slug ? "Adding…" : "Add"}
+                        </button>
+                      )}
                     </div>
-                    {isAdded ? (
-                      <Check className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-accent)" }} />
-                    ) : (
-                      <Plus className="h-4 w-4 flex-shrink-0" style={{ color: "var(--scene-text-muted)" }} />
+                    {isOpen && (
+                      <div className="px-3 pb-3">
+                        <div
+                          className="rounded-lg p-3 text-sm"
+                          style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+                        >
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs mb-2" style={{ color: "var(--scene-text-muted)" }}>
+                            {s.casting_time && <span>Casting time: {s.casting_time}</span>}
+                            {s.range && <span>Range: {s.range}</span>}
+                            {s.duration && <span>Duration: {s.duration}</span>}
+                            {s.components && <span>Components: {s.components}</span>}
+                            {["yes", "true"].includes((s.concentration ?? "").toLowerCase()) && <span>Concentration</span>}
+                            {["yes", "true"].includes((s.ritual ?? "").toLowerCase()) && <span>Ritual</span>}
+                          </div>
+                          {s.desc ? (
+                            <MarkdownRenderer content={s.desc} variant="scene" />
+                          ) : (
+                            <span style={{ color: "var(--scene-text-muted)" }}>No description.</span>
+                          )}
+                          {s.higher_level && (
+                            <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--scene-border)" }}>
+                              <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+                                At higher levels
+                              </span>
+                              <MarkdownRenderer content={s.higher_level} variant="scene" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
-                  </button>
+                  </div>
                 )
               })}
             </div>
