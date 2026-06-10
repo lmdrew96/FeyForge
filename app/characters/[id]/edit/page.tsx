@@ -21,10 +21,11 @@ import {
 } from "@/components/ui/select"
 import { ALIGNMENTS, getAbilityModifier, type Ability } from "@/lib/character/constants"
 import { CLASSES, getSubclassId } from "@/lib/character/character-data"
+import { rollHeightWeight, hasHeightWeightTable } from "@/lib/character/height-weight"
 import { COMMON_TOOLS } from "@/lib/character/tool-choices"
 import { hpGainForLevel, recomputeSpellcasting } from "@/lib/character/leveling"
 import { resolveEdition } from "@/lib/editions"
-import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2, X } from "lucide-react"
+import { ArrowLeft, Sparkles, Loader2, ChevronRight, Wand2, X, Dices } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -240,6 +241,16 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
 
   const setField = <K extends keyof EditState>(key: K, value: EditState[K]) => {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
+  }
+
+  // Roll height + weight off the 5e chart for this character's race/subrace and
+  // fill both fields at once (weight is derived from the height roll, per RAW).
+  const rollPhysique = () => {
+    if (!char) return
+    const result = rollHeightWeight(char.race, char.subrace)
+    if (!result) return
+    setDraft((prev) => (prev ? { ...prev, height: result.height, weight: result.weight } : prev))
+    toast.success(`Rolled ${result.height} · ${result.weight}`)
   }
 
   const addTool = () => {
@@ -665,6 +676,22 @@ export default function CharacterEditPage({ params }: { params: Promise<{ id: st
         </FieldGroup>
 
         <FieldGroup title="Appearance">
+          {hasHeightWeightTable(char.race, char.subrace) && (
+            <button
+              type="button"
+              onClick={rollPhysique}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+              style={{
+                background: "color-mix(in srgb, var(--scene-accent) 12%, var(--scene-surface))",
+                color: "var(--scene-accent)",
+                border: "1px solid color-mix(in srgb, var(--scene-accent) 30%, var(--scene-border))",
+              }}
+              title="Roll height & weight on the 5e chart for this race"
+            >
+              <Dices className="h-4 w-4" />
+              Roll height &amp; weight
+            </button>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="space-y-2">
               <Label htmlFor="char-age">Age</Label>
