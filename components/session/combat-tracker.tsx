@@ -399,6 +399,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
           conditions: [],
           characterId: char._id,
           userId: char.userId,
+          isDmpc: true,
         },
       })
       toast.success(`${char.name} joined the party.`)
@@ -643,7 +644,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
                       {c.name}
                     </span>
                     <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
-                      {TYPE_LABEL[c.type]}
+                      {c.isDmpc ? "DMPC" : TYPE_LABEL[c.type]}
                     </span>
                     {c.armorClass !== undefined && (
                       <span className="text-xs flex items-center gap-0.5 flex-shrink-0" style={{ color: "var(--scene-text-muted)" }}>
@@ -1128,6 +1129,11 @@ export function PlayerCombatView({ sessionId }: { sessionId: SessionId }) {
                     {c.isMine && (
                       <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
                         You
+                      </span>
+                    )}
+                    {c.isDmpc && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
+                        DMPC
                       </span>
                     )}
                     {c.isActive && (

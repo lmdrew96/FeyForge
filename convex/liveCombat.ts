@@ -29,6 +29,7 @@ const combatantInputValidator = v.object({
   ),
   characterId: v.optional(v.id("characters")),
   userId: v.optional(v.string()),
+  isDmpc: v.optional(v.boolean()),
   statblockRef: v.optional(statblockRefValidator),
 })
 
@@ -143,6 +144,9 @@ export const getCombat = query({
         conditions: c.conditions,
         deathSaves: c.deathSaves,
         characterId: c.characterId,
+        // Public label: a DMPC is a PC mechanically, but the table should see
+        // who runs it.
+        isDmpc: c.isDmpc,
         // DM-only: lets the attack roller resolve a disguised NPC to its real stat
         // block. Withheld from players so the NPC's true nature stays a DM secret.
         statblockRef: isDM ? c.statblockRef : undefined,

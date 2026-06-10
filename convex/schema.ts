@@ -1146,6 +1146,9 @@ export default defineSchema({
         // exact HP and the row can mirror the live character sheet.
         characterId: v.optional(v.id("characters")),
         userId: v.optional(v.string()),
+        // DM-controlled character (DMPC): mechanically a PC (death saves, sheet
+        // write-through) but labeled distinctly so the table knows who runs it.
+        isDmpc: v.optional(v.boolean()),
         // For NPC combatants entered from a persistent NPC's stat block: the attack
         // roller resolves THIS ref instead of the display name (an NPC labeled "Lord
         // Vthain" still rolls as its "Archmage" stat block). See statblockRefValidator.
