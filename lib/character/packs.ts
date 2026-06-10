@@ -7,17 +7,78 @@
 // become rollable tools.
 
 import type { ItemCategory } from "./sheet-items"
+import type { CurrencyType } from "./constants"
+import { parseCost } from "./srd-item-costs"
 
 export interface PackComponent {
   name: string
   quantity?: number
   category?: ItemCategory // default "gear"
+  weight?: number // per-unit lb
+  cost?: { amount: number; currency: CurrencyType } // per-unit list price
+}
+
+// SRD weight (lb) + list price for the items packs explode into, so unpacked rows
+// carry the same weight/cost as anything bought à la carte (and don't make a pack
+// weigh 55 lb then drop to 0 when opened). Sourced from Open5e /v2/items where it
+// lists them; the handful Open5e omits (Hammer, Piton, Torch, Oil flask, Mess kit,
+// Case, Sealing wax, Soap) use the standard SRD figures. Flavor items a few packs
+// carry that SRD never prices (Alms box, Censer, Vestments, Incense, Bag of sand,
+// Small knife) get a sensible weight and no cost. Keyed by the EXACT names below.
+const COMPONENT_STATS: Record<string, { weight: number; cost?: string }> = {
+  Backpack: { weight: 5, cost: "2 gp" },
+  "Ball bearings (bag of 1,000)": { weight: 2, cost: "1 gp" },
+  "String (10 ft)": { weight: 0, cost: "1 sp" },
+  Bell: { weight: 0, cost: "1 gp" },
+  Candle: { weight: 0, cost: "1 cp" },
+  Crowbar: { weight: 5, cost: "2 gp" },
+  Hammer: { weight: 3, cost: "1 gp" },
+  Piton: { weight: 0.25, cost: "5 cp" },
+  "Hooded lantern": { weight: 2, cost: "5 gp" },
+  "Oil (flask)": { weight: 1, cost: "1 sp" },
+  "Rations (day)": { weight: 2, cost: "5 sp" },
+  Tinderbox: { weight: 1, cost: "5 sp" },
+  Waterskin: { weight: 5, cost: "2 sp" },
+  "Hempen rope (50 ft)": { weight: 5, cost: "1 gp" },
+  Torch: { weight: 1, cost: "1 cp" },
+  Chest: { weight: 25, cost: "5 gp" },
+  "Case, map or scroll": { weight: 1, cost: "1 gp" },
+  "Fine clothes": { weight: 6, cost: "15 gp" },
+  "Ink (bottle)": { weight: 0, cost: "10 gp" },
+  "Ink pen": { weight: 0, cost: "2 cp" },
+  Lamp: { weight: 1, cost: "5 sp" },
+  "Paper (sheet)": { weight: 0, cost: "2 sp" },
+  "Perfume (vial)": { weight: 0, cost: "5 gp" },
+  "Sealing wax": { weight: 0, cost: "5 sp" },
+  Soap: { weight: 0, cost: "2 cp" },
+  Bedroll: { weight: 7, cost: "1 gp" },
+  Costume: { weight: 4, cost: "5 gp" },
+  "Disguise kit": { weight: 3, cost: "25 gp" },
+  "Mess kit": { weight: 1, cost: "2 sp" },
+  Blanket: { weight: 3, cost: "5 sp" },
+  "Book of lore": { weight: 5, cost: "25 gp" },
+  "Parchment (sheet)": { weight: 0, cost: "1 sp" },
+  // SRD-unpriced flavor items — weight only.
+  "Alms box": { weight: 1 },
+  "Incense (block)": { weight: 0 },
+  Censer: { weight: 1 },
+  Vestments: { weight: 4 },
+  "Bag of sand": { weight: 1 },
+  "Small knife": { weight: 0.5 },
+}
+
+function componentStats(name: string): Pick<PackComponent, "weight" | "cost"> {
+  const s = COMPONENT_STATS[name]
+  if (!s) return {}
+  const cost = s.cost ? parseCost(s.cost) : undefined
+  return { weight: s.weight, ...(cost ? { cost } : {}) }
 }
 
 const C = (name: string, quantity?: number, category?: ItemCategory): PackComponent => ({
   name,
   ...(quantity ? { quantity } : {}),
   ...(category ? { category } : {}),
+  ...componentStats(name),
 })
 
 // Keys are normalized (lowercase, straight apostrophe). See normalizePackName.

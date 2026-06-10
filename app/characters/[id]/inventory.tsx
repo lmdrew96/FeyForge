@@ -465,6 +465,8 @@ export function InventorySection({
           orderIndex: order++,
           data: {
             category: comp.category ?? "gear",
+            ...(comp.weight != null ? { weight: comp.weight } : {}),
+            ...(comp.cost ? { cost: comp.cost } : {}),
             ...(comp.quantity ? { quantity: comp.quantity } : {}),
           },
         })
