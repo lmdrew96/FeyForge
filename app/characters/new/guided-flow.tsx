@@ -929,8 +929,13 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  // These Step* functions are render helpers, not real components — they close
+  // over GuidedFlow's state. We CALL the current one (`steps[step]()`) so its
+  // JSX is inlined into this render. Rendering it as `<CurrentStep />` gave the
+  // element a new component identity every render (the function is redefined
+  // each time), so React remounted the whole step on every keystroke — which
+  // dropped focus from the Name/Faith text inputs after each letter.
   const steps = [StepClass, StepRace, StepBackground, StepAbilities, StepSkills, StepEquipment, StepName]
-  const CurrentStep = steps[step]
 
   return (
     // pb-28 reserves a gutter so the class grid's last row (Sorcerer) clears the
@@ -1018,7 +1023,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
         </div>
       )}
 
-      <CurrentStep />
+      {steps[step]()}
 
       <GuidedCompanion characterState={companionState} />
     </div>
