@@ -1,6 +1,7 @@
 // Open5e API client with IndexedDB caching
 
 import { srdItemCost } from "./character/srd-item-costs"
+import type { ItemCategory } from "./character/sheet-items"
 
 const API_BASE = "https://api.open5e.com"
 const DB_NAME = "arcane-codex-srd"
@@ -407,6 +408,74 @@ export function v2MagicItemToItem(m: Open5eV2MagicItem): Open5eMagicItem {
   }
 }
 
+// /v2/items rows carry weight/cost as strings ("4.000", "10.00") and a nested
+// {key} category. We map at this boundary like every other v2 shape.
+interface Open5eV2Item {
+  key: string
+  name: string
+  category?: V2Ref
+  weight?: number | string | null
+  cost?: number | string | null
+  desc?: string
+  document?: V2Doc
+}
+
+// Open5e item category key → the sheet's ItemCategory. weapon/armor keep their own
+// kinds (their mechanics come from the dedicated endpoints; here they're only a
+// price+weight source). Magic-ish keys (wondrous/scroll) map to "magic" so the gear
+// search can exclude them — they have a richer dedicated tab (rarity + attunement).
+const ITEM_CATEGORY_MAP: Record<string, ItemCategory> = {
+  weapon: "weapon",
+  armor: "armor",
+  ammunition: "gear",
+  "adventuring-gear": "gear",
+  "equipment-pack": "gear",
+  "spellcasting-focus": "gear",
+  mount: "gear",
+  "land-vehicle": "gear",
+  "waterborne-vehicle": "gear",
+  tools: "tool",
+  potion: "consumable",
+  "wondrous-item": "magic",
+  scroll: "magic",
+}
+
+// Open5e prices everything in decimal gp (0.40 = 4 sp, 0.01 = 1 cp). Render it back
+// to the largest whole denomination so the form prefills "4 sp", not "0.4 gp".
+function gpToCostString(gp: number): string {
+  if (!Number.isFinite(gp) || gp <= 0) return ""
+  if (Number.isInteger(gp)) return `${gp} gp`
+  const sp = gp * 10
+  if (Number.isInteger(sp)) return `${sp} sp`
+  return `${Math.round(gp * 100)} cp`
+}
+
+export function v2ItemToEquipment(it: Open5eV2Item): Open5eEquipment {
+  const key = (it.category?.key ?? "").toLowerCase()
+  return {
+    slug: it.key,
+    name: it.name,
+    category: ITEM_CATEGORY_MAP[key] ?? "gear",
+    weight: Number(it.weight) || 0,
+    cost: gpToCostString(Number(it.cost) || 0),
+    desc: it.desc ?? "",
+  }
+}
+
+// Name key for matching across endpoints: lowercase, punctuation-stripped, the
+// noise word "armor" dropped, words sorted — so "/v2/armor"'s "Studded Leather
+// Armor" matches "/v2/items"'s entry regardless of suffix/word order. Mirrors the
+// srd-item-costs normalize, kept local to avoid coupling.
+function equipNormKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w && w !== "armor")
+    .sort()
+    .join(" ")
+}
+
 interface Open5eV2Condition {
   key: string
   name: string
@@ -473,6 +542,21 @@ export interface Open5eMagicItem {
   requires_attunement: string
   document__slug: string
   document__title: string
+}
+
+// Mundane SRD equipment from /v2/items — the catalog the weapon/armor/magic-item
+// mechanics endpoints DON'T cover: ammunition, adventuring gear, tools, packs,
+// potions, spellcasting foci, mounts. Unlike those endpoints, /v2/items carries
+// real `weight` (lbs) and `cost` (gp), so it doubles as the price+weight source
+// that enriches weapons/armor (see getEquipmentStats). `category` is pre-mapped to
+// the sheet's ItemCategory so the item picker can drop a pick straight into a form.
+export interface Open5eEquipment {
+  slug: string
+  name: string
+  category: ItemCategory
+  weight: number // lbs
+  cost: string // "1 gp" / "4 sp" / "" — parseCost-compatible
+  desc: string
 }
 
 // NOTE: races, classes, and backgrounds are NOT fetched from Open5e — character
@@ -651,6 +735,25 @@ function loadSrdMonsters(): Promise<Open5eMonster[]> {
   return srdMonstersPromise
 }
 
+// Name → {weight, cost} lookup built once from /v2/items, used to enrich the
+// weapon/armor mechanics endpoints (which carry neither). Cached as a promise so
+// concurrent getWeapons()/getArmor() calls share one fetch; failure degrades to an
+// empty map (weapons/armor just keep their curated cost + zero weight).
+let equipmentStatsPromise: Promise<Map<string, { weight: number; cost: string }>> | null = null
+function getEquipmentStats(): Promise<Map<string, { weight: number; cost: string }>> {
+  if (!equipmentStatsPromise) {
+    equipmentStatsPromise = open5eApi
+      .getEquipment()
+      .then((list) => {
+        const m = new Map<string, { weight: number; cost: string }>()
+        for (const e of list) m.set(equipNormKey(e.name), { weight: e.weight, cost: e.cost })
+        return m
+      })
+      .catch(() => new Map<string, { weight: number; cost: string }>())
+  }
+  return equipmentStatsPromise
+}
+
 // API methods
 export const open5eApi = {
   // Spells — v2/spells (v1 deprecated). document__key filters edition server-side
@@ -723,10 +826,21 @@ export const open5eApi = {
   },
 
   // Weapons — v2/weapons. This endpoint ignores the edition filter (returns all
-  // editions, ~75 rows), so we fetch all and keep our edition client-side.
+  // editions, ~75 rows), so we fetch all and keep our edition client-side. The
+  // mechanics endpoint carries no weight/cost, so we enrich from /v2/items by name.
   async getWeapons(search?: string): Promise<Open5eWeapon[]> {
-    const raw = await fetchAllPages<Open5eV2Weapon>("/v2/weapons/", {})
-    let weapons = raw.filter((w) => w.document?.key === SRD_DOC).map(v2WeaponToWeapon)
+    const [raw, stats] = await Promise.all([
+      fetchAllPages<Open5eV2Weapon>("/v2/weapons/", {}),
+      getEquipmentStats(),
+    ])
+    let weapons = raw
+      .filter((w) => w.document?.key === SRD_DOC)
+      .map(v2WeaponToWeapon)
+      .map((w) => {
+        const s = stats.get(equipNormKey(w.name))
+        if (!s) return w
+        return { ...w, cost: s.cost || w.cost, weight: s.weight ? String(s.weight) : w.weight }
+      })
     if (search) {
       const q = search.toLowerCase()
       weapons = weapons.filter((w) => w.name.toLowerCase().includes(q))
@@ -735,15 +849,38 @@ export const open5eApi = {
   },
 
   // Armor — v2/armor. Like weapons, the edition filter is ignored (~25 rows), so we
-  // filter client-side. Shields live here too (detected by name in the mapper).
+  // filter client-side. Shields live here too (detected by name in the mapper). The
+  // /v2/items enrichment is what finally gives 2024 armor ("Studded Leather Armor")
+  // a price — its suffixed name broke the bare-keyed curated cost table.
   async getArmor(search?: string): Promise<Open5eArmor[]> {
-    const raw = await fetchAllPages<Open5eV2Armor>("/v2/armor/", {})
-    let armor = raw.filter((a) => a.document?.key === SRD_DOC).map(v2ArmorToArmor)
+    const [raw, stats] = await Promise.all([
+      fetchAllPages<Open5eV2Armor>("/v2/armor/", {}),
+      getEquipmentStats(),
+    ])
+    let armor = raw
+      .filter((a) => a.document?.key === SRD_DOC)
+      .map(v2ArmorToArmor)
+      .map((a) => {
+        const s = stats.get(equipNormKey(a.name))
+        if (!s) return a
+        return { ...a, cost: s.cost || a.cost, weight: s.weight ? String(s.weight) : a.weight }
+      })
     if (search) {
       const q = search.toLowerCase()
       armor = armor.filter((a) => a.name.toLowerCase().includes(q))
     }
     return armor
+  },
+
+  // Mundane equipment — v2/items (ammunition, adventuring gear, tools, packs,
+  // potions, foci, mounts). The catalog the mechanics endpoints don't cover, and
+  // the only SRD source that carries weight + cost. `document=` filters the edition
+  // server-side (the working form, same as magicitems); the client guard backs it up.
+  async getEquipment(): Promise<Open5eEquipment[]> {
+    const raw = await fetchAllPages<Open5eV2Item>("/v2/items/", { document: SRD_DOC })
+    return raw
+      .filter((it) => (it.document?.key ?? SRD_DOC) === SRD_DOC)
+      .map(v2ItemToEquipment)
   },
 
   // Magic items — v2/magicitems. Here the working edition filter is `document=` (the

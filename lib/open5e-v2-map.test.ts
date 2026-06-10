@@ -5,6 +5,7 @@ import {
   v2ArmorToArmor,
   v2MagicItemToItem,
   v2ConditionToCondition,
+  v2ItemToEquipment,
 } from "./open5e-api"
 
 // Fixtures are trimmed but REAL v2 payload shapes (verified live against srd-2024).
@@ -155,5 +156,41 @@ describe("v2ConditionToCondition (Prone)", () => {
     } as never)
     expect(c.name).toBe("Prone")
     expect(c.desc).toBe("2024 prone text")
+  })
+})
+
+describe("v2ItemToEquipment (/v2/items mundane gear)", () => {
+  it("maps ammunition → gear with parsed weight + gp cost", () => {
+    const e = v2ItemToEquipment({
+      key: "arrows-20",
+      name: "Arrows (20)",
+      category: { name: "Ammunition", key: "ammunition" },
+      weight: "1.000",
+      cost: "1.00",
+      document: { key: "srd-2024" },
+    } as never)
+    expect(e.category).toBe("gear")
+    expect(e.weight).toBe(1)
+    expect(e.cost).toBe("1 gp")
+  })
+
+  it("renders sub-gp prices in the largest whole denomination (sp, then cp)", () => {
+    // Basket = 4 sp (0.40 gp), Bucket = 5 cp (0.05 gp), Candle = 1 cp (0.01 gp).
+    const sp = v2ItemToEquipment({ key: "basket", name: "Basket", category: { key: "adventuring-gear" }, weight: "2.000", cost: "0.40", document: { key: "srd-2024" } } as never)
+    const cp5 = v2ItemToEquipment({ key: "bucket", name: "Bucket", category: { key: "adventuring-gear" }, weight: "2.000", cost: "0.05", document: { key: "srd-2024" } } as never)
+    const cp1 = v2ItemToEquipment({ key: "candle", name: "Candle", category: { key: "adventuring-gear" }, weight: "0.000", cost: "0.01", document: { key: "srd-2024" } } as never)
+    expect(sp.cost).toBe("4 sp")
+    expect(cp5.cost).toBe("5 cp")
+    expect(cp1.cost).toBe("1 cp")
+  })
+
+  it("maps category keys to sheet categories (tools→tool, potion→consumable, wondrous→magic)", () => {
+    const tool = v2ItemToEquipment({ key: "smiths-tools", name: "Smith's Tools", category: { key: "tools" }, weight: "8.000", cost: "20.00", document: { key: "srd-2024" } } as never)
+    const potion = v2ItemToEquipment({ key: "antitoxin", name: "Antitoxin", category: { key: "potion" }, weight: "0.000", cost: "50.00", document: { key: "srd-2024" } } as never)
+    const magic = v2ItemToEquipment({ key: "bag-of-holding", name: "Bag of Holding", category: { key: "wondrous-item" }, weight: "15.000", cost: "0", document: { key: "srd-2024" } } as never)
+    expect(tool.category).toBe("tool")
+    expect(potion.category).toBe("consumable")
+    expect(magic.category).toBe("magic")
+    expect(magic.cost).toBe("") // unpriced magic item → no cost string
   })
 })

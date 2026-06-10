@@ -10,6 +10,7 @@ import type { AbilityScores } from "@/lib/character/types"
 import {
   weaponAttackInfo,
   itemToStoredData,
+  isStackable,
   type ItemCategory,
   type SheetItem,
 } from "@/lib/character/sheet-items"
@@ -64,10 +65,8 @@ const GROUP_ORDER: ItemCategory[] = [
   "treasure",
 ]
 
-// Categories where a quantity stepper makes sense — the table-frequent stackables
-// (arrows, potions, rations, coins-worth-of-treasure). Weapons/armor/magic/tools
-// are effectively singletons, so they keep the plain ×N display.
-const COUNTABLE: ItemCategory[] = ["consumable", "gear", "treasure"]
+// Stackable categories (the quantity stepper + ×N display) live in sheet-items.ts
+// as isStackable — shared with the add-item modal so "what stacks" is defined once.
 
 // ── Attacks ───────────────────────────────────────────────────────────────────
 
@@ -280,17 +279,66 @@ export function AttacksSection({
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
 
+// Carry-weight readout: total carried (Σ weight × quantity over active items) vs
+// capacity (STR × 15, the 2024 base rule — calculateCarryingCapacity). Turns red +
+// flags "Encumbered" when over. No speed penalties (base rule, not the variant).
+function EncumbranceBar({ strength, items }: { strength: number; items: SheetItem[] }) {
+  const carried = items
+    .filter((i) => i.active)
+    .reduce((total, i) => total + (i.weight ?? 0) * (i.quantity ?? 1), 0)
+  const capacity = strength * 15
+  const over = carried > capacity
+  const pct = capacity > 0 ? Math.min(100, (carried / capacity) * 100) : 0
+  const carriedLabel = Math.round(carried * 10) / 10
+  return (
+    <div
+      className="mb-4 rounded-xl p-3"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+          Load
+        </span>
+        <span
+          className="text-xs tabular-nums inline-flex items-center gap-1.5"
+          style={{ color: over ? "#dc2626" : "var(--scene-text-primary)" }}
+        >
+          {carriedLabel} / {capacity} lb
+          {over && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+              style={{ background: "color-mix(in srgb, #dc2626 16%, transparent)", color: "#dc2626" }}
+              title="Carrying more than STR × 15 lb"
+            >
+              Encumbered
+            </span>
+          )}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--scene-border)" }}>
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, background: over ? "#dc2626" : "var(--scene-accent)" }}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function InventorySection({
   char,
   characterId,
   items,
   nextOrder,
+  strength,
 }: {
   // Needed to bake/reverse attunement grants into the character doc.
   char: Doc<"characters">
   characterId: Id<"characters">
   items: SheetItem[]
   nextOrder: number
+  // Total STR (with racial bonuses) — drives carrying capacity (STR × 15 lb).
+  strength: number
 }) {
   const addProperty = useMutation(api.characters.addProperty)
   const updateProperty = useMutation(api.characters.updateProperty)
@@ -480,6 +528,8 @@ export function InventorySection({
         </button>
       </div>
 
+      {items.length > 0 && <EncumbranceBar strength={strength} items={items} />}
+
       {items.length === 0 ? (
         <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>
           No items yet. Add weapons, armor, and gear — equipped weapons become
@@ -517,7 +567,7 @@ export function InventorySection({
                       item={item}
                       isLast={i === groupItems.length - 1}
                       equippable={equippable}
-                      countable={COUNTABLE.includes(item.category as ItemCategory)}
+                      countable={isStackable(item.category as ItemCategory)}
                       attunementFull={attunedCount >= MAX_ATTUNEMENT}
                       onEquip={toggleEquip}
                       onEdit={setEditing}
@@ -549,16 +599,35 @@ export function InventorySection({
               })
               toast.success("Item updated.")
             } else {
-              await addProperty({
-                characterId,
-                type: "item",
-                name,
-                active: true,
-                equipped,
-                orderIndex: nextOrder,
-                data,
-              })
-              toast.success("Item added.")
+              const qty = Math.max(1, Math.floor(Number(data.quantity ?? 1)))
+              if (!isStackable(data.category) && qty > 1) {
+                // Individual items (weapons/armor/magic/tools) don't stack: create N
+                // separate qty-1 cards instead of one ×N row. Only the first is
+                // equipped — you wield/wear one, the rest are spares.
+                for (let i = 0; i < qty; i++) {
+                  await addProperty({
+                    characterId,
+                    type: "item",
+                    name,
+                    active: true,
+                    equipped: equipped && i === 0,
+                    orderIndex: nextOrder + i,
+                    data: { ...data, quantity: 1 },
+                  })
+                }
+                toast.success(`Added ${qty} ${name}s.`)
+              } else {
+                await addProperty({
+                  characterId,
+                  type: "item",
+                  name,
+                  active: true,
+                  equipped,
+                  orderIndex: nextOrder,
+                  data,
+                })
+                toast.success("Item added.")
+              }
             }
           }}
           onSaveAsHomebrew={async ({ name, data }) => {

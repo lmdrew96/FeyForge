@@ -1774,7 +1774,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
         {/* 🎒 Inventory — gear and coin */}
         {sheetTab === "inventory" && (<>
         {/* Inventory — weapons/armor/gear; equipped weapons feed Attacks, equipped armor sets AC */}
-        <InventorySection char={char} characterId={char._id} items={items} nextOrder={nextOrder} />
+        <InventorySection char={char} characterId={char._id} items={items} nextOrder={nextOrder} strength={totalAbilities.strength} />
 
         {/* Currency */}
         <section>

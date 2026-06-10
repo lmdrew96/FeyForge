@@ -43,6 +43,15 @@ export const GEAR_CATEGORIES: ItemCategory[] = [
   "tool",
 ]
 
+// Categories whose items STACK as a single "×N" row (ammunition, potions, rations,
+// trade goods) — these get the inventory quantity stepper. Everything else
+// (weapons, armor, magic items, tools) is an individual object: adding N creates N
+// separate rows, not one ×N stack. (See the inventory add path + the row display.)
+export const STACKABLE_CATEGORIES: ItemCategory[] = ["gear", "consumable", "treasure"]
+export function isStackable(category: ItemCategory): boolean {
+  return STACKABLE_CATEGORIES.includes(category)
+}
+
 // 5e magic-item rarities (the item form's Rarity dropdown). Mirrors the rarity
 // union on ItemProperty / StoredItemData.
 export const ITEM_RARITIES = [

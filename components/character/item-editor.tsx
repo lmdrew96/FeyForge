@@ -32,12 +32,14 @@ import {
   type Open5eWeapon,
   type Open5eArmor,
   type Open5eMagicItem,
+  type Open5eEquipment,
 } from "@/lib/open5e-api"
 import {
   ARMOR_CATEGORY_OPTIONS,
   GEAR_CATEGORIES,
   ITEM_RARITIES,
   WEAPON_PROPERTY_OPTIONS,
+  isStackable,
   rowToItem,
   type ItemCategory,
   type ItemRarity,
@@ -278,6 +280,19 @@ function magicPrefill(m: Open5eMagicItem): Partial<FormState> {
   }
 }
 
+// Mundane /v2/items pick → form. Carries the real weight + cost (the whole point of
+// the /v2/items source) and its sheet category (gear/tool/consumable). Magic-mapped
+// equipment is filtered out of the gear picker (the magic-items tab owns those).
+function equipmentPrefill(e: Open5eEquipment): Partial<FormState> {
+  return {
+    kind: "gear",
+    gearCategory: e.category,
+    name: e.name,
+    weight: String(e.weight),
+    ...costPrefill(e.cost),
+  }
+}
+
 // Searchable SRD picker that autofills the item form. Lists are tiny (37 weapons,
 // 18 armor) so we fetch the kind's full SRD set once (Open5e client caches in
 // IndexedDB) and filter locally for instant results. Falls back silently to
@@ -314,18 +329,34 @@ function SrdSearch({
     weapon?: Open5eWeapon[]
     armor?: Open5eArmor[]
     gear?: Open5eMagicItem[]
+    // Mundane SRD equipment (ammunition, adventuring gear, tools, packs, potions),
+    // shown in the gear picker alongside magic items.
+    equipment?: Open5eEquipment[]
   }>({})
   const [version, setVersion] = useState(0)
 
   useEffect(() => {
-    if (cacheRef.current[kind]) return
+    if (kind === "weapon" ? cacheRef.current.weapon : kind === "armor" ? cacheRef.current.armor : cacheRef.current.gear) {
+      return
+    }
     let cancelled = false
     setLoading(true)
     ;(async () => {
       try {
-        if (kind === "weapon") cacheRef.current.weapon = await open5eApi.getWeapons()
-        else if (kind === "armor") cacheRef.current.armor = await open5eApi.getArmor()
-        else cacheRef.current.gear = await open5eApi.getMagicItems()
+        if (kind === "weapon") {
+          cacheRef.current.weapon = await open5eApi.getWeapons()
+        } else if (kind === "armor") {
+          cacheRef.current.armor = await open5eApi.getArmor()
+        } else {
+          // Gear tab spans BOTH the magic-item catalog and mundane equipment — fetch
+          // in parallel so ammunition/tools and a Bag of Holding share one picker.
+          const [magic, equipment] = await Promise.all([
+            open5eApi.getMagicItems(),
+            open5eApi.getEquipment(),
+          ])
+          cacheRef.current.gear = magic
+          cacheRef.current.equipment = equipment
+        }
         if (!cancelled) setVersion((v) => v + 1)
       } catch {
         // API down — manual entry still works.
@@ -386,14 +417,30 @@ function SrdSearch({
           pick: () => onPick(armorPrefill(a)),
         }))
     }
-    return (cacheRef.current.gear ?? [])
-      .filter((m) => m.name.toLowerCase().includes(q))
-      .slice(0, 8)
+    // Mundane equipment first (the everyday ammunition/gear/tools a player buys),
+    // then magic items. Magic-mapped equipment is dropped — the magic catalog covers
+    // those with richer rarity/attunement data.
+    const equipment = (cacheRef.current.equipment ?? [])
+      .filter((e) => e.category !== "weapon" && e.category !== "armor" && e.category !== "magic")
+      .filter((e) => e.name.toLowerCase().includes(q))
+      .slice(0, 6)
+      .map((e) => ({
+        name: e.name,
+        hint: [e.weight ? `${e.weight} lb` : "", e.cost].filter(Boolean).join(" · "),
+        pick: () => onPick(equipmentPrefill(e)),
+      }))
+    // Dedupe magic items already surfaced as equipment (e.g. potions live in both
+    // catalogs) — the equipment entry wins since it carries weight + cost.
+    const eqNames = new Set(equipment.map((e) => e.name.toLowerCase()))
+    const magic = (cacheRef.current.gear ?? [])
+      .filter((m) => m.name.toLowerCase().includes(q) && !eqNames.has(m.name.toLowerCase()))
+      .slice(0, 6)
       .map((m) => ({
         name: m.name,
         hint: m.rarity,
         pick: () => onPick(magicPrefill(m)),
       }))
+    return [...equipment, ...magic]
   }, [q, kind, version, onPick])
 
   const results = useMemo<SearchResult[]>(
@@ -524,6 +571,19 @@ export function ItemEditorDialog({
         ? f.properties.filter((x) => x !== p)
         : [...f.properties, p],
     }))
+
+  // Resolved sheet category drives stacking. Weapons/armor/magic items/tools are
+  // individual objects — adding N creates N separate cards (the inventory does the
+  // explode); the rest (gear/consumable/treasure) stack as a single ×N row.
+  const resolvedCategory: ItemCategory =
+    form.kind === "weapon" ? "weapon" : form.kind === "armor" ? "armor" : form.gearCategory
+  const stackable = isStackable(resolvedCategory)
+  // Quantity is shown when adding (stack size for stackables, "how many cards" for
+  // individuals) but hidden when EDITING an individual item — each card is one
+  // object, fixed at 1. The add-count hint clarifies the explode behavior.
+  const showQuantity = !item || stackable
+  const quantityN = Math.max(1, toInt(form.quantity, 1))
+  const showAddCountHint = !item && !stackable && quantityN > 1
 
   // Rebuild the FULL data blob — updateProperty replaces `data` wholesale (no
   // deep merge), so a partial would wipe unedited fields.
@@ -943,14 +1003,16 @@ export function ItemEditorDialog({
             </>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Quantity">
-              <TextInput
-                value={form.quantity}
-                onChange={(v) => set("quantity", v)}
-                numeric
-              />
-            </Field>
+          <div className={showQuantity ? "grid grid-cols-2 gap-3" : ""}>
+            {showQuantity && (
+              <Field label="Quantity">
+                <TextInput
+                  value={form.quantity}
+                  onChange={(v) => set("quantity", v)}
+                  numeric
+                />
+              </Field>
+            )}
             <Field label="Weight (lb)">
               <TextInput
                 value={form.weight}
@@ -959,6 +1021,11 @@ export function ItemEditorDialog({
               />
             </Field>
           </div>
+          {showAddCountHint && (
+            <p className="text-xs -mt-1" style={{ color: "var(--scene-text-muted)" }}>
+              Adds {quantityN} separate {form.name.trim() || "item"} cards — {resolvedCategory} items don’t stack.
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Cost">
