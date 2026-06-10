@@ -11,8 +11,64 @@
 
 import type { StoredItemData } from "./sheet-items"
 import type { DamageType, ArmorCategory } from "./constants"
+import { parseCost } from "./srd-item-costs"
 
 export type StartingChoice = "equipment" | "gold"
+
+// SRD weight (lb) + list price for the items the packages below grant, pulled from
+// Open5e /v2/items (the source of truth, same data the picker enriches from) and
+// baked so creation never depends on a network call. Keyed by the exact names used
+// in the constructors. Ammunition is PER-UNIT (bundle ÷ 20) so encumbrance
+// (weight × quantity) totals correctly and the per-arrow price stays whole (5 cp).
+const ITEM_STATS: Record<string, { weight: number; cost: string }> = {
+  // Weapons
+  Greataxe: { weight: 7, cost: "30 gp" },
+  Handaxe: { weight: 2, cost: "5 gp" },
+  Javelin: { weight: 2, cost: "5 sp" },
+  Rapier: { weight: 2, cost: "25 gp" },
+  Dagger: { weight: 1, cost: "2 gp" },
+  Mace: { weight: 4, cost: "5 gp" },
+  "Light Crossbow": { weight: 5, cost: "25 gp" },
+  Scimitar: { weight: 3, cost: "25 gp" },
+  Longsword: { weight: 3, cost: "15 gp" },
+  Shortsword: { weight: 2, cost: "10 gp" },
+  Dart: { weight: 0.25, cost: "5 cp" },
+  Longbow: { weight: 2, cost: "50 gp" },
+  Shortbow: { weight: 2, cost: "25 gp" },
+  Quarterstaff: { weight: 4, cost: "2 sp" },
+  // Armor (Wooden Shield is a reskinned Shield)
+  "Leather Armor": { weight: 10, cost: "10 gp" },
+  "Scale Mail": { weight: 45, cost: "50 gp" },
+  "Chain Mail": { weight: 55, cost: "75 gp" },
+  Shield: { weight: 6, cost: "10 gp" },
+  "Wooden Shield": { weight: 6, cost: "10 gp" },
+  // Packs (whole-pack weight + price; Unpack explodes them on the sheet)
+  "Explorer's Pack": { weight: 55, cost: "10 gp" },
+  "Entertainer's Pack": { weight: 58, cost: "40 gp" },
+  "Priest's Pack": { weight: 29, cost: "33 gp" },
+  "Dungeoneer's Pack": { weight: 55, cost: "12 gp" },
+  "Burglar's Pack": { weight: 42, cost: "16 gp" },
+  "Scholar's Pack": { weight: 22, cost: "40 gp" },
+  // Gear, foci, tools
+  Lute: { weight: 2, cost: "35 gp" },
+  "Holy Symbol": { weight: 1, cost: "5 gp" },
+  "Druidic Focus": { weight: 1, cost: "10 gp" },
+  "Component Pouch": { weight: 2, cost: "25 gp" },
+  Spellbook: { weight: 3, cost: "50 gp" },
+  "Thieves' Tools": { weight: 1, cost: "25 gp" },
+  // Ammunition — per-unit (20-count bundle): 1 lb / 1 gp arrows, 1.5 lb / 1 gp bolts
+  Arrows: { weight: 0.05, cost: "5 cp" },
+  "Crossbow Bolts": { weight: 0.075, cost: "5 cp" },
+}
+
+// Weight + structured cost for a starting item by name, or {} if uncurated (e.g.
+// free-form background gear), so the constructors can spread it into the data blob.
+function statData(name: string): Partial<StoredItemData> {
+  const s = ITEM_STATS[name]
+  if (!s) return {}
+  const cost = parseCost(s.cost)
+  return { weight: s.weight, ...(cost ? { cost } : {}) }
+}
 
 export interface StartingItem {
   name: string
@@ -34,6 +90,7 @@ function weapon(
     equipped: false, // which weapon to wield is the player's call — equip on the sheet
     data: {
       category: "weapon",
+      ...statData(name),
       weaponType,
       damageDice,
       damageType,
@@ -57,6 +114,7 @@ function armor(
     equipped: true, // one body armor / one shield — unambiguous, so equip for live AC
     data: {
       category: "armor",
+      ...statData(name),
       armorCategory,
       baseAC,
       ...(opts.stealthDisadvantage ? { stealthDisadvantage: true } : {}),
@@ -69,7 +127,11 @@ function gear(name: string, opts: { quantity?: number; tool?: boolean } = {}): S
   return {
     name,
     equipped: false,
-    data: { category: opts.tool ? "tool" : "gear", ...(opts.quantity ? { quantity: opts.quantity } : {}) },
+    data: {
+      category: opts.tool ? "tool" : "gear",
+      ...statData(name),
+      ...(opts.quantity ? { quantity: opts.quantity } : {}),
+    },
   }
 }
 
