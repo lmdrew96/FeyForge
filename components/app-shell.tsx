@@ -88,6 +88,24 @@ function buildNavItems(isPlayer: boolean): NavItem[] {
   ]
 }
 
+// Mobile bottom bar — 5 thumb targets max (mobile_layout: min-h-14 + safe-area).
+// Role-aware like the sidebar: players don't run the table, so the DM tab is
+// replaced by Dice (the most-used at-the-table feature, otherwise drawer-only).
+// DMs keep DM — they reach Dice via the drawer, and the DM Assistant launcher
+// already covers quick reference. Campaign/Wiki/World Map stay in the drawer for
+// players (the role-aware "Campaign" group), so nothing is lost, just re-prioritized.
+function buildBottomNavItems(isPlayer: boolean): { label: string; href: string; icon: React.ElementType }[] {
+  return [
+    { label: "Home", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Characters", href: "/characters", icon: UserSquare2 },
+    { label: "Session", href: "/session", icon: Sparkles },
+    isPlayer
+      ? { label: "Dice", href: "/dice", icon: Dices }
+      : { label: "DM", href: "/dm", icon: Swords },
+    { label: "Codex", href: "/codex", icon: BookOpen },
+  ]
+}
+
 // Clerk's <UserButton> renders nothing during SSR (Clerk isn't loaded server-side),
 // so on the server the sibling /account link becomes the first child of its flex row —
 // but on the client the button's <div data-clerk-component> mounts first, shifting the
@@ -128,6 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   )
   const isPlayer = role === "player"
   const navItems = useMemo(() => buildNavItems(isPlayer), [isPlayer])
+  const bottomNavItems = useMemo(() => buildBottomNavItems(isPlayer), [isPlayer])
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href)
@@ -472,13 +491,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           borderTop: "1px solid var(--scene-border)",
         }}
       >
-        {[
-          { label: "Home", href: "/dashboard", icon: LayoutDashboard },
-          { label: "Characters", href: "/characters", icon: UserSquare2 },
-          { label: "Session", href: "/session", icon: Sparkles },
-          { label: "DM", href: "/dm", icon: Swords },
-          { label: "Codex", href: "/codex", icon: BookOpen },
-        ].map((item) => (
+        {bottomNavItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
