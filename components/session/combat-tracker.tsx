@@ -27,12 +27,15 @@ import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { baseMonsterName } from "@/lib/monster-attacks"
 import { rollExpression } from "@/lib/dice-store"
 import { rollToFeedArgs } from "@/lib/session-rolls"
+import { resolveEdition } from "@/lib/editions"
+import { MAX_EXHAUSTION, exhaustionSummary } from "@/lib/character/exhaustion"
 
 type SessionId = Id<"partySessions">
 
 // 14 core conditions + Concentrating (a spell-tracking flag, not a true
 // condition — surfaced here so the DM can flag it and get a CON-save prompt on
-// damage). Exhaustion is a level track, handled elsewhere.
+// damage). Exhaustion is a 0–6 level track with its own stepper in the picker
+// (lib/character/exhaustion.ts), not a toggle in this list.
 const CONDITIONS = [
   "Blinded", "Charmed", "Concentrating", "Deafened", "Frightened", "Grappled",
   "Incapacitated", "Invisible", "Paralyzed", "Petrified",
@@ -113,6 +116,10 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
   const doSetDeathSaves = useMutation(api.liveCombat.setDeathSaves)
   const doRollDeathSave = useMutation(api.liveCombat.rollDeathSave)
   const doSetTempHp = useMutation(api.liveCombat.setTempHp)
+  const doSetExhaustion = useMutation(api.liveCombat.setExhaustion)
+  // Campaign edition drives the exhaustion-effects hint (2014 tiers vs 2024 −2/level).
+  const campaign = useQuery(api.campaigns.get, { campaignId })
+  const edition = resolveEdition(campaign?.edition)
 
   // Apply HP damage/heal; if a concentrating combatant was hit, prompt the save.
   const handleAdjustHp = async (combatantId: string, amount: number) => {
@@ -195,6 +202,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
           temp: char.hitPoints.temp,
         },
         conditions: [] as string[],
+        exhaustion: char.exhaustion,
         characterId: char._id,
         userId: m.userId,
       }
@@ -400,6 +408,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
             temp: char.hitPoints.temp,
           },
           conditions: [],
+          exhaustion: char.exhaustion,
           characterId: char._id,
           userId: char.userId,
           isDmpc: true,
@@ -454,6 +463,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
               armorClass: stat?.armorClass ?? 10,
               hitPoints: { current: char.hitPoints.current, max: char.hitPoints.max, temp: char.hitPoints.temp },
               conditions: [] as string[],
+              exhaustion: char.exhaustion,
               characterId: char._id,
               userId: m.userId,
             }
@@ -690,14 +700,23 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
                       </div>
                     </div>
                   )}
-                  {/* Conditions */}
-                  {c.conditions.length > 0 && (
+                  {/* Conditions + exhaustion level */}
+                  {(c.conditions.length > 0 || (c.exhaustion ?? 0) > 0) && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {c.conditions.map((cond) => (
                         <span key={cond} className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${CONDITION_COLORS[cond] ?? "#6b7280"}22`, color: CONDITION_COLORS[cond] ?? "#6b7280", border: `1px solid ${CONDITION_COLORS[cond] ?? "#6b7280"}44` }}>
                           {cond}
                         </span>
                       ))}
+                      {(c.exhaustion ?? 0) > 0 && (
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded"
+                          style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b44" }}
+                          title={exhaustionSummary(c.exhaustion ?? 0, edition)}
+                        >
+                          Exhaustion {c.exhaustion}
+                        </span>
+                      )}
                     </div>
                   )}
                   {/* Death saves for downed PCs */}
@@ -787,24 +806,62 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
 
               {/* Condition picker */}
               {expandedConditions === c.id && (
-                <div className="flex flex-wrap gap-1.5 mt-3 pt-3" style={{ borderTop: "1px solid var(--scene-border)" }}>
-                  {CONDITIONS.map((cond) => {
-                    const on = c.conditions.includes(cond)
-                    return (
-                      <button
-                        key={cond}
-                        onClick={() => doToggleCondition({ sessionId, combatantId: c.id, condition: cond }).catch(() => {})}
-                        className="text-xs px-2 py-1 rounded transition-all"
-                        style={{
-                          background: on ? `${CONDITION_COLORS[cond] ?? "#6b7280"}22` : "var(--scene-border)",
-                          color: on ? CONDITION_COLORS[cond] ?? "#6b7280" : "var(--scene-text-muted)",
-                          border: on ? `1px solid ${CONDITION_COLORS[cond] ?? "#6b7280"}66` : "1px solid transparent",
-                        }}
-                      >
-                        {cond}
-                      </button>
-                    )
-                  })}
+                <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--scene-border)" }}>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CONDITIONS.map((cond) => {
+                      const on = c.conditions.includes(cond)
+                      return (
+                        <button
+                          key={cond}
+                          onClick={() => doToggleCondition({ sessionId, combatantId: c.id, condition: cond }).catch(() => {})}
+                          className="text-xs px-2 py-1 rounded transition-all"
+                          style={{
+                            background: on ? `${CONDITION_COLORS[cond] ?? "#6b7280"}22` : "var(--scene-border)",
+                            color: on ? CONDITION_COLORS[cond] ?? "#6b7280" : "var(--scene-text-muted)",
+                            border: on ? `1px solid ${CONDITION_COLORS[cond] ?? "#6b7280"}66` : "1px solid transparent",
+                          }}
+                        >
+                          {cond}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* Exhaustion — a 0–6 level track, not a toggle. PC levels write
+                      through to the character sheet and persist after combat. */}
+                  <div
+                    className="flex items-center gap-2 mt-2.5"
+                    title={(c.exhaustion ?? 0) > 0 ? exhaustionSummary(c.exhaustion ?? 0, edition) : "Exhaustion level"}
+                  >
+                    <span className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+                      Exhaustion
+                    </span>
+                    <button
+                      onClick={() => doSetExhaustion({ sessionId, combatantId: c.id, level: (c.exhaustion ?? 0) - 1 }).catch(() => {})}
+                      disabled={(c.exhaustion ?? 0) <= 0}
+                      aria-label={`Reduce ${c.name} exhaustion`}
+                      className="px-2 py-0.5 rounded text-xs font-bold transition-opacity hover:opacity-80 disabled:opacity-30"
+                      style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+                    >
+                      −
+                    </button>
+                    <span className="text-xs font-bold tabular-nums w-4 text-center" style={{ color: (c.exhaustion ?? 0) > 0 ? "#f59e0b" : "var(--scene-text-muted)" }}>
+                      {c.exhaustion ?? 0}
+                    </span>
+                    <button
+                      onClick={() => doSetExhaustion({ sessionId, combatantId: c.id, level: (c.exhaustion ?? 0) + 1 }).catch(() => {})}
+                      disabled={(c.exhaustion ?? 0) >= MAX_EXHAUSTION}
+                      aria-label={`Increase ${c.name} exhaustion`}
+                      className="px-2 py-0.5 rounded text-xs font-bold transition-opacity hover:opacity-80 disabled:opacity-30"
+                      style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}
+                    >
+                      +
+                    </button>
+                    {(c.exhaustion ?? 0) > 0 && (
+                      <span className="text-[11px] truncate" style={{ color: "#f59e0b" }}>
+                        {exhaustionSummary(c.exhaustion ?? 0, edition)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1195,13 +1252,18 @@ export function PlayerCombatView({
                       </span>
                     )
                   )}
-                  {c.conditions.length > 0 && (
+                  {(c.conditions.length > 0 || (c.exhaustion ?? 0) > 0) && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {c.conditions.map((cond) => (
                         <span key={cond} className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${CONDITION_COLORS[cond] ?? "#6b7280"}22`, color: CONDITION_COLORS[cond] ?? "#6b7280", border: `1px solid ${CONDITION_COLORS[cond] ?? "#6b7280"}44` }}>
                           {cond}
                         </span>
                       ))}
+                      {(c.exhaustion ?? 0) > 0 && (
+                        <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b44" }}>
+                          Exhaustion {c.exhaustion}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

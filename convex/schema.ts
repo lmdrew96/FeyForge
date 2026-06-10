@@ -112,6 +112,9 @@ export default defineSchema({
       successes: v.number(),
       failures: v.number(),
     }),
+    // Exhaustion level 0–6. Persistent state (survives combat; long rest −1),
+    // unlike in-combat conditions. Effects are edition-dependent at display time.
+    exhaustion: v.optional(v.number()),
     speed: v.number(),
     // Darkvision range in feet, snapshotted from the chosen race at creation (0 =
     // none). Optional: characters built before this field fall back to the static
@@ -1145,6 +1148,9 @@ export default defineSchema({
         deathSaves: v.optional(
           v.object({ successes: v.number(), failures: v.number() })
         ),
+        // Exhaustion level 0–6 — a level track, not a toggle condition. For PCs it
+        // snapshots the character's level at add time and writes back through.
+        exhaustion: v.optional(v.number()),
         // For PCs: links to the character + owning user so players see their own
         // exact HP and the row can mirror the live character sheet.
         characterId: v.optional(v.id("characters")),

@@ -5,8 +5,10 @@ import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
-import { Heart, Moon, Wind, Skull, Dices } from "lucide-react"
+import { Heart, Moon, Wind, Skull, Dices, BatteryLow, Minus, Plus } from "lucide-react"
 import type { ResourceRow } from "@/lib/character/resources"
+import type { Edition } from "@/lib/editions"
+import { MAX_EXHAUSTION, exhaustionEffects } from "@/lib/character/exhaustion"
 
 // Shared vitals/recovery cluster — HP editing, short/long rest, and death saves.
 // Extracted from app/characters/[id]/page.tsx so both the full standalone sheet
@@ -233,6 +235,82 @@ export function RestPanel({
         <Moon className="h-4 w-4" />
         {resting ? "Resting…" : "Long Rest"}
       </button>
+    </div>
+  )
+}
+
+// Exhaustion level track (0–6) — persistent state alongside HP, NOT an
+// in-combat condition. Shows the edition-correct effects in force at the
+// current level (2014: cumulative tiers; 2024: −2/level to d20 Tests, −5 ft/
+// level Speed, death at 6). A long rest reduces it by 1 (handled server-side).
+export function ExhaustionPanel({ char, edition }: { char: CharDoc; edition: Edition }) {
+  const doSet = useMutation(api.characters.setExhaustion)
+  const level = char.exhaustion ?? 0
+  const effects = exhaustionEffects(level, edition)
+  const accent = level === 0 ? "var(--scene-text-muted)" : level >= 4 ? "#ef4444" : "#f59e0b"
+
+  const set = (n: number) =>
+    doSet({ id: char._id, level: n }).catch(() => toast.error("Failed to update exhaustion."))
+
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+    >
+      <div className="flex items-center gap-1.5 mb-3">
+        <BatteryLow className="h-3.5 w-3.5" style={{ color: accent }} />
+        <span className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+          Exhaustion
+        </span>
+        <span className="ml-auto text-xs" style={{ color: "var(--scene-text-muted)" }}>
+          long rest −1
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => set(level - 1)}
+          disabled={level <= 0}
+          aria-label="Reduce exhaustion"
+          className="p-1.5 rounded transition-opacity hover:opacity-80 disabled:opacity-30"
+          style={{ color: "var(--scene-text-muted)", border: "1px solid var(--scene-border)" }}
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <div className="flex items-center gap-1 flex-1 justify-center" title={`Exhaustion level ${level}`}>
+          {Array.from({ length: MAX_EXHAUSTION }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => set(level === i + 1 ? i : i + 1)}
+              aria-label={`Set exhaustion to ${i + 1}`}
+              className="w-4 h-4 rounded-full transition-transform active:scale-90 hover:opacity-80"
+              style={{
+                background: i < level ? accent : "transparent",
+                border: `1.5px solid ${i < level ? accent : "var(--scene-border)"}`,
+              }}
+            />
+          ))}
+        </div>
+        <button
+          onClick={() => set(level + 1)}
+          disabled={level >= MAX_EXHAUSTION}
+          aria-label="Increase exhaustion"
+          className="p-1.5 rounded transition-opacity hover:opacity-80 disabled:opacity-30"
+          style={{ color: "var(--scene-text-muted)", border: "1px solid var(--scene-border)" }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {effects.length > 0 && (
+        <ul className="mt-3 space-y-0.5">
+          {effects.map((fx) => (
+            <li key={fx} className="text-xs" style={{ color: accent }}>
+              {fx}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

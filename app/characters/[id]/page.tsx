@@ -55,7 +55,7 @@ import { WildshapeSection, CompanionsSection } from "@/components/character/crea
 import { InvocationsSection } from "@/components/character/invocations-section"
 import { ManeuversSection } from "@/components/character/maneuvers-section"
 import { LandCircleSection } from "@/components/character/land-circle-section"
-import { HpEditor, RestPanel, DyingPanel } from "@/components/character/rest-panel"
+import { HpEditor, RestPanel, DyingPanel, ExhaustionPanel } from "@/components/character/rest-panel"
 import { CharacterAvatar } from "@/components/character/character-avatar"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
@@ -1566,7 +1566,10 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               resourceOptions={{ "channel-divinity": channelDivinityOptions }}
             />
           </div>
-          <RestPanel char={char} resourceRows={resourceRows} shortRestResourceKeys={shortRestResourceKeys} />
+          <div className="flex flex-col gap-4">
+            <RestPanel char={char} resourceRows={resourceRows} shortRestResourceKeys={shortRestResourceKeys} />
+            <ExhaustionPanel char={char} edition={edition} />
+          </div>
         </div>
 
         {/* Draconic Resilience — bake +1 HP/level into stored max (combat-safe). */}

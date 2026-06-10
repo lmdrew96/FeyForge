@@ -30,7 +30,7 @@ import { WildshapeSection, CompanionsSection } from "@/components/character/crea
 import { InvocationsSection } from "@/components/character/invocations-section"
 import { ManeuversSection } from "@/components/character/maneuvers-section"
 import { LandCircleSection } from "@/components/character/land-circle-section"
-import { HpEditor, RestPanel, DyingPanel } from "@/components/character/rest-panel"
+import { HpEditor, RestPanel, DyingPanel, ExhaustionPanel } from "@/components/character/rest-panel"
 
 // Two-tab split for the in-session sheet: things you DO (Actions) vs numbers you
 // ROLL (Stats). HP/AC stay pinned in the combat strip above both tabs. Lighter
@@ -303,6 +303,7 @@ export function SessionCharacterSheet({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 items-start">
         <HpEditor char={char} />
         <RestPanel char={char} resourceRows={resourceRows} shortRestResourceKeys={shortRestResourceKeys} />
+        <ExhaustionPanel char={char} edition={edition} />
       </div>
       </>)}
 

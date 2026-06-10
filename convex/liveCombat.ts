@@ -28,6 +28,7 @@ const combatantInputValidator = v.object({
   deathSaves: v.optional(
     v.object({ successes: v.number(), failures: v.number() })
   ),
+  exhaustion: v.optional(v.number()),
   characterId: v.optional(v.id("characters")),
   userId: v.optional(v.string()),
   isDmpc: v.optional(v.boolean()),
@@ -152,6 +153,8 @@ export const getCombat = query({
         armorClass: isDM ? c.armorClass : undefined,
         conditions: c.conditions,
         deathSaves: c.deathSaves,
+        // Exhaustion is table-visible like conditions (a level, not a secret).
+        exhaustion: c.exhaustion,
         characterId: c.characterId,
         // Public label: a DMPC is a PC mechanically, but the table should see
         // who runs it.
@@ -437,6 +440,11 @@ async function syncCharacterFromCombatant(ctx: MutationCtx, combatant: Combatant
       temp: Math.max(0, combatant.hitPoints.temp),
     },
     deathSaves: combatant.deathSaves ?? { successes: 0, failures: 0 },
+    // Only when the combatant carries a level — patching undefined would CLEAR
+    // the character's stored exhaustion.
+    ...(combatant.exhaustion !== undefined
+      ? { exhaustion: Math.max(0, Math.min(6, combatant.exhaustion)) }
+      : {}),
   })
 }
 
@@ -664,6 +672,25 @@ export const toggleCondition = mutation({
         : [...c.conditions, args.condition],
     }))
     if (updated) await syncPartyMemberConditions(ctx, args.sessionId, updated)
+  },
+})
+
+// Set a combatant's exhaustion level (0–6). DM-only like the other combat
+// mutations; for PC combatants the level writes through to the character, where
+// it persists after combat ends (it's a lasting injury, not an encounter flag).
+export const setExhaustion = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    combatantId: v.string(),
+    level: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const level = Math.max(0, Math.min(6, Math.round(args.level)))
+    const updated = await patchCombatant(ctx, args.sessionId, args.combatantId, (c) => ({
+      ...c,
+      exhaustion: level,
+    }))
+    if (updated) await syncCharacterFromCombatant(ctx, updated)
   },
 })
 

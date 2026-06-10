@@ -280,6 +280,26 @@ export const setDeathSaves = mutation({
   },
 })
 
+// Set the character's exhaustion level (0–6). A level track, not a condition
+// toggle — it persists across combats and sessions (a long rest reduces it by 1;
+// see longRest). Owner-gated like the other sheet vitals.
+export const setExhaustion = mutation({
+  args: {
+    id: v.id("characters"),
+    level: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const character = await ctx.db.get(args.id)
+    if (!character || character.userId !== identity.tokenIdentifier) throw new Error("Character not found")
+    await ctx.db.patch(args.id, {
+      exhaustion: Math.max(0, Math.min(6, Math.round(args.level))),
+      updatedAt: Date.now(),
+    })
+  },
+})
+
 // Set a character's full coin purse from the sheet. Each denomination clamps to
 // a non-negative integer.
 export const setCurrency = mutation({
@@ -402,6 +422,8 @@ export const longRest = mutation({
       hitPoints: { ...character.hitPoints, current: character.hitPoints.max, temp: 0 },
       hitDice,
       deathSaves: { successes: 0, failures: 0 },
+      // A long rest removes one level of exhaustion (both editions).
+      ...(character.exhaustion ? { exhaustion: Math.max(0, character.exhaustion - 1) } : {}),
       ...(spellcasting ? { spellcasting } : {}),
       updatedAt: Date.now(),
     })
