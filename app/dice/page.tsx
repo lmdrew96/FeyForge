@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { toast } from "sonner"
-import { Dices, Plus, Trash2, X, History } from "lucide-react"
+import { Dices, Plus, Trash2, X, History, ChevronDown } from "lucide-react"
 import {
   useDiceStore,
   rollExpression,
@@ -33,6 +33,9 @@ function critFlag(result: DiceRollResult): "nat20" | "nat1" | null {
   return null
 }
 
+// Rolls shown before the history collapses behind "Show all".
+const HISTORY_PREVIEW = 5
+
 export default function DicePage() {
   const {
     rollHistory,
@@ -54,6 +57,9 @@ export default function DicePage() {
   const [expression, setExpression] = useState("")
   const [saveName, setSaveName] = useState("")
   const [showSaveForm, setShowSaveForm] = useState(false)
+  // History collapses to a short preview by default so the (up to 50) past rolls
+  // don't sprawl down the page; "Show all" expands into a scrollable list.
+  const [showAllHistory, setShowAllHistory] = useState(false)
 
   // Tumble timer — dice animate for ~500ms, then settle to their faces and the
   // total reveals. Cleared on re-roll and unmount so a fast clicker never leaves
@@ -527,6 +533,7 @@ export default function DicePage() {
                 onClick={() => {
                   clearHistory()
                   setCurrentResult(null)
+                  setShowAllHistory(false)
                 }}
                 className="flex items-center gap-1 text-xs"
                 style={{ color: "var(--scene-text-muted)" }}
@@ -541,40 +548,63 @@ export default function DicePage() {
               Your last 50 rolls will appear here.
             </p>
           ) : (
-            <div className="space-y-1">
-              {rollHistory.map((roll) => (
-                <button
-                  key={roll.id}
-                  onClick={() => showFromHistory(roll)}
-                  className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-left transition-colors"
-                  style={{
-                    background: "var(--scene-surface)",
-                    border: "1px solid var(--scene-border)",
-                  }}
-                >
-                  <span
-                    className="text-sm flex items-center gap-2 flex-wrap"
-                    style={{ color: "var(--scene-text-muted)" }}
-                  >
-                    <span style={{ color: "var(--scene-text-primary)" }}>
-                      {roll.label ?? roll.expression}
-                    </span>
-                    {roll.isAdvantage && <span className="text-xs">ADV</span>}
-                    {roll.isDisadvantage && <span className="text-xs">DIS</span>}
-                    {roll.isCrit && <span className="text-xs">CRIT</span>}
-                  </span>
-                  <span
-                    className="text-lg font-bold"
+            <>
+              <div
+                className={
+                  showAllHistory
+                    ? "space-y-1 max-h-80 overflow-y-auto pr-1"
+                    : "space-y-1"
+                }
+              >
+                {(showAllHistory ? rollHistory : rollHistory.slice(0, HISTORY_PREVIEW)).map((roll) => (
+                  <button
+                    key={roll.id}
+                    onClick={() => showFromHistory(roll)}
+                    className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-left transition-colors"
                     style={{
-                      fontFamily: "var(--font-cinzel)",
-                      color: "var(--scene-text-primary)",
+                      background: "var(--scene-surface)",
+                      border: "1px solid var(--scene-border)",
                     }}
                   >
-                    {roll.total}
-                  </span>
+                    <span
+                      className="text-sm flex items-center gap-2 flex-wrap"
+                      style={{ color: "var(--scene-text-muted)" }}
+                    >
+                      <span style={{ color: "var(--scene-text-primary)" }}>
+                        {roll.label ?? roll.expression}
+                      </span>
+                      {roll.isAdvantage && <span className="text-xs">ADV</span>}
+                      {roll.isDisadvantage && <span className="text-xs">DIS</span>}
+                      {roll.isCrit && <span className="text-xs">CRIT</span>}
+                    </span>
+                    <span
+                      className="text-lg font-bold"
+                      style={{
+                        fontFamily: "var(--font-cinzel)",
+                        color: "var(--scene-text-primary)",
+                      }}
+                    >
+                      {roll.total}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {rollHistory.length > HISTORY_PREVIEW && (
+                <button
+                  onClick={() => setShowAllHistory((s) => !s)}
+                  className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
+                  style={{ color: "var(--scene-accent)" }}
+                >
+                  {showAllHistory ? "Show less" : `Show all (${rollHistory.length})`}
+                  <ChevronDown
+                    size={14}
+                    className="transition-transform"
+                    style={{ transform: showAllHistory ? "rotate(180deg)" : "none" }}
+                  />
                 </button>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
