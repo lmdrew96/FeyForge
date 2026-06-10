@@ -1132,6 +1132,9 @@ export default defineSchema({
         type: v.union(v.literal("pc"), v.literal("npc"), v.literal("monster")),
         initiative: v.number(),
         initiativeBonus: v.number(), // tiebreaker (usually Dex mod)
+        // True while a PC's player hasn't rolled initiative yet (combat start no
+        // longer pre-rolls for the party). Cleared by setMyInitiative/setInitiative.
+        awaitingRoll: v.optional(v.boolean()),
         armorClass: v.number(),
         hitPoints: v.object({
           current: v.number(),

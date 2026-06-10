@@ -181,9 +181,11 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
         id: crypto.randomUUID(),
         name: char.name,
         type: "pc" as const,
-        // Initiative is a Dex check: d20 + the PC's real Dex mod. initiativeBonus
-        // carries the mod so ties break by Dex. AC is the PC's real derived AC.
-        initiative: rollD20() + initBonus,
+        // Party PCs start UNROLLED — each player rolls their own initiative from
+        // their combat view (d20 + real Dex mod). initiativeBonus carries the mod
+        // for tiebreaks and the DM's roll-for-them button; AC is the real derived AC.
+        initiative: 0,
+        awaitingRoll: true,
         initiativeBonus: initBonus,
         armorClass: stat?.armorClass ?? 10,
         hitPoints: {
@@ -198,7 +200,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
     })
     try {
       await doStart({ sessionId, combatants })
-      toast.success("Combat started — roll for initiative!")
+      toast.success("Combat started — players, roll initiative!")
     } catch {
       toast.error("Failed to start combat.")
     }
@@ -445,7 +447,8 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
               id: crypto.randomUUID(),
               name: char.name,
               type: "pc" as const,
-              initiative: rollD20() + initBonus, // d20 + real Dex mod
+              initiative: 0, // players roll their own (see handleStart)
+              awaitingRoll: true,
               initiativeBonus: initBonus,
               armorClass: stat?.armorClass ?? 10,
               hitPoints: { current: char.hitPoints.current, max: char.hitPoints.max, temp: char.hitPoints.temp },
@@ -536,7 +539,7 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
           <Swords className="h-8 w-8 mx-auto mb-3" style={{ color: "var(--scene-accent)", opacity: 0.5 }} />
           <p className="text-sm mb-4" style={{ color: "var(--scene-text-muted)" }}>
             {joinable > 0
-              ? `Start an encounter with ${joinable} party member${joinable !== 1 ? "s" : ""} — initiative is rolled automatically (edit as needed).`
+              ? `Start an encounter with ${joinable} party member${joinable !== 1 ? "s" : ""} — players roll their own initiative; monsters and NPCs roll as you add them.`
               : "No players have joined yet. You can start combat and add monsters, or wait for the party."}
           </p>
           <button
@@ -622,21 +625,43 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
               }}
             >
               <div className="flex items-center gap-3">
-                {/* Initiative (editable) */}
-                <input
-                  type="number"
-                  value={c.initiative}
-                  onChange={(e) =>
-                    doSetInitiative({
-                      sessionId,
-                      combatantId: c.id,
-                      initiative: parseInt(e.target.value, 10) || 0,
-                    }).catch(() => {})
-                  }
-                  className="w-10 text-center text-sm font-bold rounded bg-transparent outline-none tabular-nums"
-                  style={{ color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
-                  aria-label={`${c.name} initiative`}
-                />
+                {/* Initiative — editable once rolled; while a player's roll is
+                    pending, a dice button lets the DM roll on their behalf. */}
+                {c.awaitingRoll ? (
+                  <button
+                    onClick={() =>
+                      doSetInitiative({
+                        sessionId,
+                        combatantId: c.id,
+                        initiative: rollD20() + (c.initiativeBonus ?? 0),
+                      }).catch(() => {})
+                    }
+                    className="w-10 py-1.5 flex items-center justify-center rounded transition-opacity hover:opacity-80"
+                    style={{
+                      color: "var(--scene-accent)",
+                      border: "1px dashed color-mix(in srgb, var(--scene-accent) 45%, transparent)",
+                    }}
+                    aria-label={`Roll initiative for ${c.name}`}
+                    title={`Waiting on the player — tap to roll for ${c.name} (d20 + Dex)`}
+                  >
+                    <Dices className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <input
+                    type="number"
+                    value={c.initiative}
+                    onChange={(e) =>
+                      doSetInitiative({
+                        sessionId,
+                        combatantId: c.id,
+                        initiative: parseInt(e.target.value, 10) || 0,
+                      }).catch(() => {})
+                    }
+                    className="w-10 text-center text-sm font-bold rounded bg-transparent outline-none tabular-nums"
+                    style={{ color: "var(--scene-text-primary)", border: "1px solid var(--scene-border)" }}
+                    aria-label={`${c.name} initiative`}
+                  />
+                )}
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -1119,7 +1144,7 @@ export function PlayerCombatView({ sessionId }: { sessionId: SessionId }) {
             >
               <div className="flex items-center gap-3">
                 <span className="w-8 text-center text-sm font-bold tabular-nums" style={{ color: c.isActive ? "var(--scene-accent)" : "var(--scene-text-muted)" }}>
-                  {c.initiative}
+                  {c.awaitingRoll ? "—" : c.initiative}
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -1169,12 +1194,14 @@ export function PlayerCombatView({ sessionId }: { sessionId: SessionId }) {
                     </div>
                   )}
                 </div>
-                {/* Roll your own initiative — d20 + your real Dex mod, into the tracker. */}
-                {c.isMine && (
+                {/* Roll your own initiative — d20 + your real Dex mod, into the
+                    tracker. One roll: the button only shows while yours is pending
+                    (the DM can still adjust the number afterwards). */}
+                {c.isMine && c.awaitingRoll && (
                   <button
                     onClick={() => handleRollInitiative(c)}
                     aria-label="Roll your initiative"
-                    className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-opacity hover:opacity-90"
+                    className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-opacity hover:opacity-90 animate-pulse"
                     style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
                   >
                     <Dices className="h-3.5 w-3.5" /> Roll init

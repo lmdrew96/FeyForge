@@ -17,6 +17,7 @@ const combatantInputValidator = v.object({
   type: v.union(v.literal("pc"), v.literal("npc"), v.literal("monster")),
   initiative: v.number(),
   initiativeBonus: v.number(),
+  awaitingRoll: v.optional(v.boolean()),
   armorClass: v.number(),
   hitPoints: v.object({
     current: v.number(),
@@ -47,9 +48,13 @@ function healthBand(current: number, max: number): HealthBand {
 
 // ── Pure combat logic (lifted from lib/combat-store.ts) ─────────────────────────
 
-// Initiative high→low, Dex/init bonus as tiebreaker.
+// Initiative high→low, Dex/init bonus as tiebreaker. Combatants still awaiting
+// their player's roll sort below every rolled combatant (their placeholder 0
+// must not outrank a real negative roll); they slot into place as rolls land.
 function sortByInitiative(combatants: Combatant[]): Combatant[] {
   return [...combatants].sort((a, b) => {
+    const wait = (a.awaitingRoll ? 1 : 0) - (b.awaitingRoll ? 1 : 0)
+    if (wait !== 0) return wait
     if (b.initiative !== a.initiative) return b.initiative - a.initiative
     return b.initiativeBonus - a.initiativeBonus
   })
@@ -136,6 +141,10 @@ export const getCombat = query({
         name: c.name,
         type: c.type,
         initiative: c.initiative,
+        awaitingRoll: c.awaitingRoll,
+        // DM-only: lets the tracker's quick-roll button roll d20 + the right bonus
+        // for a player who isn't present. Players roll via getPartyCombatStats.
+        initiativeBonus: isDM ? c.initiativeBonus : undefined,
         // The DM sees every combatant's AC — PCs included, now that PC AC is the
         // character's REAL derived AC (written at combat-start via
         // getPartyCombatStats), not the old hardcoded 10. Players don't see AC in
@@ -581,7 +590,7 @@ export const setInitiative = mutation({
       ctx,
       args.sessionId,
       args.combatantId,
-      (c) => ({ ...c, initiative: args.initiative }),
+      (c) => ({ ...c, initiative: args.initiative, awaitingRoll: false }),
       { resort: true }
     )
   },
@@ -626,6 +635,7 @@ export const setMyInitiative = mutation({
             initiative: args.initiative,
             initiativeBonus: args.initiativeBonus,
             armorClass: args.armorClass,
+            awaitingRoll: false,
           }
         : c,
     )
