@@ -43,6 +43,18 @@ export const GEAR_CATEGORIES: ItemCategory[] = [
   "tool",
 ]
 
+// 5e magic-item rarities (the item form's Rarity dropdown). Mirrors the rarity
+// union on ItemProperty / StoredItemData.
+export const ITEM_RARITIES = [
+  "common",
+  "uncommon",
+  "rare",
+  "very rare",
+  "legendary",
+  "artifact",
+] as const
+export type ItemRarity = (typeof ITEM_RARITIES)[number]
+
 // 5e weapon property tags the weapon form offers. finesse/thrown/ammunition
 // drive the attack-ability math; the rest are descriptive.
 export const WEAPON_PROPERTY_OPTIONS = [

@@ -36,9 +36,11 @@ import {
 import {
   ARMOR_CATEGORY_OPTIONS,
   GEAR_CATEGORIES,
+  ITEM_RARITIES,
   WEAPON_PROPERTY_OPTIONS,
   rowToItem,
   type ItemCategory,
+  type ItemRarity,
   type SheetItem,
   type StoredItemData,
 } from "@/lib/character/sheet-items"
@@ -53,6 +55,7 @@ interface FormState {
   weight: string
   costAmount: string
   costCurrency: CurrencyType
+  rarity: "" | ItemRarity
   equipped: boolean
   description: string
   gearCategory: ItemCategory
@@ -98,6 +101,7 @@ function initialForm(item: SheetItem | null): FormState {
     weight: String(item?.weight ?? 0),
     costAmount: item?.cost?.amount ? String(item.cost.amount) : "",
     costCurrency: item?.cost?.currency ?? "gp",
+    rarity: item?.rarity ?? "",
     equipped: item?.equipped ?? false,
     description: item?.description ?? "",
     gearCategory: kind === "gear" ? cat : "gear",
@@ -258,12 +262,19 @@ function armorPrefill(a: Open5eArmor): Partial<FormState> {
   }
 }
 
+// Open5e rarities arrive title-cased ("Very Rare"); match to our lowercase union.
+function normalizeRarity(r?: string): "" | ItemRarity {
+  const v = (r ?? "").trim().toLowerCase()
+  return (ITEM_RARITIES as readonly string[]).includes(v) ? (v as ItemRarity) : ""
+}
+
 function magicPrefill(m: Open5eMagicItem): Partial<FormState> {
   return {
     kind: "gear",
     gearCategory: "magic",
     name: m.name,
-    description: [m.rarity, m.type].filter(Boolean).join(" · "),
+    rarity: normalizeRarity(m.rarity),
+    description: m.type || "",
   }
 }
 
@@ -525,6 +536,7 @@ export function ItemEditorDialog({
     const costAmount = Math.max(0, toNum(form.costAmount, 0))
     const cost = costAmount > 0 ? { amount: costAmount, currency: form.costCurrency } : undefined
     const costData = cost ? { cost } : {}
+    const rarityData = form.rarity ? { rarity: form.rarity } : {}
 
     // Attunement + grants, shared across all kinds. `attuned` is set on the sheet
     // (not here) — preserve it so a non-grant edit doesn't drop it.
@@ -588,6 +600,7 @@ export function ItemEditorDialog({
         ...(normal > 0 ? { range: { normal, long: long > 0 ? long : undefined } } : {}),
         ...(magicBonus !== 0 ? { magicBonus } : {}),
         ...costData,
+        ...rarityData,
         ...attunement,
       }
     }
@@ -604,11 +617,12 @@ export function ItemEditorDialog({
         stealthDisadvantage: form.stealthDisadvantage,
         ...(strReq > 0 ? { strengthRequirement: strReq } : {}),
         ...costData,
+        ...rarityData,
         ...attunement,
       }
     }
 
-    return { category: form.gearCategory, quantity, weight, description, ...costData, ...attunement }
+    return { category: form.gearCategory, quantity, weight, description, ...costData, ...rarityData, ...attunement }
   }
 
   const handleSave = async () => {
@@ -986,6 +1000,16 @@ export function ItemEditorDialog({
               >
                 Magic &amp; attunement
               </div>
+              <Field label="Rarity">
+                <Select
+                  value={form.rarity}
+                  onChange={(v) => set("rarity", v as "" | ItemRarity)}
+                  options={[
+                    { value: "", label: "None / mundane" },
+                    ...ITEM_RARITIES.map((r) => ({ value: r, label: r })),
+                  ]}
+                />
+              </Field>
               {item?.attuned ? (
                 <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
                   This item is attuned. Unattune it on your sheet to change attunement
