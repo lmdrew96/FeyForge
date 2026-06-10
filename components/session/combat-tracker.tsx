@@ -674,135 +674,136 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
                   />
                 )}
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold truncate" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
-                      {c.name}
+                {/* Name + badges — wraps instead of truncating into oblivion */}
+                <div className="flex-1 min-w-0 flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+                  <span className="text-sm sm:text-base font-semibold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+                    {c.name}
+                  </span>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
+                    {c.isDmpc ? "DMPC" : TYPE_LABEL[c.type]}
+                  </span>
+                  {c.armorClass !== undefined && (
+                    <span className="text-xs flex items-center gap-0.5 flex-shrink-0" style={{ color: "var(--scene-text-muted)" }}>
+                      <Shield className="h-3 w-3" /> {c.armorClass}
                     </span>
-                    <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
-                      {c.isDmpc ? "DMPC" : TYPE_LABEL[c.type]}
-                    </span>
-                    {c.armorClass !== undefined && (
-                      <span className="text-xs flex items-center gap-0.5 flex-shrink-0" style={{ color: "var(--scene-text-muted)" }}>
-                        <Shield className="h-3 w-3" /> {c.armorClass}
-                      </span>
-                    )}
-                  </div>
-                  {hp && (
-                    <div className="mt-1.5">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs tabular-nums" style={{ color: "var(--scene-text-muted)" }}>
-                          {hp.current}/{hp.max}{hp.temp > 0 ? ` (+${hp.temp})` : ""}
-                        </span>
-                      </div>
-                      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--scene-border)" }}>
-                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct * 100}%`, background: barColor }} />
-                      </div>
-                    </div>
-                  )}
-                  {/* Conditions + exhaustion level */}
-                  {(c.conditions.length > 0 || (c.exhaustion ?? 0) > 0) && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {c.conditions.map((cond) => (
-                        <span key={cond} className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${CONDITION_COLORS[cond] ?? "#6b7280"}22`, color: CONDITION_COLORS[cond] ?? "#6b7280", border: `1px solid ${CONDITION_COLORS[cond] ?? "#6b7280"}44` }}>
-                          {cond}
-                        </span>
-                      ))}
-                      {(c.exhaustion ?? 0) > 0 && (
-                        <span
-                          className="text-xs px-1.5 py-0.5 rounded"
-                          style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b44" }}
-                          title={exhaustionSummary(c.exhaustion ?? 0, edition)}
-                        >
-                          Exhaustion {c.exhaustion}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {/* Death saves for downed PCs */}
-                  {c.type === "pc" && isDown && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <Skull className="h-3.5 w-3.5" style={{ color: "#ef4444" }} />
-                      <DeathSaveDots
-                        label="Successes"
-                        color="var(--scene-accent)"
-                        count={c.deathSaves?.successes ?? 0}
-                        onSet={(n) =>
-                          doSetDeathSaves({
-                            sessionId,
-                            combatantId: c.id,
-                            successes: n,
-                            failures: c.deathSaves?.failures ?? 0,
-                          }).catch(() => {})
-                        }
-                      />
-                      <DeathSaveDots
-                        label="Failures"
-                        color="#ef4444"
-                        count={c.deathSaves?.failures ?? 0}
-                        onSet={(n) =>
-                          doSetDeathSaves({
-                            sessionId,
-                            combatantId: c.id,
-                            successes: c.deathSaves?.successes ?? 0,
-                            failures: n,
-                          }).catch(() => {})
-                        }
-                      />
-                      <button
-                        onClick={() => handleRollDeathSave(c.id)}
-                        className="ml-auto text-xs px-2 py-1 rounded font-medium transition-opacity hover:opacity-80"
-                        style={{ background: "color-mix(in srgb, #ef4444 14%, transparent)", color: "#ef4444", border: "1px solid color-mix(in srgb, #ef4444 32%, transparent)" }}
-                        title="Roll a death saving throw (nat 20 revives, nat 1 = two failures)"
-                      >
-                        Roll save
-                      </button>
-                    </div>
                   )}
                 </div>
 
-                {/* HP controls */}
-                {hp && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                {/* Row actions — finger-sized targets */}
+                <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+                  {c.type !== "pc" && (
+                    <button
+                      onClick={() => setExpandedAttacks(expandedAttacks === c.id ? null : c.id)}
+                      className="p-2 rounded transition-opacity hover:opacity-80"
+                      style={{ color: expandedAttacks === c.id ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
+                      aria-label={`Roll ${c.name} attacks`}
+                      title="Roll attacks"
+                    >
+                      <Swords className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setExpandedConditions(expandedConditions === c.id ? null : c.id)}
+                    className="p-2 rounded transition-opacity hover:opacity-80"
+                    style={{ color: expandedConditions === c.id ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
+                    aria-label="Toggle conditions"
+                    title="Conditions & exhaustion"
+                  >
+                    <Heart className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => doRemove({ sessionId, combatantId: c.id }).catch(() => {})}
+                    className="p-2 rounded transition-opacity hover:opacity-80"
+                    style={{ color: "var(--scene-text-muted)" }}
+                    aria-label={`Remove ${c.name}`}
+                    title="Remove from combat"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* HP — full-width bar + roomy adjust buttons (was crammed beside the name) */}
+              {hp && (
+                <div className="mt-2.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--scene-text-primary)" }}>
+                      {hp.current}<span style={{ color: "var(--scene-text-muted)" }}>/{hp.max}</span>{hp.temp > 0 ? <span style={{ color: "var(--scene-highlight)" }}> +{hp.temp}</span> : null}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "var(--scene-border)" }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct * 100}%`, background: barColor }} />
+                  </div>
+                  <div className="flex gap-1.5 mt-2">
                     <HpButton label="−5" color="#ef4444" onClick={() => handleAdjustHp(c.id, -5)} />
                     <HpButton label="−1" color="#ef4444" onClick={() => handleAdjustHp(c.id, -1)} />
                     <HpButton label="+1" color="var(--scene-accent)" onClick={() => handleAdjustHp(c.id, 1)} />
                     <HpButton label="+5" color="var(--scene-accent)" onClick={() => handleAdjustHp(c.id, 5)} />
                     <HpButton label="TMP" color="var(--scene-highlight)" onClick={() => handleSetTempHp(c.id, hp.temp)} />
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Row actions */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {c.type !== "pc" && (
-                    <button
-                      onClick={() => setExpandedAttacks(expandedAttacks === c.id ? null : c.id)}
-                      className="p-1.5 rounded transition-opacity hover:opacity-80"
-                      style={{ color: expandedAttacks === c.id ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
-                      aria-label={`Roll ${c.name} attacks`}
-                      title="Roll attacks"
+              {/* Conditions + exhaustion level */}
+              {(c.conditions.length > 0 || (c.exhaustion ?? 0) > 0) && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {c.conditions.map((cond) => (
+                    <span key={cond} className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${CONDITION_COLORS[cond] ?? "#6b7280"}22`, color: CONDITION_COLORS[cond] ?? "#6b7280", border: `1px solid ${CONDITION_COLORS[cond] ?? "#6b7280"}44` }}>
+                      {cond}
+                    </span>
+                  ))}
+                  {(c.exhaustion ?? 0) > 0 && (
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded"
+                      style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b44" }}
+                      title={exhaustionSummary(c.exhaustion ?? 0, edition)}
                     >
-                      <Swords className="h-3.5 w-3.5" />
-                    </button>
+                      Exhaustion {c.exhaustion}
+                    </span>
                   )}
+                </div>
+              )}
+
+              {/* Death saves for downed PCs */}
+              {c.type === "pc" && isDown && (
+                <div className="flex items-center gap-2 mt-2.5">
+                  <Skull className="h-3.5 w-3.5" style={{ color: "#ef4444" }} />
+                  <DeathSaveDots
+                    label="Successes"
+                    color="var(--scene-accent)"
+                    count={c.deathSaves?.successes ?? 0}
+                    onSet={(n) =>
+                      doSetDeathSaves({
+                        sessionId,
+                        combatantId: c.id,
+                        successes: n,
+                        failures: c.deathSaves?.failures ?? 0,
+                      }).catch(() => {})
+                    }
+                  />
+                  <DeathSaveDots
+                    label="Failures"
+                    color="#ef4444"
+                    count={c.deathSaves?.failures ?? 0}
+                    onSet={(n) =>
+                      doSetDeathSaves({
+                        sessionId,
+                        combatantId: c.id,
+                        successes: c.deathSaves?.successes ?? 0,
+                        failures: n,
+                      }).catch(() => {})
+                    }
+                  />
                   <button
-                    onClick={() => setExpandedConditions(expandedConditions === c.id ? null : c.id)}
-                    className="p-1.5 rounded transition-opacity hover:opacity-80"
-                    style={{ color: "var(--scene-text-muted)" }}
-                    aria-label="Toggle conditions"
+                    onClick={() => handleRollDeathSave(c.id)}
+                    className="ml-auto text-xs px-2.5 py-1.5 rounded font-medium transition-opacity hover:opacity-80"
+                    style={{ background: "color-mix(in srgb, #ef4444 14%, transparent)", color: "#ef4444", border: "1px solid color-mix(in srgb, #ef4444 32%, transparent)" }}
+                    title="Roll a death saving throw (nat 20 revives, nat 1 = two failures)"
                   >
-                    <Heart className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => doRemove({ sessionId, combatantId: c.id }).catch(() => {})}
-                    className="p-1.5 rounded transition-opacity hover:opacity-80"
-                    style={{ color: "var(--scene-text-muted)" }}
-                    aria-label={`Remove ${c.name}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    Roll save
                   </button>
                 </div>
-              </div>
+              )}
 
               {/* Condition picker */}
               {expandedConditions === c.id && (
@@ -1079,7 +1080,7 @@ function HpButton({ label, color, onClick }: { label: string; color: string; onC
   return (
     <button
       onClick={onClick}
-      className="w-8 py-1 rounded text-xs font-bold transition-opacity hover:opacity-80"
+      className="flex-1 min-w-0 py-1.5 rounded text-xs font-bold transition-opacity hover:opacity-80"
       style={{ background: `color-mix(in srgb, ${color} 15%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 35%, transparent)` }}
     >
       {label}
@@ -1210,61 +1211,29 @@ export function PlayerCombatView({
                 boxShadow: c.isActive ? "0 0 12px var(--scene-accent-glow)" : "none",
               }}
             >
-              <div className="flex items-center gap-3">
-                <span className="w-8 text-center text-sm font-bold tabular-nums" style={{ color: c.isActive ? "var(--scene-accent)" : "var(--scene-text-muted)" }}>
+              {/* Header row: initiative · name + badges · roll-init */}
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <span className="w-8 text-center text-sm font-bold tabular-nums flex-shrink-0" style={{ color: c.isActive ? "var(--scene-accent)" : "var(--scene-text-muted)" }}>
                   {c.awaitingRoll ? "—" : c.initiative}
                 </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold truncate" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
-                      {c.name}
+                <div className="flex-1 min-w-0 flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+                  <span className="text-sm sm:text-base font-semibold" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>
+                    {c.name}
+                  </span>
+                  {c.isMine && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
+                      You
                     </span>
-                    {c.isMine && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}>
-                        You
-                      </span>
-                    )}
-                    {c.isDmpc && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
-                        DMPC
-                      </span>
-                    )}
-                    {c.isActive && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 animate-pulse" style={{ background: "color-mix(in srgb, var(--scene-accent) 25%, transparent)", color: "var(--scene-accent)" }}>
-                        Turn
-                      </span>
-                    )}
-                  </div>
-                  {/* Own/PC exact HP bar, or monster health band */}
-                  {hp ? (
-                    <div className="mt-1.5">
-                      <span className="text-xs tabular-nums" style={{ color: "var(--scene-text-muted)" }}>
-                        {hp.current}/{hp.max}{hp.temp > 0 ? ` (+${hp.temp})` : ""}
-                      </span>
-                      <div className="w-full h-1.5 rounded-full overflow-hidden mt-1" style={{ background: "var(--scene-border)" }}>
-                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct * 100}%`, background: barColor }} />
-                      </div>
-                    </div>
-                  ) : (
-                    c.healthBand && (
-                      <span className="text-xs mt-1 inline-block px-2 py-0.5 rounded-full" style={{ background: `color-mix(in srgb, ${BAND_COLOR[c.healthBand]} 18%, transparent)`, color: BAND_COLOR[c.healthBand] }}>
-                        {BAND_LABEL[c.healthBand]}
-                      </span>
-                    )
                   )}
-                  {(c.conditions.length > 0 || (c.exhaustion ?? 0) > 0) && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {c.conditions.map((cond) => (
-                        <span key={cond} className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${CONDITION_COLORS[cond] ?? "#6b7280"}22`, color: CONDITION_COLORS[cond] ?? "#6b7280", border: `1px solid ${CONDITION_COLORS[cond] ?? "#6b7280"}44` }}>
-                          {cond}
-                        </span>
-                      ))}
-                      {(c.exhaustion ?? 0) > 0 && (
-                        <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b44" }}>
-                          Exhaustion {c.exhaustion}
-                        </span>
-                      )}
-                    </div>
+                  {c.isDmpc && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "var(--scene-border)", color: "var(--scene-text-muted)" }}>
+                      DMPC
+                    </span>
+                  )}
+                  {c.isActive && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 animate-pulse" style={{ background: "color-mix(in srgb, var(--scene-accent) 25%, transparent)", color: "var(--scene-accent)" }}>
+                      Turn
+                    </span>
                   )}
                 </div>
                 {/* Roll your own initiative — d20 + your real Dex mod, into the
@@ -1274,13 +1243,45 @@ export function PlayerCombatView({
                   <button
                     onClick={() => handleRollInitiative(c)}
                     aria-label="Roll your initiative"
-                    className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-opacity hover:opacity-90 animate-pulse"
+                    className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-md text-xs font-medium transition-opacity hover:opacity-90 animate-pulse"
                     style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
                   >
                     <Dices className="h-3.5 w-3.5" /> Roll init
                   </button>
                 )}
               </div>
+
+              {/* Own/PC exact HP bar, or monster health band — full width */}
+              {hp ? (
+                <div className="mt-2">
+                  <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--scene-text-primary)" }}>
+                    {hp.current}<span style={{ color: "var(--scene-text-muted)" }}>/{hp.max}</span>{hp.temp > 0 ? <span style={{ color: "var(--scene-highlight)" }}> +{hp.temp}</span> : null}
+                  </span>
+                  <div className="w-full h-2 rounded-full overflow-hidden mt-1" style={{ background: "var(--scene-border)" }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct * 100}%`, background: barColor }} />
+                  </div>
+                </div>
+              ) : (
+                c.healthBand && (
+                  <span className="text-xs mt-2 inline-block px-2 py-0.5 rounded-full" style={{ background: `color-mix(in srgb, ${BAND_COLOR[c.healthBand]} 18%, transparent)`, color: BAND_COLOR[c.healthBand] }}>
+                    {BAND_LABEL[c.healthBand]}
+                  </span>
+                )
+              )}
+              {(c.conditions.length > 0 || (c.exhaustion ?? 0) > 0) && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {c.conditions.map((cond) => (
+                    <span key={cond} className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${CONDITION_COLORS[cond] ?? "#6b7280"}22`, color: CONDITION_COLORS[cond] ?? "#6b7280", border: `1px solid ${CONDITION_COLORS[cond] ?? "#6b7280"}44` }}>
+                      {cond}
+                    </span>
+                  ))}
+                  {(c.exhaustion ?? 0) > 0 && (
+                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b44" }}>
+                      Exhaustion {c.exhaustion}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
