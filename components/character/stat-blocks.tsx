@@ -256,21 +256,23 @@ export function SkillsCard({
             const isExpert = skillExpertise.includes(skill)
             const isProficient = skillProficiencies.includes(skill)
             const level: "none" | "proficient" | "expert" = isExpert ? "expert" : isProficient ? "proficient" : "none"
-            const half = Math.ceil(arr.length / 2)
-            const isRightCol = i >= half
-            const isLastInLeftCol = i === half - 1
-            const isLastInRightCol = i === arr.length - 1
+            // The grid fills ROW-major: even indexes land in the left column, odd in
+            // the right (at sm+). Border widths are responsive Tailwind classes; the
+            // color rides inline so the scene token applies to whichever sides render.
+            const lastRowMobile = i === arr.length - 1
+            const lastRowTwoCol = i >= arr.length - 2
+            const leftColTwoCol = i % 2 === 0
             return (
               <button
                 key={skill}
                 onClick={() => roll(SKILL_DISPLAY_NAMES[skill], skillMods[skill])}
-                className="flex items-center gap-3 px-4 py-2 w-full text-left transition-opacity hover:opacity-80"
-                style={{
-                  borderBottom: (!isRightCol && !isLastInLeftCol) || (isRightCol && !isLastInRightCol)
-                    ? "1px solid var(--scene-border)"
-                    : "none",
-                  borderRight: !isRightCol ? "1px solid var(--scene-border)" : "none",
-                }}
+                className={[
+                  "flex items-center gap-3 px-4 py-2 w-full text-left transition-opacity hover:opacity-80",
+                  lastRowMobile ? "" : "border-b",
+                  !lastRowMobile && lastRowTwoCol ? "sm:border-b-0" : "",
+                  leftColTwoCol ? "sm:border-r" : "",
+                ].join(" ")}
+                style={{ borderColor: "var(--scene-border)" }}
                 title={`Roll ${SKILL_DISPLAY_NAMES[skill]}`}
               >
                 <ProfDot level={level} />
