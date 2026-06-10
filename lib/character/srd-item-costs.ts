@@ -72,6 +72,31 @@ const COSTS: Record<string, string> = {
   Shield: "10 gp",
 }
 
+import type { CurrencyType } from "./constants"
+
+type Cost = { amount: number; currency: CurrencyType }
+
+const CURRENCIES: readonly CurrencyType[] = ["cp", "sp", "ep", "gp", "pp"]
+
+// Parse a cost string ("15 gp", "1,500 gp", "5 cp") into { amount, currency }.
+// Returns undefined for anything unparseable so callers can fall back to no cost.
+export function parseCost(s: string | undefined): Cost | undefined {
+  if (!s) return undefined
+  const m = s.replace(/,/g, "").match(/(\d+(?:\.\d+)?)\s*(cp|sp|ep|gp|pp)/i)
+  if (!m) return undefined
+  const amount = Number(m[1])
+  if (!Number.isFinite(amount) || amount <= 0) return undefined
+  const currency = m[2].toLowerCase() as CurrencyType
+  if (!CURRENCIES.includes(currency)) return undefined
+  return { amount, currency }
+}
+
+// Display a structured cost as "15 gp" (with thousands separators).
+export function formatCost(cost: Cost | undefined): string {
+  if (!cost) return ""
+  return `${cost.amount.toLocaleString()} ${cost.currency}`
+}
+
 // Lowercase, drop punctuation, sort the words — so word order and commas in the
 // source name don't matter for the match.
 function normalize(name: string): string {

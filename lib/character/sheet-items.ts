@@ -12,7 +12,7 @@
  */
 
 import type { AbilityScores, Character, ItemProperty, Modifier } from "./types"
-import type { ArmorCategory, DamageType } from "./constants"
+import type { ArmorCategory, CurrencyType, DamageType } from "./constants"
 import type { AppliedGrants } from "./feats"
 import {
   calculateArmorClass,
@@ -74,6 +74,7 @@ export interface StoredItemData {
   category: ItemCategory
   quantity?: number
   weight?: number
+  cost?: { amount: number; currency: CurrencyType }
   rarity?: ItemProperty["rarity"]
   description?: string
 

@@ -17,10 +17,13 @@ import {
   ABILITY_ABBREVIATIONS,
   SKILLS,
   SKILL_DISPLAY_NAMES,
+  CURRENCY,
   type DamageType,
   type Ability,
   type Skill,
+  type CurrencyType,
 } from "@/lib/character/constants"
+import { parseCost } from "@/lib/character/srd-item-costs"
 import type { AppliedGrants } from "@/lib/character/feats"
 import type { Modifier } from "@/lib/character/types"
 import { parseDiceExpression } from "@/lib/dice-store"
@@ -48,6 +51,8 @@ interface FormState {
   name: string
   quantity: string
   weight: string
+  costAmount: string
+  costCurrency: CurrencyType
   equipped: boolean
   description: string
   gearCategory: ItemCategory
@@ -91,6 +96,8 @@ function initialForm(item: SheetItem | null): FormState {
     name: item?.name ?? "",
     quantity: String(item?.quantity ?? 1),
     weight: String(item?.weight ?? 0),
+    costAmount: item?.cost?.amount ? String(item.cost.amount) : "",
+    costCurrency: item?.cost?.currency ?? "gp",
     equipped: item?.equipped ?? false,
     description: item?.description ?? "",
     gearCategory: kind === "gear" ? cat : "gear",
@@ -223,7 +230,16 @@ function weaponPrefill(w: Open5eWeapon): Partial<FormState> {
     rangeLong: range?.long ? String(range.long) : "",
     weight: String(parseWeight(w.weight)),
     proficient: true,
+    ...costPrefill(w.cost),
   }
+}
+
+// SRD weapons/armor now carry a curated cost string ("15 gp"); split it into the
+// form's amount + currency so picking an item prefills its price too.
+function costPrefill(cost?: string): Partial<FormState> {
+  const parsed = parseCost(cost)
+  if (!parsed) return {}
+  return { costAmount: String(parsed.amount), costCurrency: parsed.currency }
 }
 
 function armorPrefill(a: Open5eArmor): Partial<FormState> {
@@ -238,6 +254,7 @@ function armorPrefill(a: Open5eArmor): Partial<FormState> {
       ? (String(a.strength_requirement).match(/\d+/)?.[0] ?? "")
       : "",
     weight: String(parseWeight(a.weight)),
+    ...costPrefill(a.cost),
   }
 }
 
@@ -503,6 +520,11 @@ export function ItemEditorDialog({
     const quantity = Math.max(1, toInt(form.quantity, 1))
     const weight = Math.max(0, toNum(form.weight, 0))
     const description = form.description.trim() || undefined
+    // Optional price — stored structured ({ amount, currency }) so it can be
+    // totalled later; omitted when left blank/zero.
+    const costAmount = Math.max(0, toNum(form.costAmount, 0))
+    const cost = costAmount > 0 ? { amount: costAmount, currency: form.costCurrency } : undefined
+    const costData = cost ? { cost } : {}
 
     // Attunement + grants, shared across all kinds. `attuned` is set on the sheet
     // (not here) — preserve it so a non-grant edit doesn't drop it.
@@ -565,6 +587,7 @@ export function ItemEditorDialog({
         ...(hasVersatile && versatile ? { versatileDamage: versatile } : {}),
         ...(normal > 0 ? { range: { normal, long: long > 0 ? long : undefined } } : {}),
         ...(magicBonus !== 0 ? { magicBonus } : {}),
+        ...costData,
         ...attunement,
       }
     }
@@ -580,11 +603,12 @@ export function ItemEditorDialog({
         baseAC: Math.max(0, toInt(form.baseAC, 10)),
         stealthDisadvantage: form.stealthDisadvantage,
         ...(strReq > 0 ? { strengthRequirement: strReq } : {}),
+        ...costData,
         ...attunement,
       }
     }
 
-    return { category: form.gearCategory, quantity, weight, description, ...attunement }
+    return { category: form.gearCategory, quantity, weight, description, ...costData, ...attunement }
   }
 
   const handleSave = async () => {
@@ -620,6 +644,9 @@ export function ItemEditorDialog({
     // state, never part of a reusable template.
     const homebrewData = { ...data }
     delete homebrewData.attuned
+    // Cost isn't part of the homebrew item validator (a template's price is set
+    // per-character on add, like attunement) — strip it so create() validates.
+    delete homebrewData.cost
     setSaving(true)
     try {
       await onSaveAsHomebrew({ name, data: homebrewData })
@@ -915,6 +942,27 @@ export function ItemEditorDialog({
                 value={form.weight}
                 onChange={(v) => set("weight", v)}
                 numeric
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Cost">
+              <TextInput
+                value={form.costAmount}
+                onChange={(v) => set("costAmount", v)}
+                placeholder="0"
+                numeric
+              />
+            </Field>
+            <Field label="Currency">
+              <Select
+                value={form.costCurrency}
+                onChange={(v) => set("costCurrency", v as CurrencyType)}
+                options={(Object.keys(CURRENCY) as CurrencyType[]).map((c) => ({
+                  value: c,
+                  label: `${c} — ${CURRENCY[c].name}`,
+                }))}
               />
             </Field>
           </div>

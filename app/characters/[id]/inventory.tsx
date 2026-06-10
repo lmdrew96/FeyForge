@@ -15,6 +15,7 @@ import {
 } from "@/lib/character/sheet-items"
 import { applyGrants, reverseGrants, appliedSummary } from "@/lib/character/feats"
 import { getPackContents } from "@/lib/character/packs"
+import { formatCost } from "@/lib/character/srd-item-costs"
 
 // 5e: a character can be attuned to at most three magic items at once.
 const MAX_ATTUNEMENT = 3
@@ -829,7 +830,11 @@ function itemSubtitle(item: SheetItem): string {
     else if (item.baseAC != null) bits.push(`AC ${item.baseAC}`)
     if (item.armorCategory) bits.push(item.armorCategory)
   }
+  if (item.rarity) bits.push(item.rarity)
+  if (item.requiresAttunement) bits.push("attunement")
   if ((item.weight ?? 0) > 0) bits.push(`${item.weight} lb`)
+  const cost = formatCost(item.cost)
+  if (cost) bits.push(cost)
   return bits.join(" · ") || "—"
 }
 
