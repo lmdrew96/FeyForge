@@ -691,7 +691,10 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
 
                 {/* Row actions — finger-sized targets */}
                 <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-                  {c.type !== "pc" && (
+                  {/* Attack toggle: monsters/NPCs roll from a stat block; a DMPC is a
+                      real PC, so the DM rolls ITS sheet attacks + spells. A player's
+                      own PC is excluded — the DM doesn't roll for players. */}
+                  {(c.type !== "pc" || c.isDmpc) && (
                     <button
                       onClick={() => setExpandedAttacks(expandedAttacks === c.id ? null : c.id)}
                       className="p-2 rounded transition-opacity hover:opacity-80"
@@ -876,6 +879,18 @@ export function DMCombatTracker({ sessionId, campaignId }: { sessionId: SessionI
                     .filter((x) => x.id !== c.id)
                     .map((x) => ({ id: x.id, name: x.name, type: x.type }))}
                   onApply={(targetId, amount) => handleAdjustHp(targetId, -amount)}
+                />
+              )}
+
+              {/* DMPC attack roller — a DMPC is a real PC, so it rolls its own sheet
+                  attacks + spells (the same panel players use), broadcasting to the
+                  shared feed under its name. The DM applies the resulting damage with
+                  the target's HP buttons above. */}
+              {expandedAttacks === c.id && c.isDmpc && c.characterId && (
+                <PlayerCombatActions
+                  sessionId={sessionId}
+                  campaignId={campaignId}
+                  characterId={c.characterId}
                 />
               )}
             </div>
