@@ -154,7 +154,9 @@ export function SessionChatPanel({
                 <ChevronDown className="h-3 w-3" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-48">
+            {/* z-[80] clears the z-[70] chat panel — the menu portals to body, so
+                the default z-50 would otherwise render behind the panel. */}
+            <DropdownMenuContent align="start" className="z-[80] min-w-48">
               <DropdownMenuItem onSelect={() => setRecipientId(null)} className="cursor-pointer">
                 <span className="flex-1">Everyone</span>
                 {recipientId === null && <span style={{ color: "var(--scene-accent)" }}>✓</span>}
