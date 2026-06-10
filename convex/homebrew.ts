@@ -1,8 +1,40 @@
-import { mutation, query } from "./_generated/server"
+import { mutation, query, type QueryCtx } from "./_generated/server"
 import { v } from "convex/values"
 import type { Doc } from "./_generated/dataModel"
 import { homebrewData } from "./lib/homebrewValidators"
 import { getMembership } from "./lib/auth"
+
+// A homebrew row plus, for entries you don't own, the creator's display name —
+// so shared content can be attributed ("Shared by …") in the builder/Codex.
+export type SharedHomebrew = Doc<"homebrew"> & { ownerName?: string }
+
+// The current user's accepted friends' tokenIdentifiers (friendship is symmetric,
+// so union both directions). Mirrors friends.listFriends' acceptance filter.
+async function getAcceptedFriendIds(ctx: QueryCtx, me: string): Promise<string[]> {
+  const asRequester = await ctx.db
+    .query("friendships")
+    .withIndex("by_requester", (q) => q.eq("requesterId", me))
+    .take(500)
+  const asAddressee = await ctx.db
+    .query("friendships")
+    .withIndex("by_addressee", (q) => q.eq("addresseeId", me))
+    .take(500)
+  const ids = new Set<string>()
+  for (const f of [...asRequester, ...asAddressee]) {
+    if (f.status !== "accepted") continue
+    ids.add(f.requesterId === me ? f.addresseeId : f.requesterId)
+  }
+  return [...ids]
+}
+
+// Display name for a clerkId, with the same stable fallback friends.ts uses.
+async function resolveDisplayName(ctx: QueryCtx, userId: string): Promise<string> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", userId))
+    .unique()
+  return user?.displayName?.trim() || "Adventurer"
+}
 
 // ── Homebrew library ──────────────────────────────────────────────────────────
 // User-authored races/backgrounds that merge into the character builder. Owned by
@@ -23,12 +55,14 @@ export const listMine = query({
   },
 })
 
-// Everything the current user can BUILD with: their own homebrew plus any homebrew
-// published to a campaign they belong to. De-duplicated (a user's own shared entry
-// shows once). Powers the builder's race/background pickers.
+// Everything the current user can BUILD with: their own homebrew, anything
+// published to a campaign they belong to, and anything an accepted friend has
+// shared with friends. De-duplicated (a user's own shared entry shows once).
+// Entries you don't own carry `ownerName` for attribution. Powers the builder's
+// race/background pickers and the Codex Homebrew tab.
 export const listForBuilder = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<SharedHomebrew[]> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
     const userId = identity.tokenIdentifier
@@ -54,15 +88,38 @@ export const listForBuilder = query({
       ),
     )
 
+    // Friends' libraries, kept to only the entries they've shared with friends.
+    const friendIds = await getAcceptedFriendIds(ctx, userId)
+    const friendLists = await Promise.all(
+      friendIds.map((fid) =>
+        ctx.db
+          .query("homebrew")
+          .withIndex("by_userId", (q) => q.eq("userId", fid))
+          .collect(),
+      ),
+    )
+    const friendShared = friendLists.flat().filter((h) => h.sharedWithFriends === true)
+
     const seen = new Set(own.map((h) => h._id))
     const merged: Doc<"homebrew">[] = [...own]
-    for (const h of sharedLists.flat()) {
+    for (const h of [...sharedLists.flat(), ...friendShared]) {
       if (!seen.has(h._id)) {
         seen.add(h._id)
         merged.push(h)
       }
     }
-    return merged
+
+    // Attribute every entry you don't own — resolve each owner's name once.
+    const otherOwnerIds = [
+      ...new Set(merged.filter((h) => h.userId !== userId).map((h) => h.userId)),
+    ]
+    const nameById = new Map<string, string>()
+    await Promise.all(
+      otherOwnerIds.map(async (oid) => nameById.set(oid, await resolveDisplayName(ctx, oid))),
+    )
+    return merged.map((h) =>
+      h.userId === userId ? h : { ...h, ownerName: nameById.get(h.userId) },
+    )
   },
 })
 
@@ -211,6 +268,27 @@ export const setShare = mutation({
 
     await ctx.db.patch(args.id, {
       sharedCampaignId: args.campaignId ?? undefined,
+      updatedAt: Date.now(),
+    })
+  },
+})
+
+// Toggle whether this entry is shared with the owner's accepted friends. Only
+// the owner may set it. Independent of campaign sharing.
+export const setShareFriends = mutation({
+  args: {
+    id: v.id("homebrew"),
+    shared: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const row = await ctx.db.get(args.id)
+    if (!row || row.userId !== identity.tokenIdentifier) {
+      throw new Error("Homebrew not found")
+    }
+    await ctx.db.patch(args.id, {
+      sharedWithFriends: args.shared ? true : undefined,
       updatedAt: Date.now(),
     })
   },

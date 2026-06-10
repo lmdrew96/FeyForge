@@ -42,10 +42,12 @@ type Category = SrdCategory | "homebrew" | "rules"
 
 // A homebrew item adapted for the Codex: the doc id stands in for `slug` (homebrew
 // has none) so the slug-keyed list/bookmark/select machinery works unchanged.
+// `ownerName` is set only for items a friend (or campaign-mate) shared with you.
 interface CodexHomebrewItem {
   slug: string
   name: string
   data: StoredItemData
+  ownerName?: string
 }
 
 type Entry = Open5eSpell | Open5eMonster | Open5eMagicItem | Open5eCondition | CodexHomebrewItem | RulesEntry
@@ -332,6 +334,11 @@ function HomebrewItemDetail({ it }: { it: CodexHomebrewItem }) {
         {d.armorCategory && <Pill>{d.armorCategory}</Pill>}
         {d.requiresAttunement && <Pill>Attunement</Pill>}
       </div>
+      {it.ownerName && (
+        <p className="text-xs" style={{ color: "var(--scene-text-muted)" }}>
+          Shared by {it.ownerName}
+        </p>
+      )}
       <div className="space-y-1">
         {/* Weapon */}
         <FieldRow label="Damage" value={damage} />
@@ -382,7 +389,8 @@ function rowSubtitle(category: Category, entry: Entry): string {
     }
     case "homebrew": {
       const it = entry as CodexHomebrewItem
-      return [it.data.rarity, it.data.category].filter(Boolean).join(" · ") || "Homebrew item"
+      const base = [it.data.rarity, it.data.category].filter(Boolean).join(" · ") || "Homebrew item"
+      return it.ownerName ? `${base} · by ${it.ownerName}` : base
     }
   }
 }
@@ -427,15 +435,17 @@ export default function CodexPage() {
   // Homebrew comes from the user's own library (auth/membership-gated server-side),
   // not Open5e — so it bypasses the FETCHERS/cache path below.
   const homebrewDocs = useQuery(api.homebrew.listForBuilder)
-  const homebrewItems = useMemo<CodexHomebrewItem[]>(
-    () =>
-      partitionHomebrew(homebrewDocs).items.map((it) => ({
-        slug: it.id,
-        name: it.name,
-        data: it.data,
-      })),
-    [homebrewDocs],
-  )
+  const homebrewItems = useMemo<CodexHomebrewItem[]>(() => {
+    // listForBuilder attributes shared entries with ownerName; partitionHomebrew
+    // drops it, so re-join by doc id (CodexHomebrewItem.slug === doc._id).
+    const ownerById = new Map((homebrewDocs ?? []).map((d) => [d._id as string, d.ownerName]))
+    return partitionHomebrew(homebrewDocs).items.map((it) => ({
+      slug: it.id,
+      name: it.name,
+      data: it.data,
+      ownerName: ownerById.get(it.id),
+    }))
+  }, [homebrewDocs])
 
   // Rules are static local data (no fetch). "both" entries show in either
   // edition; delta entries (grapple, exhaustion, …) swap with the toggle.
@@ -917,7 +927,9 @@ export default function CodexPage() {
 
                   <p className="text-xs mt-5 pt-3" style={{ color: "var(--scene-text-muted)", borderTop: "1px solid var(--scene-border)" }}>
                     {category === "homebrew"
-                      ? "Source: Your homebrew library"
+                      ? (selected as CodexHomebrewItem).ownerName
+                        ? `Shared by ${(selected as CodexHomebrewItem).ownerName}`
+                        : "Source: Your homebrew library"
                       : category === "rules"
                         ? "Source: SRD 5.1 / 5.2 · paraphrased · CC BY 4.0"
                         : `Source: ${(selected as Entry & { document__title?: string }).document__title ?? "SRD"} · via Open5e`}

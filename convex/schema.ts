@@ -199,6 +199,9 @@ export default defineSchema({
     ),
     name: v.string(), // display name; also what's stored on characters.race/background
     sharedCampaignId: v.optional(v.id("campaigns")),
+    // Independent of sharedCampaignId: when true, the creator's accepted friends
+    // see this entry in their builder/Codex. Absent = off (existing rows).
+    sharedWithFriends: v.optional(v.boolean()),
     data: homebrewData,
     updatedAt: v.number(),
   })

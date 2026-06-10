@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import { toast } from "sonner"
-import { FlaskConical, Plus, Pencil, Trash2, Share2, Loader2, ArrowLeft } from "lucide-react"
+import { FlaskConical, Plus, Pencil, Trash2, Share2, Users, Loader2, ArrowLeft } from "lucide-react"
 import {
   ABILITIES,
   ABILITY_ABBREVIATIONS,
@@ -441,6 +441,7 @@ export default function HomebrewPage() {
   const updateHb = useMutation(api.homebrew.update)
   const removeHb = useMutation(api.homebrew.remove)
   const setShare = useMutation(api.homebrew.setShare)
+  const setShareFriends = useMutation(api.homebrew.setShareFriends)
 
   const [editor, setEditor] = useState<Editor>(null)
   // Items use the shared inventory item editor (a modal), not the inline race/bg
@@ -539,6 +540,15 @@ export default function HomebrewPage() {
     try {
       await setShare({ id, campaignId })
       toast.success(campaignId ? "Shared to campaign." : "Sharing turned off.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update sharing.")
+    }
+  }
+
+  const handleShareFriends = async (id: Id<"homebrew">, shared: boolean) => {
+    try {
+      await setShareFriends({ id, shared })
+      toast.success(shared ? "Shared with your friends." : "No longer shared with friends.")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't update sharing.")
     }
@@ -685,6 +695,7 @@ export default function HomebrewPage() {
                 onEdit={(doc) => setEditor({ kind: "race", draft: raceDocToDraft(doc) })}
                 onDelete={handleDelete}
                 onShare={handleShare}
+                onShareFriends={handleShareFriends}
                 summarize={(doc) => {
                   const d = doc.data as HomebrewRaceData
                   const bonuses = Object.entries(d.abilityBonuses)
@@ -702,6 +713,7 @@ export default function HomebrewPage() {
                 onEdit={(doc) => setEditor({ kind: "class", draft: classDocToDraft(doc) })}
                 onDelete={handleDelete}
                 onShare={handleShare}
+                onShareFriends={handleShareFriends}
                 summarize={(doc) => {
                   const d = doc.data as HomebrewClassData
                   const bits = [`d${d.hitDie}`, `${d.primaryAbility} primary`]
@@ -719,6 +731,7 @@ export default function HomebrewPage() {
                 onEdit={(doc) => setEditor({ kind: "background", draft: backgroundDocToDraft(doc) })}
                 onDelete={handleDelete}
                 onShare={handleShare}
+                onShareFriends={handleShareFriends}
                 summarize={(doc) => {
                   const d = doc.data as HomebrewBackgroundData
                   const skills = (d.skillProficiencies as Skill[])
@@ -746,6 +759,7 @@ export default function HomebrewPage() {
                 }
                 onDelete={handleDelete}
                 onShare={handleShare}
+                onShareFriends={handleShareFriends}
                 summarize={(doc) => {
                   const d = doc.data as StoredItemData
                   const bits: string[] = [d.category]
@@ -766,6 +780,7 @@ export default function HomebrewPage() {
                 onEdit={(doc) => setEditor({ kind: "monster", draft: monsterDocToDraft(doc) })}
                 onDelete={handleDelete}
                 onShare={handleShare}
+                onShareFriends={handleShareFriends}
                 summarize={(doc) => {
                   const d = doc.data as HomebrewMonsterData
                   return [
@@ -812,6 +827,7 @@ function HomebrewSection({
   onEdit,
   onDelete,
   onShare,
+  onShareFriends,
   summarize,
 }: {
   title: string
@@ -820,6 +836,7 @@ function HomebrewSection({
   onEdit: (doc: Doc<"homebrew">) => void
   onDelete: (id: Id<"homebrew">, name: string) => void
   onShare: (id: Id<"homebrew">, campaignId: Id<"campaigns"> | null) => void
+  onShareFriends: (id: Id<"homebrew">, shared: boolean) => void
   summarize: (doc: Doc<"homebrew">) => string
 }) {
   return (
@@ -863,7 +880,7 @@ function HomebrewSection({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: "1px solid var(--scene-border)" }}>
+            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3" style={{ borderTop: "1px solid var(--scene-border)" }}>
               <Share2 className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--scene-text-muted)" }} />
               <select
                 value={doc.sharedCampaignId ?? ""}
@@ -883,6 +900,22 @@ function HomebrewSection({
                   </option>
                 ))}
               </select>
+              {/* Friend sharing is independent of the campaign axis above. */}
+              <button
+                onClick={() => onShareFriends(doc._id, !doc.sharedWithFriends)}
+                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-opacity hover:opacity-90"
+                aria-pressed={doc.sharedWithFriends ?? false}
+                style={{
+                  background: doc.sharedWithFriends
+                    ? "color-mix(in srgb, var(--scene-accent) 16%, transparent)"
+                    : "var(--scene-surface)",
+                  color: doc.sharedWithFriends ? "var(--scene-accent)" : "var(--scene-text-muted)",
+                  border: `1px solid ${doc.sharedWithFriends ? "color-mix(in srgb, var(--scene-accent) 38%, transparent)" : "var(--scene-border)"}`,
+                }}
+              >
+                <Users className="w-3.5 h-3.5" />
+                {doc.sharedWithFriends ? "Shared with friends" : "Share with friends"}
+              </button>
             </div>
           </div>
         ))}
