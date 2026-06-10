@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 import { EncounterDetails, DifficultyBadge, hasEncounterDetails } from "@/components/encounters/encounter-details"
 import { MonsterAttacksPanel } from "@/components/session/monster-attacks-panel"
-import { PlayerAttacksPanel } from "@/components/session/player-attacks-panel"
+import { PlayerCombatActions } from "@/components/session/player-combat-actions"
 import { partitionHomebrew, rawHomebrewId, type HomebrewMonster } from "@/lib/homebrew"
 import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { baseMonsterName } from "@/lib/monster-attacks"
@@ -1287,10 +1287,11 @@ export function PlayerCombatView({
         })}
       </div>
 
-      {/* Attack without leaving the Live tab — the player's own sheet attacks,
-          rolls broadcast to the shared feed like any sheet roll. */}
+      {/* Attack AND cast without leaving the Live tab — the player's own sheet
+          attacks + spellbook, rolls broadcast to the shared feed like any sheet
+          roll. Casting spends slots locally, same as the sheet. */}
       {myPc?.characterId && (
-        <PlayerAttacksPanel
+        <PlayerCombatActions
           sessionId={sessionId}
           campaignId={campaignId}
           characterId={myPc.characterId}

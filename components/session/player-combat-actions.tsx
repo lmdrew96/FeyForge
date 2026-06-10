@@ -7,13 +7,16 @@ import { rollToFeedArgs } from "@/lib/session-rolls"
 import { deriveCharacter } from "@/lib/character/derive-character"
 import { useSheetRoll, SheetRollCard } from "@/components/character/sheet-roll"
 import { AttacksSection } from "@/app/characters/[id]/inventory"
+import { SpellbookSection } from "@/components/character/spellbook"
 import type { RollMode } from "@/lib/dice-store"
 
-// The player's own weapon attacks, surfaced INSIDE the Live tab's combat view so
-// attacking doesn't require a round-trip to the Sheet tab. Exactly the sheet's
-// attack stack — deriveCharacter + AttacksSection + the adv/dis-aware roller —
-// with every roll broadcast to the table's shared feed, so the numbers and
-// behavior can't drift from the in-session sheet.
+// The player's own combat actions — weapon attacks AND spellcasting — surfaced
+// INSIDE the Live tab's combat view so acting doesn't require a round-trip to the
+// Sheet tab. Exactly the sheet's attack + spellbook stacks (deriveCharacter +
+// AttacksSection + SpellbookSection + the adv/dis-aware roller) with every roll
+// broadcast to the table's shared feed, so the numbers and behavior can't drift
+// from the in-session sheet. Casting spends slots locally (same as the sheet);
+// the spell-attack roll broadcasts because it goes through the shared roller.
 
 const MODES: RollMode[] = ["normal", "advantage", "disadvantage"]
 const MODE_LABEL: Record<RollMode, string> = {
@@ -22,7 +25,7 @@ const MODE_LABEL: Record<RollMode, string> = {
   disadvantage: "DIS",
 }
 
-export function PlayerAttacksPanel({
+export function PlayerCombatActions({
   sessionId,
   campaignId,
   characterId,
@@ -46,18 +49,32 @@ export function PlayerAttacksPanel({
 
   if (!char) return null
 
-  const { totalAbilities, equippedWeapons, fightingStyleId, critRange } = deriveCharacter(
-    char,
-    allProps,
-    campaign,
-  )
+  const {
+    totalAbilities,
+    equippedWeapons,
+    fightingStyleId,
+    critRange,
+    spells,
+    grantedSpells,
+    subclassId,
+    casterType,
+    edition,
+    nextOrder,
+  } = deriveCharacter(char, allProps, campaign)
 
-  // Nothing to attack with — stay quiet (equipping happens on the sheet).
-  if (equippedWeapons.length === 0) return null
+  const hasAttacks = equippedWeapons.length > 0
+  // Casters who never enabled spellcasting enable it on their full sheet, not here
+  // — so we only show the spellbook once the block exists (mirrors the Sheet tab).
+  const isCaster = casterType !== "none" && !!char.spellcasting
+
+  // Nothing to attack or cast with — stay quiet (equipping / enabling happens on
+  // the sheet).
+  if (!hasAttacks && !isCaster) return null
 
   return (
     <div className="mt-4">
-      {/* Compact adv/dis toggle — the sheet's sticky RollModeBar is too heavy here. */}
+      {/* Compact adv/dis toggle — the sheet's sticky RollModeBar is too heavy here.
+          One toggle drives BOTH the weapon attacks and the spell-attack roll. */}
       <div className="flex items-center justify-end gap-1.5 mb-2">
         <span className="text-[10px] uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
           Roll mode
@@ -82,16 +99,35 @@ export function PlayerAttacksPanel({
         })}
       </div>
 
-      <AttacksSection
-        level={char.level}
-        weaponProficiencies={char.weaponProficiencies}
-        abilities={totalAbilities}
-        weapons={equippedWeapons}
-        fightingStyleId={fightingStyleId}
-        critRange={critRange}
-        roll={roll}
-        rollExpr={rollExpr}
-      />
+      {hasAttacks && (
+        <AttacksSection
+          level={char.level}
+          weaponProficiencies={char.weaponProficiencies}
+          abilities={totalAbilities}
+          weapons={equippedWeapons}
+          fightingStyleId={fightingStyleId}
+          critRange={critRange}
+          roll={roll}
+          rollExpr={rollExpr}
+        />
+      )}
+
+      {/* Spellcasting — slots, save DC/attack, cast from the spellbook. Same
+          component + mutations as the sheet, so slots can't drift between them. */}
+      {isCaster && char.spellcasting && (
+        <SpellbookSection
+          characterId={char._id}
+          spellcasting={char.spellcasting}
+          classId={char.characterClass}
+          subclassId={subclassId}
+          level={char.level}
+          edition={edition}
+          spells={spells}
+          grantedSpells={grantedSpells}
+          nextOrder={nextOrder}
+          roll={roll}
+        />
+      )}
 
       {lastRoll && <SheetRollCard result={lastRoll} rolling={rolling} onDismiss={dismiss} />}
     </div>
