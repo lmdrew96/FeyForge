@@ -16,6 +16,8 @@ import { useCodexStore, type CodexCategory } from "@/lib/codex-store"
 import { partitionHomebrew } from "@/lib/homebrew"
 import type { StoredItemData } from "@/lib/character/sheet-items"
 import { ABILITIES, ABILITY_ABBREVIATIONS, getAbilityModifier, formatModifier } from "@/lib/character/constants"
+import { SRD_RULES, RULES_CATEGORIES, type RulesEntry } from "@/lib/data/srd-rules"
+import { EDITIONS, EDITION_LABELS, type Edition } from "@/lib/editions"
 import {
   Search,
   Star,
@@ -26,6 +28,7 @@ import {
   Gem,
   Activity,
   FlaskConical,
+  ScrollText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -35,7 +38,7 @@ import { cn } from "@/lib/utils"
 // user's own library (api.homebrew.listForBuilder) and is shaped differently —
 // no slug, spans all item categories — so it travels its own data/detail path.
 type SrdCategory = "spells" | "monsters" | "magicitems" | "conditions"
-type Category = SrdCategory | "homebrew"
+type Category = SrdCategory | "homebrew" | "rules"
 
 // A homebrew item adapted for the Codex: the doc id stands in for `slug` (homebrew
 // has none) so the slug-keyed list/bookmark/select machinery works unchanged.
@@ -45,13 +48,14 @@ interface CodexHomebrewItem {
   data: StoredItemData
 }
 
-type Entry = Open5eSpell | Open5eMonster | Open5eMagicItem | Open5eCondition | CodexHomebrewItem
+type Entry = Open5eSpell | Open5eMonster | Open5eMagicItem | Open5eCondition | CodexHomebrewItem | RulesEntry
 
 const TABS: { id: Category; label: string; icon: typeof Sparkles }[] = [
   { id: "spells", label: "Spells", icon: Sparkles },
   { id: "monsters", label: "Monsters", icon: Skull },
   { id: "magicitems", label: "Magic Items", icon: Gem },
   { id: "conditions", label: "Conditions", icon: Activity },
+  { id: "rules", label: "Rules", icon: ScrollText },
   { id: "homebrew", label: "Homebrew", icon: FlaskConical },
 ]
 
@@ -266,6 +270,51 @@ function ConditionDetail({ c }: { c: Open5eCondition }) {
   return <MarkdownRenderer content={c.desc} variant="scene" />
 }
 
+function RulesDetail({
+  r,
+  edition,
+  onNavigate,
+}: {
+  r: RulesEntry
+  edition: Edition
+  onNavigate: (slug: string) => void
+}) {
+  // seeAlso slugs that resolve AND are visible in the active edition — a
+  // delta entry's cross-edition twin (grapple-2014 → grapple-2024) is reached
+  // via the edition toggle, not a jump-chip.
+  const related = (r.seeAlso ?? [])
+    .map((slug) => SRD_RULES.find((e) => e.slug === slug))
+    .filter((e): e is RulesEntry => Boolean(e) && (e!.edition === "both" || e!.edition === edition))
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <Pill>{r.category}</Pill>
+        {r.edition !== "both" && <Pill>{EDITION_LABELS[r.edition]} only</Pill>}
+      </div>
+      <MarkdownRenderer content={r.body} variant="scene" />
+      {related.length > 0 && (
+        <div className="pt-1">
+          <h4 className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--scene-text-muted)" }}>
+            See also
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {related.map((e) => (
+              <button
+                key={e.slug}
+                onClick={() => onNavigate(e.slug)}
+                className="text-xs px-2.5 py-1 rounded-full transition-opacity hover:opacity-80"
+                style={{ background: "var(--scene-border)", color: "var(--scene-text-primary)" }}
+              >
+                {e.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Homebrew items are StoredItemData (the inventory form's blob), not Open5e-shaped,
 // so they get their own renderer covering the weapon/armor/magic fields the form
 // can author. Mirrors the inventory's read-only item view at reference altitude.
@@ -327,6 +376,10 @@ function rowSubtitle(category: Category, entry: Entry): string {
     }
     case "conditions":
       return "Condition"
+    case "rules": {
+      const r = entry as RulesEntry
+      return r.edition === "both" ? r.category : `${r.category} · ${EDITION_LABELS[r.edition]} only`
+    }
     case "homebrew": {
       const it = entry as CodexHomebrewItem
       return [it.data.rarity, it.data.category].filter(Boolean).join(" · ") || "Homebrew item"
@@ -345,6 +398,8 @@ export default function CodexPage() {
   const addBookmark = useCodexStore((s) => s.addBookmark)
   const removeBookmark = useCodexStore((s) => s.removeBookmark)
   const bookmarks = useCodexStore((s) => s.bookmarks)
+  const rulesEdition = useCodexStore((s) => s.rulesEdition)
+  const setRulesEdition = useCodexStore((s) => s.setRulesEdition)
 
   // Persisted store may hold a category this browser doesn't render (equipment/rules).
   const category: Category = (TABS.some((t) => t.id === activeCategory) ? activeCategory : "spells") as Category
@@ -365,6 +420,7 @@ export default function CodexPage() {
   const [itemRarity, setItemRarity] = useState<string>("all")
   const [itemType, setItemType] = useState<string>("all")
   const [homebrewCategory, setHomebrewCategory] = useState<string>("all")
+  const [rulesCategory, setRulesCategory] = useState<string>("all")
   // Sort key — "name" everywhere, plus a category-natural option (level/cr/rarity).
   const [sortBy, setSortBy] = useState<string>("name")
 
@@ -381,6 +437,13 @@ export default function CodexPage() {
     [homebrewDocs],
   )
 
+  // Rules are static local data (no fetch). "both" entries show in either
+  // edition; delta entries (grapple, exhaustion, …) swap with the toggle.
+  const rulesEntries = useMemo<RulesEntry[]>(
+    () => SRD_RULES.filter((r) => r.edition === "both" || r.edition === rulesEdition),
+    [rulesEdition],
+  )
+
   // Search is transient — don't carry a stale query in from a previous visit
   // (the store persists to localStorage).
   useEffect(() => {
@@ -390,7 +453,7 @@ export default function CodexPage() {
   // Fetch the active category's full SRD list once; the client caches in IndexedDB.
   // Homebrew is reactive (useQuery above), so skip the fetch path entirely.
   useEffect(() => {
-    if (category === "homebrew") return
+    if (category === "homebrew" || category === "rules") return
     if (cache[category]) return
     let cancelled = false
     setLoading(true)
@@ -412,10 +475,15 @@ export default function CodexPage() {
   }, [category, cache])
 
   const list: Entry[] =
-    category === "homebrew" ? homebrewItems : ((cache[category as SrdCategory] ?? []) as Entry[])
+    category === "homebrew"
+      ? homebrewItems
+      : category === "rules"
+        ? rulesEntries
+        : ((cache[category as SrdCategory] ?? []) as Entry[])
   // Homebrew has no Open5e fetch — its loading/error reflect the reactive query.
-  const displayLoading = category === "homebrew" ? homebrewDocs === undefined : loading
-  const displayError = category === "homebrew" ? null : error
+  // Rules are local, so they never load or error.
+  const displayLoading = category === "homebrew" ? homebrewDocs === undefined : category === "rules" ? false : loading
+  const displayError = category === "homebrew" || category === "rules" ? null : error
 
   const isBookmarked = useMemo(() => {
     const ids = new Set(bookmarks.map((b) => b.id))
@@ -480,7 +548,16 @@ export default function CodexPage() {
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const result = list
-      .filter((e) => (q ? e.name.toLowerCase().includes(q) : true))
+      .filter((e) => {
+        if (!q) return true
+        // Rules also match on body text — a player searching "opportunity" or
+        // "difficult terrain" should find the entry, not just exact names.
+        if (category === "rules") {
+          const r = e as RulesEntry
+          return r.name.toLowerCase().includes(q) || r.body.toLowerCase().includes(q)
+        }
+        return e.name.toLowerCase().includes(q)
+      })
       .filter((e) => (bookmarkedOnly ? isBookmarked(e.slug) : true))
       .filter((e) => {
         // Every active filter must match (AND / narrowing).
@@ -505,6 +582,10 @@ export default function CodexPage() {
           const it = e as CodexHomebrewItem
           if (homebrewCategory !== "all" && it.data.category !== homebrewCategory) return false
         }
+        if (category === "rules") {
+          const r = e as RulesEntry
+          if (rulesCategory !== "all" && r.category !== rulesCategory) return false
+        }
         return true
       })
 
@@ -528,7 +609,7 @@ export default function CodexPage() {
   }, [
     list, searchQuery, bookmarkedOnly, isBookmarked, category, sortBy,
     spellLevel, spellClass, spellSchool, monsterCr, monsterType, monsterSize, itemRarity, itemType,
-    homebrewCategory,
+    homebrewCategory, rulesCategory,
   ])
 
   const selected = useMemo(
@@ -550,6 +631,7 @@ export default function CodexPage() {
     setItemRarity("all")
     setItemType("all")
     setHomebrewCategory("all")
+    setRulesCategory("all")
     setSortBy("name")
   }
 
@@ -563,7 +645,9 @@ export default function CodexPage() {
           <p className="text-sm mt-0.5" style={{ color: "var(--scene-text-muted)" }}>
             {category === "homebrew"
               ? "Your homebrew library, browsable alongside the SRD."
-              : "SRD reference, pulled live from Open5e."}
+              : category === "rules"
+                ? "Quick SRD rules reference for the table — actions, cover, resting, conditions, and edition deltas."
+                : "SRD reference, pulled live from Open5e."}
           </p>
         </div>
 
@@ -678,7 +762,18 @@ export default function CodexPage() {
                   ))}
                 </FilterSelect>
               )}
-              {category !== "conditions" && category !== "homebrew" && (
+              {category === "rules" && (
+                <>
+                  <FilterSelect value={rulesCategory} onChange={setRulesCategory} label="Category">
+                    <option value="all">All categories</option>
+                    {RULES_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </FilterSelect>
+                  <EditionToggle value={rulesEdition} onChange={setRulesEdition} />
+                </>
+              )}
+              {category !== "conditions" && category !== "homebrew" && category !== "rules" && (
                 <FilterSelect value={sortBy} onChange={setSortBy} label="Sort by">
                   <option value="name">Sort: Name</option>
                   {category === "spells" && <option value="level">Sort: Level</option>}
@@ -815,12 +910,17 @@ export default function CodexPage() {
                   {category === "monsters" && <MonsterDetail m={selected as Open5eMonster} />}
                   {category === "magicitems" && <ItemDetail it={selected as Open5eMagicItem} />}
                   {category === "conditions" && <ConditionDetail c={selected as Open5eCondition} />}
+                  {category === "rules" && (
+                    <RulesDetail r={selected as RulesEntry} edition={rulesEdition} onNavigate={setSelectedSlug} />
+                  )}
                   {category === "homebrew" && <HomebrewItemDetail it={selected as CodexHomebrewItem} />}
 
                   <p className="text-xs mt-5 pt-3" style={{ color: "var(--scene-text-muted)", borderTop: "1px solid var(--scene-border)" }}>
                     {category === "homebrew"
                       ? "Source: Your homebrew library"
-                      : `Source: ${(selected as Entry & { document__title?: string }).document__title ?? "SRD"} · via Open5e`}
+                      : category === "rules"
+                        ? "Source: SRD 5.1 / 5.2 · paraphrased · CC BY 4.0"
+                        : `Source: ${(selected as Entry & { document__title?: string }).document__title ?? "SRD"} · via Open5e`}
                   </p>
                 </div>
               </div>
@@ -853,5 +953,36 @@ function FilterSelect({
     >
       {children}
     </select>
+  )
+}
+
+// Segmented 2014/2024 control for the Rules tab — picks which ruleset's text
+// the edition-divergent entries display.
+function EditionToggle({ value, onChange }: { value: Edition; onChange: (e: Edition) => void }) {
+  return (
+    <div
+      className="inline-flex items-center rounded-lg p-0.5"
+      style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+      role="group"
+      aria-label="Ruleset edition"
+    >
+      {EDITIONS.map((ed) => {
+        const active = ed === value
+        return (
+          <button
+            key={ed}
+            onClick={() => onChange(ed)}
+            aria-pressed={active}
+            className="px-3 py-1 rounded-md text-sm font-medium transition-opacity hover:opacity-90"
+            style={{
+              background: active ? "var(--scene-accent)" : "transparent",
+              color: active ? "var(--scene-bg)" : "var(--scene-text-muted)",
+            }}
+          >
+            {EDITION_LABELS[ed]}
+          </button>
+        )
+      })}
+    </div>
   )
 }

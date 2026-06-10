@@ -1,5 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import type { Edition } from "@/lib/editions"
+import { DEFAULT_EDITION } from "@/lib/editions"
 
 export type CodexCategory = "spells" | "monsters" | "magicitems" | "equipment" | "conditions" | "rules" | "homebrew"
 
@@ -15,17 +17,22 @@ interface CodexStore {
   bookmarks: BookmarkedEntry[]
   activeCategory: CodexCategory
   searchQuery: string
-  
+  // Which ruleset the Rules tab shows. Edition is otherwise per-campaign, but
+  // the Codex is a global page with no campaign — so the Rules tab keeps its
+  // own persisted preference.
+  rulesEdition: Edition
+
   // Bookmark actions
   addBookmark: (entry: Omit<BookmarkedEntry, "addedAt">) => void
   removeBookmark: (id: string) => void
   isBookmarked: (id: string) => boolean
   getBookmarksByCategory: (category: CodexCategory) => BookmarkedEntry[]
-  
+
   // Navigation
   setActiveCategory: (category: CodexCategory) => void
   setSearchQuery: (query: string) => void
   clearSearch: () => void
+  setRulesEdition: (edition: Edition) => void
 }
 
 export const useCodexStore = create<CodexStore>()(
@@ -34,6 +41,7 @@ export const useCodexStore = create<CodexStore>()(
       bookmarks: [],
       activeCategory: "spells",
       searchQuery: "",
+      rulesEdition: DEFAULT_EDITION,
 
       addBookmark: (entry) =>
         set((state) => {
@@ -67,6 +75,8 @@ export const useCodexStore = create<CodexStore>()(
       setSearchQuery: (query) => set({ searchQuery: query }),
 
       clearSearch: () => set({ searchQuery: "" }),
+
+      setRulesEdition: (edition) => set({ rulesEdition: edition }),
     }),
     {
       name: "feyforge-codex-storage",

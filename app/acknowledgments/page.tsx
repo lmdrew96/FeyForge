@@ -90,6 +90,11 @@ export default function AcknowledgmentsPage() {
                     note: "monsters, spells, classes, and rules content.",
                   },
                   {
+                    name: "Dungeons & Dragons System Reference Document (SRD 5.1)",
+                    href: "https://creativecommons.org/licenses/by/4.0/",
+                    note: "2014-edition rules content in the Codex glossary.",
+                  },
+                  {
                     name: "Open5e",
                     href: "https://open5e.com",
                     note: "an open, community-maintained API for SRD content.",
@@ -98,7 +103,8 @@ export default function AcknowledgmentsPage() {
               />
               <p className="text-muted-foreground leading-relaxed mt-4 text-sm">
                 This work includes material from the System Reference Document 5.2 (&ldquo;SRD
-                5.2&rdquo;) by Wizards of the Coast LLC, available under the{" "}
+                5.2&rdquo;) and the System Reference Document 5.1 (&ldquo;SRD 5.1&rdquo;) by Wizards
+                of the Coast LLC, available under the{" "}
                 <a
                   href="https://creativecommons.org/licenses/by/4.0/legalcode"
                   target="_blank"
