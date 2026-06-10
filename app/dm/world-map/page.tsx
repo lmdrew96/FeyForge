@@ -1821,8 +1821,8 @@ function FogControl({
                 style={{ background: fogEnabled ? "var(--scene-accent)" : "var(--scene-border)" }}
               >
                 <span
-                  className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform"
-                  style={{ transform: fogEnabled ? "translateX(18px)" : "translateX(2px)" }}
+                  className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform"
+                  style={{ transform: fogEnabled ? "translateX(16px)" : "translateX(0)" }}
                 />
               </button>
             </div>
