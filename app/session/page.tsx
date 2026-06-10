@@ -758,7 +758,7 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
       <div className="space-y-6">
       <MyCharacterPanel sessionId={sessionId} member={myMember} />
 
-      <PlayerCombatView sessionId={sessionId} />
+      <PlayerCombatView sessionId={sessionId} campaignId={campaignId} />
 
       <RollFeed sessionId={sessionId} />
 

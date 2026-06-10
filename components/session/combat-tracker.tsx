@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { EncounterDetails, DifficultyBadge, hasEncounterDetails } from "@/components/encounters/encounter-details"
 import { MonsterAttacksPanel } from "@/components/session/monster-attacks-panel"
+import { PlayerAttacksPanel } from "@/components/session/player-attacks-panel"
 import { partitionHomebrew, rawHomebrewId, type HomebrewMonster } from "@/lib/homebrew"
 import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { baseMonsterName } from "@/lib/monster-attacks"
@@ -1060,9 +1061,15 @@ function DeathSaveDots({
   )
 }
 
-// ── Player combat view (read-only) ──────────────────────────────────────────────
+// ── Player combat view ──────────────────────────────────────────────────────────
 
-export function PlayerCombatView({ sessionId }: { sessionId: SessionId }) {
+export function PlayerCombatView({
+  sessionId,
+  campaignId,
+}: {
+  sessionId: SessionId
+  campaignId: Id<"campaigns">
+}) {
   const combat = useQuery(api.liveCombat.getCombat, { sessionId })
   // The player's own derived AC + Dex-mod initiative (members can read party stats).
   // Used so "Roll initiative" writes the 5e-correct d20 + Dex mod and real AC.
@@ -1105,6 +1112,10 @@ export function PlayerCombatView({ sessionId }: { sessionId: SessionId }) {
 
   // Nothing rendered until combat is live — keeps the player view quiet otherwise.
   if (!combat) return null
+
+  // The player's own PC combatant — anchors the in-combat attack panel below.
+  // Wild Shape forms/companions carry isMine but no characterId, so they don't.
+  const myPc = combat.combatants.find((c) => c.isMine && c.type === "pc" && c.characterId)
 
   const BAND_LABEL: Record<string, string> = {
     healthy: "Healthy",
@@ -1212,6 +1223,16 @@ export function PlayerCombatView({ sessionId }: { sessionId: SessionId }) {
           )
         })}
       </div>
+
+      {/* Attack without leaving the Live tab — the player's own sheet attacks,
+          rolls broadcast to the shared feed like any sheet roll. */}
+      {myPc?.characterId && (
+        <PlayerAttacksPanel
+          sessionId={sessionId}
+          campaignId={campaignId}
+          characterId={myPc.characterId}
+        />
+      )}
     </section>
   )
 }
