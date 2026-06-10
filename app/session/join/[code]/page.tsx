@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { AppShell } from "@/components/app-shell"
 import { CLASS_COLORS } from "@/lib/character/constants"
+import { useOnboardingStore } from "@/lib/onboarding-store"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { Shield, Users, ScrollText, AlertCircle } from "lucide-react"
@@ -23,17 +24,28 @@ export default function JoinByCodePage() {
   const characters = useQuery(api.characters.list)
   const doJoin = useMutation(api.campaignMembers.joinByCode)
   const [joining, setJoining] = useState<CharacterId | null>(null)
+  const setPendingJoinCode = useOnboardingStore((s) => s.setPendingJoinCode)
+  const clearPendingJoinCode = useOnboardingStore((s) => s.clearPendingJoinCode)
 
   const handleJoin = async (characterId: CharacterId) => {
     setJoining(characterId)
     try {
       await doJoin({ code, characterId })
+      // Joined — the pending-code hand-off (if any) has done its job.
+      clearPendingJoinCode()
       toast.success("You've joined the party!")
       router.push("/session")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't join the campaign.")
       setJoining(null)
     }
+  }
+
+  // Send a character-less newcomer to creation, stashing this invite so the
+  // creation flow returns them here automatically — no "come back to this link".
+  const handleCreateCharacter = () => {
+    setPendingJoinCode(code)
+    router.push("/characters/new")
   }
 
   return (
@@ -134,15 +146,15 @@ export default function JoinByCodePage() {
                     style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
                   >
                     <p className="text-sm mb-6" style={{ color: "var(--scene-text-muted)" }}>
-                      You don&apos;t have any characters yet. Create one, then come back to this link to join.
+                      You don&apos;t have any characters yet. Create one and we&apos;ll bring you right back here to join.
                     </p>
-                    <Link
-                      href="/characters"
+                    <button
+                      onClick={handleCreateCharacter}
                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
                       style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
                     >
                       Create a character
-                    </Link>
+                    </button>
                   </div>
                 )}
 

@@ -24,6 +24,7 @@ import { RollFeed } from "@/components/session/roll-feed"
 import { CharacterAvatar } from "@/components/character/character-avatar"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { WorldMapViewer } from "@/components/world-map/map-viewer"
+import { JoinCodeField } from "@/components/join-code-field"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1040,14 +1041,32 @@ function DMReadyView({ campaignId }: { campaignId: CampaignId }) {
   )
 }
 
-function PlayerWaiting() {
+// Two states share this view: a player with a campaign but no live session yet
+// ("Awaiting the DM"), and — when `noCampaign` — someone with NO campaign at all,
+// who'd otherwise dead-end here with no way in. The latter gets the invite-code
+// entry so a freshly-invited player can join straight from /session.
+function PlayerWaiting({ noCampaign }: { noCampaign?: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
       <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
         <Users className="h-8 w-8" style={{ color: "var(--scene-text-muted)", opacity: 0.4 }} />
       </div>
-      <h2 className="text-xl font-bold mb-2" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>Awaiting the DM</h2>
-      <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>No active session yet. Sit tight — the forge will light soon.</p>
+      {noCampaign ? (
+        <>
+          <h2 className="text-xl font-bold mb-2" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>Join a campaign</h2>
+          <p className="text-sm mb-6 max-w-sm" style={{ color: "var(--scene-text-muted)" }}>
+            You&apos;re not in a campaign yet. Got an invite code from your DM? Enter it to join the party.
+          </p>
+          <div className="w-full max-w-sm">
+            <JoinCodeField autoFocus />
+          </div>
+        </>
+      ) : (
+        <>
+          <h2 className="text-xl font-bold mb-2" style={{ fontFamily: "var(--font-cinzel)", color: "var(--scene-text-primary)" }}>Awaiting the DM</h2>
+          <p className="text-sm" style={{ color: "var(--scene-text-muted)" }}>No active session yet. Sit tight — the forge will light soon.</p>
+        </>
+      )}
     </div>
   )
 }
@@ -1104,7 +1123,7 @@ export default function SessionPage() {
     <AppShell>
       <div className={cn("p-4 sm:p-6 mx-auto w-full", wide ? "max-w-3xl lg:max-w-6xl" : "max-w-3xl")}>
         {context === null ? (
-          <PlayerWaiting />
+          <PlayerWaiting noCampaign />
         ) : isDM ? (
           session ? (
             <>

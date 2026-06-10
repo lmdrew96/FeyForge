@@ -6,6 +6,7 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { AppShell } from "@/components/app-shell"
 import { useCampaignStore } from "@/lib/campaign-store"
+import { JoinCodeField } from "@/components/join-code-field"
 import {
   Sparkles,
   UserSquare2,
@@ -13,6 +14,7 @@ import {
   BookMarked,
   Plus,
   ChevronDown,
+  Ticket,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -71,39 +73,49 @@ export default function DashboardPage() {
           )}
 
           {campaigns && campaigns.length === 0 && (
-            <div
-              className="rounded-xl p-5 flex items-center gap-4"
-              style={{
-                background: "var(--scene-surface)",
-                border: "1px dashed var(--scene-border)",
-              }}
-            >
-              <BookMarked
-                className="h-6 w-6 shrink-0"
-                style={{ color: "var(--scene-text-muted)" }}
-              />
-              <div className="flex-1 min-w-0">
-                <div
-                  className="font-semibold"
-                  style={{ color: "var(--scene-text-primary)" }}
-                >
-                  Start your first campaign
-                </div>
-                <div
-                  className="text-sm"
-                  style={{ color: "var(--scene-text-muted)" }}
-                >
-                  Spin up a campaign to organize NPCs, sessions, and world details.
-                </div>
-              </div>
-              <Link
-                href="/campaigns"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80 shrink-0"
-                style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Path 1 — you're the DM: start a campaign */}
+              <div
+                className="rounded-xl p-5 flex flex-col"
+                style={{
+                  background: "var(--scene-surface)",
+                  border: "1px dashed var(--scene-border)",
+                }}
               >
-                <Plus className="h-4 w-4" />
-                New Campaign
-              </Link>
+                <BookMarked className="h-6 w-6 mb-3" style={{ color: "var(--scene-text-muted)" }} />
+                <div className="font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+                  Start a campaign
+                </div>
+                <div className="text-sm mb-4 flex-1" style={{ color: "var(--scene-text-muted)" }}>
+                  You&apos;re the DM — spin up a world to organize NPCs, sessions, and maps.
+                </div>
+                <Link
+                  href="/campaigns"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+                  style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                >
+                  <Plus className="h-4 w-4" />
+                  New Campaign
+                </Link>
+              </div>
+
+              {/* Path 2 — you were invited: join with a code */}
+              <div
+                className="rounded-xl p-5 flex flex-col"
+                style={{
+                  background: "var(--scene-surface)",
+                  border: "1px dashed var(--scene-border)",
+                }}
+              >
+                <Ticket className="h-6 w-6 mb-3" style={{ color: "var(--scene-text-muted)" }} />
+                <div className="font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+                  Join a campaign
+                </div>
+                <div className="text-sm mb-4 flex-1" style={{ color: "var(--scene-text-muted)" }}>
+                  You have an invite — enter the code your DM shared to join the party.
+                </div>
+                <JoinCodeField />
+              </div>
             </div>
           )}
 

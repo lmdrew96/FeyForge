@@ -25,6 +25,7 @@ import { CLASS_HIT_DICE } from "@/lib/character/constants"
 import type { Ability } from "@/lib/character/constants"
 import { initSpellcasting } from "@/lib/character/leveling"
 import { getStartingLoadout } from "@/lib/character/starting-equipment"
+import { useOnboardingStore } from "@/lib/onboarding-store"
 import { DEFAULT_EDITION } from "@/lib/editions"
 import { NormalBuilder } from "./normal-builder"
 import { GuidedFlow } from "./guided-flow"
@@ -330,6 +331,22 @@ export default function NewCharacterPage() {
   const router = useRouter()
   const createCharacter = useMutation(api.characters.create)
   const addProperty = useMutation(api.characters.addProperty)
+  const pendingJoinCode = useOnboardingStore((s) => s.pendingJoinCode)
+  const clearPendingJoinCode = useOnboardingStore((s) => s.clearPendingJoinCode)
+
+  // Where to land after a successful create. A player who came here mid-join (the
+  // join page stashed their invite code) is returned to that join page with their
+  // new character in hand — otherwise the normal roster. Clears the code so it's
+  // a one-shot hand-off and can't bounce later, unrelated creations.
+  const goAfterCreate = () => {
+    if (pendingJoinCode) {
+      const code = pendingJoinCode
+      clearPendingJoinCode()
+      router.push(`/session/join/${encodeURIComponent(code)}`)
+    } else {
+      router.push("/characters")
+    }
+  }
   const [mode, setMode] = useState<CreationMode>("choose")
   const [rolled, setRolled] = useState<QuickRollResult | null>(null)
   const [rollCount, setRollCount] = useState(0)
@@ -432,7 +449,7 @@ export default function NewCharacterPage() {
         })
       }
       toast.success(`${name} is ready to adventure!`)
-      router.push("/characters")
+      goAfterCreate()
     } catch {
       toast.error("Failed to save character. Please try again.")
       setSaving(false)
@@ -572,7 +589,7 @@ export default function NewCharacterPage() {
       }
       toast.success(`${finalName} is ready to adventure!`)
       setConceptOpen(false)
-      router.push("/characters")
+      goAfterCreate()
     } catch {
       toast.error("Failed to save character. Please try again.")
       setSaving(false)
