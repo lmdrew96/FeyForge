@@ -20,6 +20,7 @@ import { DMAudioPanel, PlayerAudioReceiver } from "@/components/session/audio-pa
 import { DMCaptionControl, PlayerCaptionOverlay } from "@/components/session/captions"
 import { DMCombatTracker, PlayerCombatView } from "@/components/session/combat-tracker"
 import { SessionCharacterSheet } from "@/components/session/character-sheet-panel"
+import { RollFeed } from "@/components/session/roll-feed"
 import { CharacterAvatar } from "@/components/character/character-avatar"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { WorldMapViewer } from "@/components/world-map/map-viewer"
@@ -759,6 +760,8 @@ function ReceiverView({ sessionId, campaignId, myMember }: { sessionId: SessionI
 
       <PlayerCombatView sessionId={sessionId} />
 
+      <RollFeed sessionId={sessionId} />
+
       <PlayerAudioReceiver sessionId={sessionId} campaignId={campaignId} />
       </div>
 
@@ -946,6 +949,8 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
       </section>
 
       <DMCombatTracker sessionId={sessionId} campaignId={campaignId} />
+
+      <RollFeed sessionId={sessionId} />
       </div>
 
       <div className="space-y-6">
@@ -1145,6 +1150,7 @@ export default function SessionPage() {
                 <SessionCharacterSheet
                   characterId={myPartyMember.characterId}
                   campaignId={session.campaignId}
+                  sessionId={session._id}
                 />
               )}
               {tab === "map" && (

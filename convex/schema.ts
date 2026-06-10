@@ -1157,4 +1157,30 @@ export default defineSchema({
   })
     .index("by_sessionId", ["sessionId"])
     .index("by_sessionId_and_isActive", ["sessionId", "isActive"]),
+
+  // Live shared roll feed — every roll a player (or the DM) makes from their sheet,
+  // or via the in-combat "Roll initiative" button, surfaced to the whole table in
+  // real time. Append-only + high-churn, so it gets its OWN table (per the Convex
+  // high-churn guideline) like liveCaptions, rather than living on partySessions.
+  // Reads (listRecent) + writes (pushRoll) are membership-gated. Rows persist after
+  // the session ends, leaving the door open to a post-session roll log.
+  sessionRolls: defineTable({
+    sessionId: v.id("partySessions"),
+    campaignId: v.id("campaigns"),
+    userId: v.string(), // roller's clerkId (tokenIdentifier)
+    rollerName: v.string(), // character name (display-name fallback)
+    label: v.optional(v.string()), // "Initiative", "Attack: Longsword", "DEX Save"…
+    expression: v.string(), // normalized dice expression, e.g. "1d20+5"
+    total: v.number(),
+    // Kept dice faces, flattened across terms, so the feed can show the actual faces
+    // (a visible nat 20). dropped = the advantage/disadvantage discards.
+    dice: v.array(v.number()),
+    dropped: v.optional(v.array(v.number())),
+    modifier: v.number(),
+    mode: v.optional(v.union(v.literal("advantage"), v.literal("disadvantage"))),
+    isCrit: v.optional(v.boolean()),
+    // First term is a d20 → drives nat-20 / nat-1 highlighting in the feed.
+    isD20: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_sessionId", ["sessionId"]),
 })

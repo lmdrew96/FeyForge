@@ -46,7 +46,9 @@ export interface SheetRoll {
 // Shared roll-from-sheet hook: rolls 1d20 + the given modifier through the dice
 // engine, honoring the sheet's advantage/disadvantage toggle. Drops the result
 // into the shared history, toasts it, and surfaces it for the on-sheet dice card.
-export function useSheetRoll(): SheetRoll {
+// `onRoll` (optional) fires for EVERY sheet roll — the in-session sheet passes it
+// to broadcast the roll to the table's live feed; the standalone sheet omits it.
+export function useSheetRoll(opts?: { onRoll?: (r: DiceRollResult) => void }): SheetRoll {
   const addRoll = useDiceStore((s) => s.addRoll)
   const [mode, setMode] = useState<RollMode>("normal")
   const [lastRoll, setLastRoll] = useState<DiceRollResult | null>(null)
@@ -66,6 +68,8 @@ export function useSheetRoll(): SheetRoll {
   const surface = (result: DiceRollResult) => {
     addRoll(result)
     setLastRoll(result)
+    // Broadcast to the live-session roll feed (no-op on the standalone sheet).
+    opts?.onRoll?.(result)
     const isD20 = result.terms[0]?.sides === 20
     const face = result.terms[0]?.rolls[0]
     const flair =

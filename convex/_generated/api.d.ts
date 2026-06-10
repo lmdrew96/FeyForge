@@ -40,6 +40,7 @@ import type * as partyInventory from "../partyInventory.js";
 import type * as premiumStatus from "../premiumStatus.js";
 import type * as presence from "../presence.js";
 import type * as sessionNotes from "../sessionNotes.js";
+import type * as sessionRolls from "../sessionRolls.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
 import type * as wiki from "../wiki.js";
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   premiumStatus: typeof premiumStatus;
   presence: typeof presence;
   sessionNotes: typeof sessionNotes;
+  sessionRolls: typeof sessionRolls;
   sessions: typeof sessions;
   users: typeof users;
   wiki: typeof wiki;

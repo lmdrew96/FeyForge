@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useQuery } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { rollToFeedArgs } from "@/lib/session-rolls"
 import { Swords, Dices, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CLASS_COLORS, formatModifier } from "@/lib/character/constants"
@@ -77,15 +78,27 @@ function SessionSheetTabs({ tab, setTab }: { tab: SessionSheetTab; setTab: (t: S
 export function SessionCharacterSheet({
   characterId,
   campaignId,
+  sessionId,
 }: {
   characterId: Id<"characters">
   campaignId: Id<"campaigns">
+  // Present when played inside a live session — enables broadcasting rolls to the
+  // table's shared feed. The standalone sheet (app/characters/[id]) omits it.
+  sessionId?: Id<"partySessions">
 }) {
   const char = useQuery(api.characters.get, { id: characterId })
   const allProps = useQuery(api.characters.listAllProperties)
   const campaign = useQuery(api.campaigns.get, { campaignId })
+  const pushRoll = useMutation(api.sessionRolls.pushRoll)
   // Hooks must run on every render — call before any early return (Rules of Hooks).
-  const { roll, rollExpr, mode, setMode, lastRoll, rolling, dismiss } = useSheetRoll()
+  // onRoll broadcasts every sheet roll to the live feed (fire-and-forget; a feed
+  // failure must never block the local roll the player already sees).
+  const { roll, rollExpr, mode, setMode, lastRoll, rolling, dismiss } = useSheetRoll({
+    onRoll: (result) => {
+      if (!sessionId || !char) return
+      void pushRoll({ sessionId, ...rollToFeedArgs(result, char.name) }).catch(() => {})
+    },
+  })
 
   // Active tab. Default "actions"; restore after mount to avoid a hydration mismatch.
   const [sheetTab, setSheetTab] = useState<SessionSheetTab>("actions")

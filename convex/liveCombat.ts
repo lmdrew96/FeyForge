@@ -583,6 +583,59 @@ export const setInitiative = mutation({
   },
 })
 
+// Player-scoped: a player rolls and sets the initiative — plus their real AC and
+// Dex-mod tiebreaker — on THEIR OWN combatant row. Unlike the DM mutations
+// (requireCombatDm), this gates on OWNERSHIP: the caller must own the combatant
+// (c.userId === caller). Lets a player roll their own initiative into the tracker
+// instead of the DM rolling a flat d20 for them; the derived AC/Dex come from the
+// player's own client (getPartyCombatStats). Re-sorts order like setInitiative.
+export const setMyInitiative = mutation({
+  args: {
+    sessionId: v.id("partySessions"),
+    combatantId: v.string(),
+    initiative: v.number(),
+    initiativeBonus: v.number(),
+    armorClass: v.number(),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const m = await getMembershipBySession(ctx, args.sessionId)
+    if (!m) throw new Error("Not a member of this session")
+    const combat = await ctx.db
+      .query("liveCombat")
+      .withIndex("by_sessionId_and_isActive", (q) =>
+        q.eq("sessionId", args.sessionId).eq("isActive", true),
+      )
+      .first()
+    if (!combat) throw new Error("No active combat in this session")
+    const target = combat.combatants.find((c) => c.id === args.combatantId)
+    if (!target) throw new Error("Combatant not found")
+    if (target.userId !== identity.tokenIdentifier) {
+      throw new Error("You can only roll initiative for your own character.")
+    }
+    const activeId = combat.combatants[combat.activeIndex]?.id
+    const updated = combat.combatants.map((c) =>
+      c.id === args.combatantId
+        ? {
+            ...c,
+            initiative: args.initiative,
+            initiativeBonus: args.initiativeBonus,
+            armorClass: args.armorClass,
+          }
+        : c,
+    )
+    const next = sortByInitiative(updated)
+    const found = next.findIndex((c) => c.id === activeId)
+    await ctx.db.patch(combat._id, {
+      combatants: next,
+      activeIndex: found >= 0 ? clampIndex(found, next.length) : combat.activeIndex,
+      updatedAt: Date.now(),
+    })
+    return null
+  },
+})
+
 export const toggleCondition = mutation({
   args: {
     sessionId: v.id("partySessions"),

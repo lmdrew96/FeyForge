@@ -17,12 +17,15 @@ import {
   Heart,
   Shield,
   Skull,
+  Dices,
 } from "lucide-react"
 import { EncounterDetails, DifficultyBadge, hasEncounterDetails } from "@/components/encounters/encounter-details"
 import { MonsterAttacksPanel } from "@/components/session/monster-attacks-panel"
 import { partitionHomebrew, rawHomebrewId, type HomebrewMonster } from "@/lib/homebrew"
 import { open5eApi, type Open5eMonster } from "@/lib/open5e-api"
 import { baseMonsterName } from "@/lib/monster-attacks"
+import { rollExpression } from "@/lib/dice-store"
+import { rollToFeedArgs } from "@/lib/session-rolls"
 
 type SessionId = Id<"partySessions">
 
@@ -1035,6 +1038,44 @@ function DeathSaveDots({
 
 export function PlayerCombatView({ sessionId }: { sessionId: SessionId }) {
   const combat = useQuery(api.liveCombat.getCombat, { sessionId })
+  // The player's own derived AC + Dex-mod initiative (members can read party stats).
+  // Used so "Roll initiative" writes the 5e-correct d20 + Dex mod and real AC.
+  const myStats = useQuery(api.liveCombat.getPartyCombatStats, { sessionId })
+  const doSetMyInitiative = useMutation(api.liveCombat.setMyInitiative)
+  const pushRoll = useMutation(api.sessionRolls.pushRoll)
+
+  const myStatByChar = useMemo(() => {
+    const map = new Map<string, { armorClass: number; initiativeBonus: number }>()
+    for (const s of myStats ?? []) {
+      map.set(s.characterId, { armorClass: s.armorClass, initiativeBonus: s.initiativeBonus })
+    }
+    return map
+  }, [myStats])
+
+  // Player rolls their OWN initiative: d20 + real Dex mod, written to their combat
+  // row (with real AC) and broadcast to the shared roll feed.
+  const handleRollInitiative = async (
+    c: NonNullable<typeof combat>["combatants"][number],
+  ) => {
+    const stat = c.characterId ? myStatByChar.get(c.characterId) : undefined
+    const bonus = stat?.initiativeBonus ?? 0
+    const ac = stat?.armorClass ?? 10
+    const sign = bonus >= 0 ? "+" : "-"
+    const result = rollExpression(`1d20${sign}${Math.abs(bonus)}`, { label: "Initiative" })
+    if (!result) return
+    try {
+      await doSetMyInitiative({
+        sessionId,
+        combatantId: c.id,
+        initiative: result.total,
+        initiativeBonus: bonus,
+        armorClass: ac,
+      })
+      void pushRoll({ sessionId, ...rollToFeedArgs(result, c.name) }).catch(() => {})
+    } catch {
+      toast.error("Couldn't roll initiative.")
+    }
+  }
 
   // Nothing rendered until combat is live — keeps the player view quiet otherwise.
   if (!combat) return null
@@ -1122,6 +1163,17 @@ export function PlayerCombatView({ sessionId }: { sessionId: SessionId }) {
                     </div>
                   )}
                 </div>
+                {/* Roll your own initiative — d20 + your real Dex mod, into the tracker. */}
+                {c.isMine && (
+                  <button
+                    onClick={() => handleRollInitiative(c)}
+                    aria-label="Roll your initiative"
+                    className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-opacity hover:opacity-90"
+                    style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                  >
+                    <Dices className="h-3.5 w-3.5" /> Roll init
+                  </button>
+                )}
               </div>
             </div>
           )
