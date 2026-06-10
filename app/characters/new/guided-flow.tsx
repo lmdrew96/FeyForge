@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { RACES, CLASSES, BACKGROUNDS, generateName, getCreationFightingStyles, subclassPickerHint } from "@/lib/character/character-data"
+import { RACES, CLASSES, BACKGROUNDS, generateName, getCreationFightingStyles, subclassPickerHint, formatRaceName } from "@/lib/character/character-data"
 import type { QuickRollResult } from "@/lib/character/character-data"
 import { partitionHomebrew } from "@/lib/homebrew"
 import {
@@ -713,7 +713,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const StepName = () => {
     if (!cls || !race || !background) return null
 
-    const raceName = subrace ? `${subrace.name} ${race.name}` : race.name
+    const raceName = formatRaceName(race.name, subrace?.name)
     const hitDie = cls.hitDie
     const conTotal = (assignments.constitution || 0) + (racialBonuses.constitution ?? 0)
     const conMod = Math.floor((conTotal - 10) / 2)
@@ -893,7 +893,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
   const companionState = useMemo(() => {
     const lines: string[] = [`Step: ${STEPS[step]} (${step + 1} of ${STEPS.length})`]
     if (cls) lines.push(`Class: ${cls.name} (primary stat: ${cls.primaryAbility}, hit die: d${cls.hitDie}${cls.spellcasting ? ", spellcaster" : ""})`)
-    if (race) lines.push(`Race: ${subrace ? `${subrace.name} ${race.name}` : race.name}`)
+    if (race) lines.push(`Race: ${formatRaceName(race.name, subrace?.name)}`)
     if (background) lines.push(`Background: ${background.name}`)
     const assigned = ABILITY_KEYS.filter(a => assignments[a] !== 0)
     if (assigned.length > 0) {
@@ -971,7 +971,7 @@ export function GuidedFlow({ onComplete, saving }: GuidedFlowProps) {
                   border: "1px solid color-mix(in srgb, var(--scene-highlight) 25%, transparent)",
                 }}
               >
-                {subrace ? `${subrace.name} ${race.name}` : race.name}
+                {formatRaceName(race.name, subrace?.name)}
               </span>
             )}
             {background && (

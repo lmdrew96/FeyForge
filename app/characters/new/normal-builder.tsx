@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { RACES, CLASSES, BACKGROUNDS, getCreationFightingStyles, subclassPickerHint } from "@/lib/character/character-data"
+import { RACES, CLASSES, BACKGROUNDS, getCreationFightingStyles, subclassPickerHint, formatRaceName } from "@/lib/character/character-data"
 import type { QuickRollResult, ClassData, RaceData, SubraceData, BackgroundData } from "@/lib/character/character-data"
 import { partitionHomebrew } from "@/lib/homebrew"
 import {
@@ -68,7 +68,7 @@ const STAT_PREVIEW_ABILITY_KEYS: Ability[] = [
 ]
 
 function StatPreview({ name, cls, race, subrace, background, assignments, racialBonuses, selectedSkills, bgSkills }: StatPreviewProps) {
-  const raceName = subrace ? `${subrace.name} ${race?.name}` : race?.name
+  const raceName = race ? formatRaceName(race.name, subrace?.name) : undefined
   const conTotal = (assignments.constitution || 0) + (racialBonuses.constitution ?? 0)
   const conMod = Math.floor((conTotal - 10) / 2)
   const maxHp = cls ? cls.hitDie + conMod : null

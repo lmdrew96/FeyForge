@@ -57,6 +57,7 @@ import { ManeuversSection } from "@/components/character/maneuvers-section"
 import { LandCircleSection } from "@/components/character/land-circle-section"
 import { HpEditor, RestPanel, DyingPanel, ExhaustionPanel } from "@/components/character/rest-panel"
 import { CharacterAvatar } from "@/components/character/character-avatar"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 // ── Stat computation ──────────────────────────────────────────────────────────
 
@@ -1116,9 +1117,7 @@ function CustomPropertiesSection({ characterId }: { characterId: Id<"characters"
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium" style={{ color: "var(--scene-text-primary)" }}>{p.name}</p>
               {p.description && (
-                <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--scene-text-muted)" }}>
-                  {p.description}
-                </p>
+                <MarkdownRenderer content={p.description} variant="scene" className="text-xs mt-0.5 leading-relaxed" />
               )}
             </div>
             <button
@@ -1786,9 +1785,38 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
         </section>
         </>)}
 
-        {/* 📜 Bio — personality and custom notes */}
+        {/* 📜 Bio — appearance, personality, and custom notes */}
         {sheetTab === "bio" && (<>
-        {/* Personality */}
+        {/* Appearance — physical descriptors recorded on the edit page. */}
+        {(char.age || char.height || char.weight || char.size || char.eyes || char.skin || char.hair) && (
+          <section className="mb-6">
+            <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
+              Appearance
+            </h2>
+            <div
+              className="rounded-lg px-4 py-3 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3"
+              style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+            >
+              {[
+                { label: "Age", value: char.age },
+                { label: "Height", value: char.height },
+                { label: "Weight", value: char.weight },
+                { label: "Size", value: char.size },
+                { label: "Eyes", value: char.eyes },
+                { label: "Skin", value: char.skin },
+                { label: "Hair", value: char.hair },
+              ].filter(({ value }) => !!value).map(({ label, value }) => (
+                <div key={label}>
+                  <div className="text-xs uppercase tracking-widest mb-0.5" style={{ color: "var(--scene-text-muted)" }}>{label}</div>
+                  <p className="text-sm" style={{ color: "var(--scene-text-primary)" }}>{value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Personality — free-text fields rendered as markdown (backstory etc.
+            often carry headings, lists, and emphasis). */}
         {(char.personalityTraits || char.ideals || char.bonds || char.flaws || char.backstory) && (
           <section className="mb-6">
             <h2 className="text-xs uppercase tracking-widest mb-3" style={{ color: "var(--scene-text-muted)" }}>
@@ -1804,7 +1832,7 @@ export default function CharacterSheetPage({ params }: { params: Promise<{ id: s
               ].filter(({ value }) => !!value).map(({ label, value }) => (
                 <div key={label} className="rounded-lg px-4 py-3" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
                   <div className="text-xs uppercase tracking-widest mb-1" style={{ color: "var(--scene-text-muted)" }}>{label}</div>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--scene-text-primary)" }}>{value}</p>
+                  <MarkdownRenderer content={value as string} variant="scene" className="text-sm leading-relaxed" />
                 </div>
               ))}
             </div>

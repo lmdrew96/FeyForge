@@ -7,6 +7,7 @@ import Link from "next/link"
 import { Plus, Trash2, Sword } from "lucide-react"
 import { toast } from "sonner"
 import { CLASS_COLORS } from "@/lib/character/constants"
+import { formatRaceName } from "@/lib/character/character-data"
 import { cn } from "@/lib/utils"
 import { CharacterAvatar } from "@/components/character/character-avatar"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -29,9 +30,7 @@ function CharacterCard({
   }
   onDelete: (id: Id<"characters">) => void
 }) {
-  const raceName = character.subrace
-    ? `${character.subrace} ${character.race}`
-    : character.race
+  const raceName = formatRaceName(character.race, character.subrace)
 
   const classColorClass = CLASS_COLORS[character.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
 

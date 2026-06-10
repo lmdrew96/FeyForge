@@ -784,6 +784,21 @@ export function getRaceById(id: string): RaceData | undefined {
 }
 
 /**
+ * Format a race + subrace into one display label without doubling the race word.
+ * Many subraces already embed the parent race in their name ("High Elf" under
+ * "Elf", "Hill Dwarf" under "Dwarf"), so the naive `${subrace} ${race}` produced
+ * "High Elf Elf". When the subrace name already contains the race as a whole word
+ * (case-insensitive), the subrace name alone is the full label; otherwise the
+ * race is appended ("Lightfoot" + "Halfling" → "Lightfoot Halfling").
+ */
+export function formatRaceName(race: string, subrace?: string | null): string {
+  if (!subrace) return race
+  const escaped = race.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const hasRaceWord = new RegExp(`\\b${escaped}\\b`, "i").test(subrace)
+  return hasRaceWord ? subrace : `${subrace} ${race}`
+}
+
+/**
  * Resolve a character's darkvision range (in feet) from its stored race +
  * subrace names. "Superior Darkvision" → 120 ft, plain "Darkvision" → 60 ft,
  * otherwise 0 (no darkvision). Matches by name (case-insensitive) since that's

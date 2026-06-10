@@ -13,7 +13,7 @@ import {
   type Ability,
   type Skill,
 } from "./constants"
-import { getDarkvisionRange, getSubclassId } from "./character-data"
+import { getDarkvisionRange, getSubclassId, formatRaceName } from "./character-data"
 import { getEffectiveCasterType, type CasterType } from "./leveling"
 import { resolveEdition, type Edition } from "../editions"
 import {
@@ -138,7 +138,7 @@ export function deriveCharacter(
   const stats = computeStats(char)
   const { totalAbilities, mods } = stats
 
-  const raceName = char.subrace ? `${char.subrace} ${char.race}` : char.race
+  const raceName = formatRaceName(char.race, char.subrace)
   const classColor =
     CLASS_COLORS[char.characterClass.toLowerCase()] ?? "bg-gray-600 text-white"
   const hitDie = char.hitDice[0]?.diceSize ?? 8

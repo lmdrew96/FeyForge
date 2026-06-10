@@ -344,7 +344,7 @@ function SrdSearch({
         .slice(0, 8)
         .map((w) => ({
           name: w.name,
-          hint: `${w.damage_dice} ${w.damage_type}`.trim(),
+          hint: [`${w.damage_dice} ${w.damage_type}`.trim(), w.cost].filter(Boolean).join(" · "),
           pick: () => onPick(weaponPrefill(w)),
         }))
     }
@@ -354,7 +354,7 @@ function SrdSearch({
         .slice(0, 8)
         .map((a) => ({
           name: a.name,
-          hint: a.ac_string,
+          hint: [a.ac_string, a.cost].filter(Boolean).join(" · "),
           pick: () => onPick(armorPrefill(a)),
         }))
     }

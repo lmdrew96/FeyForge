@@ -1,5 +1,7 @@
 // Open5e API client with IndexedDB caching
 
+import { srdItemCost } from "./character/srd-item-costs"
+
 const API_BASE = "https://api.open5e.com"
 const DB_NAME = "arcane-codex-srd"
 const DB_VERSION = 1
@@ -343,7 +345,7 @@ export function v2WeaponToWeapon(w: Open5eV2Weapon): Open5eWeapon {
     slug: w.key,
     name: w.name,
     category: `${w.is_simple ? "Simple" : "Martial"} ${hasAmmo ? "Ranged" : "Melee"} Weapon`,
-    cost: "",
+    cost: srdItemCost(w.name) ?? "",
     damage_dice: w.damage_dice ?? "",
     damage_type: dt,
     weight: "",
@@ -369,7 +371,7 @@ export function v2ArmorToArmor(a: Open5eV2Armor): Open5eArmor {
     slug: a.key,
     name: a.name,
     category: isShield ? "shield" : a.category ?? "light",
-    cost: "",
+    cost: srdItemCost(a.name) ?? "",
     ac_string: a.ac_display ?? String(a.ac_base ?? 10),
     strength_requirement:
       a.strength_score_required != null ? String(a.strength_score_required) : undefined,

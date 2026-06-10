@@ -16,6 +16,7 @@ import {
   generateName,
   deriveDarkvision,
   getCreationFightingStyles,
+  formatRaceName,
   type QuickRollResult,
 } from "@/lib/character/character-data"
 import { autoResolveToolProficiencies } from "@/lib/character/tool-choices"
@@ -162,7 +163,7 @@ function QuickRollPreview({
 }) {
   const [editedName, setEditedName] = useState(result.name)
   const { race, subrace, characterClass, background, baseAbilities, racialBonuses } = result
-  const raceName = subrace ? `${subrace.name} ${race.name}` : race.name
+  const raceName = formatRaceName(race.name, subrace?.name)
   const conTotal = baseAbilities.constitution + (racialBonuses.constitution ?? 0)
   const conMod = Math.floor((conTotal - 10) / 2)
   const hitDie = CLASS_HIT_DICE[characterClass.id] ?? 8
