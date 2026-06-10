@@ -26,6 +26,7 @@ import {
   X,
   Check,
   UserPlus,
+  MessagesSquare,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "convex/react"
@@ -36,6 +37,8 @@ import { useCampaignStore } from "@/lib/campaign-store"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { SceneBackdrop } from "@/components/scene-backdrop"
 import { DMAssistantPanel } from "@/components/dm-assistant/dm-assistant-widget"
+import { SessionChatPanel } from "@/components/session/session-chat-panel"
+import { useSessionChatStore } from "@/lib/session-chat-store"
 import { NotificationBell } from "@/components/notification-bell"
 
 type NavChild = { label: string; href: string; icon: React.ElementType }
@@ -181,6 +184,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey)
   }, [showAssistant])
 
+  // ── Session chat launcher (docked into chrome, like the DM Assistant) ────────
+  // Available to every participant (DM + players) whenever the user's active
+  // campaign has a live session. The panel is a sibling surface to the assistant;
+  // opening one closes the other so they never stack.
+  const sessionContext = useQuery(api.campaignMembers.getMyCampaignContext)
+  const liveSession = sessionContext?.session ?? null
+  const showChat = !!liveSession
+  const [chatOpen, setChatOpen] = useState(false)
+  useEffect(() => {
+    if (!showChat) setChatOpen(false)
+  }, [showChat])
+
+  // Unread indicator: count visible messages newer than the last-seen high-water
+  // mark that the user didn't send. The query skips entirely with no live session.
+  const chatMessages = useQuery(
+    api.sessionChat.listMessages,
+    liveSession ? { sessionId: liveSession._id } : "skip",
+  )
+  const chatLastSeen = useSessionChatStore((s) =>
+    liveSession ? (s.lastSeen[liveSession._id] ?? 0) : 0,
+  )
+  const unreadChat =
+    chatMessages?.filter((m) => m.createdAt > chatLastSeen && m.senderUserId !== me?.clerkId)
+      .length ?? 0
+
+  const openChat = () => {
+    setAssistantOpen(false)
+    setChatOpen(true)
+  }
+  const openAssistant = () => {
+    setChatOpen(false)
+    setAssistantOpen((o) => !o)
+  }
+
   return (
     <div className="relative flex h-[100dvh] overflow-hidden" style={{ background: "var(--scene-bg)" }}>
       <SceneBackdrop />
@@ -309,7 +346,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           {showAssistant && (
             <button
-              onClick={() => setAssistantOpen((o) => !o)}
+              onClick={openAssistant}
               aria-label="Toggle DM Assistant"
               title="Ask FeyForge (⌘K)"
               className="flex w-full items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-[var(--scene-bg)]"
@@ -320,6 +357,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Bot className="w-4 h-4 shrink-0" />
               <span className="flex-1 text-left">Ask FeyForge</span>
+            </button>
+          )}
+          {showChat && (
+            <button
+              onClick={openChat}
+              aria-label="Open session chat"
+              title="Session chat"
+              className="relative flex w-full items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-[var(--scene-bg)]"
+              style={{
+                color: chatOpen ? "var(--scene-accent)" : "var(--scene-text-muted)",
+                background: chatOpen ? "var(--scene-bg)" : undefined,
+              }}
+            >
+              <MessagesSquare className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Session chat</span>
+              {unreadChat > 0 && !chatOpen && (
+                <span
+                  className="min-w-4 h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                >
+                  {unreadChat > 9 ? "9+" : unreadChat}
+                </span>
+              )}
             </button>
           )}
           {showUpgrade && (
@@ -384,12 +444,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-1">
           {showAssistant && (
             <button
-              onClick={() => setAssistantOpen(true)}
+              onClick={() => { setChatOpen(false); setAssistantOpen(true) }}
               aria-label="Open DM Assistant"
               className="p-2 rounded-md hover:bg-[var(--scene-bg)]"
               style={{ color: assistantOpen ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
             >
               <Bot className="w-5 h-5" />
+            </button>
+          )}
+          {showChat && (
+            <button
+              onClick={openChat}
+              aria-label="Open session chat"
+              className="relative p-2 rounded-md hover:bg-[var(--scene-bg)]"
+              style={{ color: chatOpen ? "var(--scene-accent)" : "var(--scene-text-muted)" }}
+            >
+              <MessagesSquare className="w-5 h-5" />
+              {unreadChat > 0 && !chatOpen && (
+                <span
+                  className="absolute top-1 right-1 min-w-3.5 h-3.5 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center"
+                  style={{ background: "var(--scene-accent)", color: "var(--scene-bg)" }}
+                >
+                  {unreadChat > 9 ? "9+" : unreadChat}
+                </span>
+              )}
             </button>
           )}
           <NotificationBell align="right" />
@@ -515,6 +593,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <DMAssistantPanel
           campaignId={activeCampaignId}
           onClose={() => setAssistantOpen(false)}
+        />
+      )}
+
+      {/* Session chat panel — opened by the chrome launcher above. Available to
+          every participant while the active campaign has a live session. */}
+      {showChat && chatOpen && liveSession && (
+        <SessionChatPanel
+          sessionId={liveSession._id}
+          myUserId={me?.clerkId ?? ""}
+          onClose={() => setChatOpen(false)}
         />
       )}
     </div>

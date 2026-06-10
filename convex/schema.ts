@@ -1195,4 +1195,22 @@ export default defineSchema({
     isD20: v.boolean(),
     createdAt: v.number(),
   }).index("by_sessionId", ["sessionId"]),
+
+  // Live in-session chat — group messages (recipientUserId unset, everyone sees)
+  // and private 1:1 DMs (recipientUserId set, only sender + recipient see). Per
+  // live session, mirroring sessionRolls. Sender identity (userId + name) is
+  // stamped server-side; visibility for DMs is enforced in sessionChat.listMessages
+  // so a whisper is never returned to anyone but its two participants (not even the
+  // game DM). Names are snapshotted at send so the feed reads without re-resolving.
+  sessionMessages: defineTable({
+    sessionId: v.id("partySessions"),
+    campaignId: v.id("campaigns"),
+    senderUserId: v.string(), // clerkId (tokenIdentifier), stamped server-side
+    senderName: v.string(), // display-name snapshot at send time
+    body: v.string(),
+    // Unset ⇒ group (visible to all members). Set ⇒ private 1:1 to this user.
+    recipientUserId: v.optional(v.string()),
+    recipientName: v.optional(v.string()), // snapshot for the "to X" label
+    createdAt: v.number(),
+  }).index("by_sessionId", ["sessionId"]),
 })

@@ -39,6 +39,7 @@ import type * as npcs from "../npcs.js";
 import type * as partyInventory from "../partyInventory.js";
 import type * as premiumStatus from "../premiumStatus.js";
 import type * as presence from "../presence.js";
+import type * as sessionChat from "../sessionChat.js";
 import type * as sessionNotes from "../sessionNotes.js";
 import type * as sessionRolls from "../sessionRolls.js";
 import type * as sessions from "../sessions.js";
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   partyInventory: typeof partyInventory;
   premiumStatus: typeof premiumStatus;
   presence: typeof presence;
+  sessionChat: typeof sessionChat;
   sessionNotes: typeof sessionNotes;
   sessionRolls: typeof sessionRolls;
   sessions: typeof sessions;
