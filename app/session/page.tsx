@@ -916,46 +916,56 @@ function ConductorView({ sessionId, campaignId, activeScene, activeScenePalette,
 
       <InvitePlayersDialog campaignId={campaignId} open={inviteOpen} onOpenChange={setInviteOpen} />
 
-      {/* Desktop dashboard: scene + combat on the left, audio + comms on the right.
-          Under grid-cols-1 (mobile) the columns render in DOM order, preserving the stack. */}
+      {/* Desktop dashboard: the Atmosphere block (scene + audio, which the audio
+          engine reads from) sits together top-left, combat below it. Rolls + comms
+          run down the right. Under grid-cols-1 (mobile) the columns render in DOM
+          order, preserving the stack. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div className="space-y-6">
 
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>Active Scene</h2>
-          {activeScene && (
-            <button
-              onClick={handleToggleTime}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-opacity hover:opacity-80"
-              style={{
-                background: sceneTime === "day" ? "rgba(255,220,80,0.3)" : "rgba(100,80,180,0.3)",
-                border: `1px solid ${sceneTime === "day" ? "rgba(255,200,40,0.4)" : "rgba(120,100,200,0.4)"}`,
-                color: sceneTime === "day" ? "#e8c020" : "#9b8ec4",
-              }}
+      <section className="space-y-3">
+        <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>Atmosphere</h2>
+
+        <div className="rounded-xl p-3 space-y-2" style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--scene-text-muted)" }}>Scene</p>
+          <div className="flex items-center gap-2">
+            <select
+              value={activeScene}
+              onChange={(e) => handleSetScene(e.target.value)}
+              className="flex-1 px-3 py-2 rounded-md text-sm outline-none cursor-pointer"
+              style={{ background: "var(--scene-bg)", border: "1px solid var(--scene-border)", color: "var(--scene-text-primary)" }}
             >
-              {sceneTime === "day" ? "☀ Day" : "☾ Night"}
-            </button>
+              {SCENES.map((scene) => (
+                <option key={scene.id} value={scene.id}>{scene.label}</option>
+              ))}
+            </select>
+            {activeScene && (
+              <button
+                onClick={handleToggleTime}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-opacity hover:opacity-80 shrink-0"
+                style={{
+                  background: sceneTime === "day" ? "rgba(255,220,80,0.3)" : "rgba(100,80,180,0.3)",
+                  border: `1px solid ${sceneTime === "day" ? "rgba(255,200,40,0.4)" : "rgba(120,100,200,0.4)"}`,
+                  color: sceneTime === "day" ? "#e8c020" : "#9b8ec4",
+                }}
+              >
+                {sceneTime === "day" ? "☀ Day" : "☾ Night"}
+              </button>
+            )}
+          </div>
+          {currentScene?.desc && (
+            <p className="text-xs italic" style={{ color: "var(--scene-text-muted)" }}>{currentScene.desc}</p>
           )}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2">
-          {SCENES.map((scene) => (
-            <button key={scene.id} onClick={() => handleSetScene(scene.id)} className="rounded-lg p-3 text-left transition-all hover:opacity-90"
-              style={{ background: "var(--scene-surface)", border: `1px solid ${activeScene === scene.id ? "var(--scene-accent)" : "var(--scene-border)"}`, boxShadow: activeScene === scene.id ? "0 0 10px var(--scene-accent-glow)" : "none" }}>
-              <div className="text-sm font-semibold mb-0.5 truncate" style={{ fontFamily: "var(--font-cinzel)", color: activeScene === scene.id ? "var(--scene-accent)" : "var(--scene-text-primary)" }}>{scene.label}</div>
-              <div className="text-xs truncate" style={{ color: "var(--scene-text-muted)" }}>{scene.desc}</div>
-            </button>
-          ))}
-        </div>
+
+        <DMAudioPanel sessionId={sessionId} />
       </section>
 
       <DMCombatTracker sessionId={sessionId} campaignId={campaignId} />
-
-      <RollFeed sessionId={sessionId} />
       </div>
 
       <div className="space-y-6">
-      <DMAudioPanel sessionId={sessionId} />
+      <RollFeed sessionId={sessionId} />
 
       <DMCaptionControl sessionId={sessionId} />
 

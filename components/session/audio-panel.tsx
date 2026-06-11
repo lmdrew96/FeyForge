@@ -306,7 +306,7 @@ export function DMAudioPanel({ sessionId }: { sessionId: SessionId }) {
   const [masterVolume, setMasterVolume] = useState(80)
   const [syncEnabled, setSyncEnabled] = useState(false)
   const [paused, setPaused] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
   const [activeTab, setActiveTab] = useState<"ambiences" | "one-shots">("ambiences")
   const [activeLayers, setActiveLayers] = useState<Array<{ layerId: AmbienceLayerId; tier: LayerTier }>>([])
 
