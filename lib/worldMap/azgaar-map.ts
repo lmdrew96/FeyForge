@@ -201,6 +201,25 @@ export type RealmInfo = {
   provinces?: number // sub-division count
   campaigns?: string[] // historical war/campaign names (flavor)
   relations?: { relation: string; realm: string }[] // diplomacy → named realms (ally/enemy/…)
+  military?: RealmMilitary // DM-only army dossier (stripped for players server-side)
+}
+
+// One regiment: the structured counts from state.military[n] joined with the
+// auto-gen prose from its paired note (id `regiment{stateId}-{n}`).
+export type MilitaryRegiment = {
+  name: string // "1st (Triloria) Regiment"
+  icon?: string // Azgaar's regiment emoji (👑 / ⚔️ …)
+  total: number // active troop count (Azgaar `a`)
+  units: { type: string; count: number }[] // composition, sorted desc
+  legend?: string // narrative prose (formation year / war raised for / garrison)
+}
+
+// A realm's full army, summarized + per-regiment. DM-only intel.
+export type RealmMilitary = {
+  total: number // Σ regiment totals
+  regimentCount: number
+  dominantUnit?: string // most numerous unit type across the whole army
+  regiments: MilitaryRegiment[]
 }
 
 // A faith (Azgaar religion) for the same panel.
@@ -291,6 +310,16 @@ type State = {
   provinces?: number[] // province indices
   campaigns?: { name?: string; start?: number; end?: number }[] // historical wars
   diplomacy?: string[] // relation to each state by index (Ally/Enemy/Vassal/…)
+  military?: Regiment[] // army regiments (counts); prose lives in `regiment{i}-{n}` notes
+}
+// A regiment in pack.states[i].military — `a` is the active total, `u` the unit
+// breakdown ({archers, cavalry, artillery, infantry}). Geometry (x/y/cell) unused.
+type Regiment = {
+  i?: number // regiment index within the state (pairs to note `regiment{state}-{i}`)
+  a?: number // total active troops
+  u?: Record<string, number> // unit type → head count
+  name?: string
+  icon?: string
 }
 type Culture = { i?: number; name?: string; removed?: boolean }
 type Religion = {
@@ -382,6 +411,55 @@ function extractHeightGrid(lines: string[]): HeightGridData | undefined {
 
 // Parse a `.map` into ALL settlements + ALL POIs (no cap, no curation). Throws on
 // a malformed header so callers can show a friendly "couldn't read this .map".
+// Regiment legends are plain prose — a narrative sentence or two (formation year,
+// war raised for, garrison town) followed by a "Regiment composition in {year}:"
+// tail that just restates the unit counts we already capture structurally. Keep
+// the narrative, drop the redundant tail.
+function regimentProse(legend: string): string | undefined {
+  const clean = sanitizeText(legend).replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+  const head = clean.split(/Regiment composition in/i)[0].trim()
+  return head.length > 0 ? head : undefined
+}
+
+// Build a realm's army dossier from its regiments (state.military) + the paired
+// prose notes. Returns undefined for realms with no standing army (sparse maps).
+function buildMilitary(
+  s: State,
+  noteById: Map<string, Note>,
+): RealmMilitary | undefined {
+  const regs = (s.military ?? []).filter((rg) => rg && (rg.a ?? 0) > 0)
+  if (regs.length === 0) return undefined
+
+  const unitTotals: Record<string, number> = {}
+  const regiments: MilitaryRegiment[] = regs.map((rg) => {
+    const units = Object.entries(rg.u ?? {})
+      .filter(([, c]) => typeof c === "number" && c > 0)
+      .map(([type, count]) => ({ type, count: Math.round(count) }))
+      .sort((a, b) => b.count - a.count)
+    for (const u of units) unitTotals[u.type] = (unitTotals[u.type] ?? 0) + u.count
+
+    const note = noteById.get(`regiment${s.i}-${rg.i}`)
+    const legend = note?.legend ? regimentProse(note.legend) : undefined
+    const icon = rg.icon ? sanitizeText(rg.icon).trim() : ""
+    return {
+      name: sanitizeText((rg.name || "Regiment").trim()),
+      ...(icon ? { icon } : {}),
+      total: Math.round(rg.a ?? units.reduce((n, u) => n + u.count, 0)),
+      units,
+      ...(legend ? { legend } : {}),
+    }
+  })
+
+  const total = regiments.reduce((n, r) => n + r.total, 0)
+  const dominantUnit = Object.entries(unitTotals).sort((a, b) => b[1] - a[1])[0]?.[0]
+  return {
+    total,
+    regimentCount: regiments.length,
+    ...(dominantUnit ? { dominantUnit } : {}),
+    regiments,
+  }
+}
+
 export function parseMap(text: string): ParsedMap {
   const lines = text.split("\n")
 
@@ -776,6 +854,8 @@ export function parseMap(text: string): ParsedMap {
         }))
         .filter((rel) => !!rel.realm)
       if (relations.length) r.relations = relations
+      const military = buildMilitary(s, noteById)
+      if (military) r.military = military
       return r
     })
     .sort((a, b) => (b.population ?? 0) - (a.population ?? 0))

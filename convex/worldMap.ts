@@ -105,6 +105,24 @@ const realmsV = v.array(
     provinces: v.optional(v.number()),
     campaigns: v.optional(v.array(v.string())),
     relations: v.optional(v.array(v.object({ relation: v.string(), realm: v.string() }))),
+    // DM-only army dossier — getWorldbuilding strips it for players. Mirrors
+    // RealmMilitary in lib/worldMap/azgaar-map.ts + the worldMaps schema.
+    military: v.optional(
+      v.object({
+        total: v.number(),
+        regimentCount: v.number(),
+        dominantUnit: v.optional(v.string()),
+        regiments: v.array(
+          v.object({
+            name: v.string(),
+            icon: v.optional(v.string()),
+            total: v.number(),
+            units: v.array(v.object({ type: v.string(), count: v.number() })),
+            legend: v.optional(v.string()),
+          }),
+        ),
+      }),
+    ),
   }),
 )
 const faithsV = v.array(
@@ -294,7 +312,19 @@ export const getWorldbuilding = query({
       .query("diplomacyOverrides")
       .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
       .take(500)
-    const realms = mergeDiplomacy(map?.realms ?? [], overrides, m.member.role)
+    const merged = mergeDiplomacy(map?.realms ?? [], overrides, m.member.role)
+    // Army intel is DM-only: strip each realm's military dossier before it reaches
+    // a player client (knowing a realm exists ≠ knowing its forces). Server-side,
+    // not just a UI hide — the data never crosses the wire to players.
+    const realms =
+      m.member.role === "dm"
+        ? merged
+        : merged.map((r) => {
+            if (!r.military) return r
+            const copy = { ...r }
+            delete copy.military
+            return copy
+          })
     return { realms, faiths: map?.faiths ?? [] }
   },
 })

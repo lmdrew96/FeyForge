@@ -506,6 +506,24 @@ export default defineSchema({
           relations: v.optional(
             v.array(v.object({ relation: v.string(), realm: v.string() })),
           ),
+          // DM-only army dossier (getWorldbuilding strips it for players). Mirrors
+          // RealmMilitary in lib/worldMap/azgaar-map.ts.
+          military: v.optional(
+            v.object({
+              total: v.number(),
+              regimentCount: v.number(),
+              dominantUnit: v.optional(v.string()),
+              regiments: v.array(
+                v.object({
+                  name: v.string(),
+                  icon: v.optional(v.string()),
+                  total: v.number(),
+                  units: v.array(v.object({ type: v.string(), count: v.number() })),
+                  legend: v.optional(v.string()),
+                }),
+              ),
+            }),
+          ),
         }),
       ),
     ),

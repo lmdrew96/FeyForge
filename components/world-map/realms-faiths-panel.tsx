@@ -29,6 +29,7 @@ import {
   Plus,
   Radio,
   ScrollText,
+  Shield,
   Sparkles,
   Swords,
   Users,
@@ -41,7 +42,7 @@ import { cn } from "@/lib/utils"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { CoatOfArms } from "./shared"
 import { DIPLOMACY_STATUSES, NEUTRAL, autoHeadline } from "@/lib/worldMap/diplomacy"
-import type { FaithInfo, RealmInfo } from "@/lib/worldMap/azgaar-map"
+import type { FaithInfo, RealmInfo, RealmMilitary } from "@/lib/worldMap/azgaar-map"
 
 // Diplomacy relation → colour + label. Suzerain = this realm's overlord; Vassal =
 // realms sworn to it. Ordered alliance→enmity for a readable grouping.
@@ -324,6 +325,12 @@ export function RealmsFaithsPanel({
                                   {wars.length}
                                 </span>
                               )}
+                              {isDM && r.military && (
+                                <span className="inline-flex items-center gap-0.5" title="Army intel (DM only)">
+                                  <Shield className="h-3 w-3" />
+                                  {r.military.regimentCount}
+                                </span>
+                              )}
                               <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
                             </span>
                           )}
@@ -392,6 +399,8 @@ export function RealmsFaithsPanel({
                                   </div>
                                 </div>
                               )}
+                              {/* DM-only army dossier — never present in the player payload. */}
+                              {isDM && r.military && <MilitarySection military={r.military} />}
                             </div>
                           )}
                         </div>
@@ -432,6 +441,75 @@ export function RealmsFaithsPanel({
           onCommit={commit}
           onCancel={() => setPending(null)}
         />
+      )}
+    </div>
+  )
+}
+
+// ── Military dossier (realm card, DM-only) ───────────────────────────────────
+// Army summary line → nested expand to per-regiment composition + auto-gen prose
+// (formation year / war raised for / garrison). Counts from Azgaar state.military,
+// prose from the paired `regiment{i}-{n}` notes the parser now captures.
+function MilitarySection({ military }: { military: RealmMilitary }) {
+  const [open, setOpen] = useState(false)
+  const dominant = military.dominantUnit ? `${military.dominantUnit}-heavy` : null
+  return (
+    <div>
+      <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--scene-text-muted)" }}>
+        <Shield className="h-3 w-3" /> Military · DM only
+      </p>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 text-left"
+        aria-expanded={open}
+      >
+        <span className="text-[11px]" style={{ color: "var(--scene-text-primary)" }}>
+          {military.total.toLocaleString()} troops · {military.regimentCount}{" "}
+          {military.regimentCount === 1 ? "regiment" : "regiments"}
+          {dominant && (
+            <span style={{ color: "var(--scene-text-muted)" }}> · {dominant}</span>
+          )}
+        </span>
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", open && "rotate-180")} style={{ color: "var(--scene-text-muted)" }} />
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-2">
+          {military.regiments.map((reg, j) => (
+            <div
+              key={j}
+              className="rounded px-2 py-1.5"
+              style={{ background: "var(--scene-surface)", border: "1px solid var(--scene-border)" }}
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] font-semibold" style={{ color: "var(--scene-text-primary)" }}>
+                  {reg.icon ? `${reg.icon} ` : ""}
+                  {reg.name}
+                </span>
+                <span className="shrink-0 text-[10px]" style={{ color: "var(--scene-text-muted)" }}>
+                  {reg.total.toLocaleString()}
+                </span>
+              </div>
+              {reg.units.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {reg.units.map((u, k) => (
+                    <span
+                      key={k}
+                      className="rounded px-1.5 py-0.5 text-[10px] capitalize"
+                      style={{ background: "var(--scene-bg)", color: "var(--scene-text-muted)", border: "1px solid var(--scene-border)" }}
+                    >
+                      {u.count.toLocaleString()} {u.type}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {reg.legend && (
+                <p className="mt-1 text-[11px] italic leading-snug" style={{ color: "var(--scene-text-muted)" }}>
+                  {reg.legend}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
